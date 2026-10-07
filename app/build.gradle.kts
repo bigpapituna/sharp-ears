@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.bigpapituna.sharpears"
-        minSdk = 26
+        minSdk = 28   // Android 9: microphone addresses (bottom/back) need API 28
         targetSdk = 37
         versionCode = 1
         versionName = "0.1"

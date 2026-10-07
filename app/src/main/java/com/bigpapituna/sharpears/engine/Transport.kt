@@ -51,6 +51,16 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         get() = if (!waiting) emptyList()
         else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }.orEmpty()
 
+    /** What the microphone should listen for: the next group's required notes not yet played (wait mode only). */
+    val listenFor: Set<Int>
+        get() = if (mode != Mode.WAIT) emptySet()
+        else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }?.map { it.midi }?.toSet().orEmpty()
+
+    /** All required notes of that group, including ones already played; they ring together. */
+    val listenGroup: Set<Int>
+        get() = if (mode != Mode.WAIT) emptySet()
+        else song.groups.getOrNull(groupIndex)?.notes?.filter(::required)?.map { it.midi }?.toSet().orEmpty()
+
     fun play() {
         if (positionMs >= song.durationMs) seek(0.0)
         playing = true

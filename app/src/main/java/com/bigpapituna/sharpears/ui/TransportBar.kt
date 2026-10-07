@@ -46,6 +46,8 @@ data class BarState(
     val loopEnd: Double?,
     val sections: List<Section>,
     val midiDevice: String? = null,
+    val micOn: Boolean = false,
+    val micLevelDb: Float = -120f,
 )
 
 class BarActions(
@@ -58,6 +60,7 @@ class BarActions(
     val onLoopA: () -> Unit,
     val onLoopB: () -> Unit,
     val onLoopClear: () -> Unit,
+    val onMic: () -> Unit = {},
 )
 
 @Composable
@@ -99,8 +102,17 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
             Chip("A", s.loopStart != null, a.onLoopA)
             Chip("B", s.loopEnd != null, a.onLoopB)
             if (s.loopStart != null || s.loopEnd != null) TextButton(onClick = a.onLoopClear) { Text("Clear loop") }
-            Text(s.midiDevice?.let { "MIDI: $it" } ?: "Touch", style = MaterialTheme.typography.labelMedium,
-                color = if (s.midiDevice != null) LoopColor else MaterialTheme.colorScheme.onSurfaceVariant)
+            Chip(if (s.micOn) "Mic on" else "Mic", s.micOn, a.onMic)
+            if (s.micOn) {
+                // Level dot: brighter when louder (-70 dB .. -10 dB).
+                val a01 = ((s.micLevelDb + 70f) / 60f).coerceIn(0.1f, 1f)
+                Canvas(Modifier.width(12.dp).height(12.dp)) { drawCircle(LoopColor.copy(alpha = a01)) }
+            }
+            Text(
+                when { s.micOn && s.midiDevice != null -> "MIDI = judge"; s.midiDevice != null -> "MIDI: ${s.midiDevice}"; s.micOn -> ""; else -> "Touch" },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (s.midiDevice != null) LoopColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

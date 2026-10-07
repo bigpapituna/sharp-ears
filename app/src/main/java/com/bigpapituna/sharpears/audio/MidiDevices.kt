@@ -28,6 +28,9 @@ class MidiDevices(context: Context) {
     private val _events = MutableSharedFlow<NoteEvent>(extraBufferCapacity = 256)
     val events: SharedFlow<NoteEvent> = _events
 
+    /** Every parsed note with the keyboard's System.nanoTime() timestamp, on the binder thread (fixture recording). */
+    @Volatile var onTruth: ((NoteEvent, Long) -> Unit)? = null
+
     /** Name of the connected keyboard, or null. Compose reads this. */
     val connected = mutableStateOf<String?>(null)
 
@@ -75,7 +78,7 @@ class MidiDevices(context: Context) {
                     if (!keepAlive && rawLogged++ < 40) {                                // first packets, for diagnosis
                         Log.d(TAG, "midi raw: " + (offset until offset + count).joinToString(" ") { "%02X".format(msg[it]) })
                     }
-                    parser.feed(msg, offset, count).forEach { _events.tryEmit(it) }
+                    parser.feed(msg, offset, count).forEach { _events.tryEmit(it); onTruth?.invoke(it, timestamp) }
                 }
             })
             device = d; port = p

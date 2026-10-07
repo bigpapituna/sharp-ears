@@ -176,6 +176,25 @@ class TransportTest {
         assertEquals(300.0, t.positionMs, 0.0)
     }
 
+    @Test fun micListensForTheNextGroup() {
+        val t = waiting()
+        assertEquals(setOf(60), t.listenFor)                                     // before the song even reaches it
+        t.run(10.0); t.noteInput(60); t.run(600.0); t.noteInput(64); t.run(600.0)
+        assertEquals(setOf(48, 67), t.listenFor)
+        t.noteInput(67)
+        assertEquals(setOf(48), t.listenFor)
+        assertEquals(setOf(48, 67), t.listenGroup)                              // G4 still rings with the chord
+        assertEquals(emptySet<Int>(), Transport(song).listenFor)                  // listen mode: mic idle
+    }
+
+    @Test fun micCheckIsAScaleForEachHand() {
+        val s = micCheckExercise()
+        assertEquals(30, s.notes.size)
+        assertEquals(listOf(60, 62, 64, 65, 67, 69, 71, 72, 71), s.notes.take(9).map { it.midi })
+        assertTrue(s.notes.take(15).all { it.hand == Hand.RIGHT } && s.notes.drop(15).all { it.hand == Hand.LEFT })
+        assertEquals(30, s.groups.size)
+    }
+
     @Test fun listenModeIgnoresInput() {
         val t = Transport(song).apply { play() }
         assertEquals(InputResult.IGNORED, t.noteInput(60))

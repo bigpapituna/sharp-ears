@@ -27,6 +27,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.bigpapituna.sharpears.audio.MicInput
+import com.bigpapituna.sharpears.engine.MicEvent
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -61,8 +66,19 @@ private val WrongColor = Color(0xFFFF4D5E)
  * Listen mode plays the song; wait mode holds at each note group until the keys are played on the keyboard.
  * [startMs] and [debugDump] support adb checks: open frozen at a time and log every visible note's rectangle.
  */
+/** How the player opens. [inject] (debug) replaces the microphone with a WAV file or "synth:..." notes. */
+data class PlayerStart(
+    val mode: Mode = Mode.LISTEN,
+    val practice: Practice = Practice.BOTH,
+    val mic: Boolean = false,
+    val inject: String? = null,
+)
+
 @Composable
-fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean, startMs: Double, debugDump: Boolean, onBack: () -> Unit) {
+fun PlayerScreen(
+    song: Song, sampler: Sampler, midi: MidiDevices, mic: MicInput, ready: Boolean,
+    startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
+) {
     val activity = LocalActivity.current ?: return
     DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -70,12 +86,13 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
     }
 
     val range = remember(song) { fitRange(song.notes) }
-    val transport = remember(song) { Transport(song, playable = range) }
+    val transport = remember(song) { Transport(song, playable = range).apply { mode = start.mode; practice = start.practice } }
     var position by remember { mutableDoubleStateOf(0.0) }
     var playing by remember { mutableStateOf(false) }
     var speed by remember { mutableDoubleStateOf(1.0) }
-    var mode by remember { mutableStateOf(Mode.LISTEN) }
-    var practice by remember { mutableStateOf(Practice.BOTH) }
+    var mode by remember { mutableStateOf(start.mode) }
+    var practice by remember { mutableStateOf(start.practice) }
+    var micOn by remember { mutableStateOf(start.mic || start.inject != null) }
     var loopStart by remember { mutableStateOf<Double?>(null) }
     var loopEnd by remember { mutableStateOf<Double?>(null) }
     var version by remember { mutableIntStateOf(0) }              // bumps when sounding/expected/waiting change
@@ -85,8 +102,11 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note
     val scope = rememberCoroutineScope()
 
+    // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
+    fun soundAllowed() = !micOn || mic.headphonesOn()
     fun apply(events: List<NoteEvent>) {
-        events.forEach { e -> when (e) { is NoteEvent.On -> sampler.noteOn(e.midi, e.velocity); is NoteEvent.Off -> sampler.noteOff(e.midi) } }
+        val sound = soundAllowed()
+        events.forEach { e -> when (e) { is NoteEvent.On -> if (sound) sampler.noteOn(e.midi, e.velocity); is NoteEvent.Off -> sampler.noteOff(e.midi) } }
         version++
     }
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs }
@@ -112,16 +132,62 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
     }
 
     // MIDI keyboard: same path as touch, but no app sound, since the piano makes its own.
+    // With the mic on, MIDI only judges: it is logged as truth and the mic alone drives wait mode.
     // ponytail: MIDI never plays through the sampler; add a setting if a silent controller keyboard shows up
     LaunchedEffect(midi) {
         midi.events.collect { e ->
             when (e) {
-                is NoteEvent.On -> { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); held[e.midi] = RightHandColor; keyStruck(e.midi) }
+                is NoteEvent.On -> {
+                    held[e.midi] = RightHandColor
+                    if (micOn) Log.d(TAG, "truth NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity}")
+                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi) }
+                }
                 is NoteEvent.Off -> held.remove(e.midi)
             }
         }
     }
-    LaunchedEffect(song) { if (startMs > 0) seek(startMs); Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)}") }
+
+    // Microphone: runs while it is switched on and wait mode is active.
+    DisposableEffect(micOn, mode) {
+        if (micOn && mode == Mode.WAIT) {
+            if (start.inject != null) mic.startInjection(start.inject)
+            else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
+        }
+        onDispose { mic.stop() }
+    }
+    LaunchedEffect(version, micOn) {
+        mic.matcher.expected = if (micOn) transport.listenFor else emptySet()
+        mic.matcher.group = transport.listenGroup
+    }
+    LaunchedEffect(mic) {
+        mic.events.collect { e ->
+            if (!micOn) return@collect
+            when (e) {
+                is MicEvent.Strike -> {
+                    Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB")
+                    keyStruck(e.midi)
+                }
+                is MicEvent.Wrong -> if (transport.waiting) { wrongFlash++; Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (redFlash)") }
+            }
+        }
+    }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Log.d(TAG, "mic permission granted=$granted")
+        if (granted) { micOn = true; if (mode != Mode.WAIT) { apply(transport.pause()); playing = false; transport.mode = Mode.WAIT; mode = Mode.WAIT } }
+    }
+    fun toggleMic() {
+        if (micOn) { micOn = false; Log.d(TAG, "mic off"); return }
+        if (!mic.hasPermission()) { askMic.launch(Manifest.permission.RECORD_AUDIO); return }
+        micOn = true
+        // The mic only listens in wait mode.
+        if (mode != Mode.WAIT) { apply(transport.pause()); playing = false; transport.mode = Mode.WAIT; mode = Mode.WAIT }
+        Log.d(TAG, "mic on")
+    }
+    LaunchedEffect(song) {
+        if (startMs > 0) seek(startMs)
+        Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)} mode=$mode hands=$practice mic=$micOn")
+        if (start.inject != null) play()      // debug injection runs hands-free
+    }
     DisposableEffect(song) { onDispose { apply(transport.pause()) } }
     BackHandler(onBack = onBack)
 
@@ -155,7 +221,8 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
 
     Column(Modifier.fillMaxSize().background(LaneBackground).safeDrawingPadding()) {
         TransportBar(
-            BarState(playing, ready, position, song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections, midi.connected.value),
+            BarState(playing, ready, position, song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
+                midi.connected.value, micOn, mic.level.floatValue),
             BarActions(
                 onBack = onBack,
                 onPlayPause = { if (playing) pause() else play() },
@@ -166,6 +233,7 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
                 onLoopA = { setLoop(transport.positionMs, loopEnd) },
                 onLoopB = { setLoop(loopStart, transport.positionMs) },
                 onLoopClear = { setLoop(null, null) },
+                onMic = ::toggleMic,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -211,7 +279,7 @@ fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean
             lowMidi = range.first, highMidi = range.last, lit = lit,
             onNoteOn = { m, v ->
                 Log.d(TAG, "NoteOn ${noteName(m)} midi=$m vel=$v src=touch")
-                touched[m] = RightHandColor; sampler.noteOn(m, v); keyStruck(m)
+                touched[m] = RightHandColor; if (soundAllowed()) sampler.noteOn(m, v); keyStruck(m)
             },
             onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m) },
             modifier = Modifier.fillMaxWidth().weight(if (landscape) 0.45f else 0.3f)
