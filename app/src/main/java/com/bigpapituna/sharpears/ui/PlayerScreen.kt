@@ -1,4 +1,4 @@
-package com.bigpapituna.sharpears.ui
+﻿package com.bigpapituna.sharpears.ui
 
 import androidx.activity.compose.LocalActivity
 import android.content.pm.ActivityInfo
@@ -32,11 +32,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.engine.MicEvent
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.runtime.rememberCoroutineScope
 import com.bigpapituna.sharpears.engine.InputResult
@@ -147,13 +142,15 @@ fun PlayerScreen(
         }
     }
 
-    // Microphone: runs while it is switched on and wait mode is active.
-    DisposableEffect(micOn, mode) {
-        if (micOn && mode == Mode.WAIT) {
+    // Microphone: runs while it is switched on, wait mode is active, and the app is on screen.
+    val visible = onScreen()
+    DisposableEffect(micOn, mode, visible) {
+        if (micOn && mode == Mode.WAIT && visible) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
-        onDispose { mic.stop() }
+        if (micOn) midi.onTruth = mic::onMidiTruth
+        onDispose { mic.stop(); midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
         mic.matcher.expected = if (micOn) transport.listenFor else emptySet()
@@ -164,7 +161,7 @@ fun PlayerScreen(
             if (!micOn) return@collect
             when (e) {
                 is MicEvent.Strike -> {
-                    Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB")
+                    Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}")
                     keyStruck(e.midi)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) { wrongFlash++; Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (redFlash)") }
@@ -222,7 +219,7 @@ fun PlayerScreen(
     Column(Modifier.fillMaxSize().background(LaneBackground).safeDrawingPadding()) {
         TransportBar(
             BarState(playing, ready, position, song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
-                midi.connected.value, micOn, mic.level.floatValue),
+                midi.connected.value, micOn, { mic.level.floatValue }),
             BarActions(
                 onBack = onBack,
                 onPlayPause = { if (playing) pause() else play() },
@@ -261,14 +258,11 @@ fun PlayerScreen(
                     "top=${(box.top + lane.topY(n, position)).toInt()} bottom=${(box.top + lane.bottomY(n, position)).toInt()}")
             }
         }
-        // Keys the song wants pulse in their hand color while wait mode holds.
-        val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
-            0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
+        // Keys the song wants pulse in their hand color while wait mode holds (animated inside the Keyboard).
         val expected = remember(version) { transport.expected }
         val sounding = remember(version) { transport.sounding.toList() }
         val lit: Map<Int, Color> = buildMap {
             sounding.forEach { put(it.midi, handColor(it.hand)) }
-            expected.forEach { put(it.midi, handColor(it.hand).copy(alpha = pulse)) }
             putAll(touched)
             putAll(held)
             putAll(flashes)
@@ -284,6 +278,7 @@ fun PlayerScreen(
             onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m) },
             modifier = Modifier.fillMaxWidth().weight(if (landscape) 0.45f else 0.3f)
                 .then(if (wrongVisible) Modifier.border(4.dp, WrongColor) else Modifier),
+            pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
         )
     }
 }

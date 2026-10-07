@@ -14,6 +14,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerId
@@ -42,7 +48,11 @@ fun Keyboard(
     onNoteOn: (midi: Int, velocity: Int) -> Unit,
     onNoteOff: (midi: Int) -> Unit,
     modifier: Modifier = Modifier,
+    pulsing: Map<Int, Color> = emptyMap(),
 ) {
+    // Read only inside the Canvas, so the pulse redraws the keyboard without recomposing the screen.
+    val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
+        0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
     var layout by remember { mutableStateOf<KeyboardLayout?>(null) }
     val on by rememberUpdatedState(onNoteOn)
     val off by rememberUpdatedState(onNoteOff)
@@ -83,8 +93,10 @@ fun Keyboard(
     ) {
         Canvas(Modifier.matchParentSize()) {
             val l = layout ?: return@Canvas
-            l.whiteKeys.forEach { drawKey(it, lit[it.midi] ?: Color.White, Color(0xFF2A2A2E)) }
-            l.blackKeys.forEach { drawKey(it, lit[it.midi] ?: Color(0xFF1B1B1F), Color.Black) }
+            val a = if (pulsing.isEmpty()) 1f else pulse.value
+            fun fill(midi: Int, default: Color) = lit[midi] ?: pulsing[midi]?.copy(alpha = a)?.compositeOver(default) ?: default
+            l.whiteKeys.forEach { drawKey(it, fill(it.midi, Color.White), Color(0xFF2A2A2E)) }
+            l.blackKeys.forEach { drawKey(it, fill(it.midi, Color(0xFF1B1B1F)), Color.Black) }
         }
     }
 }

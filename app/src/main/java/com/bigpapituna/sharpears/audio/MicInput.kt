@@ -44,6 +44,10 @@ class MicInput(private val context: Context) {
         sensitivityDb = prefs.getFloat("sensitivityDb", MatcherConfig().sensitivityDb.toFloat()).toDouble(),
         wrongOnsetDb = prefs.getFloat("wrongOnsetDb", MatcherConfig().wrongOnsetDb.toFloat()).toDouble(),
     ))
+    private val debuggable = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    // Detailed matcher reasons cost real CPU (string formatting every hop); opt in with:
+    //   adb shell setprop log.tag.SharpEarsTrace VERBOSE     (then restart the mic)
+    private fun traceOn() = debuggable && Log.isLoggable("SharpEarsTrace", Log.VERBOSE)
     private val _events = MutableSharedFlow<MicEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<MicEvent> = _events
 
@@ -100,6 +104,7 @@ class MicInput(private val context: Context) {
         val label = "${dev?.address?.ifBlank { null } ?: "default"} mic, ${if (unprocessed) "unprocessed" else "voice recognition"}"
         Log.d(TAG, "mic: start $label, minBuf=$minBuf")
         launch(label) { loopMic(rec) }
+        if (debuggable) autoRecord()
         return true
     }
 
@@ -110,6 +115,7 @@ class MicInput(private val context: Context) {
     }
 
     fun stop() {
+        if (recording.value?.startsWith("session-") == true) stopRecording()
         stop = true
         thread?.join(1000)
         thread = null
@@ -119,6 +125,7 @@ class MicInput(private val context: Context) {
     private fun launch(label: String, body: () -> Unit) {
         stop = false
         matcher.reset()
+        matcher.trace = if (traceOn()) { msg -> Log.d(TAG, "matcher $msg") } else null
         source.value = label
         thread = Thread({
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
@@ -207,6 +214,14 @@ class MicInput(private val context: Context) {
     }
 
     // ---- fixture recording ----
+
+    /** Debug builds save every live mic session (session-HHmmss.wav + .notes), keeping the last five, for offline replay. */
+    private fun autoRecord() {
+        val dir = File(context.getExternalFilesDir(null), "fixtures")
+        dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.name }?.dropLast(8)?.forEach { it.delete() }
+        // ponytail: keeps the 4 newest sessions (8 files); a size cap if sessions get long
+        startRecording("session-" + java.time.LocalTime.now().toString().take(8).replace(":", ""))
+    }
 
     private var writer: Wav.Writer? = null
     private var recordFile: File? = null

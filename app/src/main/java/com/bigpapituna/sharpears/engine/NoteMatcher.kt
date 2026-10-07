@@ -15,6 +15,11 @@ data class MatcherConfig(
     val neighbourRatio: Double = 0.1,
     /** Rise at sub-harmonics (a lower note whose overtones include this one) may be at most this fraction. */
     val subRatio: Double = 0.1,
+    /**
+     * A piano partial is a sharp, steady peak; voices and whistles glide and smear. Where the window can resolve
+     * a quarter-tone, the jumping partials must hold this many times the power a quarter-tone up or down.
+     */
+    val sharpRatio: Double = 2.0,   // synthetic piano scores ~5; loose until real fixtures say otherwise
     /** Odd partials (1st, 3rd, 5th) must carry at least this share of the rise; an octave above has none there. */
     val oddRatio: Double = 0.15,
     /** A broadband loudness jump of this many dB is a strike; with no expected note in it, it is a wrong note. */
@@ -25,7 +30,8 @@ data class MatcherConfig(
 sealed interface MicEvent {
     /** Sample index (since the matcher started) where the event was decided. */
     val sample: Long
-    data class Strike(val midi: Int, override val sample: Long, val riseDb: Double) : MicEvent
+    /** [delayMs]: time since the loudness jump that started it, when there was one (how late the decision came). */
+    data class Strike(val midi: Int, override val sample: Long, val riseDb: Double, val delayMs: Double? = null) : MicEvent
     data class Wrong(override val sample: Long) : MicEvent
 }
 
@@ -53,9 +59,47 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         private set
 
     val hop = 512
-    private val maxWindow = 8192
-    private val history = FloatArray(2 * maxWindow)   // newest sample last; "before" windows need 2x
+    /** Every probe uses this many samples; low registers get them from a decimated band, so the time span grows. */
+    private val window = 2048
+    private val history = FloatArray(16384)            // full rate, newest sample last; feeds the decimation filters
     private var filled = 0
+
+    /**
+     * A low-passed, decimated copy of the input. Bass and middle notes have no overtones above ~6 kHz, so they
+     * are analysed at 12 or 24 kHz: same frequency resolution as a long full-rate window, a quarter of the work.
+     */
+    private inner class Band(val factor: Int, taps: Int, cutoffHz: Double) {
+        val rate = sampleRate / factor
+        val buf = FloatArray(2 * window)               // "before" and "now" windows
+        var filled = 0
+        private val h = FloatArray(taps).also { h ->
+            val fc = cutoffHz / sampleRate
+            val m = taps - 1
+            for (j in 0 until taps) {
+                val x = j - m / 2.0
+                val sinc = if (x == 0.0) 2 * fc else kotlin.math.sin(2 * PI * fc * x) / (PI * x)
+                val blackman = 0.42 - 0.5 * cos(2 * PI * j / m) + 0.08 * cos(4 * PI * j / m)
+                h[j] = (sinc * blackman).toFloat()
+            }
+            val sum = h.sum(); for (j in h.indices) h[j] /= sum
+        }
+        fun update() {
+            val outN = hop / factor
+            System.arraycopy(buf, outN, buf, 0, buf.size - outN)
+            val base = history.size - hop
+            for (k in 0 until outN) {
+                val pos = base + (k + 1) * factor - 1
+                var acc = 0f
+                for (j in h.indices) acc += h[j] * history[pos - j]
+                buf[buf.size - outN + k] = acc
+            }
+            filled = minOf(buf.size, filled + outN)
+        }
+        fun reset() { buf.fill(0f); filled = 0 }
+    }
+    private val band2 = Band(2, 63, 10_400.0)
+    private val band4 = Band(4, 95, 5_200.0)
+    private fun factorFor(midi: Int) = midiFreq(midi).let { if (it >= 1000) 1 else if (it >= 500) 2 else 4 }
     private val pending = FloatArray(hop)
     private var pendingCount = 0
     var samplesProcessed = 0L
@@ -69,6 +113,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
 
     fun reset() {
         history.fill(0f); filled = 0; pendingCount = 0; samplesProcessed = 0
+        band2.reset(); band4.reset()
         hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear()
         lastOnset = Long.MIN_VALUE / 2
     }
@@ -94,6 +139,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         System.arraycopy(pending, 0, history, history.size - hop, hop)
         filled = minOf(history.size, filled + hop)
         samplesProcessed += hop
+        band2.update(); band4.update()
         val now = samplesProcessed
         val cfg = config
         val exp = expected
@@ -116,8 +162,9 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
 
         // Expected notes.
         for (midi in exp) {
-            val n = windowFor(midi)
-            if (filled < 2 * n) continue
+            val n = windowFor(midi)                       // effective length in full-rate samples
+            val ready = when (factorFor(midi)) { 1 -> filled >= 2 * window; 2 -> band2.filled >= 2 * window; else -> band4.filled >= 2 * window }
+            if (!ready) continue
             // The "before" window trails by one window, so a strike keeps looking like a rise for up to two windows.
             val refractory = maxOf(ms(cfg.refractoryMs), 2L * n + ms(20.0))
             if (now - (lastStrike[midi] ?: Long.MIN_VALUE / 2) < refractory) continue
@@ -125,10 +172,11 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             // with theirs prove nothing. (Only this note's own overtones: a just-played semitone neighbour
             // must keep counting against it.)
             val recent = lastStrike.filter { (m, at) -> m != midi && now - at < 2L * windowFor(m) }.keys - chord
-            val rise = strikeRise(midi, n, chord, recent, cfg) ?: continue
+            val rise = strikeRise(midi, chord, recent, cfg) ?: continue
             lastStrike[midi] = now
             recentStrikes.addLast(now)
-            events += MicEvent.Strike(midi, now, rise)
+            val delay = (now - lastOnset).takeIf { it in 0..ms(400.0) }?.let { it * 1000.0 / sampleRate }
+            events += MicEvent.Strike(midi, now, rise, delay)
         }
 
         // A broadband strike with no expected note around it is a wrong note.
@@ -142,7 +190,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     }
 
     /** Returns the rise in dBFS if [midi] was just struck, else null. */
-    private fun strikeRise(midi: Int, n: Int, chord: Set<Int>, recent: Set<Int>, cfg: MatcherConfig): Double? {
+    private fun strikeRise(midi: Int, chord: Set<Int>, recent: Set<Int>, cfg: MatcherConfig): Double? {
         val f = freqsFor(midi, chord, recent)
         if (f.note.size < 2) {
             trace?.invoke("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: overtones explained by notes just played ${recent.map(::noteName)}")
@@ -150,8 +198,11 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         }
         val nowP = DoubleArray(f.all.size)
         val beforeP = DoubleArray(f.all.size)
-        powers(f.all, history.size, n, nowP)
-        powers(f.all, history.size - n, n, beforeP)
+        val factor = factorFor(midi)
+        val buf = when (factor) { 1 -> history; 2 -> band2.buf; else -> band4.buf }
+        val rate = sampleRate / factor
+        powers(f.all, buf, rate, buf.size, nowP)
+        powers(f.all, buf, rate, buf.size - window, beforeP)
 
         // Each partial is probed at a few candidate frequencies (string stiffness varies between pianos);
         // its power is the strongest candidate.
@@ -178,9 +229,11 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> "spill from a ringing neighbour (up ${db(nowOf(f.up))}, down ${db(nowOf(f.down))})"
             riseOf(f.sub) > cfg.subRatio * noteFresh -> "lower note (sub ${db(riseOf(f.sub))})"
             fresh(f.odd) < cfg.oddRatio * noteFresh -> "no odd partials (odd ${db(fresh(f.odd))}), higher octave?"
+            !sharpEnough(f, nowP, beforeP, cfg) -> "not a sharp peak (gliding sound: voice, whistle?)"
             else -> {
                 trace?.invoke("accept ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
-                    "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} | " +
+                    "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
+                    "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} | " +
                     f.note.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
                     f.sub.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
                 return riseDb
@@ -190,11 +243,32 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         return null
     }
 
+    /** Fresh partials, where resolvable, must stand above their quarter-tone neighbours. */
+    private fun sharpEnough(f: Probe, nowP: DoubleArray, beforeP: DoubleArray, cfg: MatcherConfig): Boolean =
+        sharpness(f, nowP, beforeP, cfg).let { it == null || it >= cfg.sharpRatio }
+
+    /** Center / quarter-tone-side power over the fresh, resolvable partials; null when none qualify. */
+    private fun sharpness(f: Probe, nowP: DoubleArray, beforeP: DoubleArray, cfg: MatcherConfig): Double? {
+        var center = 0.0; var side = 0.0
+        f.note.forEachIndexed { i, p ->
+            val offs = f.sharp[i]
+            if (offs.isEmpty()) return@forEachIndexed
+            val best = p.indices.maxBy { nowP[p[it]] }
+            val now = nowP[p[best]]
+            if (now < cfg.riseRatio * beforeP[p[best]]) return@forEachIndexed     // only partials that jumped
+            center += now
+            side += maxOf(nowP[offs[2 * best]], nowP[offs[2 * best + 1]])
+        }
+        return if (center == 0.0) null else center / (side + 1e-20)
+    }
+
     /** Frequencies probed for one note. Each group is a list of partials; each partial a few candidate indices into [all]. */
     private class Probe(
         val all: DoubleArray,
         val note: List<IntArray>, val odd: List<IntArray>,
         val up: List<IntArray>, val down: List<IntArray>, val sub: List<IntArray>,
+        /** Per note partial: for each candidate, the probes a quarter-tone below and above (empty if unresolvable). */
+        val sharp: List<IntArray>,
     )
 
     private var probeFor: Set<Int> = emptySet()
@@ -207,7 +281,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     private fun buildProbe(midi: Int, chord: Set<Int>, recent: Set<Int>): Probe {
         val list = ArrayList<Double>(48)
         fun add(fs: List<Double>): IntArray = fs.map { list += it; list.size - 1 }.toIntArray()
-        val nyq = 0.45 * sampleRate
+        val nyq = 0.45 * sampleRate / factorFor(midi)    // the band this note is analysed in
         // Low partials barely move with string stiffness; from the 3rd up, try soft, typical and stiff strings.
         fun candidates(m: Int, h: Int) = if (h <= 2) listOf(partialFreq(m, h)) else listOf(0.4, 1.0, 2.5).map { partialFreq(m, h, it) }
         // Partials of the other notes in this group are legitimately rising too (a chord). Where a probe
@@ -231,23 +305,31 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             .filter { it in 70.0..nyq && !shared(it) }.map { add(listOf(it)) }
         val up = partialsOf(midi + 1, dropShared = true).map { it.second }
         val down = partialsOf(midi - 1, dropShared = true).map { it.second }
+        val bin = sampleRate.toDouble() / factorFor(midi) / window
+        val q = Math.pow(2.0, 0.5 / 12)                  // a quarter-tone
+        val sharp = note.map { (_, cands) ->
+            val f = list[cands[cands.size / 2]]
+            if (f * (q - 1) < 2.5 * bin || f * q > nyq) IntArray(0)
+            else add(cands.flatMap { c -> listOf(list[c] / q, list[c] * q) })
+        }
         return Probe(                                   // after every add(): `all` must hold all of them
             list.toDoubleArray(),
             note = note.map { it.second },
             odd = note.filter { it.first % 2 == 1 }.map { it.second },
-            up = up, down = down, sub = sub,
+            up = up, down = down, sub = sub, sharp = sharp,
         )
     }
 
-    /** Hann-windowed Goertzel power at each frequency over history[end-n, end); a sine of amplitude A reads A^2. */
-    private fun powers(freqs: DoubleArray, end: Int, n: Int, out: DoubleArray) {
+    /** Hann-windowed Goertzel power at each frequency over buf[end-window, end); a sine of amplitude A reads A^2. */
+    private fun powers(freqs: DoubleArray, buf: FloatArray, rate: Int, end: Int, out: DoubleArray) {
+        val n = window
         val win = hann(n)
         val nf = freqs.size
-        val c = DoubleArray(nf) { 2 * cos(2 * PI * freqs[it] / sampleRate) }
+        val c = DoubleArray(nf) { 2 * cos(2 * PI * freqs[it] / rate) }
         val s1 = DoubleArray(nf); val s2 = DoubleArray(nf)
         val start = end - n
         for (i in 0 until n) {
-            val x = history[start + i] * win[i]
+            val x = buf[start + i] * win[i]
             for (k in 0 until nf) {               // independent chains: lets the CPU overlap the multiplies
                 val s0 = x + c[k] * s1[k] - s2[k]
                 s2[k] = s1[k]; s1[k] = s0
@@ -264,8 +346,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
      * Window length per register: long enough that a semitone neighbour's fundamental sits about 3 bins
      * away, outside the Hann main lobe. Bass notes rely on their upper partials, which are further apart.
      */
-    // ponytail: three fixed windows; per-note lengths only if the fixtures show a register that needs one
-    fun windowFor(midi: Int): Int = midiFreq(midi).let { if (it >= 1000) 2048 else if (it >= 500) 4096 else 8192 }
+    // ponytail: three fixed bands; per-note lengths only if the fixtures show a register that needs one
+    fun windowFor(midi: Int): Int = window * factorFor(midi)   // effective span in full-rate samples
 
     private fun db(p: Double) = "%.1f".format(10 * log10(p + 1e-20))
     private fun ms(v: Double) = (v * sampleRate / 1000).toLong()

@@ -86,6 +86,13 @@ class FixtureTest {
         if (wavs.isEmpty()) { println("no fixtures in $dir yet; record them on the phone and run scripts\\pull-fixtures.ps1"); return }
         val failures = mutableListOf<String>()
         for (w in wavs) {
+            val hasTruth = File(w.path.removeSuffix(".wav") + ".notes").readLines().any { it.isNotBlank() && !it.startsWith("#") }
+            if (!hasTruth && !w.name.startsWith("silence")) {
+                // A live session without MIDI: nothing to score against. Report what the matcher would trigger on.
+                val r = evaluate(w)
+                println("%-24s no MIDI truth: %d note strikes and %d wrong-note flashes in %.0f s with C3/C4/E4/G4/C5 expected (report only)".format(r.name, r.early, r.falseWrongs, r.seconds))
+                continue
+            }
             val r = evaluate(w)
             val falsePer30s = (r.early + r.falseWrongs) / (r.seconds / 30)
             val rate = if (r.notes == 0) 1.0 else r.heard.toDouble() / r.notes

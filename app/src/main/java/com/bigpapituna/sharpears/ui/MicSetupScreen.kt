@@ -67,8 +67,9 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
     var savedNote by remember { mutableStateOf<String?>(null) }
 
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
-    DisposableEffect(granted, micAddress) {
-        if (granted) {
+    val visible = onScreen()
+    DisposableEffect(granted, micAddress, visible) {
+        if (granted && visible) {
             mic.micAddress = micAddress
             mic.matcher.expected = setOf(60); mic.matcher.group = setOf(60)
             mic.start()

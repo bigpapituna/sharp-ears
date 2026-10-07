@@ -47,7 +47,8 @@ data class BarState(
     val sections: List<Section>,
     val midiDevice: String? = null,
     val micOn: Boolean = false,
-    val micLevelDb: Float = -120f,
+    /** Read only while drawing the level dot, so level updates do not recompose the player. */
+    val micLevelDb: () -> Float = { -120f },
 )
 
 class BarActions(
@@ -105,8 +106,7 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
             Chip(if (s.micOn) "Mic on" else "Mic", s.micOn, a.onMic)
             if (s.micOn) {
                 // Level dot: brighter when louder (-70 dB .. -10 dB).
-                val a01 = ((s.micLevelDb + 70f) / 60f).coerceIn(0.1f, 1f)
-                Canvas(Modifier.width(12.dp).height(12.dp)) { drawCircle(LoopColor.copy(alpha = a01)) }
+                Canvas(Modifier.width(12.dp).height(12.dp)) { drawCircle(LoopColor.copy(alpha = ((s.micLevelDb() + 70f) / 60f).coerceIn(0.1f, 1f))) }
             }
             Text(
                 when { s.micOn && s.midiDevice != null -> "MIDI = judge"; s.midiDevice != null -> "MIDI: ${s.midiDevice}"; s.micOn -> ""; else -> "Touch" },
