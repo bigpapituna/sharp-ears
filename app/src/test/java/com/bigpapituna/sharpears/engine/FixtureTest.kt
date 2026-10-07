@@ -50,7 +50,13 @@ class FixtureTest {
                 when (e) {
                     is MicEvent.Strike -> {
                         val onset = groups.getOrNull(gi)?.firstOrNull { it.second == e.midi }?.first
-                        if (silence || onset == null || e.sample < onset - fs * 30 / 1000) { early++; continue }
+                        if (silence || onset == null || e.sample < onset - fs * 30 / 1000) {
+                            early++
+                            if (!silence) println("   false strike in ${wav.name}: ${noteName(e.midi)} at %.2f s, expecting %s at %s".format(
+                                e.sample / fs.toDouble(), groups.getOrNull(gi)?.joinToString { noteName(it.second) },
+                                groups.getOrNull(gi)?.first()?.first?.let { "%.2f s".format(it / fs.toDouble()) }))
+                            continue
+                        }
                         if (pending.remove(e.midi)) { heard++; latencies += (e.sample - onset) * 1000.0 / fs }
                         if (pending.isEmpty() && gi < groups.size) { gi++; if (gi < groups.size) pending += groups[gi].map { it.second } }
                     }

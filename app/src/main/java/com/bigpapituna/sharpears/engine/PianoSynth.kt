@@ -33,6 +33,7 @@ object PianoSynth {
         noiseDb: Double = -70.0,
         bScale: Double = 1.4,          // deliberately off from the matcher's model
         seed: Long = 1,
+        rolloff: Double = 1.1,         // partial h has amplitude 1/h^rolloff; higher = duller piano
     ): FloatArray {
         val out = FloatArray((lengthMs / 1000 * sampleRate).toInt())
         val rnd = Random(seed)
@@ -46,7 +47,7 @@ object PianoSynth {
             for (h in 1..10) {
                 val f = partialFreq(n.midi, h, bScale)
                 if (f > 0.45 * sampleRate) break
-                var a = amp / h.toDouble().pow(1.1)
+                var a = amp / h.toDouble().pow(rolloff)
                 if (n.midi < 48 && h == 1) a *= 0.4                       // thin bass fundamental
                 val tau = t60 / 6.9 / (1 + 0.25 * (h - 1))
                 // Rotating phasor instead of sin() per sample.

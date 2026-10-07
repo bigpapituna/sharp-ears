@@ -26,6 +26,14 @@ data class MatcherConfig(
     val wrongOnsetDb: Double = 7.0,
     val refractoryMs: Double = 120.0,
     /**
+     * A strike whose only clearly jumping partial is its fundamental still counts when a hammer attack (a broadband
+     * jump of this many dB over 40 ms) happened within [attackWindowMs]. On Roy's piano through the phone mic, notes
+     * inside a chord often show just the fundamental once the chord-mates' shared overtones are set aside; beating
+     * between ringing notes, the false case, has no attack.
+     */
+    val attackDb: Double = 3.0,
+    val attackWindowMs: Double = 180.0,   // Roy's real single-partial strikes: 0-170 ms after their attack
+    /**
      * Share of the window spent fading out at its newest end. 0.5 is a symmetric Hann window; smaller values
      * weight recent sound more, so a fresh note counts sooner, at some cost in frequency precision.
      */
@@ -63,7 +71,16 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
      * partials never count against each other. Notes from earlier groups are *not* included: a note just
      * played must still count against its semitone neighbour that comes next.
      */
-    @Volatile var group: Set<Int> = emptySet()
+    var group: Set<Int>
+        get() = groups.flatten().toSet()
+        set(v) { groups = listOf(v) }
+
+    /**
+     * Several independent chord groups, e.g. chord practice listening to the same chord in two octaves: each note is
+     * judged against the chord-mates of its own group only (putting both octaves in one group hides every upper note's
+     * overtones inside its lower octave and weakens the checks for the rest).
+     */
+    @Volatile var groups: List<Set<Int>> = emptyList()
     /** Debug: explains rejected candidates that were loud enough. Called on the audio thread. */
     @Volatile var trace: ((String) -> Unit)? = null
     /** Loudness of the latest hop in dBFS, for the level meter. */
@@ -114,11 +131,12 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     private fun factorFor(midi: Int) = midiFreq(midi).let { if (it >= config.band2BelowHz) 1 else if (it >= config.band4BelowHz) 2 else 4 }
     private val pending = FloatArray(hop)
     private var pendingCount = 0
-    var samplesProcessed = 0L
+    @Volatile var samplesProcessed = 0L
         private set
 
     private val hopDb = DoubleArray(32)                // ring of recent hop loudness; 0 dB at start so startup is no strike
     private var lastOnset = Long.MIN_VALUE / 2
+    private var lastAttack = Long.MIN_VALUE / 2           // softer than an onset: any hammer attack
     private val onsets = ArrayDeque<Long>()            // broadband strikes waiting to be explained
     private val recentStrikes = ArrayDeque<Long>()
     private val lastStrike = HashMap<Int, Long>()
@@ -128,6 +146,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         band2.reset(); band4.reset()
         hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear(); nowHistory.clear(); probes.clear()
         lastOnset = Long.MIN_VALUE / 2
+        lastAttack = Long.MIN_VALUE / 2
     }
 
     fun process(samples: FloatArray, count: Int = samples.size): List<MicEvent> {
@@ -165,15 +184,19 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         val slot = ((now / hop) % hopDb.size).toInt()
         val db40msAgo = hopDb[((slot - 4 + hopDb.size) % hopDb.size)]
         hopDb[slot] = db
+        if (db - db40msAgo >= cfg.attackDb && db > -75) lastAttack = now
         if (db - db40msAgo >= cfg.wrongOnsetDb && db > -70 && now - lastOnset > ms(80.0)) {
             lastOnset = now
             onsets.addLast(now)
         }
 
-        val chord = exp + group
+        val gs = groups
+        // A note's chord-mates: its own group(s); notes in no group fall back to everything expected.
+        fun chordOf(midi: Int): Set<Int> = gs.filter { midi in it }.flatten().toSet().ifEmpty { exp }
 
         // Expected notes.
         for (midi in exp) {
+            val chord = chordOf(midi)
             val n = windowFor(midi)                       // effective length in full-rate samples
             val ready = when (factorFor(midi)) { 1 -> filled >= 2 * window; 2 -> band2.filled >= 2 * window; else -> band4.filled >= 2 * window }
             if (!ready) continue
@@ -196,7 +219,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         // ponytail: a player who drops the upper octave still gets credit; fine for chord practice
         for (midi in exp) {
             if (now - (lastStrike[midi] ?: Long.MIN_VALUE / 2) < ms(600.0)) continue
-            val lower = listOf(midi - 12, midi - 24).firstOrNull { it in group && now - (lastStrike[it] ?: Long.MIN_VALUE / 2) < ms(600.0) } ?: continue
+            val lower = listOf(midi - 12, midi - 24).firstOrNull { l -> gs.any { midi in it && l in it } && now - (lastStrike[l] ?: Long.MIN_VALUE / 2) < ms(600.0) } ?: continue
             lastStrike[midi] = now
             recentStrikes.addLast(now)
             events += MicEvent.Strike(midi, now, -99.0, inferredFrom = lower)
@@ -247,13 +270,21 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         val riseDb = 10 * log10(noteFresh + 1e-20)
         // Partials carrying a real share of the jump. Two ringing notes with nearly equal overtones beat,
         // which makes a single partial pulse; a strike lifts several partials at once.
-        val freshPartials = f.note.count { p -> val a = nowV(p); val b = beforeV(p); a >= cfg.riseRatio * b && a - b >= 0.02 * noteFresh }
+        val freshIdx = f.note.indices.filter { i -> val a = nowV(f.note[i]); val b = beforeV(f.note[i]); a >= cfg.riseRatio * b && a - b >= 0.02 * noteFresh }
+        val freshPartials = freshIdx.size
+        // One partial is enough when the note has few of its own (chord-mates share the rest), or when it is the
+        // fundamental, a hammer attack just happened, and the note as a whole is not fading (a fading sound with a
+        // wobbling fundamental is not a strike: in Roy's scale recording a "C4" rose 6 dB at the fundamental while
+        // its other partials fell 10-20 dB).
+        val beforeTotal = f.note.sumOf { beforeV(it) }
+        val singleOk = freshPartials == 1 && (f.note.size <= 2 ||
+            (f.noteH[freshIdx[0]] == 1 && nowOf(f.note) >= beforeTotal &&
+                samplesProcessed - lastAttack <= (cfg.attackWindowMs * sampleRate / 1000).toLong()))
 
         if (riseDb < cfg.sensitivityDb) return null
         val reason = when {
             noteFresh < 0.5 * riseOf(f.note) -> "not fresh (fresh ${db(noteFresh)} of rise ${db(riseOf(f.note))})"
-            // With two or fewer partials of its own (the rest shared with chord-mates), one jump has to do.
-            freshPartials < (if (f.note.size <= 2) 1 else 2) -> "only $freshPartials partial jumped (beating?)"
+            freshPartials < 2 && !singleOk -> "only $freshPartials partial jumped and no attack (beating?)"
             noteFresh < 0.25 * nowOf(f.note) -> "jump is small next to what is already ringing (now ${db(nowOf(f.note))})"
             noteFresh < cfg.decoyRatio * maxOf(riseOf(f.up), riseOf(f.down)) -> "semitone neighbour (up ${db(riseOf(f.up))}, down ${db(riseOf(f.down))})"
             noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> "spill from a ringing neighbour (up ${db(nowOf(f.up))}, down ${db(nowOf(f.down))})"
@@ -263,7 +294,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             else -> {
                 trace?.invoke("accept ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
                     "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
-                    "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} | " +
+                    "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} " +
+                    "attack ${(samplesProcessed - lastAttack) * 1000 / sampleRate}ms single=${freshPartials == 1} | " +
                     f.note.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
                     f.sub.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
                 return riseDb
@@ -295,18 +327,19 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     /** Frequencies probed for one note. Each group is a list of partials; each partial a few candidate indices into [all]. */
     private class Probe(
         val all: DoubleArray,
-        val note: List<IntArray>, val odd: List<IntArray>,
+        val note: List<IntArray>, val noteH: IntArray, val odd: List<IntArray>,
         val up: List<IntArray>, val down: List<IntArray>, val sub: List<IntArray>,
         /** Per note partial: for each candidate, the probes a quarter-tone below and above (empty if unresolvable). */
         val sharp: List<IntArray>,
     )
 
-    private var probeFor: Set<Int> = emptySet()
-    private val probes = HashMap<Pair<Int, Set<Int>>, Probe>()
+    private data class ProbeKey(val midi: Int, val chord: Set<Int>, val recent: Set<Int>)
+    private val probes = HashMap<ProbeKey, Probe>()
     private val nowHistory = HashMap<Probe, ArrayDeque<Pair<Long, DoubleArray>>>()   // per probe: recent "now" powers
     private fun freqsFor(midi: Int, chord: Set<Int>, recent: Set<Int>): Probe {
-        if (chord != probeFor) { probes.clear(); nowHistory.clear(); probeFor = chord }
-        return probes.getOrPut(midi to recent) { buildProbe(midi, chord, recent) }
+        // ponytail: whole cache dropped when it grows past 64 probes (chord changes); an LRU if that ever shows up in profiles
+        if (probes.size > 64) { probes.clear(); nowHistory.clear() }
+        return probes.getOrPut(ProbeKey(midi, chord, recent)) { buildProbe(midi, chord, recent) }
     }
 
     private fun buildProbe(midi: Int, chord: Set<Int>, recent: Set<Int>): Probe {
@@ -346,6 +379,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         return Probe(                                   // after every add(): `all` must hold all of them
             list.toDoubleArray(),
             note = note.map { it.second },
+            noteH = note.map { it.first }.toIntArray(),
             odd = note.filter { it.first % 2 == 1 }.map { it.second },
             up = up, down = down, sub = sub, sharp = sharp,
         )

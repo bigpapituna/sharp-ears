@@ -143,6 +143,29 @@ class NoteMatcherTest {
         assertEquals(setOf(45, 69), strikes(listen(bassAndMelody) { setOf(45, 69) }).map(::midiOf).toSet())
     }
 
+    /**
+     * Roy's E minor in chord practice: E4 and G4 heard, then B4 on a dull piano (weak upper partials). Once the
+     * chord-mates' shared overtones are set aside, only B4's fundamental clearly jumps. It must still count,
+     * thanks to the hammer attack; the same lone partial without an attack (beating) must not.
+     */
+    @Test fun dullChordNoteCountsOnItsFundamentalWithAnAttack() {
+        val notes = listOf(SynthNote(64, 200.0, 2600.0), SynthNote(67, 600.0, 2200.0), SynthNote(71, 1500.0))
+        val audio = PianoSynth.render(notes, 2800.0, rolloff = 2.5)
+        val m = NoteMatcher(fs)
+        m.group = setOf(64, 67, 71)
+        val heardAt = mutableMapOf<Int, Double>()
+        var i = 0
+        while (i < audio.size) {
+            m.expected = setOf(64, 67, 71) - heardAt.keys
+            m.process(audio.copyOfRange(i, minOf(audio.size, i + 480))).filterIsInstance<MicEvent.Strike>()
+                .forEach { heardAt[it.midi] = it.sample * 1000.0 / fs }
+            i += 480
+        }
+        println("dull E minor: " + heardAt.entries.joinToString { "${noteName(it.key)}@${it.value.toInt()}ms" })
+        assertEquals(setOf(64, 67, 71), heardAt.keys)
+        assertTrue("B4 at ${heardAt[71]}", heardAt.getValue(71) in 1500.0..1700.0)
+    }
+
     @Test fun octaveDoublingsInAChordAreCredited() {
         for (chord in listOf(listOf(55, 59, 62, 67), listOf(57, 69, 72, 76, 79), listOf(53, 60, 63, 65, 69), listOf(48, 60, 64, 67))) {
             val audio = PianoSynth.render(chord.map { SynthNote(it, 500.0) }, 2000.0)

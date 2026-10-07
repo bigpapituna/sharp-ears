@@ -30,6 +30,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -154,7 +155,14 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
 
     val current = remember(version, drill) { drill.current }
     val voicing = current.voicing(0)
-    LaunchedEffect(current) { Log.d(TAG, "chords: practice now ${current.name} ${voicing.map { noteName(it) }}") }
+    // The mic hears the chord where it is shown and an octave lower (left-hand range). Touch and MIDI take any octave.
+    val micNotes = remember(current) { (voicing + voicing.map { it - 12 }).sorted() }
+    // Strikes that began before this chord appeared (a ringing re-strike of the previous chord) do not count.
+    var chordStart by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(current) {
+        chordStart = mic.matcher.samplesProcessed
+        Log.d(TAG, "chords: practice now ${current.name} ${voicing.map { noteName(it) }}")
+    }
     fun strike(m: Int, src: String) {
         val before = drill.current
         val r = drill.input(m)
@@ -172,17 +180,25 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
     }
     val visible = onScreen()
     DisposableEffect(micOn, visible) {
-        if (micOn && visible) { if (inject != null) mic.startInjection(inject) else if (!mic.start()) micOn = false }
+        if (micOn && visible) {
+            if (inject != null) mic.startInjection(inject) else if (!mic.start()) micOn = false
+            chordStart = 0L                                   // the matcher's sample clock restarts with the mic
+        }
         onDispose { mic.stop() }
     }
     LaunchedEffect(version, micOn) {
-        // The mic listens for this chord's notes around middle C that are still missing.
-        val missing = voicing.filter { it % 12 !in drill.heard }.toSet()
-        mic.matcher.expected = if (micOn) missing else emptySet()
-        mic.matcher.group = voicing.toSet()
+        // Listen for the chord's still-missing pitch classes, in both octaves.
+        mic.matcher.expected = if (micOn) micNotes.filter { it % 12 !in drill.heard }.toSet() else emptySet()
+        // Each octave is its own chord for the matcher; one big group would bury every upper note in its octave below.
+        mic.matcher.groups = listOf(voicing.toSet(), voicing.map { it - 12 }.toSet())
     }
     LaunchedEffect(mic, drill) {
-        mic.events.collect { e -> if (micOn && e is MicEvent.Strike) strike(e.midi, "mic") }
+        mic.events.collect { e ->
+            if (!micOn || e !is MicEvent.Strike) return@collect
+            val onset = e.sample - ((e.delayMs ?: 0.0) * MicInput.RATE / 1000).toLong()
+            if (onset < chordStart) { Log.d(TAG, "chords: ignored ${noteName(e.midi)} (struck before ${drill.current.name} appeared)"); return@collect }
+            strike(e.midi, "mic" + (e.inferredFrom?.let { " inferred from ${noteName(it)}" } ?: ""))
+        }
     }
 
     Column(Modifier.padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -204,7 +220,11 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
             }, label = { Text(if (micOn) "Mic on" else "Mic") })
             FilledTonalButton(onClick = { drill.next(); version++ }) { Text("Skip") }
         }
-        Text("Any octave, any order. Notes heard so far turn green.", style = MaterialTheme.typography.bodySmall)
+        Text(
+            if (micOn) "Mic: play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, any order. Notes heard turn green."
+            else "Any octave, any order. Notes heard so far turn green.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         val lit = buildMap {
             if (showNotes) voicing.forEach { put(it, RightHandColor.copy(alpha = 0.5f)) }
             voicing.filter { it % 12 in drill.heard }.forEach { put(it, Good) }
