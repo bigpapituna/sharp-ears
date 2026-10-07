@@ -76,6 +76,111 @@ class TransportTest {
         assertEquals(emptyList<NoteEvent>(), t.run(100.0))
     }
 
+    private fun waiting(practice: Practice = Practice.BOTH, playable: IntRange = 0..127) =
+        Transport(song, playable).apply { mode = Mode.WAIT; this.practice = practice; play() }
+
+    @Test fun waitModeHoldsAtEachGroupUntilPlayed() {
+        val t = waiting()
+        assertEquals(emptyList<NoteEvent>(), t.run(100.0))                      // C4 is the player's, not auto-played
+        assertTrue(t.waiting)
+        assertEquals(0.0, t.positionMs, 0.0)
+        assertEquals(listOf(60), t.expected.map { it.midi })
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(60))
+        t.run(400.0)
+        assertEquals(400.0, t.positionMs, 1e-6)                                  // free until E4's group at 500
+        t.run(400.0)
+        assertEquals(500.0, t.positionMs, 0.0)                                   // held at E4
+        assertTrue(t.waiting)
+    }
+
+    @Test fun wrongNoteChangesNothing() {
+        val t = waiting()
+        t.run(50.0)
+        assertEquals(InputResult.WRONG, t.noteInput(62))
+        assertEquals(listOf(60), t.expected.map { it.midi })
+        t.run(500.0)
+        assertEquals(0.0, t.positionMs, 0.0)
+    }
+
+    @Test fun chordNeedsEveryNote() {
+        val t = waiting()
+        t.run(10.0); t.noteInput(60); t.run(600.0); t.noteInput(64); t.run(600.0)
+        assertEquals(1000.0, t.positionMs, 0.0)
+        assertEquals(setOf(48, 67), t.expected.map { it.midi }.toSet())
+        assertEquals(InputResult.CORRECT, t.noteInput(67))
+        assertEquals(listOf(48), t.expected.map { it.midi })
+        t.run(100.0)
+        assertEquals(1000.0, t.positionMs, 0.0)                                  // still held: C3 missing
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(48))
+        t.run(100.0)
+        assertEquals(1100.0, t.positionMs, 1e-6)
+    }
+
+    @Test fun earlyHitWithin200msCounts() {
+        val t = waiting()
+        t.run(10.0); t.noteInput(60)                                             // held at 0 until C4 is played
+        t.run(250.0)                                                             // 250 ms: E4 is 250 ms away
+        assertEquals(InputResult.IGNORED, t.noteInput(64))
+        t.run(100.0)                                                             // 350 ms: 150 ms away
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(64))
+        t.run(300.0)
+        assertFalse(t.waiting)
+        assertEquals(650.0, t.positionMs, 1e-6)                                  // went straight through 500
+    }
+
+    @Test fun handFilterAutoPlaysTheOtherHand() {
+        val t = waiting(Practice.LEFT)
+        val events = t.run(1100.0)                                               // right-hand C4 and E4 play themselves
+        assertTrue(events.containsAll(listOf(NoteEvent.On(60, 90), NoteEvent.On(64, 90))))
+        assertEquals(1000.0, t.positionMs, 0.0)
+        assertEquals(listOf(48), t.expected.map { it.midi })                     // only the left-hand C3 is needed
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(48))
+        assertTrue(t.run(16.0).contains(NoteEvent.On(67, 90)))                   // G4 is accompaniment
+    }
+
+    @Test fun notesOffTheKeyboardAreSkipped() {
+        val t = waiting(playable = 55..84)                                       // C3 (48) is not on this keyboard
+        t.run(10.0); t.noteInput(60); t.run(600.0); t.noteInput(64); t.run(600.0)
+        assertEquals(listOf(67), t.expected.map { it.midi })
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(67))
+        assertTrue(t.run(16.0).contains(NoteEvent.On(48, 70)))                   // C3 plays itself
+    }
+
+    @Test fun seekResetsWhatWasPlayed() {
+        val t = waiting()
+        t.run(10.0); t.noteInput(60); t.run(600.0); t.run(600.0); t.noteInput(64)
+        t.run(600.0); t.noteInput(67)                                            // half of the chord
+        t.seek(900.0)
+        assertFalse(t.waiting)
+        t.run(200.0)
+        assertEquals(setOf(48, 67), t.expected.map { it.midi }.toSet())        // G4 has to be played again
+    }
+
+    @Test fun loopWrapsBackToItsStart() {
+        val t = Transport(song).apply { loop = 400.0..900.0; play() }
+        t.run(300.0)
+        t.run(400.0)                                                             // crosses 900 at some frame
+        assertTrue(t.positionMs < 400.0 + 16.0 * 20)
+        assertTrue(t.positionMs >= 400.0)
+        t.loop = null
+        t.seek(950.0)
+        t.run(100.0)
+        assertEquals(1050.0, t.positionMs, 1e-6)                                 // no loop: runs on
+    }
+
+    @Test fun loopEndSetAtThePlayheadWrapsNextFrame() {
+        val t = Transport(song).apply { play() }
+        t.run(800.0)
+        t.loop = 300.0..t.positionMs                                             // press B right now
+        t.run(16.0)
+        assertEquals(300.0, t.positionMs, 0.0)
+    }
+
+    @Test fun listenModeIgnoresInput() {
+        val t = Transport(song).apply { play() }
+        assertEquals(InputResult.IGNORED, t.noteInput(60))
+    }
+
     @Test fun laneGeometry() {
         val g = LaneGeometry(1000f)                                               // 0.4 px per ms
         val g4 = notes[3]

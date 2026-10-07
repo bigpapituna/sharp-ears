@@ -1,21 +1,55 @@
 package com.bigpapituna.sharpears.engine
 
+enum class Mode { LISTEN, WAIT }
+enum class Practice { BOTH, LEFT, RIGHT }
+enum class InputResult { CORRECT, GROUP_DONE, WRONG, IGNORED }
+
+/** A correct note this far (song ms) before its group still counts, so playing at tempo does not stutter. */
+const val EARLY_HIT_MS = 200.0
+
 /**
  * Plays a song through time. Pure state machine: the UI ticks it once per frame with the real frame
- * delta and forwards the returned events to the sampler. Listen mode only; wait mode arrives in P4.
+ * delta and forwards the returned events to the sampler.
+ *
+ * Listen mode plays every note. Wait mode stops at each onset group until the player has played every
+ * *required* note in it: notes of the practiced hand that are on the visible keyboard ([playable]).
+ * Other notes are accompaniment and play by themselves.
  */
-class Transport(val song: Song) {
+class Transport(val song: Song, val playable: IntRange = 0..127) {
     var positionMs = 0.0
         private set
     var playing = false
         private set
     var speed = 1.0
         set(value) { field = value.coerceIn(0.25, 1.0) }
+    var mode = Mode.LISTEN
+        set(value) { field = value; resetGroups() }
+    var practice = Practice.BOTH
+        set(value) { field = value; resetGroups() }
+    /** A–B loop in song ms. Reaching the end jumps back to the start. */
+    var loop: ClosedFloatingPointRange<Double>? = null
+
+    /** True while wait mode holds the song at a group the player has not finished. */
+    var waiting = false
+        private set
 
     /** Notes currently sounding, at most one per key. The UI lights these keys. */
     val sounding: List<Note> get() = _sounding
     private val _sounding = mutableListOf<Note>()
     private var nextIndex = 0                     // first note that has not started yet
+    private var groupIndex = 0                    // next group that needs the player's input (wait mode)
+    private val satisfied = mutableSetOf<Int>()   // keys already played for that group
+
+    fun required(n: Note) = mode == Mode.WAIT && n.midi in playable && when (practice) {
+        Practice.BOTH -> true
+        Practice.LEFT -> n.hand == Hand.LEFT
+        Practice.RIGHT -> n.hand == Hand.RIGHT
+    }
+
+    /** Required notes of the group being waited for that are still to be played. */
+    val expected: List<Note>
+        get() = if (!waiting) emptyList()
+        else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }.orEmpty()
 
     fun play() {
         if (positionMs >= song.durationMs) seek(0.0)
@@ -28,18 +62,26 @@ class Transport(val song: Song) {
         val off = silence()
         positionMs = ms.coerceIn(0.0, song.durationMs.toDouble())
         nextIndex = firstStartAtOrAfter(song.notes, positionMs)
+        resetGroups()
         return off
     }
 
     fun tick(dtMs: Double): List<NoteEvent> {
         if (!playing) return emptyList()
-        val end = (positionMs + dtMs * speed).coerceAtMost(song.durationMs.toDouble())
+        var end = (positionMs + dtMs * speed).coerceAtMost(song.durationMs.toDouble())
+        // "<=" so pressing B at the playhead wraps on the next frame; a seek past B plays on.
+        loop?.let { if (positionMs <= it.endInclusive && end >= it.endInclusive) return seek(it.start) }
+        if (mode == Mode.WAIT) {
+            val g = song.groups.getOrNull(groupIndex)
+            if (g != null && g.startMs <= end) { end = g.startMs.toDouble(); waiting = true }
+        }
         val events = mutableListOf<NoteEvent>()
         // Release first, so a note that ends exactly where the next one on the same key starts re-triggers cleanly.
         _sounding.removeAll { n -> (n.startMs + n.durationMs <= end).also { if (it) events += NoteEvent.Off(n.midi) } }
         while (nextIndex < song.notes.size && song.notes[nextIndex].startMs < end) {
             val n = song.notes[nextIndex++]
-            _sounding.removeAll { it.midi == n.midi }   // re-strike: the sampler restarts the key
+            if (required(n)) continue                 // the player plays these
+            _sounding.removeAll { it.midi == n.midi } // re-strike: the sampler restarts the key
             _sounding += n
             events += NoteEvent.On(n.midi, n.velocity)
         }
@@ -48,7 +90,44 @@ class Transport(val song: Song) {
         return events
     }
 
+    /** A key the player struck. Only wait mode cares; listen mode ignores input. */
+    fun noteInput(midi: Int): InputResult {
+        if (mode != Mode.WAIT) return InputResult.IGNORED
+        val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
+        if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
+        val need = g.notes.filter(::required).map { it.midi }.toSet()
+        if (midi !in need) return InputResult.WRONG
+        satisfied += midi
+        if (!satisfied.containsAll(need)) return InputResult.CORRECT
+        satisfied.clear()
+        waiting = false
+        groupIndex = nextRequiredGroup(groupIndex + 1)
+        return InputResult.GROUP_DONE
+    }
+
+    private fun resetGroups() {
+        satisfied.clear()
+        waiting = false
+        groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, positionMs))
+    }
+
+    private fun nextRequiredGroup(from: Int): Int {
+        var i = from
+        while (i < song.groups.size && song.groups[i].notes.none(::required)) i++
+        return i
+    }
+
     private fun silence(): List<NoteEvent> = _sounding.map { NoteEvent.Off(it.midi) }.also { _sounding.clear() }
+}
+
+fun firstGroupAtOrAfter(groups: List<OnsetGroup>, ms: Double): Int {
+    var lo = 0
+    var hi = groups.size
+    while (lo < hi) {
+        val mid = (lo + hi) ushr 1
+        if (groups[mid].startMs < ms) lo = mid + 1 else hi = mid
+    }
+    return lo
 }
 
 /** Index of the first note starting at or after [ms]. Notes are sorted by start time. */

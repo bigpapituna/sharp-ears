@@ -15,6 +15,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.LaneGeometry
+import com.bigpapituna.sharpears.engine.Note
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.isBlack
 
@@ -36,6 +37,7 @@ fun NoteLane(
     onScrub: (deltaMs: Double) -> Unit,
     onScrubEnd: () -> Unit,
     modifier: Modifier = Modifier,
+    dimmed: (Note) -> Boolean = { false },
 ) {
     val longest = remember(song) { song.notes.maxOfOrNull { it.durationMs } ?: 0L }
     val scrubDelta by rememberUpdatedState(onScrub)
@@ -68,7 +70,8 @@ fun NoteLane(
             val top = lane.topY(n, positionMs) + 3f          // gap so repeated notes on one key stay separate
             val bottom = lane.bottomY(n, positionMs)
             val base = if (n.hand == Hand.RIGHT) RightHandColor else LeftHandColor
-            val color = if (isBlack(n.midi)) base.copy(red = base.red * 0.8f, green = base.green * 0.8f, blue = base.blue * 0.8f) else base
+            val shaded = if (isBlack(n.midi)) base.copy(red = base.red * 0.8f, green = base.green * 0.8f, blue = base.blue * 0.8f) else base
+            val color = if (dimmed(n)) shaded.copy(alpha = 0.25f) else shaded   // the hand the app plays for you
             drawRoundRect(color, Offset(k.left + inset, top), Size(k.right - k.left - 2 * inset, bottom - top), CornerRadius(8f))
         }
         drawLine(HitLine, Offset(0f, lane.hitLineY - 2f), Offset(size.width, lane.hitLineY - 2f), strokeWidth = 4f)
