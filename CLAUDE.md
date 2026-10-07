@@ -54,6 +54,14 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
 - Debug injection: --es song fur-elise --es mode wait --es hands right --es inject 'synth:76,75,76@700' (or a WAV path on the device, 48 kHz PCM16 mono).
 - Input path: Keyboard (touch), MidiDevices.events and MicInput.events (SharedFlow, emitted on a binder thread, collected on main) -> PlayerScreen.keyStruck -> Transport.noteInput. P6 (mic) feeds the same keyStruck.
 
+## Design system (taste-skill redesign, 2026-10-07)
+Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
+- Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
+- Colour: slate neutrals, ONE accent (terracotta `Accent`). Hand colours and green/red feedback live only on the stage and keyboard. Light and dark follow the system; the player is always dark.
+- Shapes: controls are pills, the one raised panel per screen 20 dp, inner squares 12 dp, keys 6 px.
+- No cards around list items, no pill badges, no `·`/em-dash/en-dash separators, no symbol glyphs as icons (Material Symbols drawables in res/drawable/ic_*.xml, Apache 2.0).
+- Navigation: Songs / Chords / Settings bottom bar (rail when the window is 600 dp or wider). Player loop is one button: start, end, clear.
+
 ## Environment notes
 - JDK: Android Studio's bundled JBR (set in gradle.properties). For gradlew.bat in a fresh shell: $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 - adb is not on PATH: $env:Path="$env:LOCALAPPDATA\Android\Sdk\platform-tools;$env:Path"

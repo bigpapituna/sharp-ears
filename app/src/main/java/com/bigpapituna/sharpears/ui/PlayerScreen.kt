@@ -297,7 +297,7 @@ fun PlayerScreen(
     @Composable
     fun Bar() = TransportBar(
         BarState(playing, ready, position.coerceAtLeast(0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
-            midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
+            midi.connected.value, micOn, { mic.level.floatValue }, title = song.title, subtitle = meta?.composer.orEmpty(),
             videoOn = if (tutorial != null) videoOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
@@ -311,9 +311,13 @@ fun PlayerScreen(
             onMode = ::setMode,
             onPractice = { practice = it; transport.practice = it; version++; Log.d(TAG, "hands=$it") },
             onSeek = { seek(it) },
-            onLoopA = { setLoop(transport.positionMs, loopEnd) },
-            onLoopB = { setLoop(loopStart, transport.positionMs) },
-            onLoopClear = { setLoop(null, null) },
+            onLoop = {
+                when {
+                    loopStart == null -> setLoop(transport.positionMs.coerceAtLeast(0.0), null)
+                    loopEnd == null -> setLoop(loopStart, transport.positionMs)
+                    else -> setLoop(null, null)
+                }
+            },
             onMic = ::toggleMic,
             onVideo = { videoOn = !videoOn; Log.d(TAG, "video panel=$videoOn") },
         ),
@@ -413,11 +417,13 @@ fun PlayerScreen(
 
 @Composable
 private fun RecapCard(r: Recap, newBest: Boolean, speed: Double, onAgain: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
-    Card(modifier.widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = PanelHigh, contentColor = Ink)) {
+    Card(modifier.widthIn(max = 420.dp), shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (newBest) "New best!" else "Run complete", style = MaterialTheme.typography.titleMedium, color = if (newBest) Good else InkDim)
-            Text("${r.accuracy}%", style = MaterialTheme.typography.displaySmall)
-            Text("Good ${r.good} · OK ${r.ok} · Missed ${r.miss}", style = MaterialTheme.typography.bodyLarge)
+            Text(if (newBest) "New best" else "Run complete", style = MaterialTheme.typography.labelLarge,
+                color = if (newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${r.accuracy}%", style = Numeric.merge(MaterialTheme.typography.displayMedium))
+            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) { RecapStat("Good", r.good); RecapStat("OK", r.ok); RecapStat("Missed", r.miss) }
             Text(
                 when {
                     r.good + r.ok == 0 -> "No notes hit in time yet."
@@ -433,6 +439,12 @@ private fun RecapCard(r: Recap, newBest: Boolean, speed: Double, onAgain: () -> 
             }
         }
     }
+}
+
+@Composable
+private fun RecapStat(label: String, value: Int) = Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Text("$value", style = Numeric.merge(MaterialTheme.typography.titleLarge))
+    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** Key labels from the setting: every C with its octave, or every white key's letter as well. */

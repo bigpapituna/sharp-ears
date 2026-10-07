@@ -41,12 +41,17 @@ class Prefs(context: Context) {
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
 
+    /** The song opened most recently; the library offers to continue it. */
+    var lastSongId: String?
+        get() = p.getString("lastSong", null)
+        set(v) = edit { putString("lastSong", v) }
+
     /** Tutorial alignment: video second at which the song's first note sounds, per song and video. */
     fun anchor(songId: String, videoId: String): Float? = p.getFloat("anchor:$songId:$videoId", -1f).takeIf { it >= 0 }
     fun saveAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor:$songId:$videoId", sec) }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it == "lastSong" }
         edit { keys.forEach(::remove) }
     }
 

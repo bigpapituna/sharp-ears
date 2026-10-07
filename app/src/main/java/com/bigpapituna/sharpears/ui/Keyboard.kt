@@ -46,8 +46,11 @@ import com.bigpapituna.sharpears.engine.KeyRect
 import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.noteName
 
-val RightHandColor = Color(0xFFFF9F43)
-val LeftHandColor = Color(0xFF4DA3FF)
+// Off-white and off-black keys (no pure white or black), slate edges to match the stage.
+private val WhiteKey = Color(0xFFECEEF1)
+private val BlackKey = Color(0xFF1A1D23)
+private val KeyEdge = Color(0xFF0E1014)
+private val KeyLabel = Color(0xFF5D6672)
 
 /**
  * Multi-touch piano keyboard. Each finger maps to one key; sliding onto another key re-triggers.
@@ -111,12 +114,12 @@ fun Keyboard(
             val l = layout ?: return@Canvas
             val a = if (pulsing.isEmpty()) 1f else pulse.value
             fun fill(midi: Int, default: Color) = lit[midi] ?: pulsing[midi]?.copy(alpha = a)?.compositeOver(default) ?: default
-            l.whiteKeys.forEach { drawKey(it, fill(it.midi, Color.White), Color(0xFF2A2A2E)) }
-            l.blackKeys.forEach { drawKey(it, fill(it.midi, Color(0xFF1B1B1F)), Color.Black) }
+            l.whiteKeys.forEach { drawKey(it, fill(it.midi, WhiteKey), KeyEdge) }
+            l.blackKeys.forEach { drawKey(it, fill(it.midi, BlackKey), KeyEdge) }
             for ((midi, label) in labels) {
                 if (midi !in lowMidi..highMidi) continue
                 val k = l.rect(midi)
-                val m = text.measure(label, TextStyle(color = if (k.black) Color.White else Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                val m = text.measure(label, TextStyle(color = if (k.black) Ink else KeyLabel, fontSize = 15.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
                 drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - m.size.height - 8f))
             }
         }

@@ -21,10 +21,10 @@ import com.bigpapituna.sharpears.engine.Note
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.isBlack
 
-val LaneBackground = Color(0xFF0B0B10)
-private val LaneBottom = Color(0xFF181822)
-private val LaneGuide = Color(0xFF1E1E26)
-private val HitLine = Color(0xFFE8E8F0)
+val LaneBackground = Color(0xFF0E1014)
+private val LaneBottom = Color(0xFF161A21)
+private val LaneGuide = Color(0xFF1C2129)
+private val HitLine = Color(0xFFDDE1E7)
 
 /**
  * Falling notes for [song] at [positionMs]. Columns line up with a [Keyboard] of the same width and range.

@@ -44,6 +44,18 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.data.LessonStore
+import com.bigpapituna.sharpears.R
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
@@ -77,20 +89,18 @@ fun ChordsScreen(
     sampler: Sampler, midi: MidiDevices, mic: MicInput,
     lessons: LessonStore, micDefault: Boolean,
     startTab: ChordsTab = ChordsTab.LESSONS, inject: String? = null,
-    onPlayProgression: (Progression, Int) -> Unit, onBack: () -> Unit,
+    onPlayProgression: (Progression, Int) -> Unit,
 ) {
-    BackHandler(onBack = onBack)
     var tab by remember { mutableStateOf(startTab) }
-    Column(Modifier.safeDrawingPadding()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = "Back" }) { Text("‹") }
-            Text("Chords", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-        }
-        PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 8.dp) {
-            Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, text = { Text("Lessons") })
-            Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, text = { Text("Dictionary") })
-            Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, text = { Text("Practice") })
-            Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, text = { Text("Progressions") })
+    Column {
+        Text("Chords", style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
+        PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background,
+            divider = {}) {
+            Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Lessons") })
+            Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
+            Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
+            Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })
         }
         when (tab) {
             ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression)
@@ -112,7 +122,7 @@ private fun Dictionary(sampler: Sampler) {
     val scope = rememberCoroutineScope()
     val touched = remember { mutableStateMapOf<Int, Color>() }
 
-    Column(Modifier.padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             (0..11).forEach { r -> FilterChip(root == r, { root = r }, label = { Text(rootName(r)) }) }
         }
@@ -124,15 +134,22 @@ private fun Dictionary(sampler: Sampler) {
                 FilterChip(inversion == i, { inversion = i }, label = { Text(if (i == 0) "Root position" else "Inversion $i") })
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(chord.name, style = MaterialTheme.typography.displaySmall)
-            Text(notes.joinToString("  ") { noteName(it) }, style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(chord.name, style = MaterialTheme.typography.displaySmall)
+                Text(notes.joinToString("  ") { noteName(it) }, style = Numeric.merge(MaterialTheme.typography.titleMedium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Button(onClick = {
                 Log.d(TAG, "chords: play ${chord.name} inv=$inversion $notes")
                 scope.launch { notes.forEach { sampler.noteOn(it, 90) }; delay(1500); notes.forEach(sampler::noteOff) }
-            }) { Text("Play") }
+            }) {
+                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.size(6.dp)); Text("Hear it")
+            }
         }
-        Text("Numbers on the keys are right-hand fingers: 1 thumb … 5 little finger.", style = MaterialTheme.typography.bodySmall)
+        Text("Numbers on the keys are right-hand fingers, from 1 (thumb) to 5 (little finger).", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Keyboard(
             LOW, HIGH,
             lit = notes.associateWith { RightHandColor } + touched,
@@ -199,7 +216,7 @@ private fun ChordTrainer(
         val r = drill.input(m)
         Log.d(TAG, "chords: practice ${before.name} heard ${noteName(m)} src=$src -> $r correct=${drill.correct} streak=${drill.streak}")
         when (r) {
-            ChordDrill.Result.DONE -> { onDone(before, drill.lastClean); scope.launch { flash = "✓ ${before.name}" to true; delay(700); flash = null } }
+            ChordDrill.Result.DONE -> { onDone(before, drill.lastClean); scope.launch { flash = "${before.name}, all notes heard" to true; delay(700); flash = null } }
             ChordDrill.Result.MISS -> scope.launch { flash = "${noteName(m)} is not in ${before.name}" to false; delay(700); flash = null }
             ChordDrill.Result.PART -> {}
         }
@@ -232,25 +249,31 @@ private fun ChordTrainer(
         }
     }
 
-    Column(Modifier.padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         header()
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Play:", style = MaterialTheme.typography.titleMedium)
-            Text(current.name, style = MaterialTheme.typography.displayMedium)
-            flash?.let { (msg, ok) -> Text(msg, color = if (ok) Good else Bad, style = MaterialTheme.typography.titleLarge) }
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(current.name, style = MaterialTheme.typography.displayMedium)
+            }
+            Stat("Correct", drill.correct)
+            Stat("Streak", drill.streak)
         }
-        Text("Correct ${drill.correct} · Streak ${drill.streak}", style = MaterialTheme.typography.titleMedium)
-        FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text("Show notes  "); Switch(showNotes, { showNotes = it }) }
+        // Feedback line: fixed height so the keyboard does not jump when it appears.
+        Text(flash?.first ?: "", color = if (flash?.second == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.titleMedium, modifier = Modifier.height(24.dp))
+        FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(micOn, {
                 if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
-            }, label = { Text(if (micOn) "Mic on" else "Mic") })
-            FilledTonalButton(onClick = { skip(); version++ }) { Text("Skip") }
+            }, label = { Text(if (micOn) "Listening" else "Use mic") },
+                leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
+            FilterChip(showNotes, { showNotes = !showNotes }, label = { Text("Show notes") })
+            TextButton(onClick = { skip(); version++ }) { Text("Skip") }
         }
         Text(
-            if (micOn) "Mic: play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, any order. Notes heard turn green."
+            if (micOn) "Play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, in any order. Notes heard turn green."
             else "Any octave, any order. Notes heard so far turn green.",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val lit = buildMap {
             if (showNotes) voicing.forEach { put(it, RightHandColor.copy(alpha = 0.5f)) }
@@ -261,32 +284,52 @@ private fun ChordTrainer(
             LOW, HIGH, lit = lit,
             onNoteOn = { m, v -> touched[m] = Good; if (!micOn || mic.headphonesOn()) sampler.noteOn(m, v); strike(m, "touch") },
             onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-            modifier = Modifier.fillMaxWidth().height(220.dp).then(if (flash?.second == false) Modifier.border(4.dp, Bad) else Modifier),
+            modifier = Modifier.fillMaxWidth().height(220.dp).then(if (flash?.second == false) Modifier.border(3.dp, Bad, RoundedCornerShape(6.dp)) else Modifier),
             labels = if (showNotes) voicing.zip(current.fingering(0)).associate { (n, f) -> n to f.toString() } else emptyMap(),
         )
     }
 }
 
 @Composable
+private fun Stat(label: String, value: Int) = Column(horizontalAlignment = Alignment.End) {
+    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("$value", style = Numeric.merge(MaterialTheme.typography.headlineSmall))
+}
+
+@Composable
 private fun Progressions(onPlay: (Progression, Int) -> Unit) {
     var key by remember { mutableIntStateOf(0) }
-    Column(Modifier.padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Key", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PROGRESSION_KEYS.forEach { k -> FilterChip(key == k, { key = k }, label = { Text(rootName(k)) }) }
-        }
-        Text("Each opens in the player in wait mode: right hand plays the chord, left hand the root.", style = MaterialTheme.typography.bodySmall)
-        PROGRESSIONS.forEach { p ->
-            val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type).name }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(p.name, style = MaterialTheme.typography.titleMedium)
-                    Text(chords.distinct().joinToString(" · ").let { if (p.degrees.size > 4) "$it  (${p.degrees.size} bars)" else chords.joinToString(" – ") },
-                        style = MaterialTheme.typography.bodyMedium)
-                }
-                Button(onClick = { onPlay(p, key) }) { Text("Practice") }
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Key", style = MaterialTheme.typography.titleSmall)
+        SingleChoiceSegmentedButtonRow {
+            PROGRESSION_KEYS.forEachIndexed { i, k ->
+                SegmentedButton(key == k, { key = k }, SegmentedButtonDefaults.itemShape(i, PROGRESSION_KEYS.size), icon = {}) { Text(rootName(k)) }
             }
         }
+        Text("Each opens in the player in wait mode: the right hand plays the chord, the left hand the root.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+        PROGRESSIONS.forEach { p ->
+            val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type).name }
+            ActionRow(
+                title = p.name,
+                detail = if (p.degrees.size > 4) "${chords.distinct().joinToString(", ")} over ${p.degrees.size} bars" else chords.joinToString("  "),
+                action = "Practice", onAction = { onPlay(p, key) },
+            )
+        }
+    }
+}
+
+/** A plain row: title, one line of detail, and a text action on the right. No card. */
+@Composable
+private fun ActionRow(title: String, detail: String, action: String?, onAction: () -> Unit, dim: Boolean = false) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium,
+                color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (action != null) TextButton(onClick = onAction) { Text(action) }
     }
 }
 
@@ -302,46 +345,56 @@ private fun Lessons(
     val cur = remember(v, songPacks) { store.curriculum() }
     val mastery = remember(v) { store.mastery() }
     val today = remember(cur, mastery) { cur.queue(mastery, now) }
-    Column(Modifier.padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Card(Modifier.fillMaxWidth().widthIn(max = 760.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val due = today.count { mastery[it.id]?.seen == true }
-                Text(if (today.isEmpty()) "All caught up for today" else "Today: ${today.size} to practice",
-                    style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(if (today.isEmpty()) "Come back tomorrow, or practice any pack below."
-                     else "$due due for review, ${today.size - due} new. Items you get right come back less often.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                if (today.isNotEmpty()) Button(onClick = { store.startSession(today) }) { Text("Start practice") }
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState())) {
+        // The one raised surface on this tab: today's session.
+        Column(
+            Modifier.fillMaxWidth().widthIn(max = 720.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val due = today.count { mastery[it.id]?.seen == true }
+            Text("Today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(if (today.isEmpty()) "All caught up" else "${today.size} chords to practice", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                when {
+                    today.isEmpty() -> "Come back tomorrow, or practice any pack below."
+                    due == 0 -> "All new. Chords you play cleanly come back less often."
+                    else -> "$due to review and ${today.size - due} new."
+                },
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (today.isNotEmpty()) {
+                Spacer(Modifier.size(8.dp))
+                Button(onClick = { store.startSession(today) }) { Text("Start practice") }
             }
         }
-        (cur.packs.filter { it.level < 6 } to cur.packs.filter { it.level >= 6 }).let { (authored, fromSongs) ->
-            authored.sortedBy { it.level }.forEach { PackCard(it, store, cur.unlocked(it, mastery), cur, mastery, now) }
-            Text("From your songs", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
-            if (fromSongs.isEmpty()) Text("Finding the chords in your songs…", style = MaterialTheme.typography.bodySmall, color = InkDim)
-            fromSongs.forEach { PackCard(it, store, true, cur, mastery, now) }
+        val (authored, fromSongs) = cur.packs.partition { it.level < 6 }
+        Column(Modifier.padding(horizontal = 4.dp)) {
+            Text("Packs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
+            authored.sortedBy { it.level }.forEach { PackRow(it, store, cur.unlocked(it, mastery), cur, mastery, now) }
+            Text("From your songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
+            if (fromSongs.isEmpty()) Text("Finding the chords in your songs.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            fromSongs.forEach { PackRow(it, store, true, cur, mastery, now) }
         }
     }
 }
 
 @Composable
-private fun PackCard(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur: com.bigpapituna.sharpears.engine.Curriculum,
-                     mastery: Map<String, com.bigpapituna.sharpears.engine.Mastery>, now: Long) {
+private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur: com.bigpapituna.sharpears.engine.Curriculum,
+                    mastery: Map<String, com.bigpapituna.sharpears.engine.Mastery>, now: Long) {
     val c = cur.counts(pack, mastery, now)
-    Card(Modifier.fillMaxWidth().widthIn(max = 760.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(pack.title, style = MaterialTheme.typography.titleMedium)
-                store.about[pack.id]?.takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = InkDim) }
-                Text(
-                    if (!unlocked) "Unlocks when ${pack.requires.mapNotNull { r -> cur.packs.firstOrNull { it.id == r }?.title }.joinToString(" and ")} are well practiced"
-                    else "${pack.items.size} items · ${c.due} due · ${c.new} new · ${c.mastered} mastered" +
-                        if (pack.level >= 6) " · " + pack.items.joinToString(" ") { (it as? LessonItem.ChordItem)?.chord?.name ?: "" } else "",
-                    style = MaterialTheme.typography.labelMedium, color = if (unlocked) MaterialTheme.colorScheme.onSurface else InkDim,
-                )
-            }
-            if (unlocked) FilledTonalButton(onClick = { store.startSession(cur.queue(mastery, now, newLimit = 8, only = pack).ifEmpty { pack.items.take(8) }) }) { Text("Practice") }
-        }
-    }
+    val learned = pack.items.size - c.new
+    ActionRow(
+        title = pack.title,
+        detail = when {
+            !unlocked -> "Opens after " + pack.requires.mapNotNull { r -> cur.packs.firstOrNull { it.id == r }?.title?.lowercase() }.joinToString(" and ")
+            pack.level >= 6 -> pack.items.joinToString("  ") { (it as? LessonItem.ChordItem)?.chord?.name ?: "" }
+            else -> "$learned of ${pack.items.size} started" + (if (c.due > 0) ", ${c.due} due" else "") + (if (c.mastered > 0) ", ${c.mastered} mastered" else "")
+        },
+        action = if (unlocked) "Practice" else null,
+        onAction = { store.startSession(cur.queue(mastery, now, newLimit = 8, only = pack).ifEmpty { pack.items.take(8) }) },
+        dim = !unlocked,
+    )
 }
 
 @Composable
@@ -353,16 +406,16 @@ private fun Session(
     val item = store.session.getOrNull(store.sessionIndex)
     val n = store.session.size
     if (item == null) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Session done", style = MaterialTheme.typography.headlineSmall)
-            Text("${store.sessionCorrect} of $n right first time. The ones you missed come back tomorrow.", style = MaterialTheme.typography.bodyLarge)
+            Text("${store.sessionCorrect} of $n played cleanly. The rest come back tomorrow.", style = MaterialTheme.typography.bodyLarge)
             Button(onClick = store::endSession) { Text("Back to lessons") }
         }
         return
     }
     val progress = @Composable {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Lesson ${store.sessionIndex + 1} of $n", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${store.sessionIndex + 1} of $n", style = Numeric.merge(MaterialTheme.typography.titleMedium), modifier = Modifier.weight(1f))
             TextButton(onClick = store::endSession) { Text("End session") }
         }
     }
@@ -376,15 +429,15 @@ private fun Session(
                     if (!answered) { answered = true; scope.launch { delay(700); store.answer(clean) } }
                 })
         }
-        is LessonItem.ProgressionItem -> Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        is LessonItem.ProgressionItem -> Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             progress()
             Text(item.title, style = MaterialTheme.typography.headlineSmall)
             Text("Play it through in wait mode: right hand the chords, left hand the roots. Then come back and say how it went.",
-                style = MaterialTheme.typography.bodyMedium, color = InkDim)
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick = { onPlayProgression(PROGRESSIONS[item.progression], item.key) }) { Text("Open in the player") }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledTonalButton(onClick = { store.answer(true) }) { Text("Got it") }
-                OutlinedButton(onClick = { store.answer(false) }) { Text("Needs work") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { store.answer(true) }) { Text("Went well") }
+                TextButton(onClick = { store.answer(false) }) { Text("Needs work") }
             }
         }
     }

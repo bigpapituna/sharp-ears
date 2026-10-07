@@ -4,7 +4,14 @@ import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.safeDrawingPadding
+import com.bigpapituna.sharpears.ui.HomeShell
+import com.bigpapituna.sharpears.ui.HomeTab
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,12 +62,11 @@ import kotlinx.coroutines.withContext
 const val TAG = "SharpEars"
 
 private sealed interface Screen {
-    data object Library : Screen
+    /** The three tabs. [chordsTab] and [inject] only matter for the Chords tab. */
+    data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     data class MicSetup(val back: Screen) : Screen
-    data class Chords(val tab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
-    data object Settings : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -71,6 +77,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -82,7 +89,7 @@ class MainActivity : ComponentActivity() {
         // Debug builds accept extras to open a screen directly:
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
-        //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I–V–vi–IV in G)
+        //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
         //   --es screen chords|settings [--es tab lessons|dictionary|practice|progressions] [--es inject ...]
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
@@ -96,26 +103,27 @@ class MainActivity : ComponentActivity() {
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)
         val first: Screen = when {
-            debuggable && intent.getStringExtra("screen") == "chords" -> Screen.Chords(
+            debuggable && intent.getStringExtra("screen") == "chords" -> Screen.Home(HomeTab.CHORDS,
                 when (intent.getStringExtra("tab")) {
                     "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
                     else -> ChordsTab.LESSONS
                 },
                 debugStart.inject,
             )
-            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings
-            openSong == null -> Screen.Library
-            openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Library)
+            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
+            openSong == null -> Screen.Home()
+            openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Home())
             openSong.startsWith("prog:") -> openSong.split(":").let { (_, i, k) ->
-                Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Chords(ChordsTab.PROGRESSIONS))
+                Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Home(HomeTab.CHORDS, ChordsTab.PROGRESSIONS))
             }
-            else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Library) }
+            else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
         }
 
         setContent {
-            SharpEarsTheme {
+            var screen by remember { mutableStateOf(first) }
+            // The player is always dark, like a video; everything else follows the system.
+            SharpEarsTheme(dark = if (screen is Screen.Player) true else isSystemInDarkTheme()) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var screen by remember { mutableStateOf(first) }
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
                     var importInto by remember { mutableStateOf<SongMeta?>(null) }
@@ -135,10 +143,11 @@ class MainActivity : ComponentActivity() {
                     fun openSong(m: SongMeta) {
                         val song = try { repo.load(m) } catch (e: Exception) { importError = "Could not open ${m.title}: ${e.message}"; return }
                         val p = prefs.progress(m.id)
+                        prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
                         screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
-                            if (p.completed) 0.0 else p.lastPositionMs.toDouble(), Screen.Library)
+                            if (p.completed) 0.0 else p.lastPositionMs.toDouble(), Screen.Home())
                     }
                     val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                         val into = importInto
@@ -159,33 +168,40 @@ class MainActivity : ComponentActivity() {
                     when (val s = screen) {
                         is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, prefs, samplerReady.value,
                             s.startMs, dump, s.start, onBack = { screen = s.back })
-                        is Screen.MicSetup -> MicSetupScreen(mic, midi, debuggable,
-                            onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
-                            onBack = { screen = s.back })
-                        is Screen.Chords -> ChordsScreen(sampler, midi, mic, lessons, prefs.micDefault, s.tab, s.inject,
-                            onPlayProgression = { p, key ->
-                                screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
-                                    0.0, Screen.Chords(if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS))
-                            },
-                            onBack = { screen = Screen.Library })
-                        Screen.Settings -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
-                            onMicSetup = { screen = Screen.MicSetup(Screen.Settings) }, onBack = { screen = Screen.Library })
-                        Screen.Library -> {
-                            val pv = prefs.version.intValue
+                        is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            MicSetupScreen(mic, midi, debuggable,
+                                onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
+                                onBack = { screen = s.back })
+                        }
+                        is Screen.Home -> {
+                            BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
                             val lv = lessons.version.intValue
-                            val entries = remember(songs, pv) { songs.map { LibraryEntry(it, repo.available(it), prefs.progress(it.id)) } }
                             val due = remember(lv, lessons.songPacks.value) {
                                 lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
-                            LibraryScreen(entries, due,
-                                micSummary = if (!mic.hasPermission()) "Allow it to play with your piano" else if (prefs.micDefault) "On for songs" else "Set up and test",
-                                LibraryActions(
-                                    onOpen = ::openSong,
-                                    onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
-                                    onChords = { screen = Screen.Chords() },
-                                    onMic = { screen = Screen.MicSetup(Screen.Library) },
-                                    onSettings = { screen = Screen.Settings },
-                                ))
+                            HomeShell(s.tab, { screen = s.copy(tab = it, inject = null) }, badge = mapOf(HomeTab.CHORDS to due)) {
+                                when (s.tab) {
+                                    HomeTab.SONGS -> {
+                                        val pv = prefs.version.intValue
+                                        val entries = remember(songs, pv) { songs.map { LibraryEntry(it, repo.available(it), prefs.progress(it.id)) } }
+                                        val last = remember(entries) { entries.firstOrNull { it.meta.id == prefs.lastSongId && it.available } }
+                                        LibraryScreen(entries, last,
+                                            micLabel = when { !mic.hasPermission() -> "Set up mic"; prefs.micDefault -> "Mic on"; else -> "Mic off" },
+                                            LibraryActions(
+                                                onOpen = ::openSong,
+                                                onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
+                                                onMic = { screen = Screen.MicSetup(s) },
+                                            ))
+                                    }
+                                    HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, lessons, prefs.micDefault, s.chordsTab, s.inject,
+                                        onPlayProgression = { p, key ->
+                                            screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                                                0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null))
+                                        })
+                                    HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
+                                        onMicSetup = { screen = Screen.MicSetup(s) })
+                                }
+                            }
                         }
                     }
                     importError?.let { msg ->

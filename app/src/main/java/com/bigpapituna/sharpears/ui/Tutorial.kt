@@ -16,6 +16,11 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.bigpapituna.sharpears.R
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -136,7 +141,10 @@ fun TutorialControls(t: TutorialState, modifier: Modifier = Modifier, compact: B
                 Text("Video ${t.videos.indexOf(t.video) + 1}/${t.videos.size}")
             }
             TextButton(onClick = t::align, enabled = t.player != null) { Text(if (t.anchor == null) "First note" else "Re-sync") }
-            TextButton(onClick = ::open) { Text("YouTube") }
+            TextButton(onClick = ::open) {
+                Text("YouTube"); Spacer(Modifier.size(4.dp))
+                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(16.dp))
+            }
         }
         return
     }
@@ -148,7 +156,10 @@ fun TutorialControls(t: TutorialState, modifier: Modifier = Modifier, compact: B
                 FilterChip(v == t.video, { t.pick(v) }, label = { Text("Video ${i + 1}") })
             }
             FilledTonalButton(onClick = t::align, enabled = t.player != null) { Text("First note") }
-            OutlinedButton(onClick = ::open) { Text("Open in YouTube") }
+            OutlinedButton(onClick = ::open) {
+                Text("Open in YouTube"); Spacer(Modifier.size(6.dp))
+                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(16.dp))
+            }
         }
         Text(
             t.anchor?.let { "Synced: the video follows the song (first note at %.1f s). Tap First note again to re-align.".format(it) }

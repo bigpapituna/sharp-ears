@@ -52,9 +52,9 @@ data class Progression(val name: String, val degrees: List<Degree>)
 private fun d(numeral: String, semis: Int, type: ChordType) = Degree(numeral, semis, type)
 
 val PROGRESSIONS = listOf(
-    Progression("I–V–vi–IV (pop)", listOf(d("I", 0, ChordType.MAJOR), d("V", 7, ChordType.MAJOR), d("vi", 9, ChordType.MINOR), d("IV", 5, ChordType.MAJOR))),
-    Progression("ii–V–I (jazz)", listOf(d("ii7", 2, ChordType.MIN7), d("V7", 7, ChordType.DOM7), d("Imaj7", 0, ChordType.MAJ7), d("Imaj7", 0, ChordType.MAJ7))),
-    Progression("I–vi–IV–V (50s)", listOf(d("I", 0, ChordType.MAJOR), d("vi", 9, ChordType.MINOR), d("IV", 5, ChordType.MAJOR), d("V", 7, ChordType.MAJOR))),
+    Progression("I-V-vi-IV (pop)", listOf(d("I", 0, ChordType.MAJOR), d("V", 7, ChordType.MAJOR), d("vi", 9, ChordType.MINOR), d("IV", 5, ChordType.MAJOR))),
+    Progression("ii-V-I (jazz)", listOf(d("ii7", 2, ChordType.MIN7), d("V7", 7, ChordType.DOM7), d("Imaj7", 0, ChordType.MAJ7), d("Imaj7", 0, ChordType.MAJ7))),
+    Progression("I-vi-IV-V (50s)", listOf(d("I", 0, ChordType.MAJOR), d("vi", 9, ChordType.MINOR), d("IV", 5, ChordType.MAJOR), d("V", 7, ChordType.MAJOR))),
     Progression("12-bar blues", listOf(0, 0, 0, 0, 5, 5, 0, 0, 7, 5, 0, 7).map { s ->
         d(when (s) { 0 -> "I7"; 5 -> "IV7"; else -> "V7" }, s, ChordType.DOM7)
     }),

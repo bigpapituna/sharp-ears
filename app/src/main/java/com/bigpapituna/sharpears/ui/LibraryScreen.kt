@@ -1,43 +1,38 @@
 package com.bigpapituna.sharpears.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -54,141 +49,139 @@ class LibraryActions(
     val onOpen: (SongMeta) -> Unit,
     /** Pick a MIDI file; [into] is the locked entry it unlocks, or null for a new song. */
     val onImport: (into: SongMeta?) -> Unit,
-    val onChords: () -> Unit,
     val onMic: () -> Unit,
-    val onSettings: () -> Unit,
 )
 
-private val FILTERS = listOf("All", "Easy", "Medium", "Hard", "Yours")
+private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "Hard")
 
+/**
+ * Songs: a "continue" panel (the one raised surface), then plain rows grouped by difficulty.
+ * [continueWith] is the song last played, or null on a fresh install (the panel then suggests a first song).
+ */
 @Composable
-fun LibraryScreen(entries: List<LibraryEntry>, chordsDue: Int, micSummary: String, a: LibraryActions) {
-    var filter by rememberSaveable { mutableStateOf("All") }
-    val shown = entries.filter {
-        when (filter) {
-            "All" -> true
-            "Yours" -> it.meta.user
-            else -> it.meta.difficulty.equals(filter, ignoreCase = true)
-        }
-    }
-    val pad = WindowInsets.safeDrawing.asPaddingValues()
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(320.dp),
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp + pad.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-            end = 16.dp + pad.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-            top = 12.dp + pad.calculateTopPadding(), bottom = 24.dp + pad.calculateBottomPadding()),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions) {
+    val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) { Header() }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Tile("Chords", if (chordsDue > 0) "$chordsDue to practice today" else "Lessons, drills, dictionary", RightHandColor, Modifier.weight(1f), a.onChords)
-                Tile("Microphone", micSummary, LeftHandColor, Modifier.weight(1f), a.onMic)
-                Tile("Settings", "Labels, sound, about", InkDim, Modifier.weight(1f), a.onSettings)
-            }
+        item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic) } }
+        first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
+        GROUPS.forEach { (key, label) ->
+            val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
+            if (group.isEmpty()) return@forEach
+            item(key = "h-$key") { GroupHeader(label, group.size) }
+            items(group, key = { it.meta.id }) { SongRow(it, a) }
         }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FILTERS.forEach { f -> FilterChip(filter == f, { filter = f }, label = { Text(f) }) }
+        val yours = entries.filter { it.meta.user }
+        item(key = "h-yours") { GroupHeader("Your songs", yours.size) }
+        items(yours, key = { it.meta.id }) { SongRow(it, a) }
+        item(key = "import") {
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp)) {
+                TextButton(onClick = { a.onImport(null) }) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("Import a MIDI file")
                 }
-            }
-        }
-        items(shown, key = { it.meta.id }) { e -> SongCard(e, a) }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            OutlinedCard(onClick = { a.onImport(null) }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("+  Import a MIDI file", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Text("Your own songs stay on this phone. Two tracks become the two hands; one track splits at middle C.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text("Files stay on this phone. Two tracks become the two hands; one track splits at middle C.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp).widthIn(max = 480.dp))
             }
         }
     }
 }
 
 @Composable
-private fun Header() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.padding(vertical = 8.dp)) {
-        Box(Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)).background(Panel), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.size(60.dp))
+private fun Header(micLabel: String, onMic: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        // The logo always sits on its own dark tile, as on the launcher, so the white sharp shows in light mode too.
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Stage), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.size(40.dp))
         }
-        Column {
-            Text("Sharp Ears", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            Text("Play along on your piano. The phone listens.", style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.size(12.dp))
+        Text("Sharp Ears", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).semantics { heading() })
+        TextButton(onClick = onMic) {
+            Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(6.dp))
+            Text(micLabel)
         }
     }
 }
 
 @Composable
-private fun Tile(title: String, sub: String, accent: Color, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = modifier.heightIn(min = 88.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(width = 28.dp, height = 4.dp).clip(CircleShape).background(accent))
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
+private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) {
+    val p = e.progress
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(e.meta.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            when {
+                fresh -> "An easy first song: melody in the right hand, one bass note in the left."
+                p.bestAccuracy >= 0 -> "${e.meta.composer}. Best run ${p.bestAccuracy}%."
+                p.lastPositionMs > 0 && !p.completed -> "${e.meta.composer}. Paused at ${formatTime(p.lastPositionMs.toDouble())}."
+                else -> e.meta.composer
+            },
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.size(8.dp))
+        Button(onClick = { a.onOpen(e.meta) }, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) {
+            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.size(6.dp))
+            Text(if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play")
         }
     }
 }
 
-private fun difficultyColor(d: String) = when (d.lowercase()) {
-    "easy" -> Good
-    "medium" -> RightHandColor
-    "hard" -> Bad
-    else -> LeftHandColor
+@Composable
+private fun GroupHeader(label: String, count: Int) {
+    Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.Bottom) {
+        Text(label, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+        Spacer(Modifier.size(8.dp))
+        Text("$count", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 2.dp))
+    }
 }
 
 @Composable
-private fun SongCard(e: LibraryEntry, a: LibraryActions) {
+private fun SongRow(e: LibraryEntry, a: LibraryActions) {
     val m = e.meta
-    val accent = difficultyColor(m.difficulty)
-    Card(
-        onClick = { if (e.available) a.onOpen(m) else a.onImport(m) },
-        modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(
-                Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.85f), accent.copy(alpha = 0.25f)))),
-                contentAlignment = Alignment.Center,
-            ) { Text(m.title.take(1), style = MaterialTheme.typography.titleLarge, color = Stage) }
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "press")
+    Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(interactionSource = press, indication = androidx.compose.material3.ripple()) { if (e.available) a.onOpen(m) else a.onImport(m) }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(m.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (e.available) m.composer else "Tap to import your MIDI file", style = MaterialTheme.typography.bodySmall,
+                Text(if (e.available) m.composer else "Import its MIDI file to unlock", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    Pill(m.difficulty.replaceFirstChar { it.uppercase() }, accent)
-                    if (m.videos.isNotEmpty()) Pill("Tutorial", LeftHandColor)
-                }
             }
-            Badge(e)
+            Status(e)
         }
     }
 }
 
+/** Where the song stands: best Perform score, played through, paused position, or locked. */
 @Composable
-private fun Pill(text: String, color: Color) =
-    Text(text, style = MaterialTheme.typography.labelSmall, color = color,
-        modifier = Modifier.clip(CircleShape).background(color.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
-
-/** Progress badge: best Perform score, else played through, else where you left off, else new. */
-@Composable
-private fun Badge(e: LibraryEntry) {
+private fun Status(e: LibraryEntry) {
     val p = e.progress
-    val (text, color) = when {
-        !e.available -> "Locked" to InkDim
-        p.bestAccuracy >= 0 -> "Best ${p.bestAccuracy}%" to Good
-        p.completed -> "✓ Played" to Good
-        p.lastPositionMs > 0 -> "Resume ${formatTime(p.lastPositionMs.toDouble())}" to RightHandColor
-        else -> "New" to LeftHandColor
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    when {
+        !e.available -> Text("Locked", style = MaterialTheme.typography.labelMedium, color = dim)
+        p.bestAccuracy >= 0 -> Text("${p.bestAccuracy}%", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.primary)
+        p.completed -> Icon(painterResource(R.drawable.ic_check), contentDescription = "Played through", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        p.lastPositionMs > 0 -> Text(formatTime(p.lastPositionMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurface)
+        else -> {}                                   // untouched songs carry no label; every song starts that way
     }
-    Text(text, style = MaterialTheme.typography.labelMedium, color = color)
 }
