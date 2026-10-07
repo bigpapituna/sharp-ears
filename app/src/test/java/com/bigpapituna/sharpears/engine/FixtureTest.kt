@@ -94,12 +94,13 @@ class FixtureTest {
                 continue
             }
             val r = evaluate(w)
-            val falsePer30s = (r.early + r.falseWrongs) / (r.seconds / 30)
+            // Mic wrong-note flashes are off by default (MicInput.wrongFlash), so only false note strikes count.
+            val falsePer30s = r.early / (r.seconds / 30)
             val rate = if (r.notes == 0) 1.0 else r.heard.toDouble() / r.notes
-            println("%-24s %3d/%3d heard (%3.0f%%), %d early, %d false wrong, %.1f s, median latency %s ms"
+            println("%-24s %3d/%3d heard (%3.0f%%), %d false strikes, %d would-be wrong flashes, %.1f s, median latency %s ms"
                 .format(r.name, r.heard, r.notes, rate * 100, r.early, r.falseWrongs, r.seconds, r.medianLatencyMs))
             if (rate < 0.9 || falsePer30s > 1.0) failures += r.name
         }
-        assertTrue("fixtures below the plan's bar (90% heard, <= 1 false trigger per 30 s): $failures", failures.isEmpty())
+        assertTrue("fixtures below the plan's bar (90% heard, <= 1 false strike per 30 s): $failures", failures.isEmpty())
     }
 }

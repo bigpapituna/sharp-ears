@@ -7,7 +7,6 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
-import android.media.AudioTimestamp
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
@@ -56,6 +55,15 @@ class MicInput(private val context: Context) {
     val source = mutableStateOf<String?>(null)
     val recording = mutableStateOf<String?>(null)
 
+    /**
+     * Red flash for wrong notes heard by the mic. Off by default: in a room with talking or TV, loudness jumps
+     * cannot be told apart from wrong piano notes (57 false flashes in 54 s of Roy's session).
+     */
+    // ponytail: on/off only; naming the wrong note (a semitone-grid search) is the upgrade
+    var wrongFlash: Boolean
+        get() = prefs.getBoolean("wrongFlash", false)
+        set(v) { prefs.edit().putBoolean("wrongFlash", v).apply() }
+
     var micAddress: String?
         get() = prefs.getString("micAddress", null)
         set(v) { prefs.edit().putString("micAddress", v).apply() }
@@ -83,8 +91,11 @@ class MicInput(private val context: Context) {
     private var thread: Thread? = null
     @Volatile private var stop = false
 
-    /** Starts the real microphone. Returns false without permission or if the device refuses. */
-    fun start(): Boolean {
+    /**
+     * Starts the real microphone. Returns false without permission or if the device refuses.
+     * [autoRecord]: debug builds save the session for offline replay (the setup screen records explicitly instead).
+     */
+    fun start(autoRecord: Boolean = true): Boolean {
         if (thread != null) return true
         if (!hasPermission()) return false
         val unprocessed = audio.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
@@ -104,7 +115,7 @@ class MicInput(private val context: Context) {
         val label = "${dev?.address?.ifBlank { null } ?: "default"} mic, ${if (unprocessed) "unprocessed" else "voice recognition"}"
         Log.d(TAG, "mic: start $label, minBuf=$minBuf")
         launch(label) { loopMic(rec) }
-        if (debuggable) autoRecord()
+        if (debuggable && autoRecord) autoRecord()
         return true
     }
 
@@ -144,18 +155,16 @@ class MicInput(private val context: Context) {
     private fun loopMic(rec: AudioRecord) {
         rec.startRecording()
         val buf = FloatArray(512)
-        val ts = AudioTimestamp()
         framesRead = 0
         try {
             while (!stop) {
                 val n = rec.read(buf, 0, buf.size, AudioRecord.READ_BLOCKING)
                 if (n <= 0) { Log.d(TAG, "mic: read returned $n"); break }
                 framesRead += n
-                if (rec.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS) {
-                    clockFrame = ts.framePosition; clockNanos = ts.nanoTime
-                } else {
-                    clockFrame = framesRead; clockNanos = System.nanoTime()
-                }
+                // Our own read clock: the newest frame read arrived "now". AudioRecord.getTimestamp's framePosition
+                // on the Fold7 counts from an earlier start than our reads (it put MIDI truth 1.5 s early), so it
+                // is not used; the read clock is off only by the capture buffer (tens of ms).
+                clockFrame = framesRead; clockNanos = System.nanoTime()
                 handle(buf, n)
             }
         } finally {
@@ -231,6 +240,7 @@ class MicInput(private val context: Context) {
     /** Starts saving mic audio to fixtures/<label>.wav, with MIDI truth in <label>.notes. Needs the mic running. */
     fun startRecording(label: String): File? {
         if (thread == null) return null
+        if (writer != null) stopRecording()
         val dir = File(context.getExternalFilesDir(null), "fixtures").apply { mkdirs() }
         val f = File(dir, "$label.wav")
         synchronized(this) {

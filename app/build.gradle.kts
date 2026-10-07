@@ -16,6 +16,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildTypes {
+        // Release-optimized but debug-signed, for honest CPU and frame measurements on the phone.
+        create("profile") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
+    }
+
     buildFeatures { compose = true }
 
     compileOptions {

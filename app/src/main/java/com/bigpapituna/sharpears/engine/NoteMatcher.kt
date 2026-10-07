@@ -25,6 +25,14 @@ data class MatcherConfig(
     /** A broadband loudness jump of this many dB is a strike; with no expected note in it, it is a wrong note. */
     val wrongOnsetDb: Double = 7.0,
     val refractoryMs: Double = 120.0,
+    /**
+     * Share of the window spent fading out at its newest end. 0.5 is a symmetric Hann window; smaller values
+     * weight recent sound more, so a fresh note counts sooner, at some cost in frequency precision.
+     */
+    val recentTaper: Double = 0.25,   // Roy's piano: 124 -> 113 ms median, same accuracy (0.15 starts missing)
+    /** Notes below this fundamental are analysed at 12 kHz (170 ms windows), up to [band2BelowHz] at 24 kHz (85 ms). */
+    val band4BelowHz: Double = 500.0,
+    val band2BelowHz: Double = 1000.0,
 )
 
 sealed interface MicEvent {
@@ -99,7 +107,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     }
     private val band2 = Band(2, 63, 10_400.0)
     private val band4 = Band(4, 95, 5_200.0)
-    private fun factorFor(midi: Int) = midiFreq(midi).let { if (it >= 1000) 1 else if (it >= 500) 2 else 4 }
+    private fun factorFor(midi: Int) = midiFreq(midi).let { if (it >= config.band2BelowHz) 1 else if (it >= config.band4BelowHz) 2 else 4 }
     private val pending = FloatArray(hop)
     private var pendingCount = 0
     var samplesProcessed = 0L
@@ -114,7 +122,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     fun reset() {
         history.fill(0f); filled = 0; pendingCount = 0; samplesProcessed = 0
         band2.reset(); band4.reset()
-        hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear()
+        hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear(); nowHistory.clear(); probes.clear()
         lastOnset = Long.MIN_VALUE / 2
     }
 
@@ -202,7 +210,13 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         val buf = when (factor) { 1 -> history; 2 -> band2.buf; else -> band4.buf }
         val rate = sampleRate / factor
         powers(f.all, buf, rate, buf.size, nowP)
-        powers(f.all, buf, rate, buf.size - window, beforeP)
+        // The "before" window is exactly the "now" window from 4 x factor hops ago: reuse it when we have it.
+        val hopIndex = samplesProcessed / hop
+        val past = nowHistory.getOrPut(f) { ArrayDeque() }
+        val cached = past.firstOrNull { it.first == hopIndex - 4L * factor }
+        if (cached != null) cached.second.copyInto(beforeP) else powers(f.all, buf, rate, buf.size - window, beforeP)
+        past.addLast(hopIndex to nowP)
+        while (past.size > 4 * factor + 1) past.removeFirst()
 
         // Each partial is probed at a few candidate frequencies (string stiffness varies between pianos);
         // its power is the strongest candidate.
@@ -273,8 +287,9 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
 
     private var probeFor: Set<Int> = emptySet()
     private val probes = HashMap<Pair<Int, Set<Int>>, Probe>()
+    private val nowHistory = HashMap<Probe, ArrayDeque<Pair<Long, DoubleArray>>>()   // per probe: recent "now" powers
     private fun freqsFor(midi: Int, chord: Set<Int>, recent: Set<Int>): Probe {
-        if (chord != probeFor) { probes.clear(); probeFor = chord }
+        if (chord != probeFor) { probes.clear(); nowHistory.clear(); probeFor = chord }
         return probes.getOrPut(midi to recent) { buildProbe(midi, chord, recent) }
     }
 
@@ -323,24 +338,32 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     /** Hann-windowed Goertzel power at each frequency over buf[end-window, end); a sine of amplitude A reads A^2. */
     private fun powers(freqs: DoubleArray, buf: FloatArray, rate: Int, end: Int, out: DoubleArray) {
         val n = window
-        val win = hann(n)
+        val win = taperWindow(n, config.recentTaper)
         val nf = freqs.size
         val c = DoubleArray(nf) { 2 * cos(2 * PI * freqs[it] / rate) }
         val s1 = DoubleArray(nf); val s2 = DoubleArray(nf)
         val start = end - n
         for (i in 0 until n) {
-            val x = buf[start + i] * win[i]
+            val x = buf[start + i] * win.first[i]
             for (k in 0 until nf) {               // independent chains: lets the CPU overlap the multiplies
                 val s0 = x + c[k] * s1[k] - s2[k]
                 s2[k] = s1[k]; s1[k] = s0
             }
         }
-        val norm = 4.0 / (n.toDouble() * n) * 4.0   // Hann coherent gain 0.5 squared
+        val norm = 4.0 / (win.second * win.second)    // a sine of amplitude A reads A^2
         for (k in 0 until nf) out[k] = (s1[k] * s1[k] + s2[k] * s2[k] - c[k] * s1[k] * s2[k]) * norm
     }
 
-    private val hanns = HashMap<Int, FloatArray>()
-    private fun hann(n: Int) = hanns.getOrPut(n) { FloatArray(n) { (0.5 - 0.5 * cos(2 * PI * it / n)).toFloat() } }
+    private val windows = HashMap<Pair<Int, Double>, Pair<FloatArray, Double>>()
+    /** Cosine fade-in over (1 - taper) of the window, fade-out over the newest taper share. Returns (weights, sum). */
+    private fun taperWindow(n: Int, taper: Double) = windows.getOrPut(n to taper) {
+        val fall = (n * taper).toInt().coerceAtLeast(1)
+        val rise = n - fall
+        val w = FloatArray(n) { i ->
+            if (i < rise) (0.5 - 0.5 * cos(PI * i / rise)).toFloat() else (0.5 + 0.5 * cos(PI * (i - rise) / fall)).toFloat()
+        }
+        w to w.sumOf { it.toDouble() }
+    }
 
     /**
      * Window length per register: long enough that a semitone neighbour's fundamental sits about 3 bins

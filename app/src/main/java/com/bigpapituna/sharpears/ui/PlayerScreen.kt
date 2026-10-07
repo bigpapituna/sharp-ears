@@ -164,7 +164,10 @@ fun PlayerScreen(
                     Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}")
                     keyStruck(e.midi)
                 }
-                is MicEvent.Wrong -> if (transport.waiting) { wrongFlash++; Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (redFlash)") }
+                is MicEvent.Wrong -> if (transport.waiting) {
+                    if (mic.wrongFlash) wrongFlash++
+                    Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (flash=${mic.wrongFlash})")
+                }
             }
         }
     }

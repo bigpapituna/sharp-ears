@@ -21,6 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,6 +66,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
     var sensitivity by remember { mutableFloatStateOf(mic.matcher.config.sensitivityDb.toFloat()) }
     var wrongDb by remember { mutableFloatStateOf(mic.matcher.config.wrongOnsetDb.toFloat()) }
     var savedNote by remember { mutableStateOf<String?>(null) }
+    var wrongFlash by remember { mutableStateOf(mic.wrongFlash) }
 
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
     val visible = onScreen()
@@ -72,7 +74,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
         if (granted && visible) {
             mic.micAddress = micAddress
             mic.matcher.expected = setOf(60); mic.matcher.group = setOf(60)
-            mic.start()
+            mic.start(autoRecord = false)
             midi.onTruth = mic::onMidiTruth
         }
         onDispose { mic.stopRecording(); mic.stop(); midi.onTruth = null; mic.matcher.expected = emptySet() }
@@ -124,11 +126,20 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
         Slider(sensitivity, { sensitivity = it }, valueRange = -80f..-40f, onValueChangeFinished = {
             mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity")
         })
-        Text("Wrong-note trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
-        Text("Raise it if correct notes flash red.", style = MaterialTheme.typography.bodySmall)
-        Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
-            mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
-        })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Flash red on wrong notes", style = MaterialTheme.typography.titleMedium)
+                Text("Experimental. Talking or TV in the room can set it off.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; Log.d(TAG, "mic wrongFlash=$it") })
+        }
+        if (wrongFlash) {
+            Text("Wrong-note trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
+            Text("Raise it if correct notes flash red.", style = MaterialTheme.typography.bodySmall)
+            Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
+                mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
+            })
+        }
 
         if (debuggable) {
             Text("Record test fixtures (debug)", style = MaterialTheme.typography.titleMedium)
