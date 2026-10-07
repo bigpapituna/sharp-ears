@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -7,65 +8,62 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.data.SongRepository
 import com.bigpapituna.sharpears.engine.Hand
-import com.bigpapituna.sharpears.engine.noteName
-import com.bigpapituna.sharpears.ui.Keyboard
-import com.bigpapituna.sharpears.ui.RightHandColor
+import com.bigpapituna.sharpears.ui.PlayerScreen
+import com.bigpapituna.sharpears.ui.formatTime
 
 const val TAG = "SharpEars"
 
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
+    private val samplerReady = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        sampler = Sampler(this)
-        // ponytail: P1/P2 show the first bundled song and a keyboard on one screen; the library and player screens replace this
+        sampler = Sampler(this) { samplerReady.value = true }
         val repo = SongRepository(assets)
+        // ponytail: one bundled song and a two-screen switch; the library screen and navigation arrive in P8
         val song = repo.load(repo.index.first().id)
         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }}")
-        val summary = "${song.title} · ${song.notes.size} notes · ${song.durationMs / 60_000}:" +
-            "%02d".format(song.durationMs / 1000 % 60)
+
+        // Debug builds accept: --es song <id> [--el seek <ms>] [--ez dump true] to open the player frozen at a time.
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
+        val seekMs = intent.getLongExtra("seek", 0L).toDouble()
+        val dump = debuggable && intent.getBooleanExtra("dump", false)
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(Modifier.fillMaxSize()) {
-                    val pressed = remember { mutableStateMapOf<Int, Color>() }
-                    Column(Modifier.safeDrawingPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Sharp Ears", style = MaterialTheme.typography.headlineMedium)
-                        Text(summary, style = MaterialTheme.typography.bodyLarge)
-                        Text("Piano samples: VSCO 2 Community Edition upright piano by Simon Dalzell (Ivy Audio) and Versilian Studios, CC0.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Keyboard(
-                            lowMidi = 48, highMidi = 84,   // C3–C6
-                            lit = pressed,
-                            onNoteOn = { midi, vel ->
-                                Log.d(TAG, "NoteOn ${noteName(midi)} midi=$midi vel=$vel src=touch")
-                                pressed[midi] = RightHandColor
-                                sampler.noteOn(midi, vel)
-                            },
-                            onNoteOff = { midi ->
-                                Log.d(TAG, "NoteOff ${noteName(midi)} midi=$midi src=touch")
-                                pressed.remove(midi)
-                                sampler.noteOff(midi)
-                            },
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                        )
+                    var inPlayer by remember { mutableStateOf(openSong != null) }
+                    if (inPlayer) {
+                        PlayerScreen(song, sampler, samplerReady.value, seekMs, dump, onBack = { inPlayer = false })
+                    } else {
+                        Column(Modifier.safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Sharp Ears", style = MaterialTheme.typography.headlineMedium)
+                            Text("${song.title} · ${song.notes.size} notes · ${formatTime(song.durationMs.toDouble())}",
+                                style = MaterialTheme.typography.bodyLarge)
+                            Button(onClick = { inPlayer = true }) { Text("Play") }
+                            Text("Piano samples: VSCO 2 Community Edition upright piano by Simon Dalzell (Ivy Audio) and Versilian Studios, CC0. " +
+                                "Für Elise MIDI: Mutopia Project, public domain.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }

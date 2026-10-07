@@ -8,7 +8,7 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.sampleFor
 
 /** Plays piano notes from assets/samples/p<midi>.ogg (VSCO 2 CE upright piano, CC0). */
-class Sampler(context: Context) {
+class Sampler(context: Context, onReady: () -> Unit = {}) {
     private val pool = SoundPool.Builder()
         .setMaxStreams(16)
         .setAudioAttributes(
@@ -25,7 +25,7 @@ class Sampler(context: Context) {
     init {
         val files = context.assets.list("samples").orEmpty()
         pool.setOnLoadCompleteListener { _, _, status ->
-            if (status == 0 && ++loaded == files.size) Log.d(TAG, "sampler: ${files.size} samples loaded")
+            if (status == 0 && ++loaded == files.size) { Log.d(TAG, "sampler: ${files.size} samples loaded"); onReady() }
         }
         samples = files.associate { name ->
             name.removePrefix("p").removeSuffix(".ogg").toInt() to context.assets.openFd("samples/$name").use { pool.load(it, 1) }
