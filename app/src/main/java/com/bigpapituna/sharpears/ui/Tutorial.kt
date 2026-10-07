@@ -2,6 +2,20 @@ package com.bigpapituna.sharpears.ui
 
 import android.content.Intent
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -125,56 +139,47 @@ fun TutorialVideo(t: TutorialState, moving: Boolean, speed: Double, muted: Boole
 }
 
 /**
- * Video choice, alignment, and the always-available "Open in YouTube". [compact] (the cover screen) keeps it to
- * one short row so the video keeps most of the height.
+ * The tutorial as a small floating window over the falling notes: drag it by its title bar, close it with
+ * the X. A one-tap "Sync" (the First note alignment) and "Open in YouTube" live in the title bar.
  */
 @Composable
-fun TutorialControls(t: TutorialState, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun TutorialPip(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean, songMs: () -> Double,
+                onClose: () -> Unit, maxHeight: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    // Fit the window into the space it floats over: title bar plus a 16:9 video no taller than what is left.
+    val bar = if (maxHeight < 260.dp) 36.dp else 44.dp
+    val videoH = (maxHeight - bar).coerceIn(60.dp, 200.dp)
+    val width = videoH * 16f / 9f
     val context = LocalContext.current
-    fun open() {
-        context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${t.video.id}".toUri()))
-        Log.d(TAG, "open in YouTube ${t.video.id}")
-    }
-    if (compact) {
-        FlowRow(modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (t.videos.size > 1) TextButton(onClick = { t.pick(t.videos[(t.videos.indexOf(t.video) + 1) % t.videos.size]) }) {
-                Text("Video ${t.videos.indexOf(t.video) + 1}/${t.videos.size}")
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    Column(
+        modifier
+            .offset { androidx.compose.ui.unit.IntOffset(offset.x.toInt(), offset.y.toInt()) }
+            .shadow(12.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(StageRaised),
+    ) {
+        Row(
+            Modifier.width(width).height(bar)
+                .pointerInput(Unit) { detectDragGestures { change, drag -> change.consume(); offset += drag } }
+                .padding(start = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(if (t.videos.size > 1) "Video ${t.videos.indexOf(t.video) + 1}/${t.videos.size}" else "Tutorial",
+                style = MaterialTheme.typography.labelLarge, color = InkDim, maxLines = 1,
+                modifier = Modifier.weight(1f).then(if (t.videos.size > 1) Modifier.clickable { t.pick(t.videos[(t.videos.indexOf(t.video) + 1) % t.videos.size]) } else Modifier))
+            TextButton(onClick = t::align, enabled = t.player != null, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Text(if (t.anchor == null) "Sync" else "Re-sync", style = MaterialTheme.typography.labelLarge)
             }
-            TextButton(onClick = t::align, enabled = t.player != null) { Text(if (t.anchor == null) "First note" else "Re-sync") }
-            TextButton(onClick = ::open) {
-                Text("YouTube"); Spacer(Modifier.size(4.dp))
-                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(16.dp))
-            }
-        }
-        return
-    }
-    Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("${t.video.channel}: ${t.video.title}", style = MaterialTheme.typography.labelMedium, maxLines = 2,
-            overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (t.videos.size > 1) t.videos.forEachIndexed { i, v ->
-                FilterChip(v == t.video, { t.pick(v) }, label = { Text("Video ${i + 1}") })
-            }
-            FilledTonalButton(onClick = t::align, enabled = t.player != null) { Text("First note") }
-            OutlinedButton(onClick = ::open) {
-                Text("Open in YouTube"); Spacer(Modifier.size(6.dp))
-                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(16.dp))
+            IconButton(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${t.video.id}".toUri()))
+                Log.d(TAG, "open in YouTube ${t.video.id}")
+            }, modifier = Modifier.size(40.dp)) { Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = "Open in YouTube", tint = InkDim, modifier = Modifier.size(18.dp)) }
+            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                Icon(painterResource(R.drawable.ic_close), contentDescription = "Close video", tint = Ink, modifier = Modifier.size(20.dp))
             }
         }
-        Text(
-            t.anchor?.let { "Synced: the video follows the song (first note at %.1f s). Tap First note again to re-align.".format(it) }
-                ?: "To sync: play the video and tap First note when its first note sounds.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** Video above its controls, for layouts that keep them together. */
-@Composable
-fun TutorialPanel(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean, songMs: () -> Double,
-                  modifier: Modifier = Modifier, compact: Boolean = false) {
-    Column(modifier) {
-        TutorialVideo(t, moving, speed, muted, songMs, Modifier.weight(1f).fillMaxWidth())
-        TutorialControls(t, compact = compact)
+        TutorialVideo(t, moving, speed, muted, songMs, Modifier.width(width).height(videoH))
+        if (t.anchor == null && maxHeight >= 300.dp) Text("Play the video and tap Sync when its first note sounds.",
+            style = MaterialTheme.typography.bodySmall, color = InkDim, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
     }
 }

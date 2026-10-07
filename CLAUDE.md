@@ -60,6 +60,7 @@ Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leon
 - Colour: slate neutrals, ONE accent (terracotta `Accent`). Hand colours and green/red feedback live only on the stage and keyboard. Light and dark follow the system; the player is always dark.
 - Shapes: controls are pills, the one raised panel per screen 20 dp, inner squares 12 dp, keys 6 px.
 - No cards around list items, no pill badges, no `·`/em-dash/en-dash separators, no symbol glyphs as icons (Material Symbols drawables in res/drawable/ic_*.xml, Apache 2.0).
+- Player (Roy, 2026-10-07, after Artie): falling notes carry the note name and a suggested finger (engine/Fingering.kt, DP over hand positions; toggles in Settings), a glow while sounding and a spark at the line; 3D keys (lit-from-above body, front lip, pressed keys sink, black-key shadows); the waiting key shows its finger. Tutorial video is off by default and floats over the lane (drag, Sync, close).
 - Navigation: Songs / Chords / Settings bottom bar (rail when the window is 600 dp or wider). Player loop is one button: start, end, clear.
 
 ## Environment notes

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -47,8 +48,13 @@ import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.noteName
 
 // Off-white and off-black keys (no pure white or black), slate edges to match the stage.
-private val WhiteKey = Color(0xFFECEEF1)
-private val BlackKey = Color(0xFF1A1D23)
+private val WhiteTop = Color(0xFFFDFDFE)
+private val WhiteKey = Color(0xFFF0F2F5)
+private val WhiteLow = Color(0xFFDCE0E6)
+private val WhiteLip = Color(0xFFB6BDC7)
+private val BlackTop = Color(0xFF3A404A)
+private val BlackKey = Color(0xFF111317)
+private val BlackFront = Color(0xFF4A515C)
 private val KeyEdge = Color(0xFF0E1014)
 private val KeyLabel = Color(0xFF5D6672)
 
@@ -69,6 +75,7 @@ fun Keyboard(
     labels: Map<Int, String> = emptyMap(),
 ) {
     val text = rememberTextMeasurer()
+    val labelCache = remember(text) { HashMap<String, androidx.compose.ui.text.TextLayoutResult>() }
     // Read only inside the Canvas, so the pulse redraws the keyboard without recomposing the screen.
     val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
@@ -113,14 +120,21 @@ fun Keyboard(
         Canvas(Modifier.matchParentSize()) {
             val l = layout ?: return@Canvas
             val a = if (pulsing.isEmpty()) 1f else pulse.value
-            fun fill(midi: Int, default: Color) = lit[midi] ?: pulsing[midi]?.copy(alpha = a)?.compositeOver(default) ?: default
-            l.whiteKeys.forEach { drawKey(it, fill(it.midi, WhiteKey), KeyEdge) }
-            l.blackKeys.forEach { drawKey(it, fill(it.midi, BlackKey), KeyEdge) }
+            drawRect(KeyEdge)                                  // shows through the gaps between keys
+            val keyH = l.whiteKeys.firstOrNull()?.let { it.bottom - it.top } ?: size.height
+            val whiteBody = Brush.verticalGradient(listOf(WhiteTop, WhiteKey, WhiteLow), startY = 0f, endY = keyH)
+            l.whiteKeys.forEach { k -> drawWhiteKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.75f), whiteBody) }
+            // The rail the keys tuck under: a soft shadow along the top edge.
+            drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent), endY = keyH * 0.08f), size = Size(size.width, keyH * 0.08f))
+            l.blackKeys.forEach { k -> drawBlackKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.85f)) }
             for ((midi, label) in labels) {
                 if (midi !in lowMidi..highMidi) continue
                 val k = l.rect(midi)
-                val m = text.measure(label, TextStyle(color = if (k.black) Ink else KeyLabel, fontSize = 15.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
-                drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - m.size.height - 8f))
+                val m = labelCache.getOrPut("$label|${k.black}") {
+                    text.measure(label, TextStyle(color = if (k.black) Ink else KeyLabel, fontSize = 14.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
+                }
+                val lip = (k.bottom - k.top) * if (k.black) 0.12f else 0.07f
+                drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - lip - m.size.height - 6f))
             }
         }
         // Remembered once; it reads the latest callbacks when TalkBack activates a key.
@@ -151,10 +165,41 @@ private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit) {
     }
 }
 
-private fun DrawScope.drawKey(k: KeyRect, fill: Color, edge: Color) {
-    val topLeft = Offset(k.left, k.top)
-    val size = Size(k.right - k.left, k.bottom - k.top)
-    val r = CornerRadius(size.width * 0.12f)
-    drawRoundRect(fill, topLeft, size, r)
-    drawRoundRect(edge, topLeft, size, r, style = Stroke(width = 2f))
+/**
+ * A white key with depth: a lit-from-above body, a darker front lip, and a press that sinks it (the lip
+ * shrinks and the body moves down). [lit] is a pressed or sounding key's colour, [hint] a pulsing "play me".
+ */
+private fun DrawScope.drawWhiteKey(k: KeyRect, lit: Color?, hint: Color?, body: Brush) {
+    val gap = 1.2f
+    val x = k.left + gap; val w = k.right - k.left - 2 * gap
+    val h = k.bottom - k.top
+    val pressed = lit != null
+    val lip = h * if (pressed) 0.03f else 0.07f
+    val sink = if (pressed) h * 0.015f else 0f
+    val r = CornerRadius(w * 0.10f)
+    drawRoundRect(if (pressed) lit!!.darken(0.55f) else WhiteLip, Offset(x, k.top), Size(w, h), r)
+    if (pressed) drawRoundRect(Brush.verticalGradient(listOf(lit!!.lighten(0.25f), lit), startY = k.top, endY = k.bottom), Offset(x, k.top + sink), Size(w, h - lip - sink), r)
+    else drawRoundRect(body, Offset(x, k.top), Size(w, h - lip), r)
+    hint?.let { drawRoundRect(it, Offset(x, k.top + sink), Size(w, h - lip - sink), r) }
 }
+
+/** A black key: drop shadow on the whites, glossy body, lighter sloped front, a faint top highlight. */
+private fun DrawScope.drawBlackKey(k: KeyRect, lit: Color?, hint: Color?) {
+    val x = k.left; val w = k.right - k.left; val h = k.bottom - k.top
+    val pressed = lit != null
+    val r = CornerRadius(w * 0.14f)
+    drawRoundRect(Color.Black.copy(alpha = if (pressed) 0.25f else 0.40f), Offset(x + w * 0.10f, k.top), Size(w, h + h * 0.05f), r)
+    val front = h * if (pressed) 0.06f else 0.12f
+    val sink = if (pressed) h * 0.02f else 0f
+    drawRoundRect(if (pressed) lit!!.darken(0.5f) else BlackFront, Offset(x, k.top), Size(w, h), r)
+    drawRoundRect(
+        if (pressed) Brush.verticalGradient(listOf(lit!!.lighten(0.15f), lit.darken(0.8f)), startY = k.top, endY = k.bottom)
+        else Brush.verticalGradient(listOf(BlackTop, BlackKey), startY = k.top, endY = k.bottom),
+        Offset(x, k.top + sink), Size(w, h - front - sink), r,
+    )
+    hint?.let { drawRoundRect(it, Offset(x, k.top + sink), Size(w, h - front - sink), r) }
+    drawRoundRect(Color.White.copy(alpha = 0.10f), Offset(x + w * 0.18f, k.top + h * 0.05f), Size(w * 0.64f, h * 0.30f), CornerRadius(w * 0.2f))
+}
+
+private fun Color.darken(f: Float) = Color(red * f, green * f, blue * f, alpha)
+private fun Color.lighten(f: Float) = Color(red + (1 - red) * f, green + (1 - green) * f, blue + (1 - blue) * f, alpha)

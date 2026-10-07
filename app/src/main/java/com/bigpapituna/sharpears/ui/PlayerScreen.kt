@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -134,8 +135,9 @@ fun PlayerScreen(
     val windowSize = LocalWindowInfo.current.containerSize
     val windowHeightDp = with(LocalDensity.current) { windowSize.height.toDp() }
     // On by default on the unfolded inner screen (both sides at least 500 dp); the cover screen is too short.
-    val roomy = with(LocalDensity.current) { minOf(windowSize.width, windowSize.height).toDp() } >= 500.dp
-    var videoOn by remember { mutableStateOf(tutorial != null && roomy) }
+    // The tutorial opens only when asked for (Video button), as a floating window over the notes.
+    var videoOn by remember { mutableStateOf(false) }
+    val fingers = remember(song) { com.bigpapituna.sharpears.engine.Fingering.of(song) }
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
@@ -325,7 +327,7 @@ fun PlayerScreen(
     )
 
     @Composable
-    fun Lane(modifier: Modifier) = Box(modifier) {
+    fun Lane(modifier: Modifier) = androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
         NoteLane(
             song = song, positionMs = position, lowMidi = range.first, highMidi = range.last,
             dimmed = { mode != Mode.LISTEN && practice != Practice.BOTH && !transport.required(it) },
@@ -335,7 +337,11 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize().onGloballyPositioned { c ->
                 if (debugDump) laneBox = Rect(c.positionInWindow(), c.size.toSize())
             },
+            fingers = fingers, showNames = prefs.noteNames && prefs.version.intValue >= 0, showFingers = prefs.fingerNumbers,
         )
+        if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
+            onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
+            modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         recap?.let { (r, best) ->
             Dialog(onDismissRequest = { recap = null }) {
                 RecapCard(r, best, speed, onAgain = { recap = null; seek(0.0); play() }, onClose = { recap = null }, modifier = Modifier)
@@ -365,7 +371,8 @@ fun PlayerScreen(
             onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m) },
             modifier = modifier.then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
             pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
-            labels = keyLabels,
+            // The key the song waits for shows its suggested finger.
+            labels = if (prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
         )
     }
 
@@ -392,25 +399,14 @@ fun PlayerScreen(
             // Above the hinge: video and lane. Below: controls and keyboard, the keyboard under the lane so columns line up.
             val topH = with(density) { (tabletop.hingeTopPx - rootTopPx).coerceAtLeast(120f).toDp() }
             val gap = with(density) { (tabletop.hingeBottomPx - tabletop.hingeTopPx).toDp() }
-            Row(Modifier.fillMaxWidth().height(topH)) {
-                if (showVideo) TutorialVideo(tutorial!!, moving, speed, muted, { transport.positionMs }, Modifier.weight(0.38f).fillMaxHeight())
-                Lane(Modifier.weight(1f).fillMaxHeight())
-            }
+            Lane(Modifier.fillMaxWidth().height(topH))
             Spacer(Modifier.height(gap))
             Bar()
-            Row(Modifier.fillMaxWidth().weight(1f)) {
-                if (showVideo) TutorialControls(tutorial!!, Modifier.weight(0.38f), compact = true)
-                Keys(Modifier.weight(1f).fillMaxHeight())
-            }
+            Keys(Modifier.fillMaxWidth().weight(1f))
         } else {
             Bar()
-            Row(Modifier.fillMaxWidth().weight(1f)) {
-                if (showVideo) TutorialPanel(tutorial!!, moving, speed, muted, { transport.positionMs }, Modifier.weight(0.38f).fillMaxHeight(), compact = windowHeightDp < 500.dp)
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    Lane(Modifier.fillMaxWidth().weight(1f))
-                    Keys(Modifier.fillMaxWidth().weight(if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
-                }
-            }
+            Lane(Modifier.fillMaxWidth().weight(1f))
+            Keys(Modifier.fillMaxWidth().weight(if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
         }
     }
 }

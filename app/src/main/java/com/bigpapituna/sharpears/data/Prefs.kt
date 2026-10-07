@@ -41,6 +41,15 @@ class Prefs(context: Context) {
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
 
+    /** Note names inside the falling notes. */
+    var noteNames: Boolean
+        get() = p.getBoolean("noteNames", true)
+        set(v) = edit { putBoolean("noteNames", v) }
+    /** Suggested finger numbers on the falling notes and the waiting key. */
+    var fingerNumbers: Boolean
+        get() = p.getBoolean("fingers", true)
+        set(v) = edit { putBoolean("fingers", v) }
+
     /** The song opened most recently; the library offers to continue it. */
     var lastSongId: String?
         get() = p.getString("lastSong", null)
