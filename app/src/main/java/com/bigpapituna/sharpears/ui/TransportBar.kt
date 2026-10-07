@@ -45,6 +45,7 @@ data class BarState(
     val loopStart: Double?,
     val loopEnd: Double?,
     val sections: List<Section>,
+    val midiDevice: String? = null,
 )
 
 class BarActions(
@@ -98,6 +99,8 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
             Chip("A", s.loopStart != null, a.onLoopA)
             Chip("B", s.loopEnd != null, a.onLoopB)
             if (s.loopStart != null || s.loopEnd != null) TextButton(onClick = a.onLoopClear) { Text("Clear loop") }
+            Text(s.midiDevice?.let { "MIDI: $it" } ?: "Touch", style = MaterialTheme.typography.labelMedium,
+                color = if (s.midiDevice != null) LoopColor else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

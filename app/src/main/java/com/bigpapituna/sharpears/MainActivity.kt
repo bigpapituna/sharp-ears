@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.data.SongRepository
 import com.bigpapituna.sharpears.engine.Hand
@@ -31,11 +32,13 @@ const val TAG = "SharpEars"
 
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
+    private lateinit var midi: MidiDevices
     private val samplerReady = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sampler = Sampler(this) { samplerReady.value = true }
+        midi = MidiDevices(this).also { it.start() }
         val repo = SongRepository(assets)
         // ponytail: one bundled song and a two-screen switch; the library screen and navigation arrive in P8
         val song = repo.load(repo.index.first().id)
@@ -53,7 +56,7 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize()) {
                     var inPlayer by remember { mutableStateOf(openSong != null) }
                     if (inPlayer) {
-                        PlayerScreen(song, sampler, samplerReady.value, seekMs, dump, onBack = { inPlayer = false })
+                        PlayerScreen(song, sampler, midi, samplerReady.value, seekMs, dump, onBack = { inPlayer = false })
                     } else {
                         Column(Modifier.safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Sharp Ears", style = MaterialTheme.typography.headlineMedium)
@@ -71,6 +74,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        midi.stop()
         sampler.release()
         super.onDestroy()
     }

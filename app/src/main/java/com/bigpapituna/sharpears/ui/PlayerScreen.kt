@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.KeyboardLayout
@@ -61,7 +62,7 @@ private val WrongColor = Color(0xFFFF4D5E)
  * [startMs] and [debugDump] support adb checks: open frozen at a time and log every visible note's rectangle.
  */
 @Composable
-fun PlayerScreen(song: Song, sampler: Sampler, ready: Boolean, startMs: Double, debugDump: Boolean, onBack: () -> Unit) {
+fun PlayerScreen(song: Song, sampler: Sampler, midi: MidiDevices, ready: Boolean, startMs: Double, debugDump: Boolean, onBack: () -> Unit) {
     val activity = LocalActivity.current ?: return
     DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -79,6 +80,7 @@ fun PlayerScreen(song: Song, sampler: Sampler, ready: Boolean, startMs: Double, 
     var loopEnd by remember { mutableStateOf<Double?>(null) }
     var version by remember { mutableIntStateOf(0) }              // bumps when sounding/expected/waiting change
     val touched = remember { mutableStateMapOf<Int, Color>() }
+    val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note
     val scope = rememberCoroutineScope()
@@ -109,6 +111,16 @@ fun PlayerScreen(song: Song, sampler: Sampler, ready: Boolean, startMs: Double, 
         version++
     }
 
+    // MIDI keyboard: same path as touch, but no app sound, since the piano makes its own.
+    // ponytail: MIDI never plays through the sampler; add a setting if a silent controller keyboard shows up
+    LaunchedEffect(midi) {
+        midi.events.collect { e ->
+            when (e) {
+                is NoteEvent.On -> { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); held[e.midi] = RightHandColor; keyStruck(e.midi) }
+                is NoteEvent.Off -> held.remove(e.midi)
+            }
+        }
+    }
     LaunchedEffect(song) { if (startMs > 0) seek(startMs); Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)}") }
     DisposableEffect(song) { onDispose { apply(transport.pause()) } }
     BackHandler(onBack = onBack)
@@ -143,7 +155,7 @@ fun PlayerScreen(song: Song, sampler: Sampler, ready: Boolean, startMs: Double, 
 
     Column(Modifier.fillMaxSize().background(LaneBackground).safeDrawingPadding()) {
         TransportBar(
-            BarState(playing, ready, position, song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections),
+            BarState(playing, ready, position, song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections, midi.connected.value),
             BarActions(
                 onBack = onBack,
                 onPlayPause = { if (playing) pause() else play() },
@@ -190,6 +202,7 @@ fun PlayerScreen(song: Song, sampler: Sampler, ready: Boolean, startMs: Double, 
             sounding.forEach { put(it.midi, handColor(it.hand)) }
             expected.forEach { put(it.midi, handColor(it.hand).copy(alpha = pulse)) }
             putAll(touched)
+            putAll(held)
             putAll(flashes)
         }
         var wrongVisible by remember { mutableStateOf(false) }
