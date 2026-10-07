@@ -1,6 +1,6 @@
 package com.bigpapituna.sharpears.engine
 
-enum class Mode { LISTEN, WAIT }
+enum class Mode { LISTEN, WAIT, PERFORM }
 enum class Practice { BOTH, LEFT, RIGHT }
 enum class InputResult { CORRECT, GROUP_DONE, WRONG, IGNORED }
 
@@ -36,6 +36,12 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
      */
     var chordSlack = 0
 
+    /** Perform-mode scoring for the run that started at [scoreFromMs]; a seek or a mode change starts a new run. */
+    var score: PerformScore? = null
+        private set
+    var scoreFromMs = 0.0
+        private set
+
     /** True while wait mode holds the song at a group the player has not finished. */
     var waiting = false
         private set
@@ -47,7 +53,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     private var groupIndex = 0                    // next group that needs the player's input (wait mode)
     private val satisfied = mutableSetOf<Int>()   // keys already played for that group
 
-    fun required(n: Note) = mode == Mode.WAIT && n.midi in playable && when (practice) {
+    fun required(n: Note) = mode != Mode.LISTEN && n.midi in playable && when (practice) {
         Practice.BOTH -> true
         Practice.LEFT -> n.hand == Hand.LEFT
         Practice.RIGHT -> n.hand == Hand.RIGHT
@@ -60,16 +66,18 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
 
     /** What the microphone should listen for: the next group's required notes not yet played (wait mode only). */
     val listenFor: Set<Int>
-        get() = if (mode != Mode.WAIT) emptySet()
+        get() = if (mode == Mode.PERFORM) score?.listening(positionMs).orEmpty() else if (mode != Mode.WAIT) emptySet()
         else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }?.map { it.midi }?.toSet().orEmpty()
 
     /** All required notes of that group, including ones already played; they ring together. */
     val listenGroup: Set<Int>
-        get() = if (mode != Mode.WAIT) emptySet()
+        get() = if (mode == Mode.PERFORM) listenFor else if (mode != Mode.WAIT) emptySet()
         else song.groups.getOrNull(groupIndex)?.notes?.filter(::required)?.map { it.midi }?.toSet().orEmpty()
 
-    fun play() {
+    /** [leadInMs]: starting from the top, begin this far before the song so the first notes can be played on time. */
+    fun play(leadInMs: Double = 0.0) {
         if (positionMs >= song.durationMs) seek(0.0)
+        if (leadInMs > 0 && positionMs == 0.0) positionMs = -leadInMs
         playing = true
     }
 
@@ -103,12 +111,20 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
             events += NoteEvent.On(n.midi, n.velocity)
         }
         positionMs = end
-        if (end >= song.durationMs) { playing = false; events += silence() }
+        score?.advance(end)
+        if (end >= song.durationMs) { playing = false; events += silence(); score?.advance(Double.MAX_VALUE) }
         return events
     }
 
-    /** A key the player struck. Only wait mode cares; listen mode ignores input. */
-    fun noteInput(midi: Int): InputResult {
+    /**
+     * A key the player struck. Listen mode ignores input. In Perform mode [latencyMs] (real time between the
+     * strike and this call, e.g. the mic's detection delay) moves the strike back to when it was played.
+     */
+    fun noteInput(midi: Int, latencyMs: Double = 0.0): InputResult {
+        if (mode == Mode.PERFORM) {
+            if (!playing) return InputResult.IGNORED
+            return if (score?.input(midi, positionMs - latencyMs * speed) != null) InputResult.CORRECT else InputResult.WRONG
+        }
         if (mode != Mode.WAIT) return InputResult.IGNORED
         val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
         if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
@@ -126,6 +142,8 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     private fun resetGroups() {
         satisfied.clear()
         waiting = false
+        scoreFromMs = positionMs
+        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, positionMs) else null
         groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, positionMs))
     }
 

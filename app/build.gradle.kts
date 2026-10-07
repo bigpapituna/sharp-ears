@@ -39,6 +39,8 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
+    implementation(libs.window)           // Fold tabletop posture (DESIGN 2.2)
+    implementation(libs.youtube.player)   // official IFrame embed for tutorials (PLAN 6.3)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))

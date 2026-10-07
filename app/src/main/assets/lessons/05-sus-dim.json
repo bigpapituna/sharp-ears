@@ -1,0 +1,44 @@
+{
+  "id": "05-sus-dim",
+  "title": "Sus and diminished",
+  "level": 3,
+  "requires": [
+    "01-major-triads",
+    "02-minor-triads"
+  ],
+  "about": "Suspended chords leave out the third; diminished chords stack two minor thirds.",
+  "items": [
+    {
+      "type": "chord",
+      "chord": "Csus2"
+    },
+    {
+      "type": "chord",
+      "chord": "Csus4"
+    },
+    {
+      "type": "chord",
+      "chord": "Dsus2"
+    },
+    {
+      "type": "chord",
+      "chord": "Dsus4"
+    },
+    {
+      "type": "chord",
+      "chord": "Gsus4"
+    },
+    {
+      "type": "chord",
+      "chord": "Asus2"
+    },
+    {
+      "type": "chord",
+      "chord": "Bdim"
+    },
+    {
+      "type": "chord",
+      "chord": "F#dim"
+    }
+  ]
+}

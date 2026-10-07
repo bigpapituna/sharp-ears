@@ -8,14 +8,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +26,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Practice
@@ -32,6 +37,7 @@ val SPEEDS = listOf(0.25, 0.5, 0.75, 1.0)
 private val LoopColor = Color(0xFF7CE38B)
 
 fun formatTime(ms: Double): String { val s = (ms / 1000).toInt(); return "%d:%02d".format(s / 60, s % 60) }
+private fun speedLabel(s: Double) = "${s}x".replace(".0x", "x")
 
 /** Everything the bar shows; the player owns the state. */
 data class BarState(
@@ -49,6 +55,11 @@ data class BarState(
     val micOn: Boolean = false,
     /** Read only while drawing the level dot, so level updates do not recompose the player. */
     val micLevelDb: () -> Float = { -120f },
+    val title: String = "",
+    /** null: the song has no tutorial video. */
+    val videoOn: Boolean? = null,
+    /** Short live status, e.g. the Perform streak. */
+    val status: String = "",
 )
 
 class BarActions(
@@ -62,25 +73,27 @@ class BarActions(
     val onLoopB: () -> Unit,
     val onLoopClear: () -> Unit,
     val onMic: () -> Unit = {},
+    val onVideo: () -> Unit = {},
 )
 
 @Composable
 fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
     Column(modifier.padding(horizontal = 8.dp)) {
-        Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TextButton(onClick = a.onBack, modifier = Modifier.semantics { contentDescription = "Back" }) { Text("‹ Back") }
-            FilledTonalButton(onClick = a.onPlayPause, enabled = s.ready, modifier = Modifier.width(104.dp)) {
+        Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = a.onBack, modifier = Modifier.semantics { contentDescription = "Back" }) { Text("‹") }
+            Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f))
+            Button(onClick = a.onPlayPause, enabled = s.ready, modifier = Modifier.width(100.dp)) {
                 Text(if (!s.ready) "Loading" else if (s.playing) "Pause" else "Play")
             }
-            Chip("Listen", s.mode == Mode.LISTEN) { a.onMode(Mode.LISTEN) }
-            Chip("Wait", s.mode == Mode.WAIT) { a.onMode(Mode.WAIT) }
-            VerticalDivider(Modifier.height(24.dp))
-            Chip("Both", s.practice == Practice.BOTH) { a.onPractice(Practice.BOTH) }
-            Chip("Left", s.practice == Practice.LEFT) { a.onPractice(Practice.LEFT) }
-            Chip("Right", s.practice == Practice.RIGHT) { a.onPractice(Practice.RIGHT) }
-            VerticalDivider(Modifier.height(24.dp))
-            SPEEDS.forEach { sp -> Chip("${sp}x".replace(".0x", "x"), s.speed == sp) { a.onSpeed(sp) } }
+            Segments(listOf("Listen" to Mode.LISTEN, "Wait" to Mode.WAIT, "Perform" to Mode.PERFORM), s.mode, "Mode", a.onMode)
+            Segments(listOf("Both" to Practice.BOTH, "L" to Practice.LEFT, "R" to Practice.RIGHT), s.practice, "Hands", a.onPractice,
+                spoken = mapOf("L" to "Left hand", "R" to "Right hand", "Both" to "Both hands"))
+            // One chip cycles the speed, which keeps the row short enough for the cover screen.
+            FilterChip(s.speed != 1.0, { a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size]) },
+                label = { Text(speedLabel(s.speed)) },
+                modifier = Modifier.semantics { contentDescription = "Speed ${speedLabel(s.speed)}, tap to change" })
         }
         Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -100,23 +113,42 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 )
             }
             Text(formatTime(s.durationMs.toDouble()), style = MaterialTheme.typography.labelLarge)
-            Chip("A", s.loopStart != null, a.onLoopA)
-            Chip("B", s.loopEnd != null, a.onLoopB)
-            if (s.loopStart != null || s.loopEnd != null) TextButton(onClick = a.onLoopClear) { Text("Clear loop") }
-            Chip(if (s.micOn) "Mic on" else "Mic", s.micOn, a.onMic)
+            Chip("A", s.loopStart != null, a.onLoopA, "Loop start")
+            Chip("B", s.loopEnd != null, a.onLoopB, "Loop end")
+            if (s.loopStart != null || s.loopEnd != null) TextButton(onClick = a.onLoopClear) { Text("Clear") }
+            Chip(if (s.micOn) "Mic on" else "Mic", s.micOn, a.onMic, "Microphone")
             if (s.micOn) {
                 // Level dot: brighter when louder (-70 dB .. -10 dB).
-                Canvas(Modifier.width(12.dp).height(12.dp)) { drawCircle(LoopColor.copy(alpha = ((s.micLevelDb() + 70f) / 60f).coerceIn(0.1f, 1f))) }
+                Canvas(Modifier.size(12.dp)) { drawCircle(LoopColor.copy(alpha = ((s.micLevelDb() + 70f) / 60f).coerceIn(0.1f, 1f))) }
             }
+            s.videoOn?.let { on -> Chip("Video", on, a.onVideo, "Tutorial video") }
             Text(
-                when { s.micOn && s.midiDevice != null -> "MIDI = judge"; s.midiDevice != null -> "MIDI: ${s.midiDevice}"; s.micOn -> ""; else -> "Touch" },
-                style = MaterialTheme.typography.labelMedium,
-                color = if (s.midiDevice != null) LoopColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                s.status.ifEmpty {
+                    when { s.micOn && s.midiDevice != null -> "MIDI = judge"; s.midiDevice != null -> "MIDI"; s.micOn -> ""; else -> "Touch" }
+                },
+                style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                color = if (s.status.isNotEmpty()) MaterialTheme.colorScheme.tertiary
+                        else if (s.midiDevice != null) LoopColor else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
 }
 
 @Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) =
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+private fun <T> Segments(options: List<Pair<String, T>>, selected: T, name: String, onPick: (T) -> Unit,
+                         spoken: Map<String, String> = emptyMap()) {
+    SingleChoiceSegmentedButtonRow(Modifier.semantics { contentDescription = name }) {
+        options.forEachIndexed { i, (label, value) ->
+            SegmentedButton(
+                selected = value == selected, onClick = { onPick(value) },
+                shape = SegmentedButtonDefaults.itemShape(i, options.size), icon = {},
+                modifier = Modifier.semantics { spoken[label]?.let { contentDescription = it } },
+            ) { Text(label, maxLines = 1) }
+        }
+    }
+}
+
+@Composable
+private fun Chip(label: String, selected: Boolean, onClick: () -> Unit, spoken: String) =
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) },
+        modifier = Modifier.semantics { contentDescription = spoken; stateDescription = if (selected) "on" else "off" })

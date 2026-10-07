@@ -31,6 +31,14 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.bigpapituna.sharpears.TAG
@@ -111,6 +119,31 @@ fun Keyboard(
                 val m = text.measure(label, TextStyle(color = if (k.black) Color.White else Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold))
                 drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - m.size.height - 8f))
             }
+        }
+        // Remembered once; it reads the latest callbacks when TalkBack activates a key.
+        val tap = remember { { m: Int -> on(m, 90); off(m) } }
+        layout?.let { KeySemantics(it, tap) }
+    }
+}
+
+/**
+ * Invisible nodes over each key so TalkBack reads and plays key names ("C4", "F#3"). They take no touches;
+ * the Canvas above handles fingers. Skips recomposition while the layout is unchanged.
+ */
+@Composable
+private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit) {
+    val density = LocalDensity.current
+    (l.whiteKeys + l.blackKeys).forEach { k ->
+        with(density) {
+            Box(
+                Modifier.offset { IntOffset(k.left.toInt(), k.top.toInt()) }
+                    .size((k.right - k.left).toDp(), (k.bottom - k.top).toDp())
+                    .clearAndSetSemantics {
+                        contentDescription = noteName(k.midi)
+                        role = Role.Button
+                        onClick { tap(k.midi); true }
+                    },
+            )
         }
     }
 }

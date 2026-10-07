@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import com.bigpapituna.sharpears.engine.Hand
@@ -20,7 +21,8 @@ import com.bigpapituna.sharpears.engine.Note
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.isBlack
 
-val LaneBackground = Color(0xFF101014)
+val LaneBackground = Color(0xFF0B0B10)
+private val LaneBottom = Color(0xFF181822)
 private val LaneGuide = Color(0xFF1E1E26)
 private val HitLine = Color(0xFFE8E8F0)
 
@@ -57,7 +59,7 @@ fun NoteLane(
             }
         }
     ) {
-        drawRect(LaneBackground)
+        drawRect(Brush.verticalGradient(listOf(LaneBackground, LaneBottom)))
         val keys = KeyboardLayout(lowMidi, highMidi, size.width, size.height)
         val lane = LaneGeometry(size.height)
         // Faint guides at each C so the eye can find octaves.
@@ -74,7 +76,11 @@ fun NoteLane(
             val shaded = if (isBlack(n.midi)) base.copy(red = base.red * 0.8f, green = base.green * 0.8f, blue = base.blue * 0.8f) else base
             val color = if (dimmed(n)) shaded.copy(alpha = 0.25f) else shaded   // the hand the app plays for you
             drawRoundRect(color, Offset(k.left + inset, top), Size(k.right - k.left - 2 * inset, bottom - top), CornerRadius(8f))
+            // A brighter leading edge marks the moment the key is struck.
+            drawRoundRect(Color.White.copy(alpha = color.alpha * 0.45f), Offset(k.left + inset, bottom - 5f), Size(k.right - k.left - 2 * inset, 5f), CornerRadius(3f))
         }
+        drawRect(Brush.verticalGradient(listOf(Color.Transparent, RightHandColor.copy(alpha = 0.22f)), startY = lane.hitLineY - 36f, endY = lane.hitLineY),
+            Offset(0f, lane.hitLineY - 36f), Size(size.width, 36f))
         drawLine(HitLine, Offset(0f, lane.hitLineY - 2f), Offset(size.width, lane.hitLineY - 2f), strokeWidth = 4f)
     }
 }

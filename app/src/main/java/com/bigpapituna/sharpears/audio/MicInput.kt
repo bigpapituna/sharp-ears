@@ -119,7 +119,7 @@ class MicInput(private val context: Context) {
         return true
     }
 
-    /** Debug: feeds a WAV file, or "synth:76,75,60+64+67[@600]" (notes or chords, [ms apart]), through the matcher. */
+    /** Debug: feeds a WAV file, or "synth:76,75,60+64+67,r[@600[~500]]" (notes, chords, rests [ms apart [first at]]), through the matcher. */
     fun startInjection(spec: String) {
         if (thread != null) stop()
         launch("injected $spec") { loopInjected(spec) }
@@ -175,11 +175,15 @@ class MicInput(private val context: Context) {
 
     private fun loopInjected(spec: String) {
         val samples = if (spec.startsWith("synth:")) {
-            val (list, step) = spec.removePrefix("synth:").split("@").let { it[0] to (it.getOrNull(1)?.toDouble() ?: 600.0) }
-            // "60+64+67" is a chord: notes struck together.
+            // "60+64+67" is a chord: notes struck together. "r" is a rest. "@600~2000": 600 ms apart, first at 2000 ms.
+            val (list, timing) = spec.removePrefix("synth:").split("@").let { it[0] to it.getOrNull(1).orEmpty() }
+            val step = timing.substringBefore("~").toDoubleOrNull() ?: 600.0
+            val first = timing.substringAfter("~", "").toDoubleOrNull() ?: 500.0
             val groups = list.split(",")
-            val notes = groups.flatMapIndexed { i, g -> g.split("+").map { SynthNote(it.trim().toInt(), 500 + i * step, durationMs = step * 0.9) } }
-            PianoSynth.render(notes, 500 + groups.size * step + 1000, RATE)
+            val notes = groups.flatMapIndexed { i, g ->
+                g.split("+").filter { it.trim() != "r" }.map { SynthNote(it.trim().toInt(), first + i * step, durationMs = step * 0.9) }
+            }
+            PianoSynth.render(notes, first + groups.size * step + 1000, RATE)
         } else {
             val w = Wav.read(File(spec))
             if (w.sampleRate == RATE) w.samples else resample(w.samples, w.sampleRate)

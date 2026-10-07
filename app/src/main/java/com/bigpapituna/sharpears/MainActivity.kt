@@ -4,50 +4,63 @@ import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
+import com.bigpapituna.sharpears.data.ImportException
+import com.bigpapituna.sharpears.data.LessonStore
+import com.bigpapituna.sharpears.data.Prefs
+import com.bigpapituna.sharpears.data.SongMeta
 import com.bigpapituna.sharpears.data.SongRepository
 import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.MIC_CHECK_ID
 import com.bigpapituna.sharpears.engine.Mode
+import com.bigpapituna.sharpears.engine.PROGRESSIONS
 import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.micCheckExercise
-import com.bigpapituna.sharpears.engine.PROGRESSIONS
 import com.bigpapituna.sharpears.engine.progressionSong
+import com.bigpapituna.sharpears.engine.songPack
 import com.bigpapituna.sharpears.ui.ChordsScreen
 import com.bigpapituna.sharpears.ui.ChordsTab
+import com.bigpapituna.sharpears.ui.LibraryActions
+import com.bigpapituna.sharpears.ui.LibraryEntry
+import com.bigpapituna.sharpears.ui.LibraryScreen
 import com.bigpapituna.sharpears.ui.MicSetupScreen
 import com.bigpapituna.sharpears.ui.PlayerScreen
 import com.bigpapituna.sharpears.ui.PlayerStart
-import com.bigpapituna.sharpears.ui.formatTime
+import com.bigpapituna.sharpears.ui.SettingsScreen
+import com.bigpapituna.sharpears.ui.SharpEarsTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 const val TAG = "SharpEars"
 
 private sealed interface Screen {
-    data object Home : Screen
-    data class Player(val song: Song, val start: PlayerStart) : Screen
-    data object MicSetup : Screen
-    data class Chords(val tab: ChordsTab = ChordsTab.DICTIONARY, val inject: String? = null) : Screen
+    data object Library : Screen
+    /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
+    data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
+    data class MicSetup(val back: Screen) : Screen
+    data class Chords(val tab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
+    data object Settings : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -61,65 +74,123 @@ class MainActivity : ComponentActivity() {
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
-        val repo = SongRepository(assets)
-        // ponytail: one bundled song plus the mic check and a three-screen switch; the library and navigation arrive in P8
-        val elise = repo.load(repo.index.first().id)
+        val repo = SongRepository(this)
+        val prefs = Prefs(this).also { it.logRestored() }
+        val lessons = LessonStore(this)
         val micCheck = micCheckExercise()
-        Log.d(TAG, "song ${elise.id}: ${elise.notes.size} notes, ${elise.groups.size} groups, ${elise.durationMs} ms, " +
-            "right=${elise.notes.count { it.hand == Hand.RIGHT }} left=${elise.notes.count { it.hand == Hand.LEFT }}")
 
-        // Debug builds accept extras to open the player directly:
-        //   --es song fur-elise|mic-check [--el seek <ms>] [--ez dump true]
-        //   [--es mode wait] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
+        // Debug builds accept extras to open a screen directly:
+        //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
+        //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I–V–vi–IV in G)
-        //   --es screen chords [--es tab practice|progressions] [--es inject ...]
+        //   --es screen chords|settings [--es tab lessons|dictionary|practice|progressions] [--es inject ...]
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
-        val seekMs = intent.getLongExtra("seek", 0L).toDouble()
-        val dump = debuggable && intent.getBooleanExtra("dump", false)
         val debugStart = PlayerStart(
-            mode = if (intent.getStringExtra("mode") == "wait") Mode.WAIT else Mode.LISTEN,
+            mode = when (intent.getStringExtra("mode")) { "wait" -> Mode.WAIT; "perform" -> Mode.PERFORM; else -> Mode.LISTEN },
             practice = when (intent.getStringExtra("hands")) { "left" -> Practice.LEFT; "right" -> Practice.RIGHT; else -> Practice.BOTH },
             mic = intent.getBooleanExtra("mic", false),
             inject = intent.getStringExtra("inject")?.takeIf { debuggable },
+            tabletop = debuggable && intent.getBooleanExtra("tabletop", false),
         )
+        val seekMs = intent.getLongExtra("seek", 0L).toDouble()
+        val dump = debuggable && intent.getBooleanExtra("dump", false)
         val first: Screen = when {
             debuggable && intent.getStringExtra("screen") == "chords" -> Screen.Chords(
-                when (intent.getStringExtra("tab")) { "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS; else -> ChordsTab.DICTIONARY },
+                when (intent.getStringExtra("tab")) {
+                    "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
+                    else -> ChordsTab.LESSONS
+                },
                 debugStart.inject,
             )
-            openSong == null -> Screen.Home
-            openSong == MIC_CHECK_ID -> Screen.Player(micCheck, debugStart)
-            openSong.startsWith("prog:") -> openSong.split(":").let { (_, i, k) -> Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), debugStart) }
-            else -> Screen.Player(elise, debugStart)
+            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings
+            openSong == null -> Screen.Library
+            openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Library)
+            openSong.startsWith("prog:") -> openSong.split(":").let { (_, i, k) ->
+                Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Chords(ChordsTab.PROGRESSIONS))
+            }
+            else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Library) }
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(Modifier.fillMaxSize()) {
+            SharpEarsTheme {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var screen by remember { mutableStateOf(first) }
-                    when (val s = screen) {
-                        is Screen.Player -> PlayerScreen(s.song, sampler, midi, mic, samplerReady.value,
-                            if (s.song.id == openSong) seekMs else 0.0, dump, s.start,
-                            onBack = { screen = if (s.song.id.startsWith("prog-")) Screen.Chords(ChordsTab.PROGRESSIONS) else Screen.Home })
-                        Screen.MicSetup -> MicSetupScreen(mic, midi, debuggable, onBack = { screen = Screen.Home })
-                        is Screen.Chords -> ChordsScreen(sampler, midi, mic, s.tab, s.inject,
-                            onPlayProgression = { p, key -> screen = Screen.Player(progressionSong(p, key), PlayerStart(Mode.WAIT)) },
-                            onBack = { screen = Screen.Home })
-                        Screen.Home -> Column(Modifier.safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Sharp Ears", style = MaterialTheme.typography.headlineMedium)
-                            Text("${elise.title} · ${elise.notes.size} notes · ${formatTime(elise.durationMs.toDouble())}",
-                                style = MaterialTheme.typography.bodyLarge)
-                            Button(onClick = { screen = Screen.Player(elise, PlayerStart()) }) { Text("Play") }
-                            FilledTonalButton(onClick = { screen = Screen.Player(micCheck, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true)) }) {
-                                Text("Mic check: C major scale")
-                            }
-                            FilledTonalButton(onClick = { screen = Screen.Chords() }) { Text("Chords") }
-                            FilledTonalButton(onClick = { screen = Screen.MicSetup }) { Text("Microphone setup") }
-                            Text("Piano samples: VSCO 2 Community Edition upright piano by Simon Dalzell (Ivy Audio) and Versilian Studios, CC0. " +
-                                "Für Elise MIDI: Mutopia Project, public domain.",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
+                    var importError by remember { mutableStateOf<String?>(null) }
+                    var importInto by remember { mutableStateOf<SongMeta?>(null) }
+                    val scope = rememberCoroutineScope()
+                    val songs = remember(libraryVersion) { repo.all() }
+
+                    // Each library song yields a "Chords of <song>" lesson pack (DESIGN 4.3), labeled off the main thread.
+                    LaunchedEffect(libraryVersion) {
+                        lessons.songPacks.value = withContext(Dispatchers.Default) {
+                            songs.filter(repo::available).mapNotNull { m ->
+                                runCatching { songPack(repo.load(m)) }.onFailure { Log.d(TAG, "song pack ${m.id}: $it") }.getOrNull()
+                            }.filter { it.items.isNotEmpty() }
                         }
+                        Log.d(TAG, "lessons: ${lessons.songPacks.value.size} song packs " + lessons.songPacks.value.joinToString { "${it.id}=${it.items.size}" })
+                    }
+
+                    fun openSong(m: SongMeta) {
+                        val song = try { repo.load(m) } catch (e: Exception) { importError = "Could not open ${m.title}: ${e.message}"; return }
+                        val p = prefs.progress(m.id)
+                        Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
+                            "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
+                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                            if (p.completed) 0.0 else p.lastPositionMs.toDouble(), Screen.Library)
+                    }
+                    val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                        val into = importInto
+                        if (uri == null) return@rememberLauncherForActivityResult
+                        scope.launch {
+                            try {
+                                val m = withContext(Dispatchers.IO) { repo.import(uri, into) }
+                                Log.d(TAG, "import ok ${m.id} -> ${m.file}")
+                                libraryVersion++
+                            } catch (e: ImportException) {
+                                Log.d(TAG, "import failed: ${e.message}"); importError = e.message
+                            } catch (e: Exception) {
+                                Log.d(TAG, "import failed: $e"); importError = "Import failed: ${e.message}"
+                            }
+                        }
+                    }
+
+                    when (val s = screen) {
+                        is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, prefs, samplerReady.value,
+                            s.startMs, dump, s.start, onBack = { screen = s.back })
+                        is Screen.MicSetup -> MicSetupScreen(mic, midi, debuggable,
+                            onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
+                            onBack = { screen = s.back })
+                        is Screen.Chords -> ChordsScreen(sampler, midi, mic, lessons, prefs.micDefault, s.tab, s.inject,
+                            onPlayProgression = { p, key ->
+                                screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                                    0.0, Screen.Chords(if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS))
+                            },
+                            onBack = { screen = Screen.Library })
+                        Screen.Settings -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
+                            onMicSetup = { screen = Screen.MicSetup(Screen.Settings) }, onBack = { screen = Screen.Library })
+                        Screen.Library -> {
+                            val pv = prefs.version.intValue
+                            val lv = lessons.version.intValue
+                            val entries = remember(songs, pv) { songs.map { LibraryEntry(it, repo.available(it), prefs.progress(it.id)) } }
+                            val due = remember(lv, lessons.songPacks.value) {
+                                lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
+                            }
+                            LibraryScreen(entries, due,
+                                micSummary = if (!mic.hasPermission()) "Allow it to play with your piano" else if (prefs.micDefault) "On for songs" else "Set up and test",
+                                LibraryActions(
+                                    onOpen = ::openSong,
+                                    onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
+                                    onChords = { screen = Screen.Chords() },
+                                    onMic = { screen = Screen.MicSetup(Screen.Library) },
+                                    onSettings = { screen = Screen.Settings },
+                                ))
+                        }
+                    }
+                    importError?.let { msg ->
+                        AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
+                            confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
                     }
                 }
             }

@@ -1,0 +1,44 @@
+{
+  "id": "03-all-keys",
+  "title": "Triads in every key",
+  "level": 2,
+  "requires": [
+    "01-major-triads",
+    "02-minor-triads"
+  ],
+  "about": "The remaining major and minor chords, black-key roots included.",
+  "items": [
+    {
+      "type": "chord",
+      "chord": "Ab"
+    },
+    {
+      "type": "chord",
+      "chord": "Db"
+    },
+    {
+      "type": "chord",
+      "chord": "B"
+    },
+    {
+      "type": "chord",
+      "chord": "F#"
+    },
+    {
+      "type": "chord",
+      "chord": "C#m"
+    },
+    {
+      "type": "chord",
+      "chord": "G#m"
+    },
+    {
+      "type": "chord",
+      "chord": "Ebm"
+    },
+    {
+      "type": "chord",
+      "chord": "Bbm"
+    }
+  ]
+}

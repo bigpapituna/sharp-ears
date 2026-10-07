@@ -1,6 +1,174 @@
 {
   "songs": [
     {
+      "id": "twinkle",
+      "file": "twinkle.mid",
+      "title": "Twinkle Twinkle Little Star",
+      "composer": "Traditional",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [
+        {
+          "id": "OBdYoGZ1Xio",
+          "title": "Twinkle, Twinkle, Little Star - Easy Beginner Piano Tutorial - For 2 Hands",
+          "channel": "Key by Key",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "wHmDhVWXdW4",
+          "title": "Twinkle Twinkle Little Star - VERY EASY Piano tutorial for kids",
+          "channel": "The Grand Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "ode-to-joy",
+      "file": "ode-to-joy.mid",
+      "title": "Ode to Joy",
+      "composer": "Ludwig van Beethoven",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [
+        {
+          "id": "15T_eDYPfbA",
+          "title": "Beethoven - Ode To Joy - EASY Piano Tutorial (fast and slow version)",
+          "channel": "My Piano Lesson",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "PRzj0SbaKuQ",
+          "title": "Ode to Joy Play-along easy piano tutorial",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "happy-birthday",
+      "file": "happy-birthday.mid",
+      "title": "Happy Birthday",
+      "composer": "Patty and Mildred Hill",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [
+        {
+          "id": "kt8Mzf7M7Q4",
+          "title": "Easy Piano Tutorial: Happy Birthday to You! (slow tempo)",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "sU-FLdma5vc",
+          "title": "Happy Birthday easy piano tutorial with letters",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "amazing-grace",
+      "file": "amazing-grace.mid",
+      "title": "Amazing Grace",
+      "composer": "Traditional (New Britain)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [
+        {
+          "id": "Y-otxrHyZOk",
+          "title": "Easy Piano Tutorial: Amazing Grace with free sheet music",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "zAcxnsyLFbc",
+          "title": "How To Play Amazing Grace - Easy Piano Tutorial For Beginners",
+          "channel": "Piano Keyboard Guide",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "canon-in-d",
+      "file": "canon-in-d.mid",
+      "title": "Canon in D (simplified)",
+      "composer": "Johann Pachelbel",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [
+        {
+          "id": "sMwKbM9yTYg",
+          "title": "Canon In D - Pachelbel (Right Hand Slow & Easy Piano Tutorial)",
+          "channel": "Piano Keyboard Guide",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "vf3FEeiSmCk",
+          "title": "Pachelbel - Canon In D (Easy Piano Tutorial)",
+          "channel": "Atlantic Notes",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "minuet-g",
+      "file": "minuet-g.mid",
+      "title": "Minuet in G",
+      "composer": "Christian Petzold (BWV Anh. 114)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org)",
+      "videos": [
+        {
+          "id": "8Sg5AwuQkX4",
+          "title": "Easy Piano Tutorial: Minuet in G Major (simplified) Bach / Petzold with free sheet music",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "cmTFDuN_MBc",
+          "title": "MINUET IN G - J.S Bach (Petzold) Piano Tutorial + Sheet Music",
+          "channel": "Bitesize Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "greensleeves",
+      "file": "greensleeves.mid",
+      "title": "Greensleeves",
+      "composer": "Traditional (hymn-tune setting)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org)",
+      "videos": [
+        {
+          "id": "6WA7-picOcA",
+          "title": "Traditional - Greensleeves - Easy Beginner Piano Tutorial - For 1 Hand",
+          "channel": "Key by Key",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "yqSi5PGWx38",
+          "title": "Greensleeves - BEGINNER Piano Tutorial Easy",
+          "channel": "Piano Tutorial Easy",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
       "id": "fur-elise",
       "file": "fur-elise.mid",
       "title": "Für Elise",
@@ -9,7 +177,137 @@
       "hands": "auto",
       "license": "Public Domain",
       "attribution": "MIDI from the Mutopia Project (mutopiaproject.org), WoO 59",
-      "youtube": []
+      "videos": [
+        {
+          "id": "3jOsHod6zWM",
+          "title": "HOW TO PLAY Für Elise for Beginners Slow [Easy Piano Tutorial] (Synthesia)",
+          "channel": "Toms Mucenieks",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "XFFyZ84nuj0",
+          "title": "How To Play Für Elise (Easy Piano Tutorial)",
+          "channel": "Pianote",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "prelude-c",
+      "file": "prelude-c.mid",
+      "title": "Prelude in C",
+      "composer": "Johann Sebastian Bach (BWV 846)",
+      "difficulty": "medium",
+      "hands": {
+        "right": 2,
+        "left": 1
+      },
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org)",
+      "videos": [
+        {
+          "id": "TncQYnTjqlA",
+          "title": "Bach - Prelude in C Major - Piano Tutorial Easy - Bach - how to play (synthesia)",
+          "channel": "Piano Tutorial Easy",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "y7RJp9RFlz8",
+          "title": "How to play PRELUDE IN C MAJOR by J.S Bach Piano Tutorial + Sheet Music",
+          "channel": "Bitesize Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "chopin-prelude-4",
+      "file": "chopin-prelude-4.mid",
+      "title": "Prelude in E minor",
+      "composer": "Frédéric Chopin (Op. 28 No. 4)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org)",
+      "videos": [
+        {
+          "id": "JeYeml84lQw",
+          "title": "Prelude in E minor Op. 28 No. 4 Piano Tutorial (Chopin) | Intermediate | LearnASong",
+          "channel": "Tiny Piano Tunes",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "HXrMGcN_qv8",
+          "title": "PRELUDE IN E MINOR - Frédéric Chopin (Op.28 No.4) Piano Tutorial Lesson",
+          "channel": "Bitesize Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "moonlight-1",
+      "file": "moonlight-1.mid",
+      "title": "Moonlight Sonata, 1st movement",
+      "composer": "Ludwig van Beethoven (Op. 27 No. 2)",
+      "difficulty": "hard",
+      "hands": "auto",
+      "license": "CC BY-SA 2.5",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org), typeset by its contributors",
+      "videos": [
+        {
+          "id": "rJcwziH5Gko",
+          "title": "Moonlight sonata 1st movement - Beethoven (Piano tutorial)",
+          "channel": "Keyboard Planet",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "NQ_wd8Z3YSg",
+          "title": "Moonlight Sonata 1st Movement Beethoven Piano Tutorial Synthesia (easy)",
+          "channel": "Marks Piano - PGN Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "clair-de-lune",
+      "file": "clair-de-lune.mid",
+      "title": "Clair de Lune",
+      "composer": "Claude Debussy",
+      "difficulty": "hard",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org)",
+      "videos": [
+        {
+          "id": "CKWYl1xKEBY",
+          "title": "Clair de Lune  - Debussy [Easy Piano Tutorial] (Synthesia/Sheet Music)",
+          "channel": "Toms Mucenieks",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "e-Sq0rqvwMs",
+          "title": "CLAIR DE LUNE - Claude Debussy Piano Tutorial [PART 1]",
+          "channel": "Bitesize Piano",
+          "checkedOn": "2026-10-07"
+        }
+      ]
+    },
+    {
+      "id": "alicia",
+      "file": "user/alicia.mid",
+      "title": "Alicia (Clair Obscur: Expedition 33)",
+      "composer": "Lorien Testard",
+      "difficulty": "imported",
+      "hands": "auto",
+      "license": "personal use, not bundled",
+      "attribution": "Creator MIDI by Jon Pumper (Patreon). Import it from your device; it is never bundled.",
+      "videos": [
+        {
+          "id": "seSSbMxVDr0",
+          "title": "Alicia - Clair Obscur: Expedition 33 | Piano Tutorial",
+          "channel": "Jon Pumper",
+          "checkedOn": "2026-10-07"
+        }
+      ]
     }
   ]
 }

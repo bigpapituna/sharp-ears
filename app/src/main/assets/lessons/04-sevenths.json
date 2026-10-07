@@ -1,0 +1,52 @@
+{
+  "id": "04-sevenths",
+  "title": "Seventh chords",
+  "level": 3,
+  "requires": [
+    "01-major-triads",
+    "02-minor-triads"
+  ],
+  "about": "Major 7, minor 7 and dominant 7: the colours of jazz and soul.",
+  "items": [
+    {
+      "type": "chord",
+      "chord": "Cmaj7"
+    },
+    {
+      "type": "chord",
+      "chord": "Fmaj7"
+    },
+    {
+      "type": "chord",
+      "chord": "Gmaj7"
+    },
+    {
+      "type": "chord",
+      "chord": "Dm7"
+    },
+    {
+      "type": "chord",
+      "chord": "Em7"
+    },
+    {
+      "type": "chord",
+      "chord": "Am7"
+    },
+    {
+      "type": "chord",
+      "chord": "G7"
+    },
+    {
+      "type": "chord",
+      "chord": "C7"
+    },
+    {
+      "type": "chord",
+      "chord": "D7"
+    },
+    {
+      "type": "chord",
+      "chord": "A7"
+    }
+  ]
+}

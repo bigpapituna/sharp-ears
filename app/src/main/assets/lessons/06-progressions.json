@@ -1,0 +1,56 @@
+{
+  "id": "06-progressions",
+  "title": "Progressions in five keys",
+  "level": 4,
+  "requires": [
+    "04-sevenths"
+  ],
+  "about": "Play whole progressions in wait mode: right hand chords, left hand roots.",
+  "items": [
+    {
+      "type": "progression",
+      "progression": 0,
+      "key": 0
+    },
+    {
+      "type": "progression",
+      "progression": 0,
+      "key": 7
+    },
+    {
+      "type": "progression",
+      "progression": 0,
+      "key": 5
+    },
+    {
+      "type": "progression",
+      "progression": 2,
+      "key": 0
+    },
+    {
+      "type": "progression",
+      "progression": 2,
+      "key": 7
+    },
+    {
+      "type": "progression",
+      "progression": 1,
+      "key": 0
+    },
+    {
+      "type": "progression",
+      "progression": 1,
+      "key": 5
+    },
+    {
+      "type": "progression",
+      "progression": 3,
+      "key": 0
+    },
+    {
+      "type": "progression",
+      "progression": 3,
+      "key": 7
+    }
+  ]
+}

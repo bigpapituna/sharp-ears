@@ -112,6 +112,8 @@ class ChordDrill(private val pool: List<Chord>, seed: Long = System.nanoTime()) 
     val heard = mutableSetOf<Int>()
     var correct = 0; private set
     var streak = 0; private set
+    /** The chord just finished was played without a wrong note. */
+    var lastClean = false; private set
     private var missedThisChord = false
 
     enum class Result { PART, DONE, MISS }
@@ -122,7 +124,8 @@ class ChordDrill(private val pool: List<Chord>, seed: Long = System.nanoTime()) 
         heard += pc
         if (heard != current.pitchClasses) return Result.PART
         correct++
-        if (!missedThisChord) streak++
+        lastClean = !missedThisChord
+        if (lastClean) streak++
         next()
         return Result.DONE
     }

@@ -1,0 +1,41 @@
+{
+  "id": "01-major-triads",
+  "title": "Major triads",
+  "level": 1,
+  "requires": [],
+  "about": "The three-note major chord in the common keys.",
+  "items": [
+    {
+      "type": "chord",
+      "chord": "C"
+    },
+    {
+      "type": "chord",
+      "chord": "F"
+    },
+    {
+      "type": "chord",
+      "chord": "G"
+    },
+    {
+      "type": "chord",
+      "chord": "D"
+    },
+    {
+      "type": "chord",
+      "chord": "A"
+    },
+    {
+      "type": "chord",
+      "chord": "E"
+    },
+    {
+      "type": "chord",
+      "chord": "Bb"
+    },
+    {
+      "type": "chord",
+      "chord": "Eb"
+    }
+  ]
+}

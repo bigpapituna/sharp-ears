@@ -1,0 +1,41 @@
+{
+  "id": "02-minor-triads",
+  "title": "Minor triads",
+  "level": 1,
+  "requires": [],
+  "about": "Minor chords: lower the middle note of a major chord by a half step.",
+  "items": [
+    {
+      "type": "chord",
+      "chord": "Am"
+    },
+    {
+      "type": "chord",
+      "chord": "Dm"
+    },
+    {
+      "type": "chord",
+      "chord": "Em"
+    },
+    {
+      "type": "chord",
+      "chord": "Bm"
+    },
+    {
+      "type": "chord",
+      "chord": "F#m"
+    },
+    {
+      "type": "chord",
+      "chord": "Cm"
+    },
+    {
+      "type": "chord",
+      "chord": "Gm"
+    },
+    {
+      "type": "chord",
+      "chord": "Fm"
+    }
+  ]
+}

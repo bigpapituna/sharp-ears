@@ -3,6 +3,10 @@ package com.bigpapituna.sharpears.ui
 import android.Manifest
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -43,8 +47,6 @@ import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.noteName
 
-private val Good = Color(0xFF5BE37D)
-private val Bad = Color(0xFFFF4D5E)
 
 /** Fixture labels for the recording session; the file names say what was played. */
 private val FIXTURES = listOf(
@@ -56,7 +58,7 @@ private val FIXTURES = listOf(
 )
 
 @Composable
-fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack: () -> Unit) {
+fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicCheck: () -> Unit, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     var granted by remember { mutableStateOf(mic.hasPermission()) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
@@ -93,8 +95,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹ Back") }
-            Text("Microphone setup", style = MaterialTheme.typography.headlineSmall)
+            TextButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = "Back" }) { Text("‹") }
+            Text("Microphone setup", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         }
         if (!granted) {
             Text("Sharp Ears listens to your piano through the microphone. Nothing is recorded or sent anywhere.")
@@ -120,6 +122,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onBack
         Text("Check: play middle C (C4) a few times", style = MaterialTheme.typography.titleMedium)
         Text(last?.first ?: "Listening…", color = when (last?.second) { true -> Good; false -> Bad; null -> MaterialTheme.colorScheme.onSurface })
         Text("Heard C4 $heard times", style = MaterialTheme.typography.bodySmall)
+
+        FilledTonalButton(onClick = onMicCheck) { Text("Try it: C major scale in wait mode") }
 
         Text("Sensitivity: %.0f dB".format(sensitivity), style = MaterialTheme.typography.titleMedium)
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
