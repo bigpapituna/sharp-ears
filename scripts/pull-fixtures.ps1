@@ -6,5 +6,9 @@ $dest = Join-Path $root 'app\src\test\resources\fixtures'
 New-Item -ItemType Directory -Force $dest | Out-Null
 $src = '/sdcard/Android/data/com.bigpapituna.sharpears/files/fixtures'
 $files = (& $adb shell ls $src) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '\.(wav|notes)$' }
-foreach ($f in $files) { & $adb pull "$src/$f" (Join-Path $dest $f) 2>&1 | Out-Null; Write-Host "pulled $f" }
+foreach ($f in $files) {
+    $local = Join-Path $dest $f
+    if (Test-Path $local) { continue }   # never overwrite: local copies may carry corrections (e.g. truth offsets)
+    & $adb pull "$src/$f" $local 2>&1 | Out-Null; Write-Host "pulled $f"
+}
 Get-ChildItem $dest | Select-Object Name, @{n='KB'; e={[int]($_.Length / 1KB)}}
