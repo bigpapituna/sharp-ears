@@ -39,7 +39,11 @@ sealed interface MicEvent {
     /** Sample index (since the matcher started) where the event was decided. */
     val sample: Long
     /** [delayMs]: time since the loudness jump that started it, when there was one (how late the decision came). */
-    data class Strike(val midi: Int, override val sample: Long, val riseDb: Double, val delayMs: Double? = null) : MicEvent
+    data class Strike(
+        val midi: Int, override val sample: Long, val riseDb: Double, val delayMs: Double? = null,
+        /** Credited because its octave below, in the same chord, was heard (see [NoteMatcher]). */
+        val inferredFrom: Int? = null,
+    ) : MicEvent
     data class Wrong(override val sample: Long) : MicEvent
 }
 
@@ -187,6 +191,17 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             events += MicEvent.Strike(midi, now, rise, delay)
         }
 
+        // Octave doublings inside a chord: every overtone of X is an overtone of X-12, so X cannot be heard on
+        // its own. Once the lower note of the pair is heard, credit X too (same pitch class).
+        // ponytail: a player who drops the upper octave still gets credit; fine for chord practice
+        for (midi in exp) {
+            if (now - (lastStrike[midi] ?: Long.MIN_VALUE / 2) < ms(600.0)) continue
+            val lower = listOf(midi - 12, midi - 24).firstOrNull { it in group && now - (lastStrike[it] ?: Long.MIN_VALUE / 2) < ms(600.0) } ?: continue
+            lastStrike[midi] = now
+            recentStrikes.addLast(now)
+            events += MicEvent.Strike(midi, now, -99.0, inferredFrom = lower)
+        }
+
         // A broadband strike with no expected note around it is a wrong note.
         while (recentStrikes.isNotEmpty() && now - recentStrikes.first() > ms(400.0)) recentStrikes.removeFirst()
         while (onsets.isNotEmpty() && now - onsets.first() >= ms(150.0)) {
@@ -237,7 +252,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         if (riseDb < cfg.sensitivityDb) return null
         val reason = when {
             noteFresh < 0.5 * riseOf(f.note) -> "not fresh (fresh ${db(noteFresh)} of rise ${db(riseOf(f.note))})"
-            freshPartials < minOf(2, f.note.size) -> "only $freshPartials partial jumped (beating?)"
+            // With two or fewer partials of its own (the rest shared with chord-mates), one jump has to do.
+            freshPartials < (if (f.note.size <= 2) 1 else 2) -> "only $freshPartials partial jumped (beating?)"
             noteFresh < 0.25 * nowOf(f.note) -> "jump is small next to what is already ringing (now ${db(nowOf(f.note))})"
             noteFresh < cfg.decoyRatio * maxOf(riseOf(f.up), riseOf(f.down)) -> "semitone neighbour (up ${db(riseOf(f.up))}, down ${db(riseOf(f.down))})"
             noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> "spill from a ringing neighbour (up ${db(nowOf(f.up))}, down ${db(nowOf(f.down))})"

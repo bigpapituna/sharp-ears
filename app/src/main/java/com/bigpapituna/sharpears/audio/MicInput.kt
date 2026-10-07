@@ -119,7 +119,7 @@ class MicInput(private val context: Context) {
         return true
     }
 
-    /** Debug: feeds a WAV file, or "synth:76,75,76[@600]" (MIDI notes [ms apart]), through the matcher. */
+    /** Debug: feeds a WAV file, or "synth:76,75,60+64+67[@600]" (notes or chords, [ms apart]), through the matcher. */
     fun startInjection(spec: String) {
         if (thread != null) stop()
         launch("injected $spec") { loopInjected(spec) }
@@ -176,8 +176,10 @@ class MicInput(private val context: Context) {
     private fun loopInjected(spec: String) {
         val samples = if (spec.startsWith("synth:")) {
             val (list, step) = spec.removePrefix("synth:").split("@").let { it[0] to (it.getOrNull(1)?.toDouble() ?: 600.0) }
-            val notes = list.split(",").mapIndexed { i, m -> SynthNote(m.trim().toInt(), 500 + i * step, durationMs = step * 0.9) }
-            PianoSynth.render(notes, 500 + notes.size * step + 1000, RATE)
+            // "60+64+67" is a chord: notes struck together.
+            val groups = list.split(",")
+            val notes = groups.flatMapIndexed { i, g -> g.split("+").map { SynthNote(it.trim().toInt(), 500 + i * step, durationMs = step * 0.9) } }
+            PianoSynth.render(notes, 500 + groups.size * step + 1000, RATE)
         } else {
             val w = Wav.read(File(spec))
             if (w.sampleRate == RATE) w.samples else resample(w.samples, w.sampleRate)

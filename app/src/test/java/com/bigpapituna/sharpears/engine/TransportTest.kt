@@ -195,6 +195,19 @@ class TransportTest {
         assertEquals(30, s.groups.size)
     }
 
+    @Test fun chordSlackLetsABigChordPassWithOneNoteUnheard() {
+        val big = listOf(48, 55, 64, 67, 72).map { Note(it, 0, 1000, if (it < 60) Hand.LEFT else Hand.RIGHT, 80) }
+        val s = Song("c", "c", 120.0, 4 to 4, big, groupOnsets(big), emptyList(), 1000)
+        val strict = Transport(s).apply { mode = Mode.WAIT; play() }
+        strict.run(10.0); listOf(48, 55, 64, 67).forEach { strict.noteInput(it) }
+        assertTrue(strict.waiting)                                               // touch/MIDI: every note
+        val lenient = Transport(s).apply { mode = Mode.WAIT; chordSlack = 1; play() }
+        lenient.run(10.0)
+        val results = listOf(48, 55, 64, 67).map { lenient.noteInput(it) }
+        assertEquals(InputResult.GROUP_DONE, results.last())
+        assertFalse(lenient.waiting)
+    }
+
     @Test fun listenModeIgnoresInput() {
         val t = Transport(song).apply { play() }
         assertEquals(InputResult.IGNORED, t.noteInput(60))

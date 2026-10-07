@@ -29,6 +29,13 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     /** A–B loop in song ms. Reaching the end jumps back to the start. */
     var loop: ClosedFloatingPointRange<Double>? = null
 
+    /**
+     * Notes a group of four or more may still be missing when it counts as played. The player sets 1 while
+     * the mic listens: in dense chords some notes' overtones are entirely shared with others and cannot be
+     * heard apart. Touch and MIDI keep 0 (every note).
+     */
+    var chordSlack = 0
+
     /** True while wait mode holds the song at a group the player has not finished. */
     var waiting = false
         private set
@@ -108,7 +115,8 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         val need = g.notes.filter(::required).map { it.midi }.toSet()
         if (midi !in need) return InputResult.WRONG
         satisfied += midi
-        if (!satisfied.containsAll(need)) return InputResult.CORRECT
+        val slack = if (need.size >= 4) chordSlack else 0
+        if (need.count { it !in satisfied } > slack) return InputResult.CORRECT
         satisfied.clear()
         waiting = false
         groupIndex = nextRequiredGroup(groupIndex + 1)

@@ -153,6 +153,7 @@ fun PlayerScreen(
         onDispose { mic.stop(); midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
+        transport.chordSlack = if (micOn) 1 else 0
         mic.matcher.expected = if (micOn) transport.listenFor else emptySet()
         mic.matcher.group = transport.listenGroup
     }
@@ -161,7 +162,8 @@ fun PlayerScreen(
             if (!micOn) return@collect
             when (e) {
                 is MicEvent.Strike -> {
-                    Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}")
+                    Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}" +
+                        (e.inferredFrom?.let { " (inferred from ${noteName(it)})" } ?: ""))
                     keyStruck(e.midi)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {

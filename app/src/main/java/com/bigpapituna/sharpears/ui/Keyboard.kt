@@ -14,6 +14,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -49,7 +54,10 @@ fun Keyboard(
     onNoteOff: (midi: Int) -> Unit,
     modifier: Modifier = Modifier,
     pulsing: Map<Int, Color> = emptyMap(),
+    /** Text drawn near the bottom of a key, e.g. fingering numbers. */
+    labels: Map<Int, String> = emptyMap(),
 ) {
+    val text = rememberTextMeasurer()
     // Read only inside the Canvas, so the pulse redraws the keyboard without recomposing the screen.
     val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
@@ -97,6 +105,12 @@ fun Keyboard(
             fun fill(midi: Int, default: Color) = lit[midi] ?: pulsing[midi]?.copy(alpha = a)?.compositeOver(default) ?: default
             l.whiteKeys.forEach { drawKey(it, fill(it.midi, Color.White), Color(0xFF2A2A2E)) }
             l.blackKeys.forEach { drawKey(it, fill(it.midi, Color(0xFF1B1B1F)), Color.Black) }
+            for ((midi, label) in labels) {
+                if (midi !in lowMidi..highMidi) continue
+                val k = l.rect(midi)
+                val m = text.measure(label, TextStyle(color = if (k.black) Color.White else Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - m.size.height - 8f))
+            }
         }
     }
 }

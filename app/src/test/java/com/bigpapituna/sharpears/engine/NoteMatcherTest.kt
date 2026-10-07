@@ -143,6 +143,22 @@ class NoteMatcherTest {
         assertEquals(setOf(45, 69), strikes(listen(bassAndMelody) { setOf(45, 69) }).map(::midiOf).toSet())
     }
 
+    @Test fun octaveDoublingsInAChordAreCredited() {
+        for (chord in listOf(listOf(55, 59, 62, 67), listOf(57, 69, 72, 76, 79), listOf(53, 60, 63, 65, 69), listOf(48, 60, 64, 67))) {
+            val audio = PianoSynth.render(chord.map { SynthNote(it, 500.0) }, 2000.0)
+            val m = NoteMatcher(fs)
+            m.group = chord.toSet()
+            val heard = mutableSetOf<Int>()
+            var i = 0
+            while (i < audio.size) {
+                m.expected = chord.toSet() - heard
+                m.process(audio.copyOfRange(i, minOf(audio.size, i + 480))).filterIsInstance<MicEvent.Strike>().forEach { heard += it.midi }
+                i += 480
+            }
+            assertEquals("chord ${chord.map { noteName(it) }}", chord.toSet(), heard)
+        }
+    }
+
     @Test fun repeatedNoteIsHeardAgain() {
         val audio = PianoSynth.render(listOf(SynthNote(64, 300.0, 250.0), SynthNote(64, 700.0, 250.0), SynthNote(64, 1100.0)), 2500.0)
         assertEquals(3, strikes(listen(audio) { setOf(64) }).size)

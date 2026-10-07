@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -45,7 +46,7 @@ fun NoteLane(
     val scrubEnd by rememberUpdatedState(onScrubEnd)
 
     Canvas(
-        modifier.pointerInput(Unit) {
+        modifier.clipToBounds().pointerInput(Unit) {
             detectVerticalDragGestures(
                 onDragStart = { scrubStart() },
                 onDragEnd = { scrubEnd() },
