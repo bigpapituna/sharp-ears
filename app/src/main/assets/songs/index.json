@@ -1,0 +1,15 @@
+{
+  "songs": [
+    {
+      "id": "fur-elise",
+      "file": "fur-elise.mid",
+      "title": "Für Elise",
+      "composer": "Ludwig van Beethoven",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "MIDI from the Mutopia Project (mutopiaproject.org), WoO 59",
+      "youtube": []
+    }
+  ]
+}

@@ -28,6 +28,7 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
 
 ## Phase status
 - P0 bootstrap: done 2026-10-07. Build, unit test, lint (0 errors), emulator screenshot all pass.
+- P1 song model + SMF parser: done 2026-10-07. 6 JVM tests; Für Elise (Mutopia, PD) parses to 905 notes, 2:10, both hands.
 
 ## Environment notes
 - JDK: Android Studio's bundled JBR (set in gradle.properties). For gradlew.bat in a fresh shell: $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
