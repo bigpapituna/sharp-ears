@@ -34,6 +34,23 @@ data class MatcherConfig(
     val attackDb: Double = 3.0,
     val attackWindowMs: Double = 180.0,   // Roy's real single-partial strikes: 0-170 ms after their attack
     /**
+     * Last gate against faint false notes (ringing notes from the previous chord wobbling, flukes at the room's
+     * noise floor). A strike must either jump this much at its lowest partial (a fresh note out of quiet)...
+     */
+    val freshJumpDb: Double = 18.0,
+    /**
+     * ...or rise this far above the room's background (a firm re-strike over a ringing note). On Roy's sessions the
+     * 14 false greens jumped 3-15 dB and sat -14..+7 dB above the room; every real strike passed one of the two.
+     */
+    val roomMarginDb: Double = 10.0,
+    /**
+     * The room's background: the quietest 5% of hop loudness (~10.7 ms each) over the last 20 s. A short window
+     * (5 s) measured the music itself during continuous playing and rejected real notes (8 missed in the synthetic
+     * Für Elise checks); 20 s reaches back to the room between phrases.
+     */
+    val roomPercentile: Double = 0.05,
+    val roomWindowHops: Int = 1875,
+    /**
      * Share of the window spent fading out at its newest end. 0.5 is a symmetric Hann window; smaller values
      * weight recent sound more, so a fresh note counts sooner, at some cost in frequency precision.
      */
@@ -135,6 +152,11 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         private set
 
     private val hopDb = DoubleArray(32)                // ring of recent hop loudness; 0 dB at start so startup is no strike
+    private val roomHist = DoubleArray(4000)            // up to ~43 s of hop loudness, for the room's background level
+    private var roomCount = 0
+    /** The room's background level in dBFS (see [MatcherConfig.roomPercentile]). */
+    @Volatile var roomFloorDb: Double = -120.0
+        private set
     private var lastOnset = Long.MIN_VALUE / 2
     private var lastAttack = Long.MIN_VALUE / 2           // softer than an onset: any hammer attack
     private val onsets = ArrayDeque<Long>()            // broadband strikes waiting to be explained
@@ -145,6 +167,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         history.fill(0f); filled = 0; pendingCount = 0; samplesProcessed = 0
         band2.reset(); band4.reset()
         hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear(); nowHistory.clear(); probes.clear()
+        roomCount = 0; roomFloorDb = -120.0
         lastOnset = Long.MIN_VALUE / 2
         lastAttack = Long.MIN_VALUE / 2
     }
@@ -184,6 +207,13 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         val slot = ((now / hop) % hopDb.size).toInt()
         val db40msAgo = hopDb[((slot - 4 + hopDb.size) % hopDb.size)]
         hopDb[slot] = db
+        roomHist[roomCount++ % roomHist.size] = db
+        if (roomCount % 25 == 0) {                         // re-estimate the room's background every ~0.25 s
+            val n = minOf(roomCount, cfg.roomWindowHops.coerceAtMost(roomHist.size))
+            val recent = DoubleArray(n) { roomHist[((roomCount - 1 - it) % roomHist.size + roomHist.size) % roomHist.size] }
+            recent.sort()
+            roomFloorDb = recent[(n * cfg.roomPercentile).toInt().coerceIn(0, n - 1)]
+        }
         if (db - db40msAgo >= cfg.attackDb && db > -75) lastAttack = now
         if (db - db40msAgo >= cfg.wrongOnsetDb && db > -70 && now - lastOnset > ms(80.0)) {
             lastOnset = now
@@ -291,6 +321,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             riseOf(f.sub) > cfg.subRatio * noteFresh -> "lower note (sub ${db(riseOf(f.sub))})"
             fresh(f.odd) < cfg.oddRatio * noteFresh -> "no odd partials (odd ${db(fresh(f.odd))}), higher octave?"
             !sharpEnough(f, nowP, beforeP, cfg) -> "not a sharp peak (gliding sound: voice, whistle?)"
+            !strongEnough(f, nowP, beforeP, riseDb, cfg) -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
+                "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
             else -> {
                 trace?.invoke("accept ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
                     "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
@@ -304,6 +336,17 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         trace?.invoke("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: rise ${db(noteFresh)} dB, $reason")
         return null
     }
+
+    /** How much the note's lowest probed partial jumped against the window before, in dB. */
+    private fun firstJumpDb(f: Probe, nowP: DoubleArray, beforeP: DoubleArray): Double {
+        val p = f.note.firstOrNull() ?: return 0.0
+        val now = p.maxOf { nowP[it] }; val before = p.maxOf { beforeP[it] }
+        return 10 * log10((now + 1e-20) / (before + 1e-20))
+    }
+
+    /** A fresh note out of quiet (big jump) or a firm strike well above the room's background. */
+    private fun strongEnough(f: Probe, nowP: DoubleArray, beforeP: DoubleArray, riseDb: Double, cfg: MatcherConfig) =
+        firstJumpDb(f, nowP, beforeP) >= cfg.freshJumpDb || riseDb - roomFloorDb >= cfg.roomMarginDb
 
     /** Fresh partials, where resolvable, must stand above their quarter-tone neighbours. */
     private fun sharpEnough(f: Probe, nowP: DoubleArray, beforeP: DoubleArray, cfg: MatcherConfig): Boolean =

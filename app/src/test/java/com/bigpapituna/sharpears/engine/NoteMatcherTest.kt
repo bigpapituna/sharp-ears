@@ -166,6 +166,38 @@ class NoteMatcherTest {
         assertTrue("B4 at ${heardAt[71]}", heardAt.getValue(71) in 1500.0..1700.0)
     }
 
+    /**
+     * Roy's false greens: a faint note left ringing from the previous chord wobbles by a few dB while room sounds
+     * (thumps, voices) supply "attacks". It must not count as played again. The same audio with the faint-note gate
+     * switched off shows the gate is what stops it.
+     */
+    @Test fun faintRingingNoteWobblingInARoomDoesNotCount() {
+        var withGate = 0; var withoutGate = 0
+        for (midi in listOf(50, 56, 62, 65, 69)) for (seed in 1L..4L) {
+            val rnd = java.util.Random(seed)
+            val audio = FloatArray(fs * 6)
+            val f0 = midiFreq(midi)
+            for (h in 1..5) {                                  // the leftover note: about -55 dB, wobbling +-4 dB at 1-2 Hz
+                val a = Math.pow(10.0, -55.0 / 20) / Math.pow(h.toDouble(), 1.1)
+                val fh = partialFreq(midi, h); val ph = rnd.nextDouble() * 6.28; val wob = 1.0 + rnd.nextDouble()
+                for (i in audio.indices) {
+                    val t = i.toDouble() / fs
+                    audio[i] += (a * (1 + 0.6 * kotlin.math.sin(2 * Math.PI * wob * t)) * kotlin.math.sin(2 * Math.PI * fh * t + ph)).toFloat()
+                }
+            }
+            for (i in audio.indices) audio[i] += (rnd.nextGaussian() * Math.pow(10.0, -58.0 / 20)).toFloat()   // room noise
+            for (k in 0 until 8) {                                                                       // room thumps
+                val at = (0.6 + k * 0.7 + rnd.nextDouble() * 0.2) * fs
+                for (j in 0 until fs / 100) audio[(at + j).toInt()] += (rnd.nextGaussian() * Math.pow(10.0, -38.0 / 20) * kotlin.math.exp(-j / 80.0)).toFloat()
+            }
+            withGate += strikes(listen(audio) { setOf(midi) }).size
+            withoutGate += strikes(listen(audio, MatcherConfig(freshJumpDb = -999.0, roomMarginDb = -999.0)) { setOf(midi) }).size
+        }
+        println("faint ringing note: $withGate false strikes with the gate, $withoutGate without")
+        assertEquals("a faint wobbling leftover note counted as played", 0, withGate)
+        assertTrue("the gate should be what rejects it (without it: $withoutGate)", withoutGate > 0)
+    }
+
     @Test fun octaveDoublingsInAChordAreCredited() {
         for (chord in listOf(listOf(55, 59, 62, 67), listOf(57, 69, 72, 76, 79), listOf(53, 60, 63, 65, 69), listOf(48, 60, 64, 67))) {
             val audio = PianoSynth.render(chord.map { SynthNote(it, 500.0) }, 2000.0)
