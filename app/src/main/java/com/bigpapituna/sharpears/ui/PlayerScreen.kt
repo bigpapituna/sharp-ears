@@ -154,6 +154,15 @@ fun PlayerScreen(
     var videoOn by remember { mutableStateOf(false) }
     val fingers = remember(song) { com.bigpapituna.sharpears.engine.Fingering.of(song) }
 
+    // Metronome (every song) and backing (progressions: the app plays the left-hand root, the right hand is yours).
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clicks = remember { lazy { com.bigpapituna.sharpears.audio.Clicks(context) } }
+    DisposableEffect(Unit) { onDispose { if (clicks.isInitialized()) clicks.value.release() } }
+    val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
+    val isProgression = song.id.startsWith("prog-")
+    var metronomeOn by remember { mutableStateOf(false) }
+    var backingOn by remember { mutableStateOf(false) }
+
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
     fun soundAllowed() = prefs.sound && (!(micOn && mode != Mode.LISTEN) || mic.headphonesOn()) && !(videoOn && tutorial?.anchor != null)
@@ -169,7 +178,14 @@ fun PlayerScreen(
     fun pause() { apply(transport.pause()); playing = false; savePosition(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
-        transport.play(leadInMs = if (transport.mode == Mode.PERFORM) LEAD_IN_MS else 0.0); playing = true
+        // A count-in bar with the backing, or with the metronome in Perform mode; otherwise Perform's 2 s lead-in.
+        val leadIn = when {
+            backingOn || (metronomeOn && transport.mode == Mode.PERFORM) -> metro.barMs
+            transport.mode == Mode.PERFORM -> LEAD_IN_MS
+            else -> 0.0
+        }
+        if (leadIn > 0 && transport.positionMs <= 0.0) Log.d(TAG, if (leadIn == metro.barMs) "count-in ${leadIn.toLong()} ms (${metro.beatsPerBar} beats)" else "lead-in ${leadIn.toLong()} ms")
+        transport.play(leadInMs = leadIn); playing = true
         Log.d(TAG, "transport play from ${transport.positionMs.toLong()} ms speed=${transport.speed} mode=${transport.mode} hands=${transport.practice}")
     }
     fun setLoop(a: Double?, b: Double?) {
@@ -306,6 +322,9 @@ fun PlayerScreen(
                 val before = transport.positionMs
                 val events = transport.tick((now - last) / 1_000_000.0)
                 if (events.isNotEmpty()) apply(events)
+                // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
+                if ((metronomeOn || backingOn) && transport.positionMs > before && soundAllowed())
+                    metro.clicks(before, transport.positionMs).forEach { clicks.value.play(it) }
                 if (transport.positionMs < before) Log.d(TAG, "loop wrap ${before.toLong()} -> ${transport.positionMs.toLong()} ms")
                 last = now
                 position = transport.positionMs
@@ -339,6 +358,8 @@ fun PlayerScreen(
             subtitle = listOfNotNull(meta?.composer?.takeIf { it.isNotEmpty() },
                 song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
+            metronome = metronomeOn,
+            backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
                 position < 0 -> "Get ready…"
@@ -360,6 +381,13 @@ fun PlayerScreen(
             },
             onMic = ::toggleMic,
             onVideo = { videoOn = !videoOn; Log.d(TAG, "video panel=$videoOn") },
+            onMetronome = { metronomeOn = !metronomeOn; Log.d(TAG, "metronome=$metronomeOn bpm=${song.bpm} beat=${metro.beatMs.toLong()} ms") },
+            onBacking = {
+                backingOn = !backingOn
+                // The backing plays the left hand; the right hand is the player's.
+                if (backingOn) { practice = Practice.RIGHT; transport.practice = Practice.RIGHT; version++ }
+                Log.d(TAG, "backing=$backingOn hands=${transport.practice}")
+            },
         ),
         modifier = Modifier.fillMaxWidth(),
     )

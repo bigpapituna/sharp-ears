@@ -66,6 +66,9 @@ data class BarState(
     val videoOn: Boolean? = null,
     /** Short live status, e.g. the Perform streak. */
     val status: String = "",
+    val metronome: Boolean = false,
+    /** null: not a progression (no backing to offer). */
+    val backing: Boolean? = null,
 )
 
 class BarActions(
@@ -79,6 +82,8 @@ class BarActions(
     val onLoop: () -> Unit,
     val onMic: () -> Unit = {},
     val onVideo: () -> Unit = {},
+    val onMetronome: () -> Unit = {},
+    val onBacking: () -> Unit = {},
 )
 
 /**
@@ -135,6 +140,8 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 Text(speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
                     color = if (s.speed != 1.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             }
+            Toggle("Metronome", s.metronome, a.onMetronome)
+            s.backing?.let { Toggle("Backing", it, a.onBacking) }
             MicToggle(s, a.onMic)
             s.videoOn?.let { on ->
                 IconToggleButton(on, { a.onVideo() }, modifier = Modifier.semantics { stateDescription = if (on) "shown" else "hidden" }) {
@@ -195,4 +202,12 @@ private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T
             ) { Text(label, maxLines = 1) }
         }
     }
+}
+
+
+/** A text pill that switches something on the stage (metronome, backing, chord names). */
+@Composable
+private fun Toggle(label: String, on: Boolean, onClick: () -> Unit) {
+    androidx.compose.material3.FilterChip(on, onClick, label = { Text(label, maxLines = 1) },
+        modifier = Modifier.semantics { stateDescription = if (on) "on" else "off" })
 }
