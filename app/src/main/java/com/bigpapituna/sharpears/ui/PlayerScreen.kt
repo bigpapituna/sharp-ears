@@ -161,6 +161,8 @@ fun PlayerScreen(
     val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
     val isProgression = song.id.startsWith("prog-")
     var metronomeOn by remember { mutableStateOf(false) }
+    var ramp by remember { mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null) }
+    var rampPercent by remember { mutableIntStateOf(0) }
     var backingOn by remember { mutableStateOf(false) }
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
@@ -204,7 +206,16 @@ fun PlayerScreen(
         }
         version++
     }
+    fun setSpeed(sp: Double) { speed = sp; transport.speed = sp; Log.d(TAG, "transport speed=$sp") }
+    /** A loop pass (or the whole song) was played through: the ramp may speed up. */
+    fun passEnded(r: Report) {
+        val rr = ramp ?: return
+        val up = rr.passEnded(transport.mode, r)
+        Log.d(TAG, "ramp: pass ${if (rr.clean(transport.mode, r)) "clean" else "not clean"} (wrong=${r.wrongKeys} accuracy=${r.recap?.accuracy}) -> ${rr.percent}%")
+        if (up != null) { setSpeed(up); rampPercent = rr.percent; voice.speak("Faster: ${rr.percent} percent.") }
+    }
     fun finished() {
+        if (transport.loop == null) passEnded(transport.report())
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
@@ -317,6 +328,7 @@ fun PlayerScreen(
         var last = withFrameNanos { it }
         var wasWaiting = transport.waiting
         var listening = transport.listenFor
+        var passes = transport.passes
         while (transport.playing) {
             withFrameNanos { now ->
                 val before = transport.positionMs
@@ -326,6 +338,7 @@ fun PlayerScreen(
                 if ((metronomeOn || backingOn) && transport.positionMs > before && soundAllowed())
                     metro.clicks(before, transport.positionMs).forEach { clicks.value.play(it) }
                 if (transport.positionMs < before) Log.d(TAG, "loop wrap ${before.toLong()} -> ${transport.positionMs.toLong()} ms")
+                if (transport.passes != passes) { passes = transport.passes; transport.lastPass?.let(::passEnded) }
                 last = now
                 position = transport.positionMs
                 if (transport.waiting != wasWaiting) {
@@ -359,6 +372,7 @@ fun PlayerScreen(
                 song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
+            ramp = if (ramp != null) rampPercent else null,
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
@@ -368,7 +382,8 @@ fun PlayerScreen(
         BarActions(
             onBack = onBack,
             onPlayPause = { if (playing) pause() else play() },
-            onSpeed = { speed = it; transport.speed = it; Log.d(TAG, "transport speed=$it") },
+            onSpeed = { ramp = null; setSpeed(it) },
+            onRamp = { ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent }; Log.d(TAG, "ramp on at 50%") },
             onMode = ::setMode,
             onPractice = { practice = it; transport.practice = it; version++; Log.d(TAG, "hands=$it") },
             onSeek = { seek(it) },

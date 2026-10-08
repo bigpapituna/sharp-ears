@@ -67,6 +67,8 @@ data class BarState(
     /** Short live status, e.g. the Perform streak. */
     val status: String = "",
     val metronome: Boolean = false,
+    /** The ramp's current percentage while the speed ramp is on, else null. */
+    val ramp: Int? = null,
     /** null: not a progression (no backing to offer). */
     val backing: Boolean? = null,
 )
@@ -83,6 +85,8 @@ class BarActions(
     val onMic: () -> Unit = {},
     val onVideo: () -> Unit = {},
     val onMetronome: () -> Unit = {},
+    /** Turns the speed ramp on (it starts at 50%). Picking a fixed speed turns it off. */
+    val onRamp: () -> Unit = {},
     val onBacking: () -> Unit = {},
 )
 
@@ -132,13 +136,22 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
             Text(formatTime(s.durationMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
             Spacer(Modifier.width(4.dp))
             LoopButton(s, a.onLoop)
-            TextButton(onClick = { a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size]) },
-                modifier = Modifier.semantics { contentDescription = "Speed ${speedLabel(s.speed)}, tap to change" }) {
+            // One button walks the speeds: 0.25x, 0.5x, 0.75x, 1x, then Ramp (50% rising to 100% with clean passes).
+            val changed = s.speed != 1.0 || s.ramp != null
+            TextButton(onClick = {
+                when {
+                    s.ramp != null -> a.onSpeed(SPEEDS.first())
+                    s.speed == 1.0 -> a.onRamp()
+                    else -> a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size])
+                }
+            }, modifier = Modifier.semantics {
+                contentDescription = (s.ramp?.let { "Speed ramp at $it percent" } ?: "Speed ${speedLabel(s.speed)}") + ", tap to change"
+            }) {
                 Icon(painterResource(R.drawable.ic_speed), contentDescription = null, modifier = Modifier.size(18.dp),
-                    tint = if (s.speed != 1.0) MaterialTheme.colorScheme.primary else dim)
+                    tint = if (changed) MaterialTheme.colorScheme.primary else dim)
                 Spacer(Modifier.width(6.dp))
-                Text(speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
-                    color = if (s.speed != 1.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                Text(s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+                    color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             }
             Toggle("Metronome", s.metronome, a.onMetronome)
             s.backing?.let { Toggle("Backing", it, a.onBacking) }

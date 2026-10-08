@@ -85,10 +85,11 @@ class TutorialState(val songId: String, val videos: List<Video>, private val pre
     fun videoSecFor(songMs: Double): Float? = anchor?.let { (it + (songMs - firstNoteMs) / 1000.0).toFloat().coerceAtLeast(0f) }
 }
 
-private fun rateFor(speed: Double) = when (speed) {
-    0.25 -> PlayerConstants.PlaybackRate.RATE_0_25
-    0.5 -> PlayerConstants.PlaybackRate.RATE_0_5
-    0.75 -> PlayerConstants.PlaybackRate.RATE_0_75
+// The nearest YouTube rate at or below the song's speed (ramp speeds like 0.6 fall between); drift seeks cover the rest.
+private fun rateFor(speed: Double) = when {
+    speed < 0.5 -> PlayerConstants.PlaybackRate.RATE_0_25
+    speed < 0.75 -> PlayerConstants.PlaybackRate.RATE_0_5
+    speed < 1.0 -> PlayerConstants.PlaybackRate.RATE_0_75
     else -> PlayerConstants.PlaybackRate.RATE_1
 }
 

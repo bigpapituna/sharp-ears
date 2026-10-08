@@ -48,6 +48,12 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     /** The run so far, for feedback. */
     fun report() = log.report(score?.recap())
 
+    /** Bumps each time the A-B loop wraps; [lastPass] is the report of the pass that just ended. */
+    var passes = 0
+        private set
+    var lastPass: Report? = null
+        private set
+
     /** True while wait mode holds the song at a group the player has not finished. */
     var waiting = false
         private set
@@ -101,7 +107,14 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         if (!playing) return emptyList()
         var end = (positionMs + dtMs * speed).coerceAtMost(song.durationMs.toDouble())
         // "<=" so pressing B at the playhead wraps on the next frame; a seek past B plays on.
-        loop?.let { if (positionMs <= it.endInclusive && end >= it.endInclusive) return seek(it.start) }
+        loop?.let {
+            if (positionMs <= it.endInclusive && end >= it.endInclusive) {
+                // Grade the groups before B (the ones after it were never reached), then start the next pass.
+                score?.advance(it.endInclusive + OK_MS)
+                lastPass = report(); passes++
+                return seek(it.start)
+            }
+        }
         if (mode == Mode.WAIT) {
             val g = song.groups.getOrNull(groupIndex)
             if (g != null && g.startMs <= end) { end = g.startMs.toDouble(); waiting = true }
