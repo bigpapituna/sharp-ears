@@ -55,6 +55,7 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
     val prefs = deps.prefs
     val best = remember(level, prefs.version.intValue) { prefs.sightBest(level) }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -73,10 +74,6 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                 if (level == 1) "C major, right hand, quarter and half notes."
                 else "${piece.keyName}, eighth notes too, and a bass note in the left hand.",
                 style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
-            result?.let { (s, newBest) ->
-                Text((if (newBest) "New best: " else "Done: ") + s.label + ".", style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp))
-            }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 SharpEarsTheme(dark = true) {
                     key(level, seed) {
@@ -103,5 +100,13 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
             Spacer(Modifier.weight(1f))
             ChunkyButton(onClick = { seed = System.nanoTime() }) { Text("New piece") }
         }
+    }
+    // The pup's verdict on the piece, and the way on to the next one.
+    result?.let { (sc, newBest) ->
+        val good = newBest || sc.wrong <= 2
+        CheerBar(if (good) Cheer.GOOD else Cheer.MISS,
+            when { newBest -> "New best!"; good -> cheerTitle(seed.toInt()); else -> "Keep reading" },
+            (if (newBest) "New best: " else "Done: ") + sc.label + ".", "New piece", Modifier.align(Alignment.BottomCenter)) { seed = System.nanoTime() }
+    }
     }
 }

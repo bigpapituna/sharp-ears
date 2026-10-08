@@ -7,7 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -439,19 +441,25 @@ private fun Session(
     }
     val progress = @Composable {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${store.sessionIndex + 1} of $n", style = Numeric.merge(MaterialTheme.typography.titleMedium), modifier = Modifier.weight(1f))
+            Pup(Pose.PRACTICING, size = 56.dp)
+            Text("${store.sessionIndex + 1} of $n", style = Numeric.merge(MaterialTheme.typography.titleMedium), modifier = Modifier.weight(1f).padding(start = 8.dp))
             TextButton(onClick = { if (onEnd != null) onEnd() else store.endSession() }) { Text(if (onEnd != null) "Skip the rest" else "End session") }
         }
     }
     when (item) {
-        is LessonItem.ChordItem -> {
+        is LessonItem.ChordItem -> Box(Modifier.fillMaxSize()) {
             val drill = remember(store.sessionIndex) { ChordDrill(listOf(item.chord), seed = 1) }
-            var answered by remember(store.sessionIndex) { mutableStateOf(false) }
+            // How the chord went (null until played); the pup's bar then waits on Continue, like a lesson step.
+            var result by remember(store.sessionIndex) { mutableStateOf<Boolean?>(null) }
             ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, header = progress,
                 skip = { store.answer(false) },
-                onDone = { _, clean ->
-                    if (!answered) { answered = true; scope.launch { delay(700); store.answer(clean) } }
-                })
+                onDone = { _, clean -> if (result == null) result = clean })
+            result?.let { clean ->
+                CheerBar(if (clean) Cheer.GOOD else Cheer.MISS,
+                    if (clean) cheerTitle(store.sessionIndex + store.sessionCorrect) else "Almost",
+                    if (clean) "Played cleanly." else "Not clean yet, so it comes back sooner.",
+                    "Continue", Modifier.align(Alignment.BottomCenter)) { store.answer(clean) }
+            }
         }
         is LessonItem.ProgressionItem -> Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             progress()
