@@ -73,8 +73,10 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         "has the mic switched on and the app is on screen. The sound is analysed on this phone and then discarded.")
     if (canRecord) {
         Para("This is a private development build. With Keep practice recordings switched on, it saves your last 4 mic sessions " +
-            "on this phone so note detection can be tuned from your playing. Anything said in the room ends up in those files. " +
-            "They stay on the phone; switch them off or delete them in Microphone setup.")
+            "on this phone so note detection can be tuned from your playing, plus short clips when wait mode gets stuck, when you flag " +
+            "something, or when the mic and a USB keyboard disagree. Anything said in the room ends up in those files. " +
+            "They stay on the phone unless Send them for review is on: then, on Wi-Fi, those clips, crash reports and a weekly summary " +
+            "go to your own private GitHub repository. Switch either off, or delete the clips, in Microphone setup.")
         TextButton(onClick = onMicSetup) { Text("Microphone setup") }
     }
     Heading("What is stored")
