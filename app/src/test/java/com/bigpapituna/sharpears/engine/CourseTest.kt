@@ -19,8 +19,8 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(43, ids.size)
-        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced"), COURSE.map { it.id })
+        assertEquals(50, ids.size)
+        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)
@@ -117,5 +117,32 @@ class CourseTest {
             assertEquals("${l.id}: four bars of melody", 4.0 * both.beats, beats(both.right), 1e-9)
             assertEquals("${l.id}: the pattern fills the same bars", beats(both.right), beats(both.left), 1e-9)
         }
+    }
+
+    @Test fun techniqueDrillsEndOnATempoRamp() {
+        val level = COURSE.last()
+        assertEquals("technique", level.id)
+        assertEquals(listOf("five-c", "five-g", "five-f", "five-d", "five-a", "hanon-1", "contrary"), level.lessons.map { it.id })
+        for (l in level.lessons) {
+            val last = l.steps.last()
+            assertEquals(l.id, StepKind.RAMP, last.kind)
+            assertEquals(Mode.PERFORM, last.mode)
+            val song = last.exercise!!.toSong(l.id, l.title)
+            assertTrue("${l.id}: both hands", song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT })
+        }
+        // Five-finger drills: both hands an octave apart, in the key's position; F names its black key B flat.
+        val g = level.lessons.first { it.id == "five-g" }.steps.last().exercise!!.toSong("g", "g")
+        assertEquals((67..74).toSet().intersect(setOf(67, 69, 71, 72, 74)), g.notes.filter { it.hand == Hand.RIGHT }.map { it.midi }.toSet())
+        assertTrue(level.lessons.first { it.id == "five-f" }.steps.last().exercise!!.toSong("f", "f").preferFlats)
+        val hanon = level.lessons.first { it.id == "hanon-1" }.steps.last().exercise!!.toSong("h", "h")
+        assertEquals(32, hanon.notes.count { it.hand == Hand.RIGHT })
+        assertEquals(hanon.notes.filter { it.hand == Hand.RIGHT }.map { it.midi - 12 }, hanon.notes.filter { it.hand == Hand.LEFT }.map { it.midi })
+        // A ramp from 50% needs five clean passes to reach full speed.
+        val r = TempoRamp()
+        val clean = Report(emptyList(), 0, 0, Recap(10, 0, 0, 0, 10))
+        repeat(4) { r.passEnded(Mode.PERFORM, clean) }
+        assertFalse(r.atTop)
+        r.passEnded(Mode.PERFORM, clean)
+        assertTrue(r.atTop)
     }
 }

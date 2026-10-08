@@ -117,7 +117,9 @@ data class PlayerStart(
  * single row with play/pause, the step's fixed hand and mode ([state]) and the mic. [labels] false hides note
  * names and finger numbers (playing from memory). With [autoStart] the run starts once the voice has finished.
  */
-data class Embedded(val state: String, val labels: Boolean = true, val autoStart: Boolean = true)
+data class Embedded(val state: String, val labels: Boolean = true, val autoStart: Boolean = true,
+                    /** A ramp step: starts at 50%, plays again after each pass, ends only once the ramp reaches 100%. */
+                    val ramp: Boolean = false)
 
 /**
  * Landscape player: transport bar, falling-notes lane, keyboard, and the song's tutorial video when it has one.
@@ -282,6 +284,13 @@ fun PlayerScreen(
     }
     fun finished() {
         if (transport.loop == null) passEnded(transport.report())
+        // A ramp step goes round again until the ramp reaches 100%.
+        val rr = ramp
+        if (embedded?.ramp == true && rr != null && !rr.atTop) {
+            Log.d(TAG, "ramp step: pass done, again at ${rr.percent}%")
+            scope.launch { delay(1800); seek(0.0); play() }
+            return
+        }
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
@@ -405,6 +414,7 @@ fun PlayerScreen(
         Log.d(TAG, "mic on")
     }
     LaunchedEffect(song) {
+        if (embedded?.ramp == true) { ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent } }
         if (startMs > 0) seek(startMs)
         // Before Play the first notes already hang just under the top of the lane.
         if (!debugDump) { transport.preview(PREVIEW_MS); position = transport.positionMs }
@@ -623,6 +633,7 @@ fun PlayerScreen(
         Column(modifier.background(LaneBackground)) {
             EmbeddedBar(embedded.state, playing, ready, micOn, onPlayPause = { if (playing) pause() else play() }, onMic = ::toggleMic,
                 status = when {
+                    embedded.ramp && !(playing && position >= transport.anchorMs) -> "Ramp $rampPercent%"
                     mode != Mode.PERFORM || !playing -> ""
                     position < transport.anchorMs -> "Get ready"
                     else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""

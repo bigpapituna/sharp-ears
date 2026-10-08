@@ -28,11 +28,13 @@ data class Exercise(
  * What a step asks of the player. READ: text only, tap Next. LISTEN: the app plays the phrase, nothing to do.
  * PLAY: wait mode with note names and fingers shown. FROM_MEMORY: wait mode with them hidden.
  * PERFORM: the notes keep moving; the step passes at the exercise's pass mark.
+ * RAMP: Perform with the tempo ramp: it starts at 50% and rises 10 points after each clean pass (90% or better);
+ * the step is done once it reaches 100% (the exercise's bpm is the target tempo).
  */
-enum class StepKind { READ, LISTEN, PLAY, FROM_MEMORY, PERFORM }
+enum class StepKind { READ, LISTEN, PLAY, FROM_MEMORY, PERFORM, RAMP }
 
 data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = null) {
-    val mode get() = when (kind) { StepKind.LISTEN -> Mode.LISTEN; StepKind.PERFORM -> Mode.PERFORM; else -> Mode.WAIT }
+    val mode get() = when (kind) { StepKind.LISTEN -> Mode.LISTEN; StepKind.PERFORM, StepKind.RAMP -> Mode.PERFORM; else -> Mode.WAIT }
     /** Note names and finger numbers are shown on the notes and keys. */
     val labels get() = kind != StepKind.FROM_MEMORY
 
@@ -40,6 +42,7 @@ data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = 
     fun passed(recap: Recap?): Boolean = when (kind) {
         StepKind.READ -> true
         StepKind.PERFORM -> recap != null && recap.accuracy >= (exercise?.pass ?: 0)
+        StepKind.RAMP -> true                    // the player ends a ramp step only once the ramp has reached 100%
         else -> true
     }
 }
@@ -109,6 +112,7 @@ private fun listen(text: String, ex: Exercise) = Step(StepKind.LISTEN, text, ex)
 private fun play(text: String, ex: Exercise) = Step(StepKind.PLAY, text, ex)
 private fun memory(text: String, ex: Exercise) = Step(StepKind.FROM_MEMORY, text, ex)
 private fun perform(text: String, ex: Exercise) = Step(StepKind.PERFORM, text, ex)
+private fun ramp(text: String, ex: Exercise) = Step(StepKind.RAMP, text, ex)
 
 private const val LISTEN_FIRST = "Listen first. Watch the notes fall and hear how it goes."
 private const val YOUR_TURN = "Your turn. The notes wait for you, with letters and finger numbers to guide you."
@@ -211,6 +215,54 @@ private val LEFT_HAND_PATTERNS = listOf(
         "A tenth is a third plus an octave: too wide to play at once for most hands, so it is broken. Play the root, the fifth, then the chord's third above them, rising.",
         left = "C3:1 G3:1 E4:2 F2:1 C3:1 A3:2 G2:1 D3:1 B3:2 C3:1 G3:1 E4:2",
         tune = "G4:2 C5:2 A4:2 C5:2 B4:2 D5:2 C5:4"),
+)
+
+private const val RAMP_TEXT = "Now in time, starting at half speed. Each clean pass, 90 percent or better, goes ten percent faster. Reach full speed to finish."
+
+/** Five fingers up and down twice, both hands an octave apart, in the five-finger position on [root]. */
+private fun fiveFinger(id: String, key: String, notes: List<String>, blackKeys: String): CourseLesson {
+    val pattern = listOf(0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1)
+    val flats = notes.any { it.endsWith("b") }
+    // Each finger's key from the root upward (a C after B is in the next octave).
+    fun keys(octave: Int): List<String> {
+        var prev = noteNumber("${notes[0]}$octave") - 1
+        return notes.map { n -> var m = noteNumber("${n}0"); while (m <= prev) m += 12; prev = m; noteName(m, flats) }
+    }
+    fun line(octave: Int) = keys(octave).let { k -> pattern.joinToString(" ") { "${k[it]}:1" } + " ${k[0]}:4" }
+    val ex = Exercise(right = line(4), left = line(3), bpm = 100.0, flats = flats)
+    return lesson(id, "Five fingers in $key", "Both hands together, one finger per key, target 100 beats a minute.",
+        read("Put each hand in the five-finger position on $key: thumbs and little fingers on ${notes[0]} and ${notes[4]}, one finger per key. $blackKeys",
+            "Both hands play the same notes an octave apart. Keep every finger curved and every note the same loudness."),
+        listen("Listen at full speed.", ex),
+        ramp(RAMP_TEXT, ex))
+}
+
+private val TECHNIQUE = listOf(
+    fiveFinger("five-c", "C", listOf("C", "D", "E", "F", "G"), "All white keys."),
+    fiveFinger("five-g", "G", listOf("G", "A", "B", "C", "D"), "All white keys, a step higher on the piano."),
+    fiveFinger("five-f", "F", listOf("F", "G", "A", "Bb", "C"), "Finger 4 plays B flat in the right hand, finger 2 in the left."),
+    fiveFinger("five-d", "D", listOf("D", "E", "F#", "G", "A"), "Finger 3 plays F sharp in both hands."),
+    fiveFinger("five-a", "A", listOf("A", "B", "C#", "D", "E"), "Finger 3 plays C sharp in both hands."),
+    run {
+        val r = "C4:0.25 E4:0.25 F4:0.25 G4:0.25 A4:0.25 G4:0.25 F4:0.25 E4:0.25 D4:0.25 F4:0.25 G4:0.25 A4:0.25 B4:0.25 A4:0.25 G4:0.25 F4:0.25 " +
+            "E4:0.25 G4:0.25 A4:0.25 B4:0.25 C5:0.25 B4:0.25 A4:0.25 G4:0.25 F4:0.25 A4:0.25 B4:0.25 C5:0.25 D5:0.25 C5:0.25 B4:0.25 A4:0.25"
+        val ex = Exercise(right = r, left = r.replace("4:", "3:").replace("5:", "4:"), bpm = 72.0, beats = 2)
+        lesson("hanon-1", "Hanon exercise 1", "The first four bars, both hands, target 72 beats a minute.",
+            read("Hanon's first exercise climbs one step at a time: a leap of a third from the thumb, then up to finger 5 and back down to finger 2. Both hands play the same notes an octave apart.",
+                "Lift each finger from the knuckle and play every note equally loud. Slow and even beats fast and patchy."),
+            listen("Listen to the first four bars at full speed.", ex),
+            ramp(RAMP_TEXT, ex))
+    },
+    run {
+        val ex = Exercise(right = "C4:1 D4:1 E4:1 F4:1 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F4:1 E4:1 D4:1 C4:2",
+            left = "C3:1 B2:1 A2:1 G2:1 F2:1 E2:1 D2:1 C2:1 D2:1 E2:1 F2:1 G2:1 A2:1 B2:1 C3:2", bpm = 80.0)
+        lesson("contrary", "Contrary-motion C scale", "The hands move apart and back together, as mirror images.",
+            read("Both thumbs start on C, an octave apart. The right hand goes up while the left goes down, so the hands mirror each other and use the same fingers at the same time.",
+                "Both thumbs tuck under together after E, and finger 3 crosses over together on the way back."),
+            listen("Listen to the hands moving apart and back.", ex),
+            play("Both hands, the notes wait for you.", ex),
+            ramp(RAMP_TEXT, ex))
+    },
 )
 
 private val KEYS = listOf(
@@ -491,4 +543,5 @@ val COURSE: List<CourseLevel> = listOf(
             read("Now open the whole piece. When a section is reliable in wait mode, play it in Perform mode at full speed."),
             song = "fur-elise"),
     )),
+    CourseLevel("technique", "Technique", "Daily drills that build even, independent fingers, played faster each clean pass.", TECHNIQUE),
 )

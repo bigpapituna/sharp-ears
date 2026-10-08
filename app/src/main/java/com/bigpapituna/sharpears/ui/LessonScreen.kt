@@ -101,6 +101,8 @@ fun LessonScreen(
         val passed = s.passed(report.recap)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake.
         val line = if (s.kind == StepKind.LISTEN) null
+            else if (s.kind == StepKind.RAMP) com.bigpapituna.sharpears.engine.Feedback("Full speed. " + if (last) "Lesson done." else "On to the next step.",
+                "Full speed. " + if (last) "Lesson done." else "On to the next step.")
             else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last, flats = s.exercise?.flats == true)
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
         feedback = line?.text
@@ -151,7 +153,7 @@ fun LessonScreen(
                                     beatLines = ex.beatLines),
                                 onBack = onBack,
                                 onFinished = { exerciseEnded(step, it) },
-                                embedded = Embedded(stateLabel(step), labels = step.labels),
+                                embedded = Embedded(stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                             )
                         }
@@ -183,6 +185,7 @@ private fun stateLabel(step: Step): String {
         StepKind.PLAY -> "$hand, the notes wait"
         StepKind.FROM_MEMORY -> "$hand, from memory"
         StepKind.PERFORM -> "$hand, in time, pass at ${ex.pass}%"
+        StepKind.RAMP -> "$hand, up to ${ex.bpm.toInt()} bpm"
         StepKind.READ -> ""
     }
 }
