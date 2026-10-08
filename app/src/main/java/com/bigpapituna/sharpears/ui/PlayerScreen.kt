@@ -100,6 +100,10 @@ data class PlayerStart(
     val tabletop: Boolean = false,
     /** Debug: stretches the hit-line lights so a screenshot can catch them. */
     val lightSlow: Float = 1f,
+    /** Open straight into a wait-mode loop on this bar (1-based) at half speed, playing once the sounds are ready. */
+    val loopBar: Int? = null,
+    /** Stop after this much real time and call onTimeUp (the "Practice today" loop part). */
+    val timeLimitMs: Long? = null,
 )
 
 /**
@@ -126,6 +130,8 @@ fun PlayerScreen(
     modifier: Modifier = Modifier,
     /** The song's chords by bar (library songs with a chord pack); a Chords pill shows them on the lane. */
     chordTrack: com.bigpapituna.sharpears.engine.ChordTrack? = null,
+    /** [PlayerStart.timeLimitMs] ran out. */
+    onTimeUp: () -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     if (embedded == null) DisposableEffect(Unit) {
@@ -369,6 +375,22 @@ fun PlayerScreen(
         }
     }
     DisposableEffect(song) { onDispose { savePosition(); apply(transport.pause()) } }
+    // "Practice today": straight into a loop on the worst bar, for a fixed time.
+    start.loopBar?.let { bar ->
+        LaunchedEffect(song, ready) {
+            if (!ready) return@LaunchedEffect
+            delay(600)
+            loopBar(TroubleSpots.spot(song, bar))
+        }
+    }
+    start.timeLimitMs?.let { limit ->
+        LaunchedEffect(song) {
+            delay(limit)
+            Log.d(TAG, "time limit ${limit / 1000} s reached")
+            pause()
+            onTimeUp()
+        }
+    }
     if (embedded == null) BackHandler(onBack = onBack)
     // A lesson step starts by itself once the voice has read it out (and the sounds are loaded).
     var autoStarted by remember { mutableStateOf(false) }

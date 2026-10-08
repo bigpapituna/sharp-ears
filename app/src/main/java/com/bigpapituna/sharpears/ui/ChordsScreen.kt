@@ -401,14 +401,33 @@ private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur
     )
 }
 
+/**
+ * The chord part of "Practice today": the due chords ([itemIds]) one after another, as in the Daily tab.
+ * [onEnd] runs with how many were answered when the last one is done or the rest is skipped.
+ */
+@Composable
+fun DailyChords(store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, itemIds: List<String>,
+                inject: String?, onEnd: (answered: Int) -> Unit) {
+    LaunchedEffect(itemIds) {
+        val all = store.curriculum().packs.flatMap { it.items }.distinctBy { it.id }.associateBy { it.id }
+        store.startSession(itemIds.mapNotNull { all[it] })
+    }
+    if (store.session.isEmpty()) return
+    Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression = { _, _ -> },
+        onEnd = { val n = store.sessionIndex; store.endSession(); onEnd(n) })
+}
+
 @Composable
 private fun Session(
     store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, inject: String?,
     onPlayProgression: (Progression, Int) -> Unit,
+    /** Set inside "Practice today": the end of the queue (or End) hands back to the session instead of a summary. */
+    onEnd: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val item = store.session.getOrNull(store.sessionIndex)
     val n = store.session.size
+    if (item == null && onEnd != null) { LaunchedEffect(Unit) { onEnd() }; return }
     if (item == null) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Session done", style = MaterialTheme.typography.headlineSmall)
@@ -420,7 +439,7 @@ private fun Session(
     val progress = @Composable {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${store.sessionIndex + 1} of $n", style = Numeric.merge(MaterialTheme.typography.titleMedium), modifier = Modifier.weight(1f))
-            TextButton(onClick = store::endSession) { Text("End session") }
+            TextButton(onClick = { if (onEnd != null) onEnd() else store.endSession() }) { Text(if (onEnd != null) "Skip the rest" else "End session") }
         }
     }
     when (item) {

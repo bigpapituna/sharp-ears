@@ -45,8 +45,13 @@ import com.bigpapituna.sharpears.data.SongProgress
 /** One library row: the song, whether its file is present, and saved progress. */
 data class LibraryEntry(val meta: SongMeta, val available: Boolean, val progress: SongProgress)
 
+/** The "Practice today" panel: the plan's length and parts, or today's summary once it is done. */
+data class TodayPanel(val about: String, val parts: List<String>, val summary: String?)
+
 class LibraryActions(
     val onOpen: (SongMeta) -> Unit,
+    /** Starts "Practice today". */
+    val onToday: () -> Unit = {},
     /** Pick a MIDI file; [into] is the locked entry it unlocks, or null for a new song. */
     val onImport: (into: SongMeta?) -> Unit,
     val onMic: () -> Unit,
@@ -59,7 +64,8 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
  * [continueWith] is the song last played, or null on a fresh install (the panel then suggests a first song).
  */
 @Composable
-fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null) {
+fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
+                  today: TodayPanel? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -67,7 +73,11 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic, practice) } }
-        first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
+        // "Practice today" is the one raised panel; Continue sits under it as a plain row.
+        if (today != null) {
+            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }
+            first?.let { e -> item { ContinueRow(e, fresh = continueWith == null, a) } }
+        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
@@ -138,6 +148,60 @@ private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) {
             Spacer(Modifier.size(6.dp))
             Text(if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play")
         }
+    }
+}
+
+@Composable
+private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Practice today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        if (t.summary != null) {
+            Text("Done for today", style = MaterialTheme.typography.headlineMedium)
+            Text(t.summary.removePrefix("Done today: ").replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onStart, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Practice again") }
+        } else {
+            Text(t.about.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineMedium)
+            // One line per part, in the order they run.
+            if (t.parts.isEmpty()) Text("Nothing is due. Pick any song below.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            t.parts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Spacer(Modifier.size(8.dp))
+            Button(onClick = onStart, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) {
+                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Start")
+            }
+        }
+    }
+}
+
+/** Continue as a plain row under the panel: what was played last and where it stopped. */
+@Composable
+private fun ContinueRow(e: LibraryEntry, fresh: Boolean, a: LibraryActions) {
+    val p = e.progress
+    Row(
+        Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(12.dp)).clickable { a.onOpen(e.meta) }.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(e.meta.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                when {
+                    fresh -> "An easy first song, melody and bass."
+                    p.lastPositionMs > 0 && !p.completed -> "Paused at ${formatTime(p.lastPositionMs.toDouble())}"
+                    p.bestAccuracy >= 0 -> "Best run ${p.bestAccuracy}%"
+                    else -> e.meta.composer
+                },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play",
+            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
     }
 }
 

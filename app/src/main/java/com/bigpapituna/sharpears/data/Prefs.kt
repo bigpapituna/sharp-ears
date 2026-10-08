@@ -107,6 +107,13 @@ class Prefs(context: Context) {
         else runCatching { java.time.LocalDate.parse(k.removePrefix("practice:")) to v }.getOrNull()
     }.toMap()
 
+    /** "Practice today" finished on [day]: the summary row, or null. */
+    fun dailySummary(day: java.time.LocalDate): String? = p.getString("daily:$day", null)
+    fun saveDailySummary(day: java.time.LocalDate, summary: String) = edit {
+        p.all.keys.filter { it.startsWith("daily:") }.forEach(::remove)
+        putString("daily:$day", summary)
+    }
+
     fun resetProgress() {
         val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it == "lastSong" || it.startsWith("practice:") }
         edit { keys.forEach(::remove) }

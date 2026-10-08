@@ -36,6 +36,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
@@ -56,6 +58,15 @@ import com.bigpapituna.sharpears.engine.progressionSong
 import com.bigpapituna.sharpears.engine.songPack
 import com.bigpapituna.sharpears.engine.ChordTrack
 import com.bigpapituna.sharpears.engine.PracticeStats
+import com.bigpapituna.sharpears.engine.LessonItem
+import com.bigpapituna.sharpears.engine.SessionPart
+import com.bigpapituna.sharpears.engine.SessionPlan
+import com.bigpapituna.sharpears.engine.SessionSong
+import com.bigpapituna.sharpears.engine.planSession
+import com.bigpapituna.sharpears.engine.sessionSummary
+import com.bigpapituna.sharpears.ui.DailyChords
+import com.bigpapituna.sharpears.ui.Interstitial
+import com.bigpapituna.sharpears.ui.TodayPanel
 import com.bigpapituna.sharpears.engine.barMs
 import com.bigpapituna.sharpears.engine.labelBarsAligned
 import com.bigpapituna.sharpears.ui.ChordsScreen
@@ -85,6 +96,8 @@ private sealed interface Screen {
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
     data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null) : Screen
     data class MicSetup(val back: Screen) : Screen
+    /** "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it. */
+    data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
     data class Privacy(val back: Screen) : Screen
     data class Licences(val back: Screen) : Screen
 }
@@ -117,6 +130,7 @@ class MainActivity : ComponentActivity() {
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         //   --ef lightSlow <n>   (stretches the hit-line lights n times, to catch them in a screenshot)
+        //   --ez daily true   (starts "Practice today" straight away)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -153,6 +167,7 @@ class MainActivity : ComponentActivity() {
             else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
         }
 
+        val startDaily = debuggable && intent.getBooleanExtra("daily", false)
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
@@ -160,7 +175,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             var screen by remember { mutableStateOf(first) }
             // The player is always dark, like a video; everything else follows the system.
-            SharpEarsTheme(dark = if (screen is Screen.Player) true else isSystemInDarkTheme()) {
+            val s0 = screen
+            val playerShown = s0 is Screen.Player || (s0 is Screen.Daily && !s0.between && s0.plan.parts[s0.index].let { it is SessionPart.Loop || it is SessionPart.Song })
+            SharpEarsTheme(dark = if (playerShown) true else isSystemInDarkTheme()) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
@@ -194,6 +211,40 @@ class MainActivity : ComponentActivity() {
                         screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
                             if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
                     }
+                    // "Practice today": due chords, the next lesson, then the Continue song's worst bar (or the song).
+                    fun continueMeta() = songs.firstOrNull { it.id == prefs.lastSongId && repo.available(it) }
+                        ?: songs.firstOrNull { it.difficulty == "easy" && repo.available(it) }
+                    fun todayPlan(): SessionPlan {
+                        val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
+                        val next = com.bigpapituna.sharpears.ui.ALL.firstOrNull { !prefs.lessonDone(it.second.id) }?.second
+                        val song = continueMeta()?.let { m ->
+                            val minutes = runCatching { repo.load(m).durationMs / 60_000.0 }.getOrDefault(3.0)
+                            SessionSong(m.id, m.title, minutes, prefs.troubleBars(m.id).firstOrNull())
+                        }
+                        return planSession(queue.filterIsInstance<LessonItem.ChordItem>().map { it.id }, next?.let { it.id to it.title }, song)
+                    }
+                    fun startDaily() {
+                        val plan = todayPlan()
+                        Log.d(TAG, "daily: plan ${plan.aboutLabel}: " + plan.parts.joinToString { it.done })
+                        if (!plan.isEmpty) screen = Screen.Daily(plan, 0, between = true, startedAt = System.currentTimeMillis(), done = emptyList())
+                    }
+                    LaunchedEffect(Unit) { if (startDaily) startDaily() }
+                    fun finishDaily(s: Screen.Daily, done: List<SessionPart>) {
+                        val secs = (System.currentTimeMillis() - s.startedAt) / 1000
+                        val summary = sessionSummary(done, secs)
+                        prefs.saveDailySummary(java.time.LocalDate.now(), summary)
+                        Log.d(TAG, "daily: $summary")
+                        voice.speak("Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
+                        screen = Screen.Home()
+                    }
+                    fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null) {
+                        val part = as_ ?: s.plan.parts[s.index]
+                        val done = if (completed) s.done + part else s.done
+                        Log.d(TAG, "daily: part ${s.index + 1} ${if (completed) "done" else "left"}: ${part.done}")
+                        if (s.index + 1 >= s.plan.parts.size) finishDaily(s, done)
+                        else screen = s.copy(index = s.index + 1, between = true, done = done)
+                    }
+
                     val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                         val into = importInto
                         if (uri == null) return@rememberLauncherForActivityResult
@@ -223,6 +274,54 @@ class MainActivity : ComponentActivity() {
                                 onDone = { prefs.markLessonDone(l.id) },
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
                                 onBack = { screen = s.back }) }
+                        }
+                        is Screen.Daily -> {
+                            val part = s.plan.parts[s.index]
+                            if (s.between) Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                BackHandler { finishDaily(s, s.done) }
+                                Interstitial(part.next, voice, onGo = { screen = s.copy(between = false) },
+                                    onSkip = { voice.stop(); advanceDaily(s, completed = false) },
+                                    onEnd = { voice.stop(); finishDaily(s, s.done) })
+                            } else when (part) {
+                                is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                    BackHandler { advanceDaily(s, completed = false) }
+                                    // Chord practice does not run the player, so its time is counted here.
+                                    androidx.compose.runtime.DisposableEffect(s.index) {
+                                        val t0 = System.currentTimeMillis()
+                                        onDispose { prefs.addPractice(java.time.LocalDate.now(), ((System.currentTimeMillis() - t0) / 1000).toInt()) }
+                                    }
+                                    androidx.compose.foundation.layout.Column {
+                                        Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
+                                            modifier = Modifier.padding(start = 20.dp, top = 20.dp))
+                                        DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily },
+                                            onEnd = { n -> advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n))) })
+                                    }
+                                }
+                                is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                    val l = COURSE.flatMap { it.lessons }.first { it.id == part.lessonId }
+                                    BackHandler { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }
+                                    androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
+                                        onStep = {}, onSong = null,
+                                        onDone = { prefs.markLessonDone(l.id) },
+                                        onNext = null,
+                                        onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }) }
+                                }
+                                is SessionPart.Loop, is SessionPart.Song -> {
+                                    val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
+                                    val m = songs.first { it.id == id }
+                                    val song = remember(id) { repo.load(m) }
+                                    androidx.compose.runtime.key(s.index) {
+                                        PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value,
+                                            if (part is SessionPart.Song) prefs.progress(id).let { if (it.completed) 0.0 else it.lastPositionMs.toDouble() } else 0.0,
+                                            dump, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission(),
+                                                loopBar = (part as? SessionPart.Loop)?.bar, timeLimitMs = if (part is SessionPart.Loop) 120_000L else null),
+                                            onBack = { advanceDaily(s, completed = part is SessionPart.Loop) },
+                                            onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
+                                            chordTrack = lessons.songChords.value[id],
+                                            onTimeUp = { advanceDaily(s, completed = true) })
+                                    }
+                                }
+                            }
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -255,8 +354,14 @@ class MainActivity : ComponentActivity() {
                                                 onOpen = ::openSong,
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { screen = Screen.MicSetup(s) },
+                                                onToday = ::startDaily,
                                             ),
-                                            practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) })
+                                            practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
+                                            today = remember(pv, lv, lessons.songPacks.value) {
+                                                val plan = todayPlan()
+                                                TodayPanel(plan.aboutLabel, plan.parts.map { it.row },
+                                                    prefs.dailySummary(java.time.LocalDate.now()))
+                                            })
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
