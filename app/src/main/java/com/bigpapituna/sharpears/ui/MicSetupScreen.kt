@@ -163,7 +163,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Keep practice recordings", style = MaterialTheme.typography.titleMedium)
-                    Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing. " +
+                    Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing, " +
+                        "plus a short clip whenever wait mode is stuck on the same notes for 5 seconds (up to 250 MB, oldest deleted first). " +
                         "They never leave the phone unless you copy them off. Talking in the room is recorded too.",
                         style = MaterialTheme.typography.bodySmall)
                 }
@@ -175,6 +176,14 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                     style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 if (count > 0) TextButton(onClick = { mic.deleteRecordings(); count = mic.recordings().size }) {
                     Text("Delete recordings", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            var stuck by remember { mutableIntStateOf(mic.stalls().size) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(if (stuck == 0) "No stuck moments saved." else "$stuck stuck moment${if (stuck == 1) "" else "s"} saved for review.",
+                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (stuck > 0) TextButton(onClick = { mic.deleteStalls(); stuck = mic.stalls().size }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             }
         }

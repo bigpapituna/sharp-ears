@@ -33,7 +33,11 @@ import java.io.File
  * truth as test fixtures.
  */
 class MicInput(private val context: Context) {
-    companion object { const val RATE = 48_000 }
+    companion object {
+        const val RATE = 48_000
+        /** Space for stuck-moment clips (WAV, ~5.6 MB a minute); the oldest are deleted past it. */
+        const val STALL_BUDGET = 250L * 1024 * 1024
+    }
 
     private val prefs = context.getSharedPreferences("mic", Context.MODE_PRIVATE)
     private val audio = context.getSystemService(AudioManager::class.java)
@@ -164,6 +168,7 @@ class MicInput(private val context: Context) {
 
     private fun launch(label: String, body: () -> Unit) {
         stop = false
+        ringOn = keepRecordings
         matcher.reset()
         matcher.trace = if (traceOn()) { msg -> Log.d(TAG, "matcher $msg") } else null
         source.value = label
@@ -239,6 +244,7 @@ class MicInput(private val context: Context) {
 
     private fun handle(buf: FloatArray, n: Int) {
         writer?.let { w -> synchronized(this) { w.append(buf, n) } }
+        if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         for (e in matcher.process(buf, n)) _events.tryEmit(e)
         if (framesRead - lastLevelPost >= RATE / 15) {
             lastLevelPost = framesRead
@@ -256,6 +262,47 @@ class MicInput(private val context: Context) {
         }
         return out
     }
+
+    // ---- stuck moments ----
+
+    /** The last 45 s of input (with recordings kept), so a stuck moment can be saved from just before it began. */
+    private val ring by lazy { FloatArray(RATE * 45) }
+    @Volatile private var ringOn = false
+    /** Frames written to [ring] since the app started; keeps counting across mic restarts, unlike [framesRead]. */
+    @Volatile private var ringFrames = 0L
+
+    /** Where the input is now, for [saveStall] later. */
+    fun clipMark(): Long = ringFrames
+
+    /** Stuck moments saved for review (each a .wav clip and a .txt report). */
+    fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+    private fun stallDir() = File(context.getExternalFilesDir(null), "stalls")
+
+    /**
+     * Saves a stuck moment: the input from 2 s before [fromMark] up to now (the last 45 s at most) as
+     * stalls/<name>.wav, and [report] as <name>.txt. The oldest go first past [STALL_BUDGET] bytes.
+     */
+    fun saveStall(fromMark: Long, report: String, name: String) {
+        if (!ringOn) return
+        val end = ringFrames
+        val from = maxOf(fromMark - 2L * RATE, end - ring.size + RATE / 10, 0L)   // 0.1 s clear of the writer
+        val n = (end - from).toInt()
+        if (n <= 0) return
+        val clip = FloatArray(n) { ring[((from + it) % ring.size).toInt()] }
+        Thread {
+            val dir = stallDir().apply { mkdirs() }
+            val wav = File(dir, "$name.wav")
+            Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
+            File(dir, "$name.txt").writeText(report + "clip_starts_s=%.2f before the wait\n".format((fromMark - from) / RATE.toDouble()))
+            // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
+            val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
+            while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
+            Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
+        }.start()
+    }
+
+    /** Deletes every saved stuck moment; returns how many. */
+    fun deleteStalls(): Int = stalls().size.also { stallDir().listFiles()?.forEach { it.delete() } }
 
     // ---- fixture recording ----
 

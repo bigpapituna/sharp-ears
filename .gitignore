@@ -11,3 +11,6 @@ local.properties
 
 # live mic sessions (may contain room conversation): local analysis only, never committed
 app/src/test/resources/fixtures/session-*
+
+# stuck-moment clips pulled from the phone (scripts/pull-stalls.ps1): same rule
+app/src/test/resources/stalls/

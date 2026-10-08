@@ -249,7 +249,24 @@ fun PlayerScreen(
     DisposableEffect(Unit) { onDispose { flushPractice() } }
 
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs }
-    fun pause() { apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
+    // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
+    val stallWatch = remember { com.bigpapituna.sharpears.engine.StallWatch() }
+    val stallMark = remember { longArrayOf(0) }
+    fun stallBegin() {
+        if (!micOn || transport.mode != Mode.WAIT) return
+        stallMark[0] = mic.clipMark()
+        stallWatch.start(System.currentTimeMillis(), transport.expected.map { noteName(it.midi) },
+            "song=${song.id} title=${song.title} position_ms=${transport.positionMs.toLong()} speed=${transport.speed} hands=${transport.practice}\n" +
+                "group=${transport.listenGroup.sorted().joinToString(",") { noteName(it) }} mic=${mic.source.value} " +
+                "sensitivity_db=${mic.matcher.config.sensitivityDb} recorded=${java.time.LocalDateTime.now()}")
+    }
+    fun stallEnd(outcome: String) {
+        val s = stallWatch.end(System.currentTimeMillis(), outcome) ?: return
+        val name = "stall-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
+        Log.d(TAG, "stuck moment: ${s.waitedMs} ms on ${transport.expected.map { noteName(it.midi) }} ($outcome), saving $name")
+        mic.saveStall(stallMark[0], s.report, name)
+    }
+    fun pause() { stallEnd("paused"); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
         // A fresh run starts early so its first notes are seen falling: Perform counts in two bars (clicks and
@@ -437,7 +454,7 @@ fun PlayerScreen(
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
         if (micOn) midi.onTruth = mic::onMidiTruth
-        onDispose { mic.stop(); midi.onTruth = null }
+        onDispose { stallEnd("left"); mic.stop(); midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
         transport.chordSlack = if (micOn) 1 else 0
@@ -451,9 +468,12 @@ fun PlayerScreen(
                 is MicEvent.Strike -> {
                     Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}" +
                         (e.inferredFrom?.let { " (inferred from ${noteName(it)})" } ?: ""))
+                    stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
+                        (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
+                    stallWatch.heard(System.currentTimeMillis(), "a strike with none of the expected notes in it")
                     if (mic.wrongFlash) wrongFeedback()
                     Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (flash=${mic.wrongFlash})")
                 }
@@ -524,6 +544,7 @@ fun PlayerScreen(
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
         var wasWaiting = transport.waiting
+        if (wasWaiting) stallBegin()                     // resumed in the middle of a wait
         var listening = transport.listenFor
         var passes = transport.passes
         while (transport.playing) {
@@ -549,6 +570,7 @@ fun PlayerScreen(
                     wasWaiting = transport.waiting
                     version++
                     if (wasWaiting) Log.d(TAG, "wait at ${transport.positionMs.toLong()} ms expect=${transport.expected.map { noteName(it.midi) }}")
+                    if (wasWaiting) stallBegin() else stallEnd("played")
                 }
                 // Perform mode: what the mic listens for moves with the song.
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
