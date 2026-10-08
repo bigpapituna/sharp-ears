@@ -152,6 +152,28 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             })
         }
 
+        if (mic.canRecord) {
+            // This private (debug) build can keep recent mic sessions to tune note detection; the user sees and controls it.
+            var keep by remember { mutableStateOf(mic.keepRecordings) }
+            var count by remember { mutableIntStateOf(mic.recordings().size) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Keep practice recordings", style = MaterialTheme.typography.titleMedium)
+                    Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing. " +
+                        "They never leave the phone unless you copy them off. Talking in the room is recorded too.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(if (count == 0) "No recordings saved." else "$count recording${if (count == 1) "" else "s"} saved.",
+                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (count > 0) TextButton(onClick = { mic.deleteRecordings(); count = mic.recordings().size }) {
+                    Text("Delete recordings", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
         if (debuggable) {
             Text("Record test fixtures (debug)", style = MaterialTheme.typography.titleMedium)
             Text(

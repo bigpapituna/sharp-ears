@@ -161,7 +161,7 @@ fun TutorialPip(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean
                 onClose: () -> Unit, maxHeight: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     // Fit the window into the space it floats over: title bar plus a 16:9 video no taller than what is left.
     val bar = if (maxHeight < 260.dp) 36.dp else 44.dp
-    val videoH = (maxHeight - bar).coerceIn(60.dp, 200.dp)
+    val videoH = (maxHeight - bar - 26.dp).coerceIn(60.dp, 200.dp)     // 26 dp: the channel credit line under the video
     // At least wide enough for the title bar (sync state and both anchor buttons); the video is letterboxed inside.
     val width = maxOf(videoH * 16f / 9f, 360.dp)
     val context = LocalContext.current
@@ -203,6 +203,9 @@ fun TutorialPip(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean
             }
         }
         TutorialVideo(t, moving, speed, muted, songMs, Modifier.width(width).height(videoH))
+        // Credit the channel: the video is theirs, streamed by YouTube.
+        Text("${t.video.channel.ifEmpty { "Video" }} on YouTube", style = MaterialTheme.typography.labelMedium, color = InkDim, maxLines = 1,
+            modifier = Modifier.width(width).padding(horizontal = 12.dp, vertical = 6.dp))
         if (t.anchor == null && maxHeight >= 300.dp) Text("Play the video and tap Sync when its first note sounds.",
             style = MaterialTheme.typography.bodySmall, color = InkDim, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
     }

@@ -40,7 +40,8 @@ import com.bigpapituna.sharpears.data.SongMeta
 
 /** Settings tab: plain sections separated by space, no cards. */
 @Composable
-fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onMicSetup: () -> Unit) {
+fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onMicSetup: () -> Unit,
+                   onPrivacy: () -> Unit, onLicences: () -> Unit) {
     // Re-read after each write so the controls show the saved values.
     val v = prefs.version.intValue
     var confirmReset by remember { mutableStateOf(false) }
@@ -85,17 +86,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
 
             Section("About")
             Text("Sharp Ears $versionName, a personal piano trainer.", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.size(4.dp))
-            listOf(
-                "Piano samples: VSCO 2 Community Edition upright piano by Simon Dalzell (Ivy Audio) and Versilian Studios, CC0.",
-                "Type: Geist and Geist Mono by Vercel, SIL Open Font License. Icons: Material Symbols by Google, Apache 2.0.",
-                "Tutorial videos play in YouTube's own embedded player and belong to their channels.",
-            ).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = dim) }
-            Spacer(Modifier.size(8.dp))
-            Text("Songs", style = MaterialTheme.typography.titleSmall)
-            songs.forEach { s ->
-                Text("${s.title} (${s.composer.ifEmpty { "unknown" }}): ${s.license}. ${s.attribution}.".replace("..", "."),
-                    style = MaterialTheme.typography.bodySmall, color = dim)
+            Text("Piano samples by Simon Dalzell (Ivy Audio) and Versilian Studios. Tutorial videos belong to their channels on YouTube.",
+                style = MaterialTheme.typography.bodySmall, color = dim)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onPrivacy) { Text("Privacy") }
+                TextButton(onClick = onLicences) { Text("Licences and credits (${songs.size} songs)") }
             }
         }
     }

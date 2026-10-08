@@ -17,6 +17,8 @@ import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.LessonScreen
 import com.bigpapituna.sharpears.ui.nextLesson
 import com.bigpapituna.sharpears.ui.HomeShell
+import com.bigpapituna.sharpears.ui.LicencesScreen
+import com.bigpapituna.sharpears.ui.PrivacyScreen
 import com.bigpapituna.sharpears.ui.HomeTab
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -83,6 +85,8 @@ private sealed interface Screen {
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
     data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null) : Screen
     data class MicSetup(val back: Screen) : Screen
+    data class Privacy(val back: Screen) : Screen
+    data class Licences(val back: Screen) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -218,6 +222,14 @@ class MainActivity : ComponentActivity() {
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
                                 onBack = { screen = s.back }) }
                         }
+                        is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
+                        }
+                        is Screen.Licences -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            LicencesScreen(songs, onBack = { screen = s.back })
+                        }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
@@ -254,7 +266,8 @@ class MainActivity : ComponentActivity() {
                                                 0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
                                     HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
-                                        onMicSetup = { screen = Screen.MicSetup(s) })
+                                        onMicSetup = { screen = Screen.MicSetup(s) },
+                                        onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) })
                                 }
                             }
                         }

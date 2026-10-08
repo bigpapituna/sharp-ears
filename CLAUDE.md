@@ -80,6 +80,9 @@ Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leon
 - Spoken and shown text share one rule set: no dashes or symbol glyphs; note names spoken as words (F sharp, B flat, C four).
 - Navigation: Songs / Learn / Chords / Settings bottom bar (rail when the window is 600 dp or wider). Player loop is one button: start, end, clear.
 
+## Privacy and licences (2026-10-07)
+This repo is Roy's private build (keeps personal music, debug build). The public Play app will be a separate app: see docs/publishing.md (what to remove or replace, Play checklist, data safety answers) and docs/privacy-policy.md (draft to host). In-app: Settings > About > Privacy (honest about debug recordings) and Licences (full texts in assets/licenses). Debug recordings: Microphone setup > Keep practice recordings (MicInput.keepRecordings, default on in debug, never in release) with Delete recordings. The video window credits the channel on YouTube.
+
 ## Environment notes
 - JDK: Android Studio's bundled JBR (set in gradle.properties). For gradlew.bat in a fresh shell: $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 - adb is not on PATH: $env:Path="$env:LOCALAPPDATA\Android\Sdk\platform-tools;$env:Path"

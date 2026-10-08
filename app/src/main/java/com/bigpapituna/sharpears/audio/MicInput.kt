@@ -68,6 +68,28 @@ class MicInput(private val context: Context) {
         get() = prefs.getString("micAddress", null)
         set(v) { prefs.edit().putString("micAddress", v).apply() }
 
+    /**
+     * Debug builds only: keep the last few mic sessions on this phone, for tuning note detection offline.
+     * Release builds never record. Shown and switchable in Microphone setup.
+     */
+    val canRecord get() = debuggable
+    var keepRecordings: Boolean
+        get() = debuggable && prefs.getBoolean("keepRecordings", true)
+        set(v) { prefs.edit().putBoolean("keepRecordings", v).apply() }
+
+    /** Saved practice recordings (each session is a .wav with a .notes file). */
+    fun recordings(): List<File> =
+        File(context.getExternalFilesDir(null), "fixtures").listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+
+    /** Deletes every saved recording; returns how many sessions were removed. */
+    fun deleteRecordings(): Int {
+        val dir = File(context.getExternalFilesDir(null), "fixtures")
+        val n = recordings().size
+        dir.listFiles()?.forEach { if (it != recordFile) it.delete() }
+        Log.d(TAG, "mic: deleted $n recording(s)")
+        return n
+    }
+
     fun saveConfig(cfg: MatcherConfig) {
         matcher.config = cfg
         prefs.edit().putFloat("sensitivityDb", cfg.sensitivityDb.toFloat()).putFloat("wrongOnsetDb", cfg.wrongOnsetDb.toFloat()).apply()
@@ -121,7 +143,7 @@ class MicInput(private val context: Context) {
         val label = "${dev?.address?.ifBlank { null } ?: "default"} mic, ${if (unprocessed) "unprocessed" else "voice recognition"}"
         Log.d(TAG, "mic: start $label, minBuf=$minBuf")
         launch(label) { loopMic(rec) }
-        if (debuggable && autoRecord) autoRecord()
+        if (keepRecordings && autoRecord) autoRecord()
         return true
     }
 
