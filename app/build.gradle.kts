@@ -14,6 +14,7 @@ android {
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }   // the Fold and the emulator; keeps the speech library small
     }
 
     buildTypes {
@@ -41,6 +42,7 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.window)           // Fold tabletop posture (DESIGN 2.2)
     implementation(libs.youtube.player)   // official IFrame embed for tutorials (PLAN 6.3)
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))   // on-device Kokoro speech (Apache 2.0), github.com/k2-fsa/sherpa-onnx
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))

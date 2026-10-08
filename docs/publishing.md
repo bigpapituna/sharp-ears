@@ -66,3 +66,9 @@ check the current Play guidance on embedded web content when filling in the form
 - **Consumer protection**: only matters if the app is ever paid or has subscriptions (Google Play billing, clear
   pricing, Quebec and EU cancellation rules).
 - **Trademarks**: avoid game, film or brand names in the public app's listing and bundled content.
+
+## Voice (Kokoro)
+
+The model and sherpa-onnx are Apache 2.0, so they are fine to ship. The espeak-ng-data folder the model reads pronunciations
+from is GPL 3.0. It is data loaded at run time, not linked code, but check this before a store release. The alternative
+is to ship only the recorded lines (assets/voice) and fall back to the phone's own TTS for everything else.

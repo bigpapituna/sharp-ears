@@ -87,7 +87,8 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
     Link("YouTube Terms of Service", "https://www.youtube.com/t/terms")
     Link("Google Privacy Policy", "https://policies.google.com/privacy")
     Heading("Speech and MIDI")
-    Para("Spoken guidance uses the phone's own text-to-speech engine. A USB MIDI keyboard's notes are read on the phone and go nowhere else.")
+    Para("Spoken guidance uses a voice that runs entirely on the phone: lines recorded into the app, and the Kokoro voice model for the rest. " +
+        "With the natural voice off, it uses the phone's own text-to-speech engine instead. A USB MIDI keyboard's notes are read on the phone and go nowhere else.")
 }
 
 private data class Component(val name: String, val by: String, val licence: String, val file: String?)
@@ -98,6 +99,9 @@ private val COMPONENTS = listOf(
     Component("android-youtube-player", "Pierfrancesco Soffritti", "MIT License", "mit-android-youtube-player.txt"),
     Component("Geist and Geist Mono typefaces", "The Geist Project Authors", "SIL Open Font License 1.1", "ofl-1.1.txt"),
     Component("Material Symbols icons", "Google", "Apache License 2.0", "apache-2.0.txt"),
+    Component("Kokoro-82M voice model and its recorded lines", "hexgrad", "Apache License 2.0", "apache-2.0.txt"),
+    Component("sherpa-onnx speech runtime, with ONNX Runtime and eSpeak NG data", "Xiaomi Corporation (k2-fsa), Microsoft, the eSpeak NG authors",
+        "Apache License 2.0; MIT License; GPL 3.0 (pronunciation data)", "apache-2.0.txt"),
     Component("VSCO 2 Community Edition upright piano samples", "Simon Dalzell (Ivy Audio) and Versilian Studios", "CC0 1.0 (public domain)", null),
 )
 

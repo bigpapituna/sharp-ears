@@ -49,6 +49,11 @@ class Prefs(context: Context) {
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
 
+    /** Kokoro (recorded and on-phone) instead of the phone's own text-to-speech voices. */
+    var naturalVoice: Boolean
+        get() = p.getBoolean("naturalVoice", true)
+        set(v) = edit { putBoolean("naturalVoice", v) }
+
     /** The chosen text-to-speech voice (engine id), or null for the best available. */
     var voiceName: String?
         get() = p.getString("voiceName", null)

@@ -13,7 +13,8 @@ import com.bigpapituna.sharpears.engine.SpeechQueue
 import java.util.Locale
 
 /**
- * Spoken guidance through the platform TextToSpeech. Starts on first use, released by the activity.
+ * Spoken guidance. With the natural voice on (the default), lines go to [NaturalVoice] (Kokoro, recorded or made on
+ * the phone); otherwise, or when it cannot say a line, to the platform TextToSpeech, started on first use.
  *
  * The mic rule: while [mic] listens and no headphones are on, a line is held (the mic would hear the phone)
  * and spoken when the mic stops. Screens that start the mic wait for [holdsMic] to clear first, so a step's
@@ -32,7 +33,15 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private val inFlight = mutableSetOf<String>()
     private var nextId = 0
 
-    init { mic.onStopped = ::micStopped }
+    private val natural: NaturalVoice = NaturalVoice(context) { main.post { speaking.value = inFlight.isNotEmpty() || natural.busy } }
+
+    /** The Kokoro model is on the phone (else only the recorded lines use the natural voice). */
+    val naturalModelInstalled get() = natural.modelInstalled
+
+    init {
+        mic.onStopped = ::micStopped
+        if (prefs.voice && prefs.naturalVoice) natural.warmUp()   // loads in the background while the first screen opens
+    }
 
     /** The voice is talking through the speaker: the mic should not start yet. */
     val holdsMic get() = speaking.value && !mic.headphonesOn()
@@ -58,12 +67,14 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         queue.clear()
         beforeReady.clear()
         tts?.stop()
+        natural.stop()
         inFlight.clear()
         speaking.value = false
         Log.d(TAG, "voice: stop")
     }
 
     fun release() {
+        natural.release()
         tts?.shutdown()
         tts = null
         ready = false
@@ -77,6 +88,15 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     }
 
     private fun say(text: String, flush: Boolean) {
+        // ponytail: the two voices queue separately, so a natural line and a platform line can overlap. Only when the
+        // model is missing and a line is not recorded; install the model rather than syncing the queues.
+        if (prefs.naturalVoice && natural.canSay(text)) {
+            if (flush) { tts?.stop(); inFlight.clear(); beforeReady.clear() }
+            speaking.value = true
+            natural.say(text, flush)
+            return
+        }
+        if (flush) natural.stop()
         val t = engine()
         // Until the engine is up, the line waits; [speaking] is already true so no screen starts the mic meanwhile.
         if (!ready) { if (flush) beforeReady.clear(); beforeReady += text to flush; speaking.value = true; return }
@@ -143,10 +163,11 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
             val t = tts ?: return@post
             if (status != TextToSpeech.SUCCESS) { Log.d(TAG, "voice: engine failed to start ($status)"); return@post }
             val lang = t.setLanguage(Locale.US).let { if (it < 0) t.setLanguage(Locale.getDefault()) else it }
-            // The saved voice if it still exists, otherwise the first of the offline English voices (always a real,
-            // named voice, so the picker can show which one is in use).
+            // The saved voice if it still exists; otherwise Roy's pick (US voice 6 in the list), otherwise the first
+            // offline English voice (always a real, named voice, so the picker can show which one is in use).
             val voices = goodVoices(t)
-            (voices.firstOrNull { it.name == prefs.voiceName } ?: voices.firstOrNull())?.let { t.voice = it }
+            (voices.firstOrNull { it.name == prefs.voiceName } ?: voices.firstOrNull { it.name == DEFAULT_VOICE } ?: voices.firstOrNull())
+                ?.let { t.voice = it }
             Log.d(TAG, "voice: using ${t.voice?.name} (quality ${t.voice?.quality}) of ${voices.size} offline English voices: " +
                 voices.joinToString { "${it.name} q${it.quality} l${it.latency}" })
             t.setSpeechRate(0.95f)
@@ -170,12 +191,16 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     /** Becomes true once the engine has started (the Settings voice list waits for it). */
     val engineReady = mutableStateOf(false)
 
-    private companion object { const val GOOGLE_TTS = "com.google.android.tts" }
+    private companion object {
+        const val GOOGLE_TTS = "com.google.android.tts"
+        /** The starting voice: Google's offline US voice "tpc" (US voice 6 in the picker), chosen by Roy by ear. */
+        const val DEFAULT_VOICE = "en-us-x-tpc-local"
+    }
 
     private fun finished(id: String, how: String) = main.post {
         val removed = inFlight.remove(id)
         if (removed && how != "done") Log.d(TAG, "voice: $id $how")
-        speaking.value = inFlight.isNotEmpty()
+        speaking.value = inFlight.isNotEmpty() || natural.busy
         if (removed && inFlight.isEmpty()) Log.d(TAG, "voice: finished")
     }
 }
