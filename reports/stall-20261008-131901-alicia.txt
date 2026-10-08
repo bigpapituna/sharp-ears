@@ -1,0 +1,10 @@
+title=Stuck: Alicia at 0:02 on C3, C6 (28 s, left)
+# sharp ears stuck moment
+song=alicia title=Alicia position_ms=2182 speed=1.0 hands=BOTH
+group=C3,C6 mic=bottom mic, voice recognition sensitivity_db=-66.0
+expected=C3,C6
+waited_ms=28000
+outcome=left
+heard during the wait (time since it began):
+  +0.95 s  C3 heard, rise -24.8 dB
+clip_starts_s=2.00 before the wait
