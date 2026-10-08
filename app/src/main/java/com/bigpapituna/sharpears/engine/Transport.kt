@@ -44,6 +44,8 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
 
     /** Wrong keys and retries since the last seek or mode change (a run from where it started). */
     val log = RunLog()
+    /** Where the run was hard: holds, wrong keys and misses by song time, for [TroubleSpots]. */
+    val troubles = TroubleLog()
 
     /** The run so far, for feedback. */
     fun report() = log.report(score?.recap())
@@ -151,6 +153,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         }
         if (mode == Mode.WAIT) {
             val g = song.groups.getOrNull(groupIndex)
+            if (waiting && g != null) troubles.waited.merge(g.startMs, dtMs, Double::plus)
             if (g != null && g.startMs <= end) { end = g.startMs.toDouble(); waiting = true }
         }
         val events = mutableListOf<NoteEvent>()
@@ -181,13 +184,14 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
             val open = score?.listening(at).orEmpty()
             if (score?.input(midi, at) != null) return InputResult.CORRECT
             log.wrong(midi, open)
+            troubles.wrongAt += at
             return InputResult.WRONG
         }
         if (mode != Mode.WAIT) return InputResult.IGNORED
         val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
         if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
         val need = g.notes.filter(::required).map { it.midi }.toSet()
-        if (midi !in need) { log.wrong(midi, need - satisfied); return InputResult.WRONG }
+        if (midi !in need) { log.wrong(midi, need - satisfied); troubles.wrongAt += g.startMs.toDouble(); return InputResult.WRONG }
         satisfied += midi
         val slack = if (need.size >= 4) chordSlack else 0
         if (need.count { it !in satisfied } > slack) return InputResult.CORRECT
@@ -200,6 +204,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
 
     private fun resetGroups() {
         log.reset()
+        troubles.reset()
         satisfied.clear()
         waiting = false
         // In a lead-in or preview the run still starts where it was cued, not at the earlier playhead.
@@ -208,7 +213,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         anchorMs = song.groups.getOrNull(firstGroupAtOrAfter(song.groups, from))?.startMs?.toDouble() ?: from
         fresh = true
         scoreFromMs = from
-        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, from) else null
+        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, from) { troubles.missedAt += it } else null
         groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, from))
     }
 

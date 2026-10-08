@@ -6,7 +6,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import com.bigpapituna.sharpears.TAG
 
 /** What the library shows per song. [bestAccuracy] is a Perform-mode score, 0..100, or -1 before the first run. */
-data class SongProgress(val lastPositionMs: Long = 0, val completed: Boolean = false, val bestAccuracy: Int = -1)
+data class SongProgress(val lastPositionMs: Long = 0, val completed: Boolean = false, val bestAccuracy: Int = -1,
+                        /** The worst bar of the last Wait or Perform run, or null when it was clean. */
+                        val troubleBar: Int? = null)
 
 enum class KeyLabels { OFF, C_ONLY, ALL }
 
@@ -18,7 +20,13 @@ class Prefs(context: Context) {
     private val p = context.getSharedPreferences("progress", Context.MODE_PRIVATE)
     val version = mutableIntStateOf(0)
 
-    fun progress(id: String) = SongProgress(p.getLong("pos:$id", 0), p.getBoolean("done:$id", false), p.getInt("best:$id", -1))
+    fun progress(id: String) = SongProgress(p.getLong("pos:$id", 0), p.getBoolean("done:$id", false), p.getInt("best:$id", -1),
+        troubleBars(id).firstOrNull())
+
+    /** The hardest bars of the song's last Wait or Perform run, worst first ("trouble:<id>" = "12,13,27"). */
+    fun troubleBars(id: String): List<Int> = com.bigpapituna.sharpears.engine.TroubleSpots.decode(p.getString("trouble:$id", null))
+    fun saveTroubleBars(id: String, spots: List<com.bigpapituna.sharpears.engine.TroubleSpot>) =
+        edit { if (spots.isEmpty()) remove("trouble:$id") else putString("trouble:$id", com.bigpapituna.sharpears.engine.TroubleSpots.encode(spots)) }
 
     fun savePosition(id: String, ms: Long) = edit { putLong("pos:$id", ms) }
     fun markCompleted(id: String) = edit { putBoolean("done:$id", true); putLong("pos:$id", 0) }
@@ -100,7 +108,7 @@ class Prefs(context: Context) {
     }.toMap()
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it == "lastSong" || it.startsWith("practice:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it == "lastSong" || it.startsWith("practice:") }
         edit { keys.forEach(::remove) }
     }
 

@@ -20,7 +20,9 @@ data class Recap(val good: Int, val ok: Int, val miss: Int, val biasMs: Int, val
  * first matching key: within ±150 ms of its time is good, within ±300 ms ok; a group nobody played in time is
  * a miss. Wrong keys do not cost anything by themselves; only misses break the streak.
  */
-class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs: Double = 0.0) {
+class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs: Double = 0.0,
+                   /** Called with a group's start time when it is graded a miss. */
+                   private val onMiss: (Long) -> Unit = {}) {
     private class Target(val startMs: Long, val keys: Set<Int>) { var grade: Grade? = null }
     private val targets = groups.filter { it.startMs >= fromMs }
         .map { g -> Target(g.startMs, g.notes.filter(required).map { it.midi }.toSet()) }
@@ -65,7 +67,7 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
         var missed = 0
         while (firstOpen < targets.size && targets[firstOpen].startMs + OK_MS < nowMs) {
             val t = targets[firstOpen++]
-            if (t.grade == null) { t.grade = Grade.MISS; miss++; missed++; streak = 0 }
+            if (t.grade == null) { t.grade = Grade.MISS; miss++; missed++; streak = 0; onMiss(t.startMs) }
         }
         return missed
     }

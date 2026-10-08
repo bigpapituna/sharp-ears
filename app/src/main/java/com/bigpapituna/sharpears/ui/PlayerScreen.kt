@@ -79,6 +79,8 @@ import com.bigpapituna.sharpears.engine.Recap
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
+import com.bigpapituna.sharpears.engine.TroubleSpot
+import com.bigpapituna.sharpears.engine.TroubleSpots
 import com.bigpapituna.sharpears.engine.fitRange
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.noteName
@@ -148,7 +150,7 @@ fun PlayerScreen(
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
-    var recap by remember { mutableStateOf<Pair<Recap, Boolean>?>(null) }   // Perform result, new best
+    var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
 
     val tutorial = remember(song) {
@@ -254,20 +256,41 @@ fun PlayerScreen(
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
-            run?.let { recap = it to false }
+            run?.let { recap = RunEnd(it, false, emptyList()) }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
+        }
+        // The hardest bars of a Wait or Perform run, remembered for the library row.
+        val spots = when (transport.mode) {
+            Mode.WAIT -> TroubleSpots.forWait(song, transport.troubles)
+            Mode.PERFORM -> TroubleSpots.forPerform(song, transport.troubles)
+            Mode.LISTEN -> null
+        }
+        if (spots != null) {
+            prefs.saveTroubleBars(meta.id, spots)
+            Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
         if (run != null) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
-            recap = r to best
+            recap = RunEnd(r, best, spots.orEmpty())
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
+            if (transport.mode == Mode.WAIT) recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys)
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
         }
+    }
+    /** "Loop bar N": the A-B loop on that bar, wait mode at half speed, from a lead-in before it. */
+    fun loopBar(s: TroubleSpot) {
+        recap = null
+        if (transport.mode != Mode.WAIT) setMode(Mode.WAIT) else pause()
+        ramp = null; setSpeed(0.5)
+        setLoop(s.startMs, s.endMs)
+        seek(s.startMs)
+        Log.d(TAG, "loop bar ${s.bar}: ${s.startMs.toLong()}..${s.endMs.toLong()} ms at 50% in wait mode")
+        play()
     }
 
     // MIDI keyboard: same path as touch, but no app sound, since the piano makes its own.
@@ -480,9 +503,9 @@ fun PlayerScreen(
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
-        if (embedded == null) recap?.let { (r, best) ->
-            Dialog(onDismissRequest = { recap = null }) {
-                RecapCard(r, best, speed, onAgain = { recap = null; seek(0.0); play() }, onClose = { recap = null }, modifier = Modifier)
+        if (embedded == null) recap?.let { r ->
+            Dialog(onDismissRequest = { recap = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+                RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null }, modifier = Modifier)
             }
         }
     }
@@ -563,25 +586,45 @@ fun PlayerScreen(
     }
 }
 
+/** How a run ended: the Perform [recap] (null after a wait-mode run), a new best, and the hardest bars. */
+data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0)
+
+/** The end of a run: the Perform score (or "Played through" after wait mode), then the hardest bars to loop. */
 @Composable
-private fun RecapCard(r: Recap, newBest: Boolean, speed: Double, onAgain: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
-    Card(modifier.widthIn(max = 420.dp), shape = MaterialTheme.shapes.medium,
+private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, modifier: Modifier) {
+    Card(modifier.padding(16.dp).widthIn(max = 600.dp), shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (newBest) "New best" else "Run complete", style = MaterialTheme.typography.labelLarge,
-                color = if (newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${r.accuracy}%", style = Numeric.merge(MaterialTheme.typography.displayMedium))
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) { RecapStat("Good", r.good); RecapStat("OK", r.ok); RecapStat("Missed", r.miss) }
-            Text(
-                when {
-                    r.good + r.ok == 0 -> "No notes hit in time yet."
-                    abs(r.biasMs) < 25 -> "Timing: right on the beat."
-                    r.biasMs > 0 -> "Timing: ${r.biasMs} ms late on average."
-                    else -> "Timing: ${-r.biasMs} ms early on average."
-                } + "  Longest streak ${r.longestStreak}." + if (speed < 1.0) "  (at ${speed}x)" else "",
-                style = MaterialTheme.typography.bodyMedium, color = InkDim, textAlign = TextAlign.Center,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val r = e.recap
+            if (r != null) {
+                Text(if (e.newBest) "New best" else "Run complete", style = MaterialTheme.typography.labelLarge,
+                    color = if (e.newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                // Score and counts side by side, so the card fits a phone held sideways.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Text("${r.accuracy}%", style = Numeric.merge(MaterialTheme.typography.displayMedium))
+                    RecapStat("Good", r.good); RecapStat("OK", r.ok); RecapStat("Missed", r.miss)
+                }
+                Text(
+                    when {
+                        r.good + r.ok == 0 -> "No notes hit in time yet."
+                        abs(r.biasMs) < 25 -> "Timing: right on the beat."
+                        r.biasMs > 0 -> "Timing: ${r.biasMs} ms late on average."
+                        else -> "Timing: ${-r.biasMs} ms early on average."
+                    } + (if (r.longestStreak > 0) " Longest streak ${r.longestStreak}." else "") + if (speed < 1.0) " Played at ${(speed * 100).toInt()}%." else "",
+                    style = MaterialTheme.typography.bodyMedium, color = InkDim, textAlign = TextAlign.Center,
+                )
+            } else {
+                Text("Played through", style = MaterialTheme.typography.headlineSmall)
+                Text(if (e.wrongKeys == 0) "No wrong notes." else "${e.wrongKeys} wrong ${if (e.wrongKeys == 1) "note" else "notes"} on the way.",
+                    style = MaterialTheme.typography.bodyMedium, color = InkDim, textAlign = TextAlign.Center)
+            }
+            TroubleSpots.line(e.spots)?.let { line ->
+                Text(line, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 6.dp))
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                    e.spots.forEach { s -> OutlinedButton(onClick = { onLoop(s) }) { Text("Loop bar ${s.bar}") } }
+                }
+            }
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onAgain) { Text("Play again") }
                 OutlinedButton(onClick = onClose) { Text("Close") }
             }
