@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
         mic = MicInput(this)
         val repo = SongRepository(this)
         val prefs = Prefs(this).also { it.logRestored() }
+        com.bigpapituna.sharpears.reminder.Reminder.schedule(this, prefs)        // alarms do not survive an update or restart
         voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
         val lessons = LessonStore(this)
         val micCheck = micCheckExercise()
@@ -390,6 +391,7 @@ class MainActivity : ComponentActivity() {
                                                 0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
                                     HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
+                                        onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
                                         onMicSetup = { screen = Screen.MicSetup(s) },
                                         onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) })
                                 }

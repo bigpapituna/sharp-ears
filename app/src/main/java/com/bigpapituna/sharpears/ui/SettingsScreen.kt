@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -40,8 +41,23 @@ import com.bigpapituna.sharpears.data.SongMeta
 
 /** Settings tab: plain sections separated by space, no cards. */
 @Composable
-fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onMicSetup: () -> Unit,
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
+                   /** The reminder was switched or its time changed: set (or cancel) the alarm. */
+                   onReminder: () -> Unit = {},
+                   onMicSetup: () -> Unit,
                    onPrivacy: () -> Unit, onLicences: () -> Unit) {
+    var pickTime by remember { mutableStateOf(false) }
+    // The reminder time as the phone shows times (6:30 PM, or 18:30).
+    val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
+        .format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)).replace(' ', ' ')
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Android 13 and up ask before an app may post notifications: asked when the reminder is switched on.
+    val askNotify = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "reminder: notification permission granted=$granted")
+        prefs.reminderOn = granted
+        onReminder()
+    }
     // Re-read after each write so the controls show the saved values.
     val v = prefs.version.intValue
     var confirmReset by remember { mutableStateOf(false) }
@@ -83,6 +99,17 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
                 Spacer(Modifier.size(8.dp)); Text("Microphone setup")
             }
 
+            Section("Reminder")
+            Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
+                prefs.reminderOn && v >= 0) { on ->
+                if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) && android.os.Build.VERSION.SDK_INT >= 33)
+                    askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                else { prefs.reminderOn = on; onReminder() }
+            }
+            TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
+                contentDescription = "Reminder time, $timeLabel, tap to change"
+            }) { Text("Time: $timeLabel") }
+
             Section("Progress")
             Text("Clears resume positions, played marks, best scores and practice time. Chord lessons keep their progress.",
                 style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -97,6 +124,20 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
                 TextButton(onClick = onLicences) { Text("Licences and credits (${songs.size} songs)") }
             }
         }
+    }
+    if (pickTime) {
+        val state = androidx.compose.material3.rememberTimePickerState(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60,
+            is24Hour = android.text.format.DateFormat.is24HourFormat(context))
+        AlertDialog(
+            onDismissRequest = { pickTime = false },
+            title = { Text("Reminder time") },
+            // The AM/PM selector takes the accent, not Material's default pink: one accent on every screen.
+            text = { androidx.compose.material3.TimePicker(state, colors = androidx.compose.material3.TimePickerDefaults.colors(
+                periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer)) },
+            confirmButton = { TextButton(onClick = { prefs.reminderMinutes = state.hour * 60 + state.minute; pickTime = false; onReminder() }) { Text("Set") } },
+            dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
+        )
     }
     if (confirmReset) AlertDialog(
         onDismissRequest = { confirmReset = false },

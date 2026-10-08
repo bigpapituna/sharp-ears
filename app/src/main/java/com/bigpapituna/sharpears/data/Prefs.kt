@@ -63,6 +63,14 @@ class Prefs(context: Context) {
         get() = p.getBoolean("fingers", true)
         set(v) = edit { putBoolean("fingers", v) }
 
+    /** The daily practice reminder: on or off, and its time in minutes after midnight (default 18:30). */
+    var reminderOn: Boolean
+        get() = p.getBoolean("reminderOn", false)
+        set(v) = edit { putBoolean("reminderOn", v) }
+    var reminderMinutes: Int
+        get() = p.getInt("reminderMinutes", 18 * 60 + 30)
+        set(v) = edit { putInt("reminderMinutes", v) }
+
     /** Lines across the falling notes at each beat. Off by default; rhythm lessons show them anyway. */
     var beatLines: Boolean
         get() = p.getBoolean("beatLines", false)
