@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -52,6 +53,25 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
         .format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)).replace(' ', ' ')
     val context = androidx.compose.ui.platform.LocalContext.current
+    // Progress export and import (Storage Access Framework: the player picks where the file goes).
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var importing by remember { mutableStateOf<Map<String, Map<String, Any>>?>(null) }
+    var progressMessage by remember { mutableStateOf<String?>(null) }
+    val exportTo = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            progressMessage = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.bigpapituna.sharpears.data.ProgressFiles.export(context, uri) } }
+                .fold({ "Progress saved." }, { "Could not save: ${it.message}" })
+        }
+    }
+    val importFrom = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.bigpapituna.sharpears.data.ProgressFiles.read(context, uri) } }
+                .onSuccess { importing = it }
+                .onFailure { progressMessage = it.message ?: "Could not read the file." ; android.util.Log.d(com.bigpapituna.sharpears.TAG, "progress: import refused: ${it.message}") }
+        }
+    }
     // Android 13 and up ask before an app may post notifications: asked when the reminder is switched on.
     val askNotify = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "reminder: notification permission granted=$granted")
@@ -111,8 +131,15 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             }) { Text("Time: $timeLabel") }
 
             Section("Progress")
-            Text("Clears resume positions, played marks, best scores and practice time. Chord lessons keep their progress.",
+            Text("Save everything the app remembers (progress, chord mastery, microphone setup, game bests) to a file, or bring it back from one.",
                 style = MaterialTheme.typography.bodyMedium, color = dim)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { exportTo.launch("sharp-ears-progress-${java.time.LocalDate.now()}.json") }) { Text("Export progress") }
+                TextButton(onClick = { importFrom.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }) { Text("Import progress") }
+            }
+            progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+            Text("Reset clears resume positions, played marks, best scores and practice time. Chord lessons keep their progress.",
+                style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
             TextButton(onClick = { confirmReset = true }) { Text("Reset song progress", color = MaterialTheme.colorScheme.error) }
 
             Section("About")
@@ -137,6 +164,22 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer)) },
             confirmButton = { TextButton(onClick = { prefs.reminderMinutes = state.hour * 60 + state.minute; pickTime = false; onReminder() }) { Text("Set") } },
             dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
+        )
+    }
+    importing?.let { files ->
+        AlertDialog(
+            onDismissRequest = { importing = null },
+            title = { Text("Replace your progress?") },
+            text = { Text("The file holds ${files.values.sumOf { it.size }} saved settings. They replace everything the app remembers now, and this cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    com.bigpapituna.sharpears.data.ProgressFiles.replace(context, files)
+                    importing = null
+                    // Start again so every screen reads the imported values.
+                    (context as? android.app.Activity)?.recreate()
+                }) { Text("Replace") }
+            },
+            dismissButton = { TextButton(onClick = { importing = null }) { Text("Cancel") } },
         )
     }
     if (confirmReset) AlertDialog(
