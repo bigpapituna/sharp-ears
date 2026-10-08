@@ -359,7 +359,9 @@ class MainActivity : ComponentActivity() {
                                 when (s.tab) {
                                     HomeTab.SONGS -> {
                                         val pv = prefs.version.intValue
-                                        val entries = remember(songs, pv) { songs.map { LibraryEntry(it, repo.available(it), prefs.progress(it.id)) } }
+                                        val entries = remember(songs, pv) {
+                                            songs.map { m -> LibraryEntry(m, repo.available(m), prefs.progress(m.id), m.pairWith?.let { p -> songs.firstOrNull { it.id == p } }) }
+                                        }
                                         val last = remember(entries) { entries.firstOrNull { it.meta.id == prefs.lastSongId && it.available } }
                                         LibraryScreen(entries, last,
                                             micLabel = when { !mic.hasPermission() -> "Set up mic"; prefs.micDefault -> "Mic on"; else -> "Mic off" },

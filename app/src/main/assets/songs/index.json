@@ -142,6 +142,32 @@
           "channel": "Bitesize Piano",
           "checkedOn": "2026-10-07"
         }
+      ],
+      "pairWith": "minuet-g-easy"
+    },
+    {
+      "id": "minuet-g-easy",
+      "file": "minuet-g-easy.mid",
+      "title": "Minuet in G (easy)",
+      "composer": "Christian Petzold (BWV Anh. 114)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Easy arrangement written for Sharp Ears (the main tune and one bass note a bar); the piece is in the public domain",
+      "pairWith": "minuet-g",
+      "videos": [
+        {
+          "id": "8Sg5AwuQkX4",
+          "title": "Easy Piano Tutorial: Minuet in G Major (simplified) Bach / Petzold with free sheet music",
+          "channel": "PianoSongDownload",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "cmTFDuN_MBc",
+          "title": "MINUET IN G - J.S Bach (Petzold) Piano Tutorial + Sheet Music",
+          "channel": "Bitesize Piano",
+          "checkedOn": "2026-10-07"
+        }
       ]
     },
     {
@@ -166,6 +192,32 @@
           "channel": "Piano Tutorial Easy",
           "checkedOn": "2026-10-07"
         }
+      ],
+      "pairWith": "greensleeves-easy"
+    },
+    {
+      "id": "greensleeves-easy",
+      "file": "greensleeves-easy.mid",
+      "title": "Greensleeves (easy)",
+      "composer": "Traditional (hymn-tune setting)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Easy arrangement written for Sharp Ears (the main tune and one bass note a bar); the piece is in the public domain",
+      "pairWith": "greensleeves",
+      "videos": [
+        {
+          "id": "6WA7-picOcA",
+          "title": "Traditional - Greensleeves - Easy Beginner Piano Tutorial - For 1 Hand",
+          "channel": "Key by Key",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "yqSi5PGWx38",
+          "title": "Greensleeves - BEGINNER Piano Tutorial Easy",
+          "channel": "Piano Tutorial Easy",
+          "checkedOn": "2026-10-07"
+        }
       ]
     },
     {
@@ -177,6 +229,32 @@
       "hands": "auto",
       "license": "Public Domain",
       "attribution": "MIDI from the Mutopia Project (mutopiaproject.org), WoO 59",
+      "videos": [
+        {
+          "id": "3jOsHod6zWM",
+          "title": "HOW TO PLAY Für Elise for Beginners Slow [Easy Piano Tutorial] (Synthesia)",
+          "channel": "Toms Mucenieks",
+          "checkedOn": "2026-10-07"
+        },
+        {
+          "id": "XFFyZ84nuj0",
+          "title": "How To Play Für Elise (Easy Piano Tutorial)",
+          "channel": "Pianote",
+          "checkedOn": "2026-10-07"
+        }
+      ],
+      "pairWith": "fur-elise-easy"
+    },
+    {
+      "id": "fur-elise-easy",
+      "file": "fur-elise-easy.mid",
+      "title": "Für Elise (easy)",
+      "composer": "Ludwig van Beethoven",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Easy arrangement written for Sharp Ears (the main tune and one bass note a bar); the piece is in the public domain",
+      "pairWith": "fur-elise",
       "videos": [
         {
           "id": "3jOsHod6zWM",

@@ -26,7 +26,7 @@ class LibraryContentTest {
 
     @Test fun everyBundledSongParsesWithBothHandsAndHasATutorial() {
         val bundled = entries.filter { !it.second.startsWith("user/") }
-        assertEquals("20 bundled songs", 20, bundled.size)
+        assertEquals("23 bundled songs", 23, bundled.size)
         for ((id, file) in bundled) {
             val rule = if (id == "prelude-c") HandRule.Tracks(right = 2, left = 1) else HandRule.Auto
             val song = SmfParser.parse(File(assets, "songs/$file").readBytes(), id, id, rule)
@@ -43,6 +43,22 @@ class LibraryContentTest {
             else assertTrue("video for $id", block.contains("\"checkedOn\": \"2026-"))
         }
         assertTrue(entries.any { it.second == "user/alicia.mid" })
+    }
+
+    @Test fun easyAndFullVersionsNameEachOtherAndShareVideos() {
+        // The app's own JSON reader (engine/MiniJson) works here, where org.json does not.
+        @Suppress("UNCHECKED_CAST")
+        val songs = (com.bigpapituna.sharpears.engine.MiniJson.read(index) as Map<String, Any?>)["songs"] as List<Map<String, Any?>>
+        val byId = songs.associateBy { it["id"] as String }
+        val easy = songs.filter { (it["id"] as String).endsWith("-easy") }
+        assertEquals(listOf("minuet-g-easy", "greensleeves-easy", "fur-elise-easy"), easy.map { it["id"] })
+        for (e in easy) {
+            val full = byId.getValue(e["pairWith"] as String)
+            assertEquals(e["id"], full["pairWith"])
+            assertEquals("easy", e["difficulty"])
+            assertEquals(full["videos"], e["videos"])
+            assertTrue((e["title"] as String).endsWith(" (easy)"))
+        }
     }
 
     @Test fun aTruncatedMidiFileIsRefusedWithAMessage() {

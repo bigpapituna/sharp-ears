@@ -24,7 +24,11 @@ data class SongMeta(
     val license: String,
     val attribution: String,
     val videos: List<Video> = emptyList(),
+    /** The other arrangement of the same piece ("fur-elise" and "fur-elise-easy" name each other). */
+    val pairWith: String? = null,
 ) {
+    /** This one is the easy arrangement of its pair. */
+    val easy get() = id.endsWith("-easy")
     val user get() = file.startsWith("user/")
 }
 
@@ -105,6 +109,7 @@ class SongRepository(private val context: Context) {
                     composer = s.optString("composer"), difficulty = s.optString("difficulty", "medium"),
                     hands = handRule(s), license = s.optString("license"), attribution = s.optString("attribution"),
                     videos = List(v.length()) { j -> v.getJSONObject(j).let { Video(it.getString("id"), it.optString("title"), it.optString("channel"), it.optString("checkedOn")) } },
+                    pairWith = s.optString("pairWith").takeIf { it.isNotEmpty() },
                 )
             }
         }

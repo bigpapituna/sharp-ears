@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -43,7 +45,9 @@ import com.bigpapituna.sharpears.data.SongMeta
 import com.bigpapituna.sharpears.data.SongProgress
 
 /** One library row: the song, whether its file is present, and saved progress. */
-data class LibraryEntry(val meta: SongMeta, val available: Boolean, val progress: SongProgress)
+data class LibraryEntry(val meta: SongMeta, val available: Boolean, val progress: SongProgress,
+                        /** The other arrangement (easy or full) when the piece has one. */
+                        val pair: SongMeta? = null)
 
 /** The "Practice today" panel: the plan's length and parts, or today's summary once it is done. */
 data class TodayPanel(val about: String, val parts: List<String>, val summary: String?)
@@ -236,6 +240,13 @@ private fun SongRow(e: LibraryEntry, a: LibraryActions) {
                 Text(when { !e.available -> "Import its MIDI file to unlock"; trouble != null -> "Work on bar $trouble"; else -> m.composer },
                     style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (e.available && trouble != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                // The piece's other arrangement, one tap away.
+                e.pair?.let { other ->
+                    TextButton(onClick = { a.onOpen(other) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp).semantics { contentDescription = "Open the ${if (other.easy) "easy" else "full"} version" }) {
+                        Text(if (other.easy) "Easy version" else "Full version", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
             }
             Status(e)
         }
