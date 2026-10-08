@@ -64,4 +64,23 @@ class LessonsTest {
         assertEquals(listOf("G", "D", "Em", "C"), labelBars(pop).take(4).map { it.name })
         assertEquals(listOf("G", "D", "Em", "C"), songPack(pop).items.map { (it as LessonItem.ChordItem).chord.name })
     }
+
+    @Test fun chordTrackFollowsSongTimeAndShowsTheNextChange() {
+        val c = Chord(0, ChordType.MAJOR); val f = Chord(5, ChordType.MAJOR); val g = Chord(7, ChordType.MAJOR)
+        val t = ChordTrack(listOf(c, c, null, f, g), barMs = 1000.0)
+        assertEquals(c to f, t.at(0.0))
+        assertEquals("a bar without notes keeps the chord before it", c to f, t.at(2500.0))
+        assertEquals(f to g, t.at(3000.0))
+        assertEquals(g to null, t.at(9000.0))
+        assertTrue(ChordTrack(listOf(null, null), 1000.0).isEmpty)
+    }
+
+    @Test fun alignedBarsKeepEmptyBarsInPlace() {
+        val notes = parseLine("C4+E4+G4:4 r:4 F4+A4+C5:4", Hand.RIGHT, 500.0)
+        val song = Song("s", "s", 120.0, 4 to 4, notes, groupOnsets(notes), emptyList(), 6000)
+        val bars = labelBarsAligned(song)
+        assertEquals(listOf("C", null, "F"), bars.take(3).map { it?.name })
+        assertEquals(2000.0, barMs(song), 1e-9)
+        assertEquals(listOf("C", "F"), labelBars(song).map { it.name })
+    }
 }

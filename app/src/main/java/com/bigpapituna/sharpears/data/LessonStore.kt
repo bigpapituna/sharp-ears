@@ -49,6 +49,8 @@ class LessonStore(private val context: Context) {
 
     /** Song-derived packs, filled in once the library's songs have been labeled (off the main thread). */
     val songPacks = mutableStateOf<List<LessonPack>>(emptyList())
+    /** Chord changes per library song id, from the same bar labels; the player shows them on the falling notes. */
+    val songChords = mutableStateOf<Map<String, com.bigpapituna.sharpears.engine.ChordTrack>>(emptyMap())
 
     fun curriculum() = Curriculum(authored + songPacks.value)
 

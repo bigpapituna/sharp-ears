@@ -91,12 +91,18 @@ fun labelBar(notes: List<Note>): Chord? {
     return best
 }
 
-/** Each bar's chord, in order. Bars come from the song's tempo and time signature (first tempo only). */
-fun labelBars(song: Song): List<Chord> {
-    val barMs = song.timeSignature.first * (4.0 / song.timeSignature.second) * 60_000 / song.bpm
+/** Length of one bar in song ms, from the song's (first) tempo and time signature. */
+fun barMs(song: Song) = song.timeSignature.first * (4.0 / song.timeSignature.second) * 60_000 / song.bpm
+
+/** Each bar's chord, in order (bars without notes are left out). */
+fun labelBars(song: Song): List<Chord> = labelBarsAligned(song).filterNotNull()
+
+/** Each bar's chord by bar index: null for a bar without notes. Bars come from [barMs] (first tempo only). */
+fun labelBarsAligned(song: Song): List<Chord?> {
+    val barMs = barMs(song)
     if (barMs <= 0 || song.notes.isEmpty()) return emptyList()
     val bars = (song.durationMs / barMs).toInt() + 1
-    return (0 until bars).mapNotNull { b ->
+    return (0 until bars).map { b ->
         val from = b * barMs; val to = from + barMs
         // Clip each note to the bar so a held note counts only for the time it sounds there.
         // Slivers (under 5% of the bar, e.g. rounding at the bar line) are dropped: one could pose as the bass note.
@@ -107,8 +113,30 @@ fun labelBars(song: Song): List<Chord> {
     }
 }
 
-/** "Chords of <song>": the distinct chords of its bars in order of first appearance (level 6). */
-fun songPack(song: Song, max: Int = 12): LessonPack {
-    val chords = labelBars(song).distinct().take(max)
+/** "Chords of <song>": the distinct chords of its bars in order of first appearance (level 6). [bars]: labelBarsAligned output. */
+fun songPack(song: Song, max: Int = 12, bars: List<Chord?> = labelBarsAligned(song)): LessonPack {
+    val chords = bars.filterNotNull().distinct().take(max)
     return LessonPack("song-${song.id}", "Chords of ${song.title}", 6, emptyList(), chords.map { LessonItem.ChordItem(it) })
+}
+
+/**
+ * A song's chords over time, for the label on the falling notes: the bar chords merged into changes, looked up
+ * by song time with a binary search (no relabeling per frame). A bar without notes keeps the chord before it.
+ */
+class ChordTrack(bars: List<Chord?>, private val barMs: Double) {
+    private val starts: DoubleArray
+    private val chords: List<Chord>
+    init {
+        val s = mutableListOf<Double>(); val c = mutableListOf<Chord>()
+        bars.forEachIndexed { i, ch -> if (ch != null && ch != c.lastOrNull()) { s += i * barMs; c += ch } }
+        starts = s.toDoubleArray(); chords = c
+    }
+    val isEmpty get() = chords.isEmpty()
+
+    /** The chord sounding at [ms] and the next different one (either may be null). */
+    fun at(ms: Double): Pair<Chord?, Chord?> {
+        var lo = 0; var hi = starts.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (starts[mid] <= ms) lo = mid + 1 else hi = mid }
+        return chords.getOrNull(lo - 1) to chords.getOrNull(lo)
+    }
 }

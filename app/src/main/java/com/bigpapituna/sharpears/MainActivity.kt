@@ -52,6 +52,9 @@ import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.micCheckExercise
 import com.bigpapituna.sharpears.engine.progressionSong
 import com.bigpapituna.sharpears.engine.songPack
+import com.bigpapituna.sharpears.engine.ChordTrack
+import com.bigpapituna.sharpears.engine.barMs
+import com.bigpapituna.sharpears.engine.labelBarsAligned
 import com.bigpapituna.sharpears.ui.ChordsScreen
 import com.bigpapituna.sharpears.ui.ChordsTab
 import com.bigpapituna.sharpears.ui.GameStart
@@ -159,12 +162,19 @@ class MainActivity : ComponentActivity() {
                     val songs = remember(libraryVersion) { repo.all() }
 
                     // Each library song yields a "Chords of <song>" lesson pack (DESIGN 4.3), labeled off the main thread.
+                    // The same bar labels drive the chord names on the falling notes (ChordTrack per song id).
                     LaunchedEffect(libraryVersion) {
-                        lessons.songPacks.value = withContext(Dispatchers.Default) {
+                        val labeled = withContext(Dispatchers.Default) {
                             songs.filter(repo::available).mapNotNull { m ->
-                                runCatching { songPack(repo.load(m)) }.onFailure { Log.d(TAG, "song pack ${m.id}: $it") }.getOrNull()
-                            }.filter { it.items.isNotEmpty() }
+                                runCatching {
+                                    val song = repo.load(m)
+                                    val bars = labelBarsAligned(song)
+                                    Triple(m.id, songPack(song, bars = bars), ChordTrack(bars, barMs(song)))
+                                }.onFailure { Log.d(TAG, "song pack ${m.id}: $it") }.getOrNull()
+                            }
                         }
+                        lessons.songPacks.value = labeled.map { it.second }.filter { it.items.isNotEmpty() }
+                        lessons.songChords.value = labeled.filter { !it.third.isEmpty }.associate { it.first to it.third }
                         Log.d(TAG, "lessons: ${lessons.songPacks.value.size} song packs " + lessons.songPacks.value.joinToString { "${it.id}=${it.items.size}" })
                     }
 
@@ -195,7 +205,8 @@ class MainActivity : ComponentActivity() {
 
                     when (val s = screen) {
                         is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
-                            s.startMs, dump, s.start, onBack = { screen = s.back })
+                            s.startMs, dump, s.start, onBack = { screen = s.back },
+                            chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
                         is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson

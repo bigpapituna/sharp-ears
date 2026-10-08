@@ -118,6 +118,8 @@ fun PlayerScreen(
     onFinished: (Report) -> Unit = {},
     embedded: Embedded? = null,
     modifier: Modifier = Modifier,
+    /** The song's chords by bar (library songs with a chord pack); a Chords pill shows them on the lane. */
+    chordTrack: com.bigpapituna.sharpears.engine.ChordTrack? = null,
 ) {
     val activity = LocalActivity.current ?: return
     if (embedded == null) DisposableEffect(Unit) {
@@ -161,6 +163,7 @@ fun PlayerScreen(
     val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
     val isProgression = song.id.startsWith("prog-")
     var metronomeOn by remember { mutableStateOf(false) }
+    var chordsOn by remember { mutableStateOf(false) }
     var ramp by remember { mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null) }
     var rampPercent by remember { mutableIntStateOf(0) }
     var backingOn by remember { mutableStateOf(false) }
@@ -373,6 +376,7 @@ fun PlayerScreen(
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
+            chords = if (chordTrack != null) chordsOn else null,
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
@@ -396,6 +400,7 @@ fun PlayerScreen(
             },
             onMic = ::toggleMic,
             onVideo = { videoOn = !videoOn; Log.d(TAG, "video panel=$videoOn") },
+            onChords = { chordsOn = !chordsOn; Log.d(TAG, "chord names=$chordsOn") },
             onMetronome = { metronomeOn = !metronomeOn; Log.d(TAG, "metronome=$metronomeOn bpm=${song.bpm} beat=${metro.beatMs.toLong()} ms") },
             onBacking = {
                 backingOn = !backingOn
@@ -420,6 +425,7 @@ fun PlayerScreen(
             },
             fingers = fingers, showNames = labels && prefs.noteNames && prefs.version.intValue >= 0, showFingers = labels && prefs.fingerNumbers,
         )
+        if (chordsOn && chordTrack != null) ChordLabel(chordTrack, position, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
@@ -563,5 +569,17 @@ private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: 
             androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(if (micOn) com.bigpapituna.sharpears.R.drawable.ic_mic else com.bigpapituna.sharpears.R.drawable.ic_mic_off),
                 contentDescription = "Microphone", tint = if (micOn) MaterialTheme.colorScheme.primary else InkDim)
         }
+    }
+}
+
+/** The bar's chord in the lane's corner, quiet, with the next chord dimmed beside it. Lookup only, no relabeling. */
+@Composable
+private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, positionMs: Double, modifier: Modifier) {
+    val (now, next) = track.at(positionMs.coerceAtLeast(0.0))
+    val name = now?.name
+    LaunchedEffect(name) { if (name != null) Log.d(TAG, "chord label $name at ${positionMs.toLong()} ms") }
+    Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (name != null) Text(name, style = MaterialTheme.typography.titleLarge, color = Ink.copy(alpha = 0.78f))
+        next?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
     }
 }

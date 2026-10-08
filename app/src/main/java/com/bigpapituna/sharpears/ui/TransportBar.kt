@@ -69,6 +69,8 @@ data class BarState(
     val metronome: Boolean = false,
     /** The ramp's current percentage while the speed ramp is on, else null. */
     val ramp: Int? = null,
+    /** null: the song has no chord labels. */
+    val chords: Boolean? = null,
     /** null: not a progression (no backing to offer). */
     val backing: Boolean? = null,
 )
@@ -85,6 +87,7 @@ class BarActions(
     val onMic: () -> Unit = {},
     val onVideo: () -> Unit = {},
     val onMetronome: () -> Unit = {},
+    val onChords: () -> Unit = {},
     /** Turns the speed ramp on (it starts at 50%). Picking a fixed speed turns it off. */
     val onRamp: () -> Unit = {},
     val onBacking: () -> Unit = {},
@@ -153,6 +156,7 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 Text(s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
                     color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             }
+            s.chords?.let { Toggle("Chords", it, a.onChords) }
             Toggle("Metronome", s.metronome, a.onMetronome)
             s.backing?.let { Toggle("Backing", it, a.onBacking) }
             MicToggle(s, a.onMic)
