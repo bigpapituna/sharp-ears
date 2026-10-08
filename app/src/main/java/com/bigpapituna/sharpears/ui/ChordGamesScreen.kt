@@ -53,6 +53,8 @@ import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.engine.ChordGame
+import com.bigpapituna.sharpears.engine.Lit
+import com.bigpapituna.sharpears.engine.newGame
 import com.bigpapituna.sharpears.engine.GameKind
 import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.NoteEvent
@@ -113,7 +115,7 @@ private fun GameScreen(
     kind: GameKind, level: Int, sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean,
     inject: String?, onExit: () -> Unit, onAgain: () -> Unit,
 ) {
-    val game = remember { ChordGame(kind, level, seed = if (inject != null) 1 else System.nanoTime()) }
+    val game = remember { newGame(kind, level, seed = if (inject != null) 1 else System.nanoTime()) }
     var version by remember { mutableIntStateOf(0) }
     var phase by remember { mutableStateOf(Phase.PROMPT) }
     var replay by remember { mutableIntStateOf(0) }
@@ -130,12 +132,19 @@ private fun GameScreen(
     fun sound() = prefs.sound && (!(micOn && phase == Phase.ANSWER) || mic.headphonesOn())
     suspend fun voiceDone() { delay(250); while (voice.speaking.value) delay(50) }
     suspend fun playChord() {
-        if (kind == GameKind.BUILD || !prefs.sound) return
-        val notes = game.voicing
-        Log.d(TAG, "games: play ${chordTitle(game.target)} ${notes.map { noteName(it) }}")
-        notes.forEach { sampler.noteOn(it, 85) }
-        delay(1600)
-        notes.forEach(sampler::noteOff)
+        val groups = game.toPlay()
+        if (groups.isEmpty() || !prefs.sound) return
+        Log.d(TAG, "games: play ${game.describe()} " + groups.joinToString(" ") { g -> g.joinToString("+") { noteName(it) } })
+        if (groups.size == 1) {                                             // a chord rings
+            groups[0].forEach { sampler.noteOn(it, 85) }
+            delay(1600)
+            groups[0].forEach(sampler::noteOff)
+        } else groups.forEach { g ->                                        // a melody: one note after another
+            g.forEach { sampler.noteOn(it, 85) }
+            delay(620)
+            g.forEach(sampler::noteOff)
+            delay(80)
+        }
         delay(200)
     }
 
@@ -145,7 +154,7 @@ private fun GameScreen(
         phase = Phase.PROMPT
         if (replay == 0 || kind == GameKind.BUILD) {
             val p = game.prompt()
-            Log.d(TAG, "games: ${kind.id} level $level round ${round + 1}: ${p.text} (${chordTitle(game.target)})")
+            Log.d(TAG, "games: ${kind.id} level $level round ${round + 1}: ${p.text} (${game.describe()})")
             voice.speak(p.spoken)
             voiceDone()
         }
@@ -193,8 +202,7 @@ private fun GameScreen(
     }
     LaunchedEffect(version, listen) {
         mic.matcher.expected = if (listen) game.micNotes() else emptySet()
-        val v = game.voicing
-        mic.matcher.groups = listOf(v.toSet(), v.map { it - 12 }.toSet())
+        mic.matcher.groups = game.micGroups()
     }
     // Strikes that began before this round's listening started (the previous answer ringing on) do not count.
     LaunchedEffect(round, replay, listen) { chordStart = mic.matcher.samplesProcessed }
@@ -245,7 +253,7 @@ private fun GameScreen(
                 if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
             }, label = { Text(if (micOn) "Listening" else "Use mic") },
                 leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
-            if (kind != GameKind.BUILD) OutlinedButton(onClick = { if (phase == Phase.ANSWER) replay++ }, enabled = phase == Phase.ANSWER) {
+            if (game.toPlay().isNotEmpty()) OutlinedButton(onClick = { if (phase == Phase.ANSWER) replay++ }, enabled = phase == Phase.ANSWER) {
                 Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp)); Text("Hear again")
             }
@@ -255,12 +263,7 @@ private fun GameScreen(
         var wrongVisible by remember { mutableStateOf(false) }
         LaunchedEffect(wrongFlash) { if (wrongFlash > 0) { wrongVisible = true; delay(400); wrongVisible = false } }
         val lit = remember(version) {
-            buildMap {
-                val v = game.voicing
-                if (game.notesShown) v.forEach { put(it, RightHandColor.copy(alpha = 0.5f)) }
-                if (kind == GameKind.BUILD) put(v.first(), RightHandColor)
-                v.filter { it % 12 in game.found && !(kind == GameKind.BUILD && it == v.first()) }.forEach { put(it, Good) }
-            }
+            game.lit().mapValues { (_, l) -> when (l) { Lit.SHOWN -> RightHandColor.copy(alpha = 0.5f); Lit.GIVEN -> RightHandColor; Lit.FOUND -> Good } }
         } + touched
         Keyboard(
             LOW, HIGH, lit = lit,

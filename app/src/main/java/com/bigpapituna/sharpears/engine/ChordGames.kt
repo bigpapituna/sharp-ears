@@ -13,6 +13,12 @@ enum class GameKind(val id: String, val title: String, val howTo: String, val le
     MAJOR_MINOR("mm", "Major or minor",
         "The app plays a chord. If it sounds major, play any major chord; if minor, any minor chord.",
         listOf("Major or minor", "7 or maj7")),
+    INTERVALS("int", "Intervals",
+        "The app plays two notes and lights the first. Find the second and play it. After two wrong notes it is shown.",
+        listOf("Within a fifth", "Within an octave", "Up or down")),
+    PLAYBACK("back", "Play it back",
+        "The app plays a short tune under one hand position. Play it back in order. A wrong note starts it over; after two tries the notes are shown.",
+        listOf("C position", "G position", "One black key")),
     ;
 
     /** The how-to line for one level (sevenths have a fourth note to find, and a different question). */
@@ -45,7 +51,7 @@ data class GameLine(val text: String, val spoken: String = text)
  * classes, so any octave counts. A round is scored when it is clean (Build: no wrong note; Hear: answered before
  * the notes were shown; Major or minor: the right answer).
  */
-class ChordGame(val kind: GameKind, val level: Int, seed: Long = System.nanoTime(), val rounds: Int = 10) {
+class ChordGame(override val kind: GameKind, override val level: Int, seed: Long = System.nanoTime(), override val rounds: Int = 10) : EarGame {
     enum class Outcome { IGNORED, FOUND, WRONG, DONE }
     data class Answer(val outcome: Outcome, val line: GameLine?, val clean: Boolean = false)
 
@@ -64,22 +70,23 @@ class ChordGame(val kind: GameKind, val level: Int, seed: Long = System.nanoTime
         }
         GameKind.MAJOR_MINOR -> if (level == 0) (0..11).flatMap { r -> listOf(Chord(r, ChordType.MAJOR), Chord(r, ChordType.MINOR)) }
             else (0..11).flatMap { r -> listOf(Chord(r, ChordType.DOM7), Chord(r, ChordType.MAJ7)) }
+        else -> error("not a chord game: $kind")
     }
     private fun sevenths() = (0..11).flatMap { r -> listOf(ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7).map { Chord(r, it) } }
 
     /** The two answers in Major or minor. */
     val answerTypes = if (level == 0) listOf(ChordType.MAJOR, ChordType.MINOR) else listOf(ChordType.DOM7, ChordType.MAJ7)
 
-    var round = 0; private set
-    var score = 0; private set
-    var streak = 0; private set
-    var bestStreak = 0; private set
+    override var round = 0; private set
+    override var score = 0; private set
+    override var streak = 0; private set
+    override var bestStreak = 0; private set
     var target: Chord = draw(null); private set
     /** Pitch classes found this round (Build starts with the root). */
     val found = mutableSetOf<Int>()
     var wrongs = 0; private set
     var roundOver = false; private set
-    val finished get() = round >= rounds
+    override val finished get() = round >= rounds
     /** Hear it: after two wrong notes the answer is lit on the keyboard. */
     val notesShown get() = kind == GameKind.HEAR && wrongs >= 2
     /** The chord where the app plays and shows it: root position from middle C. */
@@ -96,14 +103,25 @@ class ChordGame(val kind: GameKind, val level: Int, seed: Long = System.nanoTime
         if (kind == GameKind.BUILD) found += target.root % 12
     }
 
-    fun prompt(): GameLine = when (kind) {
+    override fun toPlay(): List<List<Int>> = if (kind == GameKind.BUILD) emptyList() else listOf(voicing)
+    override fun lit(): Map<Int, Lit> = buildMap {
+        val v = voicing
+        if (notesShown) v.forEach { put(it, Lit.SHOWN) }
+        if (kind == GameKind.BUILD) put(v.first(), Lit.GIVEN)
+        v.filter { it % 12 in found && !(kind == GameKind.BUILD && it == v.first()) }.forEach { put(it, Lit.FOUND) }
+    }
+    override fun micGroups(): List<Set<Int>> = voicing.let { v -> listOf(v.toSet(), v.map { it - 12 }.toSet()) }
+    override fun describe() = chordTitle(target)
+
+    override fun prompt(): GameLine = when (kind) {
         GameKind.BUILD -> GameLine("Build ${chordTitle(target)}", "Build ${chordSpoken(target)}")
         GameKind.HEAR -> GameLine("Play back the chord you hear")
         GameKind.MAJOR_MINOR -> if (level == 0) GameLine("Major or minor?") else GameLine("7 or maj7?", "Seven, or major seven?")
+        else -> error("not a chord game")
     }
 
     /** Keys the mic should listen for: the chord (or both answers on its root) where shown and an octave lower. */
-    fun micNotes(): Set<Int> {
+    override fun micNotes(): Set<Int> {
         val base = when (kind) {
             GameKind.MAJOR_MINOR -> answerTypes.flatMap { Chord(target.root, it).voicing(0, 60) }.toSet()
             else -> voicing.toSet()
@@ -111,7 +129,7 @@ class ChordGame(val kind: GameKind, val level: Int, seed: Long = System.nanoTime
         return (base + base.map { it - 12 }).toSet()
     }
 
-    fun input(midi: Int, nowMs: Long = 0): Answer {
+    override fun input(midi: Int, nowMs: Long): Answer {
         if (finished || roundOver) return Answer(Outcome.IGNORED, null)
         val pc = midi % 12
         if (kind == GameKind.MAJOR_MINOR) return answerByChord(pc, nowMs)
@@ -177,10 +195,10 @@ class ChordGame(val kind: GameKind, val level: Int, seed: Long = System.nanoTime
     }
 
     /** Gives up on this round (no point) and moves on. */
-    fun skip() { if (!roundOver) { roundOver = true; streak = 0 }; next() }
+    override fun skip() { if (!roundOver) { roundOver = true; streak = 0 }; next() }
 
     /** Moves to the next round after one ended. */
-    fun next() {
+    override fun next() {
         if (!roundOver || finished) return
         round++
         if (!finished) { target = draw(target); startRound() }
