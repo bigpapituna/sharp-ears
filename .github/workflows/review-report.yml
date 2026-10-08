@@ -1,29 +1,38 @@
 # When the phone opens an issue for a stuck moment, a "that wasn't right" flag or a mic-vs-keyboard mismatch, replay
 # its clip (on the "reports" branch) through the note matcher and post the review on the issue: for each expected
 # note, whether it was heard and, if not, the matcher's reasons. The daily check-in reads these to prepare fixes.
+# Run it again for any issue from the Actions tab ("Run workflow", issue number), e.g. after a matcher change.
 name: Review a report
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to review
+        required: true
 permissions:
   contents: read
   issues: write
 jobs:
   review:
     if: >-
+      github.event_name == 'workflow_dispatch' ||
       contains(github.event.issue.labels.*.name, 'stuck-moment') ||
       contains(github.event.issue.labels.*.name, 'flagged') ||
       contains(github.event.issue.labels.*.name, 'answer-key')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch the clip
         id: clip
-        env:
-          BODY: ${{ github.event.issue.body }}
         run: |
-          name=$(printf '%s' "$BODY" | grep -oE 'reports/[A-Za-z0-9._-]+\.txt' | head -1 | sed 's#reports/##; s#\.txt$##')
+          body=$(gh issue view "$ISSUE" --json body -q .body)
+          name=$(printf '%s' "$body" | grep -oE 'reports/[A-Za-z0-9._-]+\.txt' | head -1 | sed 's#reports/##; s#\.txt$##')
           echo "name=$name" >> "$GITHUB_OUTPUT"
           [ -n "$name" ] || { echo "no report named in the issue"; exit 0; }
           git fetch --depth 1 origin reports
@@ -33,18 +42,17 @@ jobs:
       - uses: actions/setup-java@v4
         if: steps.clip.outputs.name != ''
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
-        if: steps.clip.outputs.name != ''
       - name: Replay it through the matcher
         if: steps.clip.outputs.name != ''
         run: |
-          sdkmanager "platforms;android-37" > /dev/null
+          # The runner's own Android SDK; only the platform this app compiles against is added.
+          sdkm=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$sdkm" --licenses > /dev/null || true
+          "$sdkm" "platforms;android-37" > /dev/null
           chmod +x gradlew
           ./gradlew --no-daemon -q :app:testDebugUnitTest --tests "*StallReviewTest*"
       - name: Post the review
         if: steps.clip.outputs.name != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           { echo "### Matcher review"; echo; echo '```'; cat app/build/stall-review.txt; echo '```'; } > comment.md
-          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+          gh issue comment "$ISSUE" --body-file comment.md
