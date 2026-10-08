@@ -44,6 +44,8 @@ import com.bigpapituna.sharpears.data.SongMeta
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
+                   /** The speaking voice, for the voice picker (null in previews). */
+                   voice: com.bigpapituna.sharpears.audio.Voice? = null,
                    /** The reminder was switched or its time changed: set (or cancel) the alarm. */
                    onReminder: () -> Unit = {},
                    onMicSetup: () -> Unit,
@@ -111,6 +113,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             Section("Voice")
             Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
                 prefs.voice && v >= 0) { prefs.voice = it }
+            if (voice != null && prefs.voice) VoicePicker(voice, v)
 
             Section("Microphone")
             Text("Choose the mic, test middle C, and set the sensitivity.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -189,6 +192,41 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         confirmButton = { TextButton(onClick = { prefs.resetProgress(); confirmReset = false }) { Text("Reset") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
     )
+}
+
+/**
+ * The voice list: the phone's offline English voices, best first. Tapping one switches to it and says a short
+ * sample line, so the choice is made by ear.
+ */
+@Composable
+private fun VoicePicker(voice: com.bigpapituna.sharpears.audio.Voice, version: Int) {
+    androidx.compose.runtime.LaunchedEffect(Unit) { voice.warmUp() }
+    val ready = voice.engineReady.value
+    var expanded by remember { mutableStateOf(false) }
+    val options = remember(ready, version) { voice.voices() }
+    val current = remember(ready, version) { voice.currentVoice() }
+    val currentLabel = options.firstOrNull { it.name == current }?.label ?: "Starting"
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(expanded, role = Role.Button, onValueChange = { expanded = it }),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text("Voice", style = MaterialTheme.typography.titleSmall)
+            Text(if (!ready) "Starting the speech engine." else "$currentLabel. Tap to hear and choose another.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(if (expanded) "Hide" else "Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
+    if (expanded && ready) {
+        if (options.isEmpty()) Text("No offline English voices on this phone. Install them in the phone's text-to-speech settings.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        options.forEach { o ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(o.name == current, role = Role.RadioButton,
+                    onValueChange = { voice.choose(o.name) }).padding(start = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                androidx.compose.material3.RadioButton(selected = o.name == current, onClick = null)
+                Text(o.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            }
+        }
+    }
 }
 
 @Composable

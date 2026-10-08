@@ -49,6 +49,11 @@ class Prefs(context: Context) {
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
 
+    /** The chosen text-to-speech voice (engine id), or null for the best available. */
+    var voiceName: String?
+        get() = p.getString("voiceName", null)
+        set(v) = edit { putString("voiceName", v) }
+
     /** Spoken guidance: lesson steps and feedback read aloud. */
     var voice: Boolean
         get() = p.getBoolean("voice", true)

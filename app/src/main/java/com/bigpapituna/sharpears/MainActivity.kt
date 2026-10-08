@@ -394,7 +394,7 @@ class MainActivity : ComponentActivity() {
                                             screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
                                                 0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
-                                    HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
+                                    HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "", voice = voice,
                                         onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
                                         onMicSetup = { screen = Screen.MicSetup(s) },
                                         onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) })
