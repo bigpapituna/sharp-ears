@@ -79,6 +79,9 @@ import com.bigpapituna.sharpears.engine.Recap
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
+import com.bigpapituna.sharpears.engine.RunRecorder
+import com.bigpapituna.sharpears.engine.RunRecording
+import com.bigpapituna.sharpears.data.RunStore
 import com.bigpapituna.sharpears.engine.TroubleSpot
 import com.bigpapituna.sharpears.engine.TroubleSpots
 import com.bigpapituna.sharpears.engine.fitRange
@@ -156,6 +159,12 @@ fun PlayerScreen(
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    // The notes the player plays in the current run (touch, MIDI or mic), kept for "Hear my run".
+    val recorder = remember { RunRecorder() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val runs = remember { RunStore(context) }
+    var lastRun by remember { mutableStateOf<RunRecording?>(null) }
+    var replay by remember { mutableStateOf<RunRecording?>(null) }
     var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
 
@@ -170,7 +179,6 @@ fun PlayerScreen(
     val fingers = remember(song) { com.bigpapituna.sharpears.engine.Fingering.of(song) }
 
     // Metronome (every song) and backing (progressions: the app plays the left-hand root, the right hand is yours).
-    val context = androidx.compose.ui.platform.LocalContext.current
     val clicks = remember { lazy { com.bigpapituna.sharpears.audio.Clicks(context) } }
     DisposableEffect(Unit) { onDispose { if (clicks.isInitialized()) clicks.value.release() } }
     val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
@@ -215,6 +223,7 @@ fun PlayerScreen(
             backingOn -> metro.barMs
             else -> 2 * metro.beatMs
         }
+        if (transport.fresh) recorder.clear()
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
         transport.play(leadInMs = leadIn); playing = true
@@ -236,7 +245,16 @@ fun PlayerScreen(
     fun wrongFeedback() {
         if (prefs.feedbackLight) { lights.wrong(); Log.d(TAG, "light wrong") } else { wrongFlash++; Log.d(TAG, "redFlash") }
     }
-    fun keyStruck(midi: Int, latencyMs: Double = 0.0) {
+    /** The run as played so far, kept in memory and in files/runs (library songs). */
+    fun keepRun() {
+        if (meta == null || recorder.size == 0) return
+        val r = recorder.take(meta.id, transport.speed)
+        lastRun = r
+        runs.save(r)
+    }
+    fun keyReleased(midi: Int) { if (transport.playing) recorder.off(midi, transport.positionMs) }
+    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80) {
+        if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         val result = transport.noteInput(midi, latencyMs)
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
         when (result) {
@@ -261,6 +279,7 @@ fun PlayerScreen(
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
+        keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
             run?.let { recap = RunEnd(it, false, emptyList()) }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
@@ -280,11 +299,11 @@ fun PlayerScreen(
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
-            recap = RunEnd(r, best, spots.orEmpty())
+            recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null)
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
-            if (transport.mode == Mode.WAIT) recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys)
+            if (transport.mode == Mode.WAIT) recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null)
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
         }
     }
@@ -308,9 +327,9 @@ fun PlayerScreen(
                 is NoteEvent.On -> {
                     held[e.midi] = RightHandColor
                     if (micOn) Log.d(TAG, "truth NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity}")
-                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi) }
+                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi, velocity = e.velocity) }
                 }
-                is NoteEvent.Off -> held.remove(e.midi)
+                is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
             }
         }
     }
@@ -320,10 +339,11 @@ fun PlayerScreen(
     LaunchedEffect(visible) { if (!visible) savePosition() }
     // The mic waits while the voice talks through the speaker (it would hear the phone).
     val voiceHolds = voice.holdsMic
-    DisposableEffect(micOn, mode, visible, voiceHolds, embedded == null || playing) {
+    val replaying = replay != null
+    DisposableEffect(micOn, mode, visible, voiceHolds, embedded == null || playing, replaying) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
         // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && (embedded == null || playing)) {
+        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && (embedded == null || playing) && !replaying) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
@@ -374,7 +394,7 @@ fun PlayerScreen(
             play()
         }
     }
-    DisposableEffect(song) { onDispose { savePosition(); apply(transport.pause()) } }
+    DisposableEffect(song) { onDispose { savePosition(); apply(transport.pause()); if (lastRun == null) keepRun() } }
     // "Practice today": straight into a loop on the worst bar, for a fixed time.
     start.loopBar?.let { bar ->
         LaunchedEffect(song, ready) {
@@ -527,7 +547,8 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
             Dialog(onDismissRequest = { recap = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-                RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null }, modifier = Modifier)
+                RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null },
+                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") }, modifier = Modifier)
             }
         }
     }
@@ -549,9 +570,9 @@ fun PlayerScreen(
             lowMidi = range.first, highMidi = range.last, lit = lit,
             onNoteOn = { m, v ->
                 Log.d(TAG, "NoteOn ${noteName(m)} midi=$m vel=$v src=touch")
-                touched[m] = RightHandColor; if (prefs.sound && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v); keyStruck(m)
+                touched[m] = RightHandColor; if (prefs.sound && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v); keyStruck(m, velocity = v)
             },
-            onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m) },
+            onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m); keyReleased(m) },
             modifier = modifier.then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
             pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
             // The key the song waits for shows its suggested finger.
@@ -588,6 +609,12 @@ fun PlayerScreen(
         return
     }
 
+    replay?.let { r ->
+        BackHandler { replay = null }
+        RunReplay(song, r, range.first, range.last, sampler, prefs.sound, onClose = { replay = null })
+        return
+    }
+
     val density = LocalDensity.current
     Column(Modifier.fillMaxSize().background(LaneBackground).safeDrawingPadding()
         .onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
@@ -609,11 +636,11 @@ fun PlayerScreen(
 }
 
 /** How a run ended: the Perform [recap] (null after a wait-mode run), a new best, and the hardest bars. */
-data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0)
+data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0, val canReplay: Boolean = false)
 
 /** The end of a run: the Perform score (or "Played through" after wait mode), then the hardest bars to loop. */
 @Composable
-private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, modifier: Modifier) {
+private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, onReplay: () -> Unit, modifier: Modifier) {
     Card(modifier.padding(16.dp).widthIn(max = 600.dp), shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -648,6 +675,7 @@ private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (Tr
             }
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onAgain) { Text("Play again") }
+                if (e.canReplay) OutlinedButton(onClick = onReplay) { Text("Hear my run") }
                 OutlinedButton(onClick = onClose) { Text("Close") }
             }
         }

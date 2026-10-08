@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.LaneGeometry
+import com.bigpapituna.sharpears.engine.LOOKAHEAD_MS
+import com.bigpapituna.sharpears.engine.LOOKBEHIND_MS
 import com.bigpapituna.sharpears.engine.Note
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.isBlack
@@ -67,7 +69,10 @@ fun NoteLane(
     hideBefore: Double? = null,
     /** Hit-line feedback (flash on a correct note, pulse on a wrong one), drawn over the notes. */
     lights: HitLights? = null,
+    /** "Hear my run": the player's own notes, drawn as thin bright blocks over the song's (sorted by start). */
+    played: List<Note>? = null,
 ) {
+    val playedLongest = remember(played) { played?.maxOfOrNull { it.durationMs } ?: 0L }
     // Ticks the lights' clock only while one is alive: the Canvas redraws, nothing recomposes.
     if (lights != null) LaunchedEffect(lights) {
         snapshotFlow { lights.added.intValue }.collect {
@@ -155,6 +160,21 @@ fun NoteLane(
                 val c = Offset((k.left + k.right) / 2f, lane.hitLineY - 2f)
                 drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.85f * fade), hand.copy(alpha = 0.5f * fade), Color.Transparent),
                     center = c, radius = whiteW * 1.1f), radius = whiteW * 1.1f, center = c)
+            }
+        }
+        if (played != null) {
+            var i = com.bigpapituna.sharpears.engine.firstStartAtOrAfter(played, positionMs - LOOKBEHIND_MS - playedLongest)
+            while (i < played.size && played[i].startMs < positionMs + LOOKAHEAD_MS) {
+                val n = played[i++]
+                if (n.midi !in lowMidi..highMidi) continue
+                val k = keys.rect(n.midi)
+                val w = (k.right - k.left) * 0.36f
+                val bottom = lane.bottomY(n, positionMs)
+                val top = lane.topY(n, positionMs)
+                val x = (k.left + k.right) / 2f - w / 2f
+                val now = n.startMs <= positionMs && positionMs < n.startMs + n.durationMs
+                if (now) drawRoundRect(PlayedInk.copy(alpha = 0.25f), Offset(x - 4f, top - 4f), Size(w + 8f, bottom - top + 8f), CornerRadius(w))
+                drawRoundRect(PlayedInk.copy(alpha = if (now) 1f else 0.9f), Offset(x, top), Size(w, bottom - top), CornerRadius(w / 2f))
             }
         }
         drawRect(Brush.verticalGradient(listOf(Color.Transparent, RightHandColor.copy(alpha = 0.18f)), startY = lane.hitLineY - 36f, endY = lane.hitLineY),
