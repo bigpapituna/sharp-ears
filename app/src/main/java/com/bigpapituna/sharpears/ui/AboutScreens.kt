@@ -98,6 +98,7 @@ private val COMPONENTS = listOf(
     Component("Kotlin standard library and coroutines", "JetBrains", "Apache License 2.0", "apache-2.0.txt"),
     Component("android-youtube-player", "Pierfrancesco Soffritti", "MIT License", "mit-android-youtube-player.txt"),
     Component("Geist and Geist Mono typefaces", "The Geist Project Authors", "SIL Open Font License 1.1", "ofl-1.1.txt"),
+    Component("Nunito typeface", "The Nunito Project Authors", "SIL Open Font License 1.1", "ofl-1.1.txt"),
     Component("Material Symbols icons", "Google", "Apache License 2.0", "apache-2.0.txt"),
     Component("Kokoro-82M voice model and its recorded lines", "hexgrad", "Apache License 2.0", "apache-2.0.txt"),
     Component("sherpa-onnx speech runtime, with ONNX Runtime and eSpeak NG data", "Xiaomi Corporation (k2-fsa), Microsoft, the eSpeak NG authors",

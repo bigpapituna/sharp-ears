@@ -32,7 +32,8 @@ import com.bigpapituna.sharpears.R
  *   and celebrations. Hand colours and green/red feedback are data, used only on the stage and keyboard.
  * Shape rule: interactive controls are full pills (the main ones springy, see ChunkyButton); surfaces 20 dp;
  *   speech bubbles 18 dp with a tail toward the pup; inner squares 12 dp; piano keys 6 px.
- * Type: Geist for everything, Geist Mono for times, scores and counts (tabular).
+ * Type: Nunito (rounded, like the pup) for headlines; Geist for everything else; Geist Mono for times, scores
+ *   and counts (tabular).
  */
 
 private fun geist(weight: Int) = Font(R.font.geist, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
@@ -40,6 +41,8 @@ private fun geistMono(weight: Int) = Font(R.font.geist_mono, FontWeight(weight),
 
 val Geist = FontFamily(geist(400), geist(500), geist(600), geist(700))
 val GeistMono = FontFamily(geistMono(400), geistMono(500), geistMono(600))
+private fun nunito(weight: Int) = Font(R.font.nunito, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+val Nunito = FontFamily(nunito(700), nunito(800))
 
 /** Numbers that change or line up (times, percentages, counts). */
 val Numeric = TextStyle(fontFamily = GeistMono, fontFeatureSettings = "tnum")
@@ -92,10 +95,11 @@ private val lightColors = lightColorScheme(
 
 private val type = Typography().let { t ->
     fun TextStyle.g(w: Int, track: Double = 0.0) = copy(fontFamily = Geist, fontWeight = FontWeight(w), letterSpacing = track.em)
+    fun TextStyle.n(w: Int, track: Double = 0.0) = copy(fontFamily = Nunito, fontWeight = FontWeight(w), letterSpacing = track.em)
     t.copy(
-        displayLarge = t.displayLarge.g(600, -0.03), displayMedium = t.displayMedium.g(600, -0.03), displaySmall = t.displaySmall.g(600, -0.02),
-        headlineLarge = t.headlineLarge.g(600, -0.02), headlineMedium = t.headlineMedium.g(600, -0.02), headlineSmall = t.headlineSmall.g(600, -0.015),
-        titleLarge = t.titleLarge.g(600, -0.01), titleMedium = t.titleMedium.g(500), titleSmall = t.titleSmall.g(500),
+        displayLarge = t.displayLarge.n(800, -0.02), displayMedium = t.displayMedium.n(800, -0.02), displaySmall = t.displaySmall.n(800, -0.015),
+        headlineLarge = t.headlineLarge.n(800, -0.015), headlineMedium = t.headlineMedium.n(800, -0.015), headlineSmall = t.headlineSmall.n(800, -0.01),
+        titleLarge = t.titleLarge.n(700), titleMedium = t.titleMedium.g(500), titleSmall = t.titleSmall.g(500),
         bodyLarge = t.bodyLarge.g(400).copy(lineHeight = 24.sp), bodyMedium = t.bodyMedium.g(400).copy(lineHeight = 21.sp), bodySmall = t.bodySmall.g(400),
         labelLarge = t.labelLarge.g(500), labelMedium = t.labelMedium.g(500), labelSmall = t.labelSmall.g(500),
     )
