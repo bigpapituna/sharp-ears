@@ -312,6 +312,7 @@ fun PlayerScreen(
             prefs.saveTroubleBars(meta.id, spots)
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
+        if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
         if (run != null) {
             val r = run
             // Only a run from the top counts as a best score.
@@ -629,6 +630,45 @@ fun PlayerScreen(
         return
     }
 
+    // A new two-hand song: suggest hands apart first, then together. Library songs only, never lessons or progressions.
+    var handsTip by remember(song) {
+        mutableStateOf(meta?.takeIf { embedded == null }?.let { m ->
+            val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
+            com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(m.id), prefs.progress(m.id).completed)
+                ?.takeIf { it != prefs.handsTipDismissed(m.id) }
+        })
+    }
+    LaunchedEffect(handsTip) { handsTip?.let { Log.d(TAG, "hands tip ${song.id}: $it") } }
+    fun pickHands(p: Practice?) {
+        val stage = handsTip ?: return
+        if (p != null) { practice = p; transport.practice = p; version++ }
+        meta?.let { prefs.dismissHandsTip(it.id, stage) }
+        Log.d(TAG, "hands tip $stage -> ${p ?: "dismissed"}")
+        handsTip = null
+    }
+    @Composable
+    fun HandsTipRow() {
+        val stage = handsTip ?: return
+        Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(when (stage) {
+                "right" -> "New song. Start with the right hand alone?"
+                "left" -> "Right hand done. Now the left hand alone?"
+                else -> "Both hands passed alone. Hands together?"
+            }, style = MaterialTheme.typography.bodyMedium, color = Ink, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            when (stage) {
+                "right" -> { TipPill("Right hand") { pickHands(Practice.RIGHT) }; TipPill("Both") { pickHands(Practice.BOTH) } }
+                "left" -> { TipPill("Left hand") { pickHands(Practice.LEFT) }; TipPill("Both") { pickHands(Practice.BOTH) } }
+                else -> TipPill("Hands together") { pickHands(Practice.BOTH) }
+            }
+            androidx.compose.material3.IconButton(onClick = { pickHands(null) }) {
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(com.bigpapituna.sharpears.R.drawable.ic_close),
+                    contentDescription = "Dismiss the suggestion", tint = InkDim)
+            }
+        }
+    }
+
     replay?.let { r ->
         BackHandler { replay = null }
         RunReplay(song, r, range.first, range.last, sampler, prefs.sound, onClose = { replay = null })
@@ -646,9 +686,11 @@ fun PlayerScreen(
             Lane(Modifier.fillMaxWidth().height(topH))
             Spacer(Modifier.height(gap))
             Bar()
+            HandsTipRow()
             Keys(Modifier.fillMaxWidth().weight(1f))
         } else {
             Bar()
+            HandsTipRow()
             Lane(Modifier.fillMaxWidth().weight(1f))
             Keys(Modifier.fillMaxWidth().weight(if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
         }
@@ -747,6 +789,12 @@ private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, posit
         next?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
     }
 }
+
+/** A small outlined pill for the hands tip. */
+@Composable
+private fun TipPill(label: String, onClick: () -> Unit) =
+    OutlinedButton(onClick = onClick, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+        modifier = Modifier.height(36.dp)) { Text(label, maxLines = 1) }
 
 /** The count-in: "1 2 3 4" with the current beat bright and larger. */
 @Composable

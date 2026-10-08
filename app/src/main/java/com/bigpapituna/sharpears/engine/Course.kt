@@ -73,6 +73,19 @@ fun parseLine(spec: String, hand: Hand, msPerBeat: Double): List<Note> {
     return out
 }
 
+/**
+ * Which hands-apart tip a two-hand song should show, from the hands it has been played through with:
+ * "right" (start with the right hand alone), "left" (now the left alone), "together" (both passed alone),
+ * or null (one-hand song, already played with both hands, or played through before hands were tracked).
+ */
+fun handsTip(twoHands: Boolean, done: Set<Practice>, playedThrough: Boolean): String? = when {
+    !twoHands || Practice.BOTH in done -> null
+    done.isEmpty() && playedThrough -> null
+    Practice.RIGHT !in done -> "right"
+    Practice.LEFT !in done -> "left"
+    else -> "together"
+}
+
 fun Exercise.toSong(id: String, title: String): Song {
     val msPerBeat = 60_000 / bpm
     val notes = (parseLine(right, Hand.RIGHT, msPerBeat) + parseLine(left, Hand.LEFT, msPerBeat))

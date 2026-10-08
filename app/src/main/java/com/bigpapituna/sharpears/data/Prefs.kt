@@ -107,6 +107,17 @@ class Prefs(context: Context) {
         else runCatching { java.time.LocalDate.parse(k.removePrefix("practice:")) to v }.getOrNull()
     }.toMap()
 
+    /** Which hands a song has been played through with (wait or Perform runs that reached the end). */
+    fun handsDone(id: String): Set<com.bigpapituna.sharpears.engine.Practice> =
+        p.getString("hands:$id", "").orEmpty().split(',').mapNotNull { n -> com.bigpapituna.sharpears.engine.Practice.entries.firstOrNull { it.name == n } }.toSet()
+    fun addHandDone(id: String, hand: com.bigpapituna.sharpears.engine.Practice) {
+        val now = handsDone(id) + hand
+        edit { putString("hands:$id", now.joinToString(",") { it.name }) }
+    }
+    /** The hands-apart tip that was dismissed for a song ("right", "left" or "together"), so it stays away. */
+    fun handsTipDismissed(id: String) = p.getString("handsTip:$id", null)
+    fun dismissHandsTip(id: String, stage: String) = edit { putString("handsTip:$id", stage) }
+
     /** The Auto speed of a song ("auto:<id>" = "72,2026-10-07": percent and the day of the last nudge). */
     fun autoSpeed(id: String) = com.bigpapituna.sharpears.engine.AutoSpeed.decode(p.getString("auto:$id", null))
     fun saveAutoSpeed(id: String, a: com.bigpapituna.sharpears.engine.AutoSpeed) = edit { putString("auto:$id", a.encode()) }
@@ -119,7 +130,7 @@ class Prefs(context: Context) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it == "lastSong" || it.startsWith("practice:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") }
         edit { keys.forEach(::remove) }
     }
 
