@@ -69,6 +69,8 @@ data class BarState(
     val metronome: Boolean = false,
     /** The ramp's current percentage while the speed ramp is on, else null. */
     val ramp: Int? = null,
+    /** The Auto speed's percentage while Auto is on, else null. */
+    val auto: Int? = null,
     /** null: the song has no chord labels. */
     val chords: Boolean? = null,
     /** null: not a progression (no backing to offer). */
@@ -90,6 +92,8 @@ class BarActions(
     val onChords: () -> Unit = {},
     /** Turns the speed ramp on (it starts at 50%). Picking a fixed speed turns it off. */
     val onRamp: () -> Unit = {},
+    /** Turns Auto on: the tempo managed last time, nudged up on good days. */
+    val onAuto: () -> Unit = {},
     val onBacking: () -> Unit = {},
 )
 
@@ -139,21 +143,22 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
             Text(formatTime(s.durationMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
             Spacer(Modifier.width(4.dp))
             LoopButton(s, a.onLoop)
-            // One button walks the speeds: 0.25x, 0.5x, 0.75x, 1x, then Ramp (50% rising to 100% with clean passes).
-            val changed = s.speed != 1.0 || s.ramp != null
+            // One button walks the speeds: 0.25x, 0.5x, 0.75x, 1x, Ramp (50% rising to 100% with clean passes), then Auto.
+            val changed = s.speed != 1.0 || s.ramp != null || s.auto != null
             TextButton(onClick = {
                 when {
-                    s.ramp != null -> a.onSpeed(SPEEDS.first())
+                    s.auto != null -> a.onSpeed(SPEEDS.first())
+                    s.ramp != null -> a.onAuto()
                     s.speed == 1.0 -> a.onRamp()
                     else -> a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size])
                 }
             }, modifier = Modifier.semantics {
-                contentDescription = (s.ramp?.let { "Speed ramp at $it percent" } ?: "Speed ${speedLabel(s.speed)}") + ", tap to change"
+                contentDescription = (s.auto?.let { "Auto speed, $it percent" } ?: s.ramp?.let { "Speed ramp at $it percent" } ?: "Speed ${speedLabel(s.speed)}") + ", tap to change"
             }) {
                 Icon(painterResource(R.drawable.ic_speed), contentDescription = null, modifier = Modifier.size(18.dp),
                     tint = if (changed) MaterialTheme.colorScheme.primary else dim)
                 Spacer(Modifier.width(6.dp))
-                Text(s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+                Text(s.auto?.let { "Auto $it%" } ?: s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
                     color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             }
             s.chords?.let { Toggle("Chords", it, a.onChords) }

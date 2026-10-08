@@ -139,8 +139,15 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         return off
     }
 
+    /** Real ms the run has played since its first group (holds included, the lead-in not), for the Auto speed. */
+    var runRealMs = 0.0
+        private set
+    /** Song ms the run has covered since its first group. */
+    val runSongMs get() = (positionMs - anchorMs).coerceAtLeast(0.0)
+
     fun tick(dtMs: Double): List<NoteEvent> {
         if (!playing) return emptyList()
+        if (positionMs >= anchorMs) runRealMs += dtMs
         var end = (positionMs + dtMs * speed).coerceAtMost(song.durationMs.toDouble())
         // "<=" so pressing B at the playhead wraps on the next frame; a seek past B plays on.
         loop?.let {
@@ -205,6 +212,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     private fun resetGroups() {
         log.reset()
         troubles.reset()
+        runRealMs = 0.0
         satisfied.clear()
         waiting = false
         // In a lead-in or preview the run still starts where it was cued, not at the earlier playhead.

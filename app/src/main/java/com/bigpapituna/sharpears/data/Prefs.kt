@@ -107,6 +107,10 @@ class Prefs(context: Context) {
         else runCatching { java.time.LocalDate.parse(k.removePrefix("practice:")) to v }.getOrNull()
     }.toMap()
 
+    /** The Auto speed of a song ("auto:<id>" = "72,2026-10-07": percent and the day of the last nudge). */
+    fun autoSpeed(id: String) = com.bigpapituna.sharpears.engine.AutoSpeed.decode(p.getString("auto:$id", null))
+    fun saveAutoSpeed(id: String, a: com.bigpapituna.sharpears.engine.AutoSpeed) = edit { putString("auto:$id", a.encode()) }
+
     /** "Practice today" finished on [day]: the summary row, or null. */
     fun dailySummary(day: java.time.LocalDate): String? = p.getString("daily:$day", null)
     fun saveDailySummary(day: java.time.LocalDate, summary: String) = edit {
@@ -115,7 +119,7 @@ class Prefs(context: Context) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it == "lastSong" || it.startsWith("practice:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it == "lastSong" || it.startsWith("practice:") }
         edit { keys.forEach(::remove) }
     }
 

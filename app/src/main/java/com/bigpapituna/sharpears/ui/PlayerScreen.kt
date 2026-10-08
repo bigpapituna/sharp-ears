@@ -79,6 +79,7 @@ import com.bigpapituna.sharpears.engine.Recap
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
+import com.bigpapituna.sharpears.engine.AutoSpeed
 import com.bigpapituna.sharpears.engine.RunRecorder
 import com.bigpapituna.sharpears.engine.RunRecording
 import com.bigpapituna.sharpears.data.RunStore
@@ -186,6 +187,9 @@ fun PlayerScreen(
     var metronomeOn by remember { mutableStateOf(false) }
     var chordsOn by remember { mutableStateOf(false) }
     var ramp by remember { mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null) }
+    // Auto speed: the tempo managed last time (library songs), nudged up on good days.
+    var autoOn by remember { mutableStateOf(false) }
+    var autoPercent by remember { mutableIntStateOf(meta?.let { prefs.autoSpeed(it.id)?.percent } ?: AutoSpeed.FIRST) }
     var rampPercent by remember { mutableIntStateOf(0) }
     var backingOn by remember { mutableStateOf(false) }
 
@@ -291,6 +295,19 @@ fun PlayerScreen(
             Mode.PERFORM -> TroubleSpots.forPerform(song, transport.troubles)
             Mode.LISTEN -> null
         }
+        // Auto speed learns from every Wait and Perform run of a library song, Auto on or not.
+        val effective = if (spots != null) AutoSpeed.effectivePercent(transport.runSongMs, transport.runRealMs) else null
+        if (effective != null) {
+            val rep = transport.report()
+            val acc = rep.recap?.accuracy ?: AutoSpeed.waitAccuracy(rep.groups, rep.wrongKeys)
+            val before = prefs.autoSpeed(meta.id)
+            val after = AutoSpeed.afterRun(before, effective, acc, java.time.LocalDate.now())
+            prefs.saveAutoSpeed(meta.id, after)
+            Log.d(TAG, "auto speed ${song.id}: managed $effective% (song ${transport.runSongMs.toLong()} ms in ${transport.runRealMs.toLong()} ms), " +
+                "accuracy $acc% -> ${after.percent}% (was ${before?.percent})")
+            autoPercent = after.percent
+            if (autoOn) setSpeed(after.speed)
+        }
         if (spots != null) {
             prefs.saveTroubleBars(meta.id, spots)
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
@@ -310,6 +327,7 @@ fun PlayerScreen(
     /** "Loop bar N": the A-B loop on that bar, wait mode at half speed, from a lead-in before it. */
     fun loopBar(s: TroubleSpot) {
         recap = null
+        autoOn = false
         if (transport.mode != Mode.WAIT) setMode(Mode.WAIT) else pause()
         ramp = null; setSpeed(0.5)
         setLoop(s.startMs, s.endMs)
@@ -482,6 +500,7 @@ fun PlayerScreen(
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
+            auto = if (autoOn) autoPercent else null,
             chords = if (chordTrack != null) chordsOn else null,
             backing = if (isProgression) backingOn else null,
             status = when {
@@ -492,8 +511,9 @@ fun PlayerScreen(
         BarActions(
             onBack = onBack,
             onPlayPause = { if (playing) pause() else play() },
-            onSpeed = { ramp = null; setSpeed(it) },
-            onRamp = { ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent }; Log.d(TAG, "ramp on at 50%") },
+            onSpeed = { ramp = null; autoOn = false; setSpeed(it) },
+            onRamp = { autoOn = false; ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent }; Log.d(TAG, "ramp on at 50%") },
+            onAuto = { ramp = null; autoOn = true; setSpeed(autoPercent / 100.0); Log.d(TAG, "auto speed on at $autoPercent%") },
             onMode = ::setMode,
             onPractice = { practice = it; transport.practice = it; version++; Log.d(TAG, "hands=$it") },
             onSeek = { seek(it) },

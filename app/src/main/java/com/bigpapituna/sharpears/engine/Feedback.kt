@@ -11,6 +11,8 @@ class RunLog {
     val missed = mutableMapOf<Int, Int>()
     var wrongKeys = 0; private set
     var retries = 0; private set
+    /** Groups finished in wait mode. */
+    var groups = 0; private set
     private var wrongThisGroup = false
 
     fun wrong(played: Int, expected: Collection<Int>) {
@@ -19,16 +21,16 @@ class RunLog {
         if (!wrongThisGroup) { wrongThisGroup = true; retries++ }
     }
 
-    fun groupDone() { wrongThisGroup = false }
+    fun groupDone() { wrongThisGroup = false; groups++ }
 
-    fun reset() { missed.clear(); wrongKeys = 0; retries = 0; wrongThisGroup = false }
+    fun reset() { missed.clear(); wrongKeys = 0; retries = 0; groups = 0; wrongThisGroup = false }
 
     fun report(recap: Recap?) = Report(missed.entries.sortedWith(compareBy({ -it.value }, { it.key })).map { it.key to it.value },
-        retries, wrongKeys, recap)
+        retries, wrongKeys, recap, groups)
 }
 
 /** What a run looked like: notes missed most first (midi to count), retries, and the Perform recap if any. */
-data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongKeys: Int, val recap: Recap?) {
+data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongKeys: Int, val recap: Recap?, val groups: Int = 0) {
     val clean get() = wrongKeys == 0 && (recap == null || recap.miss == 0)
 }
 
