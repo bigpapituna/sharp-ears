@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
@@ -95,6 +96,13 @@ data class PlayerStart(
 )
 
 /**
+ * The player inside a lesson step: no orientation lock, no back handling, and instead of the transport bar a
+ * single row with play/pause, the step's fixed hand and mode ([state]) and the mic. [labels] false hides note
+ * names and finger numbers (playing from memory). With [autoStart] the run starts once the voice has finished.
+ */
+data class Embedded(val state: String, val labels: Boolean = true, val autoStart: Boolean = true)
+
+/**
  * Landscape player: transport bar, falling-notes lane, keyboard, and the song's tutorial video when it has one.
  * Listen plays the song; Wait holds at each note group until it is played; Perform never waits and scores.
  * In tabletop posture the lane (and video) sit above the hinge and the keyboard below it.
@@ -107,12 +115,15 @@ fun PlayerScreen(
     startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
     /** Called when a run reaches the end: the Perform recap, or null in listen/wait mode (lesson exercises use it). */
     onFinished: (Recap?) -> Unit = {},
+    embedded: Embedded? = null,
+    modifier: Modifier = Modifier,
 ) {
     val activity = LocalActivity.current ?: return
-    DisposableEffect(Unit) {
+    if (embedded == null) DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
+    val labels = embedded?.labels ?: true
 
     val range = remember(song) { fitRange(song.notes) }
     val transport = remember(song) { Transport(song, playable = range).apply { mode = start.mode; practice = start.practice } }
@@ -144,7 +155,7 @@ fun PlayerScreen(
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
-    fun soundAllowed() = prefs.sound && (!micOn || mic.headphonesOn()) && !(videoOn && tutorial?.anchor != null)
+    fun soundAllowed() = prefs.sound && (!(micOn && mode != Mode.LISTEN) || mic.headphonesOn()) && !(videoOn && tutorial?.anchor != null)
     fun apply(events: List<NoteEvent>) {
         val sound = soundAllowed()
         events.forEach { e -> when (e) { is NoteEvent.On -> if (sound) sampler.noteOn(e.midi, e.velocity); is NoteEvent.Off -> sampler.noteOff(e.midi) } }
@@ -218,9 +229,10 @@ fun PlayerScreen(
     LaunchedEffect(visible) { if (!visible) savePosition() }
     // The mic waits while the voice talks through the speaker (it would hear the phone).
     val voiceHolds = voice.holdsMic
-    DisposableEffect(micOn, mode, visible, voiceHolds) {
+    DisposableEffect(micOn, mode, visible, voiceHolds, embedded == null || playing) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds) {
+        // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
+        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && (embedded == null || playing)) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
@@ -250,27 +262,37 @@ fun PlayerScreen(
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
-        if (granted) { micOn = true; prefs.micDefault = true; if (mode == Mode.LISTEN) setMode(Mode.WAIT) }
+        if (granted) { micOn = true; prefs.micDefault = true; if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
         if (micOn) { micOn = false; prefs.micDefault = false; Log.d(TAG, "mic off"); return }
         if (!mic.hasPermission()) { askMic.launch(Manifest.permission.RECORD_AUDIO); return }
         micOn = true; prefs.micDefault = true
         // The mic listens in wait and perform mode.
-        if (mode == Mode.LISTEN) setMode(Mode.WAIT)
+        if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT)
         Log.d(TAG, "mic on")
     }
     LaunchedEffect(song) {
         if (startMs > 0) seek(startMs)
         Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)} mode=$mode hands=$practice mic=$micOn at=${startMs.toLong()} video=${tutorial != null}")
-        if (start.inject != null) {
+        if (start.inject != null && embedded == null) {
             // Debug injection runs hands-free, starting with the injected audio (rendering it takes a moment).
             while (mic.matcher.samplesProcessed == 0L) delay(5)
             play()
         }
     }
     DisposableEffect(song) { onDispose { savePosition(); apply(transport.pause()) } }
-    BackHandler(onBack = onBack)
+    if (embedded == null) BackHandler(onBack = onBack)
+    // A lesson step starts by itself once the voice has read it out (and the sounds are loaded).
+    var autoStarted by remember { mutableStateOf(false) }
+    val voiceSpeaking = voice.speaking.value
+    if (embedded?.autoStart == true) LaunchedEffect(ready, voiceSpeaking) {
+        if (autoStarted || !ready || voiceSpeaking) return@LaunchedEffect
+        delay(700)
+        autoStarted = true
+        Log.d(TAG, "lesson step auto-start ${song.id} mode=$mode")
+        play()
+    }
 
     // Frame loop: tick the transport with the real frame delta while playing.
     LaunchedEffect(playing) {
@@ -352,12 +374,12 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize().onGloballyPositioned { c ->
                 if (debugDump) laneBox = Rect(c.positionInWindow(), c.size.toSize())
             },
-            fingers = fingers, showNames = prefs.noteNames && prefs.version.intValue >= 0, showFingers = prefs.fingerNumbers,
+            fingers = fingers, showNames = labels && prefs.noteNames && prefs.version.intValue >= 0, showFingers = labels && prefs.fingerNumbers,
         )
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
-        recap?.let { (r, best) ->
+        if (embedded == null) recap?.let { (r, best) ->
             Dialog(onDismissRequest = { recap = null }) {
                 RecapCard(r, best, speed, onAgain = { recap = null; seek(0.0); play() }, onClose = { recap = null }, modifier = Modifier)
             }
@@ -376,7 +398,7 @@ fun PlayerScreen(
         }
         var wrongVisible by remember { mutableStateOf(false) }
         LaunchedEffect(wrongFlash) { if (wrongFlash > 0) { wrongVisible = true; delay(150); wrongVisible = false } }
-        val keyLabels = remember(prefs.version.intValue, range) { keyLabels(prefs.keyLabels, range) }
+        val keyLabels = remember(prefs.version.intValue, range) { if (labels) keyLabels(prefs.keyLabels, range) else emptyMap() }
         Keyboard(
             lowMidi = range.first, highMidi = range.last, lit = lit,
             onNoteOn = { m, v ->
@@ -387,7 +409,7 @@ fun PlayerScreen(
             modifier = modifier.then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
             pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
             // The key the song waits for shows its suggested finger.
-            labels = if (prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
+            labels = if (labels && prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
         )
     }
 
@@ -404,6 +426,20 @@ fun PlayerScreen(
             Log.d(TAG, "laneNote ${noteName(n.midi)} hand=${n.hand} x=${(box.left + k.centerX).toInt()} " +
                 "top=${(box.top + lane.topY(n, position)).toInt()} bottom=${(box.top + lane.bottomY(n, position)).toInt()}")
         }
+    }
+
+    if (embedded != null) {
+        Column(modifier.background(LaneBackground)) {
+            EmbeddedBar(embedded.state, playing, ready, micOn, onPlayPause = { if (playing) pause() else play() }, onMic = ::toggleMic,
+                status = when {
+                    mode != Mode.PERFORM || !playing -> ""
+                    position < 0 -> "Get ready"
+                    else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
+                })
+            Lane(Modifier.fillMaxWidth().weight(1f))
+            Keys(Modifier.fillMaxWidth().weight(0.45f))
+        }
+        return
     }
 
     val density = LocalDensity.current
@@ -466,3 +502,22 @@ private fun keyLabels(setting: KeyLabels, range: IntRange): Map<Int, String> = w
 }
 
 private fun handColor(h: Hand) = if (h == Hand.RIGHT) RightHandColor else LeftHandColor
+
+
+/** The lesson player's one row: play/pause, what the step asks (fixed by the step), live status, and the mic. */
+@Composable
+private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: Boolean, onPlayPause: () -> Unit, onMic: () -> Unit, status: String) {
+    Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.material3.FilledIconButton(onClick = onPlayPause, enabled = ready, modifier = Modifier.size(44.dp)) {
+            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(if (playing) com.bigpapituna.sharpears.R.drawable.ic_pause else com.bigpapituna.sharpears.R.drawable.ic_play_arrow),
+                contentDescription = if (!ready) "Loading sounds" else if (playing) "Pause" else "Play")
+        }
+        Text(state, style = MaterialTheme.typography.labelLarge, color = Ink, maxLines = 1, modifier = Modifier.weight(1f))
+        if (status.isNotEmpty()) Text(status, style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        androidx.compose.material3.IconToggleButton(micOn, { onMic() }) {
+            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(if (micOn) com.bigpapituna.sharpears.R.drawable.ic_mic else com.bigpapituna.sharpears.R.drawable.ic_mic_off),
+                contentDescription = "Microphone", tint = if (micOn) MaterialTheme.colorScheme.primary else InkDim)
+        }
+    }
+}

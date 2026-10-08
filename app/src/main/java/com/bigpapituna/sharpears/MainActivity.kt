@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.safeDrawingPadding
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.CourseLesson
-import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.ui.LearnScreen
+import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.LessonScreen
 import com.bigpapituna.sharpears.ui.nextLesson
 import com.bigpapituna.sharpears.ui.HomeShell
@@ -72,9 +72,9 @@ private sealed interface Screen {
     /** The three tabs. [chordsTab] and [inject] only matter for the Chords tab. */
     data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
-    data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen,
-                      val lesson: CourseLesson? = null) : Screen
-    data class Lesson(val lesson: CourseLesson, val back: Screen) : Screen
+    data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
+    /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
+    data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null) : Screen
     data class MicSetup(val back: Screen) : Screen
 }
 
@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
         //   --es screen chords|settings|learn [--es tab daily|dictionary|practice|progressions] [--es inject ...]
-        //   --es lesson <course lesson id>
+        //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
@@ -126,7 +126,9 @@ class MainActivity : ComponentActivity() {
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
             debuggable && intent.getStringExtra("lesson") != null ->
-                COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) }
+                COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
+                    Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject)
+                }
             openSong == null -> Screen.Home()
             openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Home())
             openSong.startsWith("prog:") -> openSong.split(":").let { (_, i, k) ->
@@ -187,26 +189,16 @@ class MainActivity : ComponentActivity() {
 
                     when (val s = screen) {
                         is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
-                            s.startMs, dump, s.start, onBack = { screen = s.back },
-                            onFinished = { run ->
-                                // A lesson exercise counts once played to the end; Perform ones need their pass mark.
-                                val l = s.lesson ?: return@PlayerScreen
-                                if (run == null || run.accuracy >= (l.exercise?.pass ?: 0)) { prefs.markLessonDone(l.id); Log.d(TAG, "lesson ${l.id} done") }
-                                else Log.d(TAG, "lesson ${l.id}: ${run.accuracy}% < ${l.exercise?.pass}%")
-                            })
+                            s.startMs, dump, s.start, onBack = { screen = s.back })
                         is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                            BackHandler { screen = s.back }
+                            BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson
-                            LessonScreen(l, done = prefs.lessonDone(l.id) && prefs.version.intValue >= 0,
-                                onPractice = {
-                                    val ex = l.exercise ?: return@LessonScreen
-                                    screen = Screen.Player(ex.toSong(l.id, l.title), null,
-                                        PlayerStart(ex.mode, ex.practice, mic = prefs.micDefault && mic.hasPermission()), 0.0, s, lesson = l)
-                                },
-                                onSong = { songs.firstOrNull { it.id == l.songId && repo.available(it) }?.let { openSong(it, back = s) } },
-                                onMarkDone = { prefs.markLessonDone(l.id) },
+                            androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
+                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null) },
+                                onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
+                                onDone = { prefs.markLessonDone(l.id) },
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
-                                onBack = { screen = s.back })
+                                onBack = { screen = s.back }) }
                         }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,

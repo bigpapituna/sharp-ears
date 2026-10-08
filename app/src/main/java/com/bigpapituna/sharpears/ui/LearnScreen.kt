@@ -41,7 +41,7 @@ import com.bigpapituna.sharpears.engine.CourseLevel
 import com.bigpapituna.sharpears.engine.Mode
 
 /** Lessons in course order, for "next lesson" and numbering. */
-private val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
+internal val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
 
 /** The Learn tab: a "next lesson" panel, then each level's lessons as plain numbered rows. */
 @Composable
@@ -108,51 +108,6 @@ private fun LessonRow(number: Int, lesson: CourseLesson, done: Boolean, onOpen: 
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (done) Icon(painterResource(R.drawable.ic_check), contentDescription = "Done", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-    }
-}
-
-/**
- * One lesson: what it teaches, then "Practice it" (its exercise in the player) or "Open the song".
- * Exercises finish themselves (a Perform exercise needs its pass mark); song lessons are marked done by hand.
- */
-@Composable
-fun LessonScreen(lesson: CourseLesson, done: Boolean, onPractice: () -> Unit, onSong: () -> Unit, onMarkDone: () -> Unit,
-                 onNext: (() -> Unit)?, onBack: () -> Unit) {
-    val (level, _) = ALL.first { it.second == lesson }
-    val ex = lesson.exercise
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
-            Text("${level.title}, lesson ${ALL.indexOfFirst { it.second == lesson } + 1}", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary)
-            Text(lesson.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            lesson.body.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
-            Spacer(Modifier.size(4.dp))
-            if (ex != null) {
-                Text(
-                    when {
-                        ex.mode == Mode.PERFORM -> "Perform mode: the notes keep moving. Score ${ex.pass}% or more to finish the lesson."
-                        else -> "Wait mode: the song waits for each note. Play it to the end to finish the lesson."
-                    } + if (ex.practice.name != "BOTH") " ${ex.practice.name.lowercase().replaceFirstChar { it.uppercase() }} hand only." else " Both hands.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(onClick = onPractice) {
-                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.size(6.dp)); Text("Practice it")
-                }
-            }
-            if (lesson.songId != null) {
-                if (ex == null) Button(onClick = onSong) { Text("Open the song") } else TextButton(onClick = onSong) { Text("Open the song") }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (done) {
-                    Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Text("Done", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                } else TextButton(onClick = onMarkDone) { Text("Mark as done") }
-                Spacer(Modifier.weight(1f))
-                onNext?.let { TextButton(onClick = it) { Text("Next lesson") } }
-            }
-        }
     }
 }
 
