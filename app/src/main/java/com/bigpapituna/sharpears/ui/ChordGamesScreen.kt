@@ -216,6 +216,17 @@ private fun GameScreen(
         }
     }
 
+    if (finished) {
+        Celebration(
+            when { newBest -> "New best!"; game.score * 2 >= game.rounds -> "Nice playing!"; else -> "Good effort!" },
+            "${kind.title}, ${kind.levels[level].replaceFirstChar { it.lowercase() }}.",
+            listOf(Stat("${game.score}/${game.rounds}", "Score"), Stat("${game.bestStreak}", "Best streak")),
+            primary = "Play again", onPrimary = onAgain, secondary = "Games", onSecondary = onExit,
+            pose = when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE },
+            sampler = sampler.takeIf { sound() && game.score * 2 >= game.rounds },
+        )
+        return
+    }
     Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -223,24 +234,6 @@ private fun GameScreen(
                 Text(kind.levels[level], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = onExit) { Text(if (finished) "Games" else "End game") }
-        }
-        if (finished) {
-            // Results row: score, best streak, and whether it is a new best for this game and level.
-            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                Column {
-                    Text(if (newBest) "New best" else "Score", style = MaterialTheme.typography.labelLarge,
-                        color = if (newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${game.score} of ${game.rounds}", style = Numeric.merge(MaterialTheme.typography.displaySmall))
-                }
-                GameStat("Best streak", game.bestStreak)
-                Spacer(Modifier.weight(1f))
-                Pup(when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE }, size = 96.dp)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ChunkyButton(onClick = onAgain) { Text("Play again") }
-            }
-            if (newBest) Confetti(game.score to level, Modifier.fillMaxWidth().height(320.dp))
-            return@Column
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(Modifier.weight(1f)) {

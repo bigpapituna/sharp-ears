@@ -190,6 +190,8 @@ class MainActivity : ComponentActivity() {
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
                     var importInto by remember { mutableStateOf<SongMeta?>(null) }
+                    // "Practice today" just finished: parts done, minutes, days in a row, for the celebration.
+                    var dailyDone by remember { mutableStateOf<Triple<Int, Long, Int>?>(null) }
                     val scope = rememberCoroutineScope()
                     val songs = remember(libraryVersion) { repo.all() }
 
@@ -245,6 +247,7 @@ class MainActivity : ComponentActivity() {
                         prefs.saveDailySummary(java.time.LocalDate.now(), summary)
                         Log.d(TAG, "daily: $summary")
                         voice.speak("Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
+                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), PracticeStats.streak(prefs.practice(), java.time.LocalDate.now()))
                         screen = Screen.Home()
                     }
                     fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null) {
@@ -401,6 +404,16 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
+                    dailyDone?.let { (parts, min, streak) ->
+                        com.bigpapituna.sharpears.ui.Celebration("Done for today!",
+                            if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
+                            listOf(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
+                                com.bigpapituna.sharpears.ui.Stat("$min min", "Practice"),
+                                com.bigpapituna.sharpears.ui.Stat("$streak", if (streak == 1) "Day" else "Days in a row")),
+                            primary = "Continue", onPrimary = { dailyDone = null },
+                            pose = if (streak >= 2) com.bigpapituna.sharpears.ui.Pose.STREAK else com.bigpapituna.sharpears.ui.Pose.LEVEL_UP,
+                            sampler = sampler.takeIf { prefs.sound })
                     }
                     importError?.let { msg ->
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },

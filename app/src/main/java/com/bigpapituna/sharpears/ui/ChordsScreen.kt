@@ -432,11 +432,9 @@ private fun Session(
     val n = store.session.size
     if (item == null && onEnd != null) { LaunchedEffect(Unit) { onEnd() }; return }
     if (item == null) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Session done", style = MaterialTheme.typography.headlineSmall)
-            Text("${store.sessionCorrect} of $n played cleanly. The rest come back tomorrow.", style = MaterialTheme.typography.bodyLarge)
-            ChunkyButton(onClick = store::endSession) { Text("Back to lessons") }
-        }
+        Celebration("Session done!", "The ones that were not clean come back tomorrow.",
+            listOf(Stat("${store.sessionCorrect}/$n", "Clean"), Stat("$n", "Practised")),
+            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler)
         return
     }
     val progress = @Composable {

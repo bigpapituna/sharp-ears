@@ -168,7 +168,9 @@ fun ChunkyButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bo
     val c = MaterialTheme.colorScheme
     val face = if (enabled) c.primary else c.surfaceContainerHighest
     val edge = if (enabled) lerp(c.primary, Color.Black, 0.3f) else c.outlineVariant
-    Box(modifier.heightIn(min = 52.dp).clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)) {
+    // Min constraints pass through, so a fillMaxWidth button fills with its face, not just its lip.
+    Box(modifier.heightIn(min = 52.dp).clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+        propagateMinConstraints = true) {
         Box(Modifier.matchParentSize().padding(top = lip).background(edge, CircleShape))
         CompositionLocalProvider(LocalContentColor provides if (enabled) c.onPrimary else c.onSurfaceVariant,
             LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp)) {
@@ -197,7 +199,7 @@ fun Confetti(key: Any, modifier: Modifier = Modifier) {
         val sec = p * 2.4f
         val origin = Offset(size.width / 2, size.height * 0.3f)
         bits.forEach { (b, color) ->
-            val x = origin.x + b[0] * size.width * 0.55f * sec
+            val x = origin.x + b[0] * size.width * 0.9f * sec
             val y = origin.y + (b[1] * sec + 0.75f * sec * sec) * size.height * 0.45f
             val w = 9.dp.toPx() * b[3]; val h = 5.dp.toPx() * b[3]
             rotate(b[2] * sec, Offset(x, y)) {

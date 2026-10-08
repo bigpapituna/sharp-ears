@@ -81,6 +81,12 @@ fun LessonScreen(
     var reaction by remember { mutableStateOf<Pose?>(null) }     // the pup's answer to the last try, for a few seconds
     var fails by remember { mutableIntStateOf(0) }               // tries of this step that did not pass
     LaunchedEffect(reaction) { if (reaction != null) { kotlinx.coroutines.delay(4000); reaction = null } }
+    // The bar after a try (the pup's verdict and one button), and what the finish celebration counts.
+    var bar by remember { mutableStateOf<Triple<Cheer, String, String?>?>(null) }
+    var retries by remember { mutableIntStateOf(0) }
+    var cheers by remember { mutableIntStateOf(lesson.id.hashCode()) }
+    val openedAt = remember { System.currentTimeMillis() }
+    var tookSecs by remember { mutableStateOf(0L) }
     val step = lesson.steps[index]
     val last = index == lesson.steps.lastIndex
     val voice = deps.voice
@@ -93,10 +99,11 @@ fun LessonScreen(
         advancedByItself = false
     }
 
-    fun go(to: Int) { feedback = null; finished = false; index = to; fails = 0 }
+    fun go(to: Int) { feedback = null; bar = null; finished = false; index = to; fails = 0 }
     fun complete() {
         if (last) {
             finished = true
+            tookSecs = (System.currentTimeMillis() - openedAt) / 1000
             onDone()
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak("Lesson complete.")
@@ -118,11 +125,18 @@ fun LessonScreen(
         feedback = line?.text
         line?.let { voice.speak(it.spoken) }
         if (s.kind != StepKind.LISTEN) reaction = if (passed) Pose.GREAT_JOB else Pose.MISTAKE
+        if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
+        if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, "Not quite", line?.text); return }
         // Passing a step that took a few tries earns the high-five.
-        if (passed && fails >= 2) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
-        if (passed) { fails = 0; complete() } else fails++
+        val highFive = fails >= 2
+        if (highFive) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
+        fails = 0
+        // The last step goes straight to the celebration; any other waits on Continue.
+        if (last) complete() else bar = Triple(Cheer.GOOD, if (highFive) "High five!" else cheerTitle(cheers++),
+            if (highFive) "You stuck with it. " + (line?.text ?: "") else line?.text)
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -138,21 +152,11 @@ fun LessonScreen(
                 }, size = 64.dp)
             }
             StepDots(lesson.steps.size, index, finished, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 14.dp))
-            feedback?.takeIf { !finished }?.let {
+            feedback?.takeIf { !finished && bar == null }?.let {
                 PupSays(reaction ?: Pose.PRACTICING, it, Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 64.dp)
             }
             if (finished) {
-                // The trophy pup centre stage, with confetti.
-                Box(Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-                        Pup(Pose.LEVEL_UP, size = 168.dp)
-                        Text("Lesson complete", style = MaterialTheme.typography.headlineMedium)
-                        Text(lesson.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    }
-                    Confetti(lesson.id, Modifier.matchParentSize())
-                }
+                // The celebration covers the screen (below).
             } else if (step.kind.needsMidi && deps.midi.connected.value == null) {
                 // No keyboard: say why, and let the step be skipped.
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -210,6 +214,21 @@ fun LessonScreen(
                 else -> ChunkyButton(onClick = { go(index + 1); run++ }) { Text("Next") }
             }
         }
+    }
+    bar?.let { (cheer, title, line) ->
+        CheerBar(cheer, title, line, if (cheer == Cheer.GOOD) "Continue" else "Try again", Modifier.align(Alignment.BottomCenter), onButton = {
+            bar = null
+            if (cheer == Cheer.GOOD) complete() else { feedback = null; run++ }
+        })
+    }
+    if (finished) Celebration(
+        "Lesson complete!", lesson.summary,
+        listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(tookSecs / 60, tookSecs % 60), "Time"),
+            Stat("$retries", if (retries == 1) "Retry" else "Retries")),
+        primary = if (onNext != null) "Next lesson" else "Done", onPrimary = { voice.stop(); (onNext ?: onBack)() },
+        secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
+        sampler = deps.sampler.takeIf { deps.prefs.sound },
+    )
     }
 }
 
