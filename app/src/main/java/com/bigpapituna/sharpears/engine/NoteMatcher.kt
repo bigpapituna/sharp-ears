@@ -245,11 +245,13 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         }
 
         // Octave doublings inside a chord: every overtone of X is an overtone of X-12, so X cannot be heard on
-        // its own. Once the lower note of the pair is heard, credit X too (same pitch class).
-        // ponytail: a player who drops the upper octave still gets credit; fine for chord practice
+        // its own. Once the lower note of the pair is heard, credit X too (same pitch class). Up to four octaves:
+        // in Alicia, C6 over C3 is C3's 8th partial, and C3's higher partials land on C6's checks for a lower note
+        // and its semitone neighbours, so C6 was never heard and wait mode stuck there.
+        // ponytail: a player who drops the upper octave still gets credit; fine in wait mode, where stuck is worse
         for (midi in exp) {
             if (now - (lastStrike[midi] ?: Long.MIN_VALUE / 2) < ms(600.0)) continue
-            val lower = listOf(midi - 12, midi - 24).firstOrNull { l -> gs.any { midi in it && l in it } && now - (lastStrike[l] ?: Long.MIN_VALUE / 2) < ms(600.0) } ?: continue
+            val lower = listOf(midi - 12, midi - 24, midi - 36, midi - 48).firstOrNull { l -> gs.any { midi in it && l in it } && now - (lastStrike[l] ?: Long.MIN_VALUE / 2) < ms(600.0) } ?: continue
             lastStrike[midi] = now
             recentStrikes.addLast(now)
             events += MicEvent.Strike(midi, now, -99.0, inferredFrom = lower)

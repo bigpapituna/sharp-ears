@@ -198,6 +198,32 @@ class NoteMatcherTest {
         assertTrue("the gate should be what rejects it (without it: $withoutGate)", withoutGate > 0)
     }
 
+    /** Wait mode on a chord: each note leaves the expected set once heard. Returns what was heard. */
+    private fun heardInChord(audio: FloatArray, chord: Set<Int>): Set<Int> {
+        val m = NoteMatcher(fs)
+        m.group = chord
+        val heard = mutableSetOf<Int>()
+        var i = 0
+        while (i < audio.size) {
+            m.expected = chord - heard
+            m.process(audio.copyOfRange(i, minOf(audio.size, i + 480))).filterIsInstance<MicEvent.Strike>().forEach { heard += it.midi }
+            i += 480
+        }
+        return heard
+    }
+
+    /**
+     * Roy's Alicia: C3 and C6 together, C6 much softer. C6 is C3's 8th partial, and C3's higher partials land on
+     * C6's checks for a lower note and its semitone neighbours, so C6 was never heard and wait mode stuck. Three and
+     * four octaves up count as doublings too. Slack strings (Roy's Yamaha, bScale ~0.2) and stiff ones.
+     */
+    @Test fun wideOctaveChordHearsItsTopNote() {
+        for (b in listOf(0.2, 1.0)) for (top in listOf(84, 96)) {
+            val audio = PianoSynth.render(listOf(SynthNote(48, 500.0), SynthNote(top, 500.0, gainDb = -31.0)), 2000.0, bScale = b, partials = 24)
+            assertEquals("C3 + ${noteName(top)}, bScale $b", setOf(48, top), heardInChord(audio, setOf(48, top)))
+        }
+    }
+
     @Test fun octaveDoublingsInAChordAreCredited() {
         for (chord in listOf(listOf(55, 59, 62, 67), listOf(57, 69, 72, 76, 79), listOf(53, 60, 63, 65, 69), listOf(48, 60, 64, 67))) {
             val audio = PianoSynth.render(chord.map { SynthNote(it, 500.0) }, 2000.0)

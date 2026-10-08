@@ -34,6 +34,7 @@ object PianoSynth {
         bScale: Double = 1.4,          // deliberately off from the matcher's model
         seed: Long = 1,
         rolloff: Double = 1.1,         // partial h has amplitude 1/h^rolloff; higher = duller piano
+        partials: Int = 10,            // a real bass note has audible partials well past the 10th
     ): FloatArray {
         val out = FloatArray((lengthMs / 1000 * sampleRate).toInt())
         val rnd = Random(seed)
@@ -44,7 +45,7 @@ object PianoSynth {
             val start = (n.startMs / 1000 * sampleRate).toInt()
             val release = start + (n.durationMs / 1000 * sampleRate).toInt()
             val end = minOf(out.size, release + (0.4 * sampleRate).toInt())
-            for (h in 1..10) {
+            for (h in 1..partials) {
                 val f = partialFreq(n.midi, h, bScale)
                 if (f > 0.45 * sampleRate) break
                 var a = amp / h.toDouble().pow(rolloff)
