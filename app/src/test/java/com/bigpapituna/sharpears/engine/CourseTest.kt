@@ -19,8 +19,8 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(33, ids.size)
-        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "advanced"), COURSE.map { it.id })
+        assertEquals(39, ids.size)
+        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)

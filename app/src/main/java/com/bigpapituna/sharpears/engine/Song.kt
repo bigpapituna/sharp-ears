@@ -18,6 +18,10 @@ data class Song(
     val groups: List<OnsetGroup>,
     val sections: List<Section>,
     val durationMs: Long,
+    /** Name black keys as flats (B flat, not A sharp): from a flat key signature, or set by a lesson. */
+    val preferFlats: Boolean = false,
+    /** Fixed right-hand fingers, one per right-hand note in time order (a lesson's scale); null: worked out. */
+    val fingering: List<Int>? = null,
 )
 
 /** How to decide which hand plays each note. */

@@ -101,7 +101,7 @@ fun LessonScreen(
         val passed = s.passed(report.recap)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake.
         val line = if (s.kind == StepKind.LISTEN) null
-            else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last)
+            else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last, flats = s.exercise?.flats == true)
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
         feedback = line?.text
         line?.let { voice.speak(it.spoken) }

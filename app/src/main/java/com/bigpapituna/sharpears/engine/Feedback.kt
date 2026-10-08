@@ -38,10 +38,15 @@ data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongK
 data class Feedback(val text: String, val spoken: String)
 
 private val SPOKEN_PC = listOf("C", "C sharp", "D", "E flat", "E", "F", "F sharp", "G", "A flat", "A", "B flat", "B")
+private val SPOKEN_FLATS = listOf("C", "D flat", "D", "E flat", "E", "F", "G flat", "G", "A flat", "A", "B flat", "B")
 private val WORDS = listOf("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
 
-/** A note as words: "F sharp", "B flat"; a C carries its octave, as on the falling notes: "C four". */
-fun spokenNote(midi: Int): String = SPOKEN_PC[midi % 12] + if (midi % 12 == 0) " " + WORDS[(midi / 12 - 1).coerceIn(0, 10)] else ""
+/**
+ * A note as words: "F sharp", "B flat"; a C carries its octave, as on the falling notes: "C four". With [flats]
+ * (a flat key) every black key is a flat: "D flat", "G flat".
+ */
+fun spokenNote(midi: Int, flats: Boolean = false): String =
+    (if (flats) SPOKEN_FLATS else SPOKEN_PC)[midi % 12] + if (midi % 12 == 0) " " + WORDS[(midi / 12 - 1).coerceIn(0, 10)] else ""
 
 /** A pitch class as words, no octave: "E flat". */
 fun spokenPitch(pc: Int): String = SPOKEN_PC[((pc % 12) + 12) % 12]
@@ -56,10 +61,10 @@ private fun spoken(text: String) = Feedback(text, text.replace(Regex("(\\d+) ms"
  * [next]: another step follows, so a clean run says so. Order of concerns: failing the pass mark, a note
  * missed again and again, timing, then a few one-off slips.
  */
-fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = true): Feedback {
+fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = true, flats: Boolean = false): Feedback {
     val onward = if (next) " On to the next step." else ""
     val (worst, count) = r.missed.firstOrNull() ?: (0 to 0)
-    val missedLine = if (count >= 2) "You missed ${spokenNote(worst)} ${times(count)}." else null
+    val missedLine = if (count >= 2) "You missed ${spokenNote(worst, flats)} ${times(count)}." else null
     val recap = r.recap
     if (perform && recap != null) {
         val bias = recap.biasMs
@@ -80,7 +85,7 @@ fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = tr
     return when {
         r.wrongKeys == 0 -> spoken("Clean.$onward")
         missedLine != null -> spoken("$missedLine Try that bar slowly.")
-        r.retries == 1 && r.missed.isNotEmpty() -> spoken("Nearly clean: one slip, on ${spokenNote(worst)}.$onward")
+        r.retries == 1 && r.missed.isNotEmpty() -> spoken("Nearly clean: one slip, on ${spokenNote(worst, flats)}.$onward")
         else -> spoken("Nearly clean: ${r.retries} notes needed a second try.$onward")
     }
 }

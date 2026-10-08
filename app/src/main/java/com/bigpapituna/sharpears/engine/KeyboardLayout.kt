@@ -9,7 +9,10 @@ sealed interface NoteEvent {
 fun isBlack(midi: Int) = midi % 12 in BLACK_PITCH_CLASSES
 private val BLACK_PITCH_CLASSES = setOf(1, 3, 6, 8, 10)
 private val NAMES = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+private val FLAT_NAMES = listOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
 fun noteName(midi: Int) = NAMES[midi % 12] + (midi / 12 - 1)
+/** "Bb4" with [flats], "A#4" without (as [noteName]). */
+fun noteName(midi: Int, flats: Boolean) = (if (flats) FLAT_NAMES else NAMES)[midi % 12] + (midi / 12 - 1)
 
 data class KeyRect(val midi: Int, val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val black get() = isBlack(midi)

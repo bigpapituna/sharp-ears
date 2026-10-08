@@ -18,6 +18,10 @@ data class Exercise(
     val beats: Int = 4,
     /** Faint lines at each beat on the lane (rhythm lessons turn them on whatever the setting). */
     val beatLines: Boolean = false,
+    /** A flat key: black keys are named as flats on the notes and by the voice. */
+    val flats: Boolean = false,
+    /** Right-hand fingers by the book, one per note ("1 2 3 1 2 3 4 5"); empty: worked out by [Fingering]. */
+    val fingers: String = "",
 )
 
 /**
@@ -93,7 +97,8 @@ fun Exercise.toSong(id: String, title: String): Song {
     val notes = (parseLine(right, Hand.RIGHT, msPerBeat) + parseLine(left, Hand.LEFT, msPerBeat))
         .sortedWith(compareBy({ it.startMs }, { it.midi }))
     val end = notes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
-    return Song("lesson-$id", title, bpm, beats to 4, notes, groupOnsets(notes), emptyList(), end + 400)
+    return Song("lesson-$id", title, bpm, beats to 4, notes, groupOnsets(notes), emptyList(), end + 400, preferFlats = flats,
+        fingering = fingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() })
 }
 
 
@@ -157,6 +162,66 @@ private val RHYTHM = listOf(
         "Syncopation puts a note on the and and holds it over the next beat. Keep counting 1 and 2 and evenly; the note comes early, and the beat goes by while you hold it.",
         rhythm = "C4:1 C4:0.5 C4:1 C4:0.5 C4:1 C4:0.5 C4:1 C4:0.5 C4:2",
         tune = "C4:1 D4:0.5 E4:1 D4:0.5 C4:1 E4:0.5 G4:1 E4:0.5 C4:2", bpm = 66.0, count = "1 and 2 and 3 and 4 and"),
+)
+
+/**
+ * A key lesson: read where the black keys are and how the hand sits, play the scale (one octave up and down,
+ * right hand), its three main chords, the scale from memory, then a four-bar tune in the key for a score.
+ */
+private fun keyLesson(id: String, title: String, summary: String, read: List<String>, scale: String, chords: String, chordNames: String,
+                      tune: String, flats: Boolean = false, bpm: Double = 76.0, fingers: String = STANDARD_SCALE): CourseLesson {
+    val s = Exercise(right = scale, bpm = bpm, practice = Practice.RIGHT, flats = flats, fingers = fingers)
+    return lesson(id, title, summary,
+        read(*read.toTypedArray()),
+        play("Play the scale up and back down. Watch the finger numbers where the thumb tucks under.", s),
+        play("The three main chords of the key: $chordNames. Press each chord's three keys together.",
+            Exercise(right = chords, bpm = 60.0, practice = Practice.RIGHT, flats = flats)),
+        memory("The scale once more, from memory.", s),
+        perform("A short tune in the key, in time. Score 80 percent to pass.", Exercise(right = tune, bpm = 80.0, practice = Practice.RIGHT, flats = flats)))
+}
+
+/** Right-hand fingering for a one-octave scale up and down that starts on a white key with the thumb. */
+private const val STANDARD_SCALE = "1 2 3 1 2 3 4 5 4 3 2 1 3 2 1"
+
+private val KEYS = listOf(
+    keyLesson("key-g", "G major", "One sharp: F sharp.",
+        listOf("G major uses the white keys except F: every F becomes F sharp, the black key just right of F.",
+            "Put your right thumb on G. Play G, A, B with fingers 1, 2, 3, tuck the thumb under to C, then 1, 2, 3, 4, 5 up to G. Finger 4 lands on F sharp."),
+        scale = "G4:1 A4:1 B4:1 C5:1 D5:1 E5:1 F#5:1 G5:1 F#5:1 E5:1 D5:1 C5:1 B4:1 A4:1 G4:2",
+        chords = "G4+B4+D5:2 G4+C5+E5:2 F#4+A4+D5:2 G4+B4+D5:2", chordNames = "G, C and D, then G again",
+        tune = "G4:1 A4:1 B4:1 G4:1 D5:2 B4:2 C5:1 B4:1 A4:1 F#4:1 G4:4"),
+    keyLesson("key-f", "F major", "One flat: B flat.",
+        listOf("F major uses the white keys except B: every B becomes B flat, the black key just left of B.",
+            "Put your right thumb on F. Play F, G, A, B flat with fingers 1, 2, 3, 4, tuck the thumb under to C, then 1, 2, 3, 4 up to F. Finger 4 plays B flat."),
+        scale = "F4:1 G4:1 A4:1 Bb4:1 C5:1 D5:1 E5:1 F5:1 E5:1 D5:1 C5:1 Bb4:1 A4:1 G4:1 F4:2",
+        chords = "F4+A4+C5:2 F4+Bb4+D5:2 E4+G4+C5:2 F4+A4+C5:2", chordNames = "F, B flat and C, then F again",
+        tune = "F4:1 G4:1 A4:1 F4:1 C5:2 A4:2 Bb4:1 A4:1 G4:1 E4:1 F4:4", flats = true,
+        fingers = "1 2 3 4 1 2 3 4 3 2 1 4 3 2 1"),
+    keyLesson("key-d", "D major", "Two sharps: F sharp and C sharp.",
+        listOf("D major has two sharps: F sharp and C sharp. Both are the black keys just right of F and C.",
+            "Right thumb on D. Fingers 1, 2, 3 for D, E, F sharp, thumb under to G, then 1, 2, 3, 4, 5 up to D. Finger 3 plays F sharp and finger 4 plays C sharp."),
+        scale = "D4:1 E4:1 F#4:1 G4:1 A4:1 B4:1 C#5:1 D5:1 C#5:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:2",
+        chords = "D4+F#4+A4:2 D4+G4+B4:2 C#4+E4+A4:2 D4+F#4+A4:2", chordNames = "D, G and A, then D again",
+        tune = "D4:1 F#4:1 A4:1 F#4:1 G4:1 E4:1 C#4:2 D4:1 E4:1 F#4:1 G4:1 A4:2 D4:2"),
+    keyLesson("key-bb", "B flat major", "Two flats: B flat and E flat.",
+        listOf("B flat major has two flats: B flat and E flat, the black keys just left of B and E.",
+            "This scale starts on a black key, so the thumb does not. Finger 4 plays B flat, then 1, 2, 3 for C, D, E flat, the thumb tucks under to F, and 1, 2, 3, 4 carry on to B flat."),
+        scale = "Bb3:1 C4:1 D4:1 Eb4:1 F4:1 G4:1 A4:1 Bb4:1 A4:1 G4:1 F4:1 Eb4:1 D4:1 C4:1 Bb3:2",
+        chords = "Bb3+D4+F4:2 Bb3+Eb4+G4:2 A3+C4+F4:2 Bb3+D4+F4:2", chordNames = "B flat, E flat and F, then B flat again",
+        tune = "Bb3:1 D4:1 F4:1 D4:1 Eb4:2 C4:2 D4:1 Eb4:1 F4:1 A3:1 Bb3:4", flats = true,
+        fingers = "4 1 2 3 1 2 3 4 3 2 1 3 2 1 4"),
+    keyLesson("key-em", "E minor", "The minor key with one sharp.",
+        listOf("E minor shares its notes with G major: all white keys except F, which becomes F sharp. It starts and ends on E, which gives it a darker sound.",
+            "Right thumb on E. Fingers 1, 2, 3 for E, F sharp, G, thumb under to A, then 1, 2, 3, 4, 5 up to E."),
+        scale = "E4:1 F#4:1 G4:1 A4:1 B4:1 C5:1 D5:1 E5:1 D5:1 C5:1 B4:1 A4:1 G4:1 F#4:1 E4:2",
+        chords = "E4+G4+B4:2 E4+A4+C5:2 D4+F#4+B4:2 E4+G4+B4:2", chordNames = "E minor, A minor and B minor, then E minor again",
+        tune = "E4:1 G4:1 B4:1 G4:1 A4:1 G4:1 F#4:2 E4:1 F#4:1 G4:1 A4:1 B4:2 E4:2"),
+    keyLesson("key-dm", "D minor", "The minor key with one flat.",
+        listOf("D minor shares its notes with F major: all white keys except B, which becomes B flat.",
+            "Right thumb on D. Fingers 1, 2, 3 for D, E, F, thumb under to G, then 1, 2, 3, 4, 5 up to D. Finger 3 plays B flat."),
+        scale = "D4:1 E4:1 F4:1 G4:1 A4:1 Bb4:1 C5:1 D5:1 C5:1 Bb4:1 A4:1 G4:1 F4:1 E4:1 D4:2",
+        chords = "D4+F4+A4:2 D4+G4+Bb4:2 C4+E4+A4:2 D4+F4+A4:2", chordNames = "D minor, G minor and A minor, then D minor again",
+        tune = "D4:1 F4:1 A4:2 Bb4:1 A4:1 G4:2 F4:1 E4:1 D4:1 E4:1 D4:4", flats = true),
 )
 
 val COURSE: List<CourseLevel> = listOf(
@@ -348,6 +413,7 @@ val COURSE: List<CourseLevel> = listOf(
             read("Now open the whole Minuet in G and play it with expression."),
             song = "minuet-g"),
     )),
+    CourseLevel("keys", "Keys", "Major and minor keys with sharps and flats: scales, their three main chords, and a tune in each.", KEYS),
     CourseLevel("advanced", "Advanced", "Longer scales, seventh chords, arpeggios and real repertoire.", listOf(
         run {
             val e = Exercise(right = "C4:0.5 D4:0.5 E4:0.5 F4:0.5 G4:0.5 A4:0.5 B4:0.5 C5:0.5 D5:0.5 E5:0.5 F5:0.5 G5:0.5 A5:0.5 B5:0.5 C6:2",

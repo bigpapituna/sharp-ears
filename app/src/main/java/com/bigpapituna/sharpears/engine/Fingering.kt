@@ -35,6 +35,8 @@ object Fingering {
             val fingers = solve(events.map { ev -> ev.map { if (mirror) -it.midi else it.midi } }, events.map { ev -> ev.map { isBlack(it.midi) } })
             events.forEachIndexed { i, ev -> ev.forEachIndexed { j, n -> out[n] = fingers[i][j] } }
         }
+        // A lesson can give the standard fingering (scales that start on a black key, thumb crossings by the book).
+        song.fingering?.let { fixed -> song.notes.filter { it.hand == Hand.RIGHT }.zip(fixed).forEach { (n, f) -> out[n] = f } }
         return out
     }
 

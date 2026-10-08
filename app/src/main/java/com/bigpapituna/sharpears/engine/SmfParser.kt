@@ -4,7 +4,7 @@ class MidiFormatException(message: String) : Exception(message)
 
 /**
  * Minimal Standard MIDI File reader: formats 0 and 1, PPQ timing, running status,
- * note on/off (velocity 0 = off), tempo map, time signature, track names, markers.
+ * note on/off (velocity 0 = off), tempo map, time signature, key signature (flats or not), track names, markers.
  * Everything else is skipped.
  */
 object SmfParser {
@@ -28,6 +28,7 @@ object SmfParser {
         val tempos = mutableListOf(0L to 500_000)   // (tick, microseconds per quarter)
         val markers = mutableListOf<Marker>()
         var timeSig = 4 to 4
+        var flats = false
         var track = 0
         while (track < trackCount && r.remaining() >= 8) {
             val type = r.ascii(4)
@@ -35,7 +36,7 @@ object SmfParser {
             if (len > r.remaining()) throw MidiFormatException("track $track truncated")
             val end = r.pos + len
             if (type != "MTrk") { r.skip(len); continue }   // unknown chunk
-            readTrack(r, end, track, notes, tempos, markers) { timeSig = it }
+            readTrack(r, end, track, notes, tempos, markers, { flats = it }) { timeSig = it }
             r.pos = end
             track++
         }
@@ -66,14 +67,14 @@ object SmfParser {
             Section(m.name, clock.ms(m.tick), marks.getOrNull(i + 1)?.let { clock.ms(it.tick) } ?: durationMs)
         }
         return Song(id, title, 60_000_000.0 / tempoMap.first().second, timeSig,
-            songNotes, groupOnsets(songNotes), sections, durationMs)
+            songNotes, groupOnsets(songNotes), sections, durationMs, preferFlats = flats)
     }
 
     private fun split(key: Int) = if (key >= MIDDLE_C) Hand.RIGHT else Hand.LEFT
 
     private fun readTrack(
         r: Reader, end: Int, track: Int, notes: MutableList<RawNote>,
-        tempos: MutableList<Pair<Long, Int>>, markers: MutableList<Marker>, onTimeSig: (Pair<Int, Int>) -> Unit,
+        tempos: MutableList<Pair<Long, Int>>, markers: MutableList<Marker>, onFlats: (Boolean) -> Unit, onTimeSig: (Pair<Int, Int>) -> Unit,
     ) {
         var tick = 0L
         var running = 0
@@ -98,6 +99,8 @@ object SmfParser {
                             tempos += tick to us
                         }
                         0x58 -> if (len >= 2) onTimeSig(data[0].toInt() to (1 shl data[1].toInt()))
+                        // Key signature: sf is a signed count of sharps (positive) or flats (negative).
+                        0x59 -> if (len >= 1) onFlats(data[0] < 0)
                         0x06 -> markers += Marker(tick, String(data, Charsets.ISO_8859_1))
                     }
                     running = 0

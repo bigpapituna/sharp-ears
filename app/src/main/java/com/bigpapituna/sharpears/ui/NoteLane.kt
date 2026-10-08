@@ -46,7 +46,7 @@ private val BeatLineBar = Color(0xFF34404E)
 private const val SPARK_MS = 220.0
 
 /** Letter on a falling note: every C carries its octave (C4) so the eye can find its place; others are just the name. */
-private fun label(midi: Int) = noteName(midi).let { if (midi % 12 == 0) it else it.filter { c -> !c.isDigit() } }
+private fun label(midi: Int, flats: Boolean) = noteName(midi, flats).let { if (midi % 12 == 0) it else it.filter { c -> !c.isDigit() } }
 
 /**
  * Falling notes for [song] at [positionMs]. Columns line up with a [Keyboard] of the same width and range.
@@ -144,8 +144,8 @@ fun NoteLane(
             val alpha = if (faded) 0.28f else 1f
             val ink = LabelInk.copy(alpha = if (faded) 0.45f else 0.88f)
             // Names shrink to fit narrow (black-key) blocks: "D#" must stay inside its column.
-            val name = if (showNames) text(label(n.midi), namePx, ink).let { t0 ->
-                if (t0.size.width <= w - 2f) t0 else text(label(n.midi), (namePx * (w - 2f) / t0.size.width).coerceAtLeast(7.dp.toPx()), ink)
+            val name = if (showNames) text(label(n.midi, song.preferFlats), namePx, ink).let { t0 ->
+                if (t0.size.width <= w - 2f) t0 else text(label(n.midi, song.preferFlats), (namePx * (w - 2f) / t0.size.width).coerceAtLeast(7.dp.toPx()), ink)
             } else null
             val finger = if (showFingers && !faded) fingers[n]?.let { text("$it", fingerPx, LabelInk.copy(alpha = 0.6f), bold = false) } else null
             // Short notes still get a block tall enough for their letter and finger (it grows upward, like Artie's).
