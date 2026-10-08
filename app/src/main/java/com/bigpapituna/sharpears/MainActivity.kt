@@ -10,6 +10,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.safeDrawingPadding
+import com.bigpapituna.sharpears.engine.COURSE
+import com.bigpapituna.sharpears.engine.CourseLesson
+import com.bigpapituna.sharpears.engine.toSong
+import com.bigpapituna.sharpears.ui.LearnScreen
+import com.bigpapituna.sharpears.ui.LessonScreen
+import com.bigpapituna.sharpears.ui.nextLesson
 import com.bigpapituna.sharpears.ui.HomeShell
 import com.bigpapituna.sharpears.ui.HomeTab
 import androidx.activity.compose.setContent
@@ -65,7 +71,9 @@ private sealed interface Screen {
     /** The three tabs. [chordsTab] and [inject] only matter for the Chords tab. */
     data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
-    data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
+    data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen,
+                      val lesson: CourseLesson? = null) : Screen
+    data class Lesson(val lesson: CourseLesson, val back: Screen) : Screen
     data class MicSetup(val back: Screen) : Screen
 }
 
@@ -90,7 +98,8 @@ class MainActivity : ComponentActivity() {
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
-        //   --es screen chords|settings [--es tab lessons|dictionary|practice|progressions] [--es inject ...]
+        //   --es screen chords|settings|learn [--es tab daily|dictionary|practice|progressions] [--es inject ...]
+        //   --es lesson <course lesson id>
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -111,6 +120,9 @@ class MainActivity : ComponentActivity() {
                 debugStart.inject,
             )
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
+            debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
+            debuggable && intent.getStringExtra("lesson") != null ->
+                COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) }
             openSong == null -> Screen.Home()
             openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Home())
             openSong.startsWith("prog:") -> openSong.split(":").let { (_, i, k) ->
@@ -140,14 +152,14 @@ class MainActivity : ComponentActivity() {
                         Log.d(TAG, "lessons: ${lessons.songPacks.value.size} song packs " + lessons.songPacks.value.joinToString { "${it.id}=${it.items.size}" })
                     }
 
-                    fun openSong(m: SongMeta) {
+                    fun openSong(m: SongMeta, back: Screen = Screen.Home()) {
                         val song = try { repo.load(m) } catch (e: Exception) { importError = "Could not open ${m.title}: ${e.message}"; return }
                         val p = prefs.progress(m.id)
                         prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
                         screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
-                            if (p.completed) 0.0 else p.lastPositionMs.toDouble(), Screen.Home())
+                            if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
                     }
                     val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                         val into = importInto
@@ -167,7 +179,27 @@ class MainActivity : ComponentActivity() {
 
                     when (val s = screen) {
                         is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, prefs, samplerReady.value,
-                            s.startMs, dump, s.start, onBack = { screen = s.back })
+                            s.startMs, dump, s.start, onBack = { screen = s.back },
+                            onFinished = { run ->
+                                // A lesson exercise counts once played to the end; Perform ones need their pass mark.
+                                val l = s.lesson ?: return@PlayerScreen
+                                if (run == null || run.accuracy >= (l.exercise?.pass ?: 0)) { prefs.markLessonDone(l.id); Log.d(TAG, "lesson ${l.id} done") }
+                                else Log.d(TAG, "lesson ${l.id}: ${run.accuracy}% < ${l.exercise?.pass}%")
+                            })
+                        is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            val l = s.lesson
+                            LessonScreen(l, done = prefs.lessonDone(l.id) && prefs.version.intValue >= 0,
+                                onPractice = {
+                                    val ex = l.exercise ?: return@LessonScreen
+                                    screen = Screen.Player(ex.toSong(l.id, l.title), null,
+                                        PlayerStart(ex.mode, ex.practice, mic = prefs.micDefault && mic.hasPermission()), 0.0, s, lesson = l)
+                                },
+                                onSong = { songs.firstOrNull { it.id == l.songId && repo.available(it) }?.let { openSong(it, back = s) } },
+                                onMarkDone = { prefs.markLessonDone(l.id) },
+                                onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
+                                onBack = { screen = s.back })
+                        }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
@@ -192,6 +224,10 @@ class MainActivity : ComponentActivity() {
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { screen = Screen.MicSetup(s) },
                                             ))
+                                    }
+                                    HomeTab.LEARN -> {
+                                        val pv = prefs.version.intValue
+                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) })
                                     }
                                     HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, lessons, prefs.micDefault, s.chordsTab, s.inject,
                                         onPlayProgression = { p, key ->

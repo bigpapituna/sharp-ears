@@ -97,7 +97,7 @@ fun ChordsScreen(
             modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
         PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background,
             divider = {}) {
-            Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Lessons") })
+            Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Daily") })
             Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
             Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
             Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })

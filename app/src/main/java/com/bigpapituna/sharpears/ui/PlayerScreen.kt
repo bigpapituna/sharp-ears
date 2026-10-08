@@ -104,6 +104,8 @@ data class PlayerStart(
 fun PlayerScreen(
     song: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, prefs: Prefs, ready: Boolean,
     startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
+    /** Called when a run reaches the end: the Perform recap, or null in listen/wait mode (lesson exercises use it). */
+    onFinished: (Recap?) -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     DisposableEffect(Unit) {
@@ -174,10 +176,16 @@ fun PlayerScreen(
         version++
     }
     fun finished() {
-        if (meta == null) return
         val score = transport.score
-        if (transport.mode == Mode.PERFORM && score != null) {
-            val r = score.recap()
+        val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
+        onFinished(run)
+        if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
+            run?.let { recap = it to false }
+            Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
+            return
+        }
+        if (run != null) {
+            val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
             recap = r to best

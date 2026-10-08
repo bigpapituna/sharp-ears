@@ -28,6 +28,7 @@ import com.bigpapituna.sharpears.R
 
 enum class HomeTab(val label: String, val icon: Int) {
     SONGS("Songs", R.drawable.ic_library_music),
+    LEARN("Learn", R.drawable.ic_school),
     CHORDS("Chords", R.drawable.ic_piano),
     SETTINGS("Settings", R.drawable.ic_settings),
 }

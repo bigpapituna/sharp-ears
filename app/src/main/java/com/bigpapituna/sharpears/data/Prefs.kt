@@ -50,6 +50,10 @@ class Prefs(context: Context) {
         get() = p.getBoolean("fingers", true)
         set(v) = edit { putBoolean("fingers", v) }
 
+    /** Learn course: lessons finished (exercise played through, or marked done). */
+    fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
+    fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }
+
     /** The song opened most recently; the library offers to continue it. */
     var lastSongId: String?
         get() = p.getString("lastSong", null)
