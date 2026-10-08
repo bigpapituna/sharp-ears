@@ -50,7 +50,8 @@ import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.Practice
-import com.bigpapituna.sharpears.engine.Recap
+import com.bigpapituna.sharpears.engine.Report
+import com.bigpapituna.sharpears.engine.feedbackLine
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.toSong
@@ -96,12 +97,14 @@ fun LessonScreen(
             voice.speak("Lesson complete.")
         } else { advancedByItself = true; index++ }
     }
-    fun exerciseEnded(s: Step, recap: Recap?) {
-        val passed = s.passed(recap)
-        val line = stepFeedback(s, recap, passed, last)
-        Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed recap=$recap feedback=\"$line\"")
-        feedback = line.ifEmpty { null }
-        if (line.isNotEmpty()) voice.speak(line)
+    fun exerciseEnded(s: Step, report: Report) {
+        val passed = s.passed(report.recap)
+        // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake.
+        val line = if (s.kind == StepKind.LISTEN) null
+            else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last)
+        Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
+        feedback = line?.text
+        line?.let { voice.speak(it.spoken) }
         if (passed) complete()
     }
 
@@ -180,16 +183,6 @@ private fun stateLabel(step: Step): String {
         StepKind.FROM_MEMORY -> "$hand, from memory"
         StepKind.PERFORM -> "$hand, in time, pass at ${ex.pass}%"
         StepKind.READ -> ""
-    }
-}
-
-// ponytail: placeholder sentences; the mistake-naming report replaces them
-private fun stepFeedback(step: Step, recap: Recap?, passed: Boolean, last: Boolean): String {
-    val then = if (last) "" else " On to the next step."
-    return when (step.kind) {
-        StepKind.READ, StepKind.LISTEN -> ""
-        StepKind.PERFORM -> if (passed) "${recap?.accuracy} percent.$then" else "${recap?.accuracy ?: 0} percent, and you need ${step.exercise?.pass}. Play it again."
-        else -> "Well played.$then"
     }
 }
 

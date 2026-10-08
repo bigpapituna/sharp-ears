@@ -74,6 +74,7 @@ import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.NoteEvent
 import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Recap
+import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
 import com.bigpapituna.sharpears.engine.fitRange
@@ -113,8 +114,8 @@ data class Embedded(val state: String, val labels: Boolean = true, val autoStart
 fun PlayerScreen(
     song: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, ready: Boolean,
     startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
-    /** Called when a run reaches the end: the Perform recap, or null in listen/wait mode (lesson exercises use it). */
-    onFinished: (Recap?) -> Unit = {},
+    /** Called when a run reaches the end with its mistakes (and the Perform recap); lesson steps use it. */
+    onFinished: (Report) -> Unit = {},
     embedded: Embedded? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -190,7 +191,7 @@ fun PlayerScreen(
     fun finished() {
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
-        onFinished(run)
+        onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
             run?.let { recap = it to false }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")

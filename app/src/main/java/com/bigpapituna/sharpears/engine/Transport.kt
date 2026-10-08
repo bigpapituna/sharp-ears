@@ -42,6 +42,12 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     var scoreFromMs = 0.0
         private set
 
+    /** Wrong keys and retries since the last seek or mode change (a run from where it started). */
+    val log = RunLog()
+
+    /** The run so far, for feedback. */
+    fun report() = log.report(score?.recap())
+
     /** True while wait mode holds the song at a group the player has not finished. */
     var waiting = false
         private set
@@ -123,23 +129,29 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     fun noteInput(midi: Int, latencyMs: Double = 0.0): InputResult {
         if (mode == Mode.PERFORM) {
             if (!playing) return InputResult.IGNORED
-            return if (score?.input(midi, positionMs - latencyMs * speed) != null) InputResult.CORRECT else InputResult.WRONG
+            val at = positionMs - latencyMs * speed
+            val open = score?.listening(at).orEmpty()
+            if (score?.input(midi, at) != null) return InputResult.CORRECT
+            log.wrong(midi, open)
+            return InputResult.WRONG
         }
         if (mode != Mode.WAIT) return InputResult.IGNORED
         val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
         if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
         val need = g.notes.filter(::required).map { it.midi }.toSet()
-        if (midi !in need) return InputResult.WRONG
+        if (midi !in need) { log.wrong(midi, need - satisfied); return InputResult.WRONG }
         satisfied += midi
         val slack = if (need.size >= 4) chordSlack else 0
         if (need.count { it !in satisfied } > slack) return InputResult.CORRECT
         satisfied.clear()
         waiting = false
+        log.groupDone()
         groupIndex = nextRequiredGroup(groupIndex + 1)
         return InputResult.GROUP_DONE
     }
 
     private fun resetGroups() {
+        log.reset()
         satisfied.clear()
         waiting = false
         scoreFromMs = positionMs
