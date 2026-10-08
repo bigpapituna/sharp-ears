@@ -139,7 +139,9 @@ fun Keyboard(
                     text.measure(label, TextStyle(color = if (k.black) Ink else KeyLabel, fontSize = 14.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
                 }
                 val lip = (k.bottom - k.top) * if (k.black) 0.12f else 0.07f
-                drawText(m, topLeft = Offset(k.centerX - m.size.width / 2f, k.bottom - lip - m.size.height - 6f))
+                // Centred on the key, but kept inside it (and the keyboard), so "C2" on the first key is never cut.
+                val x = (k.centerX - m.size.width / 2f).coerceIn(minOf(k.left + 3f, size.width - m.size.width), maxOf(k.left + 3f, minOf(k.right - m.size.width - 3f, size.width - m.size.width - 3f)))
+                drawText(m, topLeft = Offset(x, k.bottom - lip - m.size.height - 6f))
             }
         }
         // Remembered once; it reads the latest callbacks when TalkBack activates a key.

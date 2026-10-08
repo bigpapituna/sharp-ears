@@ -122,7 +122,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             Section("Reminder")
             Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
                 prefs.reminderOn && v >= 0) { on ->
-                if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) && android.os.Build.VERSION.SDK_INT >= 33)
+                if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context))
                     askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 else { prefs.reminderOn = on; onReminder() }
             }

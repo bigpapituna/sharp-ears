@@ -168,7 +168,7 @@ private fun Dictionary(sampler: Sampler) {
 /** Chord families offered for practice. */
 private val FAMILIES = listOf(
     "Major" to listOf(ChordType.MAJOR), "Minor" to listOf(ChordType.MINOR),
-    "Sevenths" to listOf(ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7), "Sus & dim" to listOf(ChordType.SUS2, ChordType.SUS4, ChordType.DIM),
+    "Sevenths" to listOf(ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7), "Sus and dim" to listOf(ChordType.SUS2, ChordType.SUS4, ChordType.DIM),
 )
 
 @Composable
@@ -343,7 +343,10 @@ private fun Lessons(
     onPlayProgression: (Progression, Int) -> Unit,
 ) {
     val v = store.version.intValue
-    if (store.session.isNotEmpty()) { Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression); return }
+    if (store.session.isNotEmpty()) {
+        BackHandler { store.endSession() }                 // Back leaves the session, not the Chords tab
+        Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression); return
+    }
     val now = remember(v) { System.currentTimeMillis() }
     val songPacks = store.songPacks.value
     val cur = remember(v, songPacks) { store.curriculum() }

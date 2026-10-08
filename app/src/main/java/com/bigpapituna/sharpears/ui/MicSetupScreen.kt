@@ -117,7 +117,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 FilterChip(selected = (micAddress ?: "bottom") == address, onClick = { micAddress = address }, label = { Text(label) })
             }
         }
-        Text(mic.source.value ?: "starting…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(mic.source.value ?: "Starting", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         Text("Level", style = MaterialTheme.typography.titleMedium)
         val level = mic.level.floatValue
@@ -127,7 +127,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         }
 
         Text("Check: play middle C (C4) a few times", style = MaterialTheme.typography.titleMedium)
-        Text(last?.first ?: "Listening…", color = when (last?.second) { true -> Good; false -> Bad; null -> MaterialTheme.colorScheme.onSurface })
+        Text(last?.first ?: "Listening", color = when (last?.second) { true -> Good; false -> Bad; null -> MaterialTheme.colorScheme.onSurface })
         Text("Heard C4 $heard times", style = MaterialTheme.typography.bodySmall)
 
         FilledTonalButton(onClick = onMicCheck) { Text("Try it: C major scale in wait mode") }
@@ -139,10 +139,11 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         })
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Flash red on wrong notes", style = MaterialTheme.typography.titleMedium)
+                Text("Show wrong notes heard by the mic", style = MaterialTheme.typography.titleMedium)
                 Text("Experimental. Talking or TV in the room can set it off.", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; Log.d(TAG, "mic wrongFlash=$it") })
+            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; Log.d(TAG, "mic wrongFlash=$it") },
+                modifier = Modifier.semantics { contentDescription = "Show wrong notes heard by the mic" })
         }
         if (wrongFlash) {
             Text("Wrong-note trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
@@ -163,7 +164,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                         "They never leave the phone unless you copy them off. Talking in the room is recorded too.",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") })
+                Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") },
+                    modifier = Modifier.semantics { contentDescription = "Keep practice recordings" })
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (count == 0) "No recordings saved." else "$count recording${if (count == 1) "" else "s"} saved.",
@@ -183,7 +185,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             )
             val recording = mic.recording.value
             if (recording != null) {
-                Text("Recording “$recording”… play, then stop.", color = Bad)
+                Text("Recording “$recording”. Play, then tap Stop.", color = Bad)
                 Button(onClick = { mic.stopRecording(); savedNote = "Saved $recording" }) { Text("Stop") }
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

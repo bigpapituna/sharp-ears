@@ -77,6 +77,7 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
     var session by remember { mutableIntStateOf(0) }
     val now = playing
     if (now != null) {
+        androidx.activity.compose.BackHandler { voice.stop(); playing = null }   // Back ends the game, back to the list
         androidx.compose.runtime.key(now, session) {
             GameScreen(now.first, now.second, sampler, midi, mic, voice, prefs, micDefault, start.inject.takeIf { start.game == now.first },
                 onExit = { voice.stop(); playing = null }, onAgain = { voice.stop(); session++ })
