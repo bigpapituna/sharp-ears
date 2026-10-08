@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
         //   --es screen chords --es game build|hear|mm [--ei level 0-2] [--es inject ...]   (a chord game, seeded)
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
+        //   --ef lightSlow <n>   (stretches the hit-line lights n times, to catch them in a screenshot)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
             mic = intent.getBooleanExtra("mic", false),
             inject = intent.getStringExtra("inject")?.takeIf { debuggable },
             tabletop = debuggable && intent.getBooleanExtra("tabletop", false),
+            lightSlow = if (debuggable) intent.getFloatExtra("lightSlow", 1f) else 1f,
         )
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)

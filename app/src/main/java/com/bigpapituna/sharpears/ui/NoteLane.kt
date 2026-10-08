@@ -3,6 +3,9 @@ package com.bigpapituna.sharpears.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -62,7 +65,15 @@ fun NoteLane(
     showFingers: Boolean = true,
     /** Notes starting before this time are not drawn (behind a seek point, during the lead-in). */
     hideBefore: Double? = null,
+    /** Hit-line feedback (flash on a correct note, pulse on a wrong one), drawn over the notes. */
+    lights: HitLights? = null,
 ) {
+    // Ticks the lights' clock only while one is alive: the Canvas redraws, nothing recomposes.
+    if (lights != null) LaunchedEffect(lights) {
+        snapshotFlow { lights.added.intValue }.collect {
+            while (withFrameNanos { now -> lights.prune(now).also { lights.clock.longValue = now } }) Unit
+        }
+    }
     val longest = remember(song) { song.notes.maxOfOrNull { it.durationMs } ?: 0L }
     val scrubDelta by rememberUpdatedState(onScrub)
     val scrubStart by rememberUpdatedState(onScrubStart)
@@ -149,5 +160,6 @@ fun NoteLane(
         drawRect(Brush.verticalGradient(listOf(Color.Transparent, RightHandColor.copy(alpha = 0.18f)), startY = lane.hitLineY - 36f, endY = lane.hitLineY),
             Offset(0f, lane.hitLineY - 36f), Size(size.width, 36f))
         drawLine(HitLine, Offset(0f, lane.hitLineY - 2f), Offset(size.width, lane.hitLineY - 2f), strokeWidth = 4f)
+        lights?.run { draw(keys, lane.hitLineY, lowMidi, highMidi) }
     }
 }

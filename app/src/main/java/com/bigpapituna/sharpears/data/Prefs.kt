@@ -55,6 +55,11 @@ class Prefs(context: Context) {
         get() = p.getBoolean("fingers", true)
         set(v) = edit { putBoolean("fingers", v) }
 
+    /** Hit-line light for right and wrong notes; off brings back green key flashes and a red keyboard border. */
+    var feedbackLight: Boolean
+        get() = p.getBoolean("feedbackLight", true)
+        set(v) = edit { putBoolean("feedbackLight", v) }
+
     /** Learn course: lessons finished (exercise played through, or marked done). */
     fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
     fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }

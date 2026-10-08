@@ -63,6 +63,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
             Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it }
             Toggle("Finger numbers", "A suggested finger for each note, 1 for the thumb to 5 for the little finger.",
                 prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it }
+            Toggle("Feedback light", "A flash rises from the line on a right note, a soft glow runs along it on a wrong one. Off: keys flash instead.",
+                prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it }
 
             Section("Sound")
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",

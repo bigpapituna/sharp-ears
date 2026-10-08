@@ -96,6 +96,8 @@ data class PlayerStart(
     val mic: Boolean = false,
     val inject: String? = null,
     val tabletop: Boolean = false,
+    /** Debug: stretches the hit-line lights so a screenshot can catch them. */
+    val lightSlow: Float = 1f,
 )
 
 /**
@@ -144,7 +146,8 @@ fun PlayerScreen(
     val touched = remember { mutableStateMapOf<Int, Color>() }
     val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
-    var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note
+    var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
+    val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
     var recap by remember { mutableStateOf<Pair<Recap, Boolean>?>(null) }   // Perform result, new best
     val scope = rememberCoroutineScope()
 
@@ -215,12 +218,24 @@ fun PlayerScreen(
         Log.d(TAG, "loop ${transport.loop?.let { "${it.start.toLong()}..${it.endInclusive.toLong()} ms" } ?: "off (A=${a?.toLong()} B=${b?.toLong()})"}")
     }
     fun setMode(m: Mode) { apply(transport.pause()); playing = false; transport.mode = m; mode = m; recap = null; Log.d(TAG, "mode=$m") }
+    /** The hand of the song note on [midi] nearest the playhead (for the colour of its flash). */
+    fun handOf(midi: Int): Hand {
+        val pos = transport.positionMs
+        var i = com.bigpapituna.sharpears.engine.firstStartAtOrAfter(song.notes, pos - 500)
+        while (i < song.notes.size && song.notes[i].startMs <= pos + 500) { if (song.notes[i].midi == midi) return song.notes[i].hand; i++ }
+        return Hand.RIGHT
+    }
+    fun wrongFeedback() {
+        if (prefs.feedbackLight) { lights.wrong(); Log.d(TAG, "light wrong") } else { wrongFlash++; Log.d(TAG, "redFlash") }
+    }
     fun keyStruck(midi: Int, latencyMs: Double = 0.0) {
         val result = transport.noteInput(midi, latencyMs)
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
         when (result) {
-            InputResult.WRONG -> { wrongFlash++; Log.d(TAG, "redFlash") }
-            InputResult.CORRECT, InputResult.GROUP_DONE -> scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
+            InputResult.WRONG -> wrongFeedback()
+            InputResult.CORRECT, InputResult.GROUP_DONE ->
+                if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h)); Log.d(TAG, "light hit ${noteName(midi)} $h") }
+                else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             InputResult.IGNORED -> {}
         }
         version++
@@ -301,7 +316,7 @@ fun PlayerScreen(
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
-                    if (mic.wrongFlash) wrongFlash++
+                    if (mic.wrongFlash) wrongFeedback()
                     Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (flash=${mic.wrongFlash})")
                 }
             }
@@ -452,6 +467,7 @@ fun PlayerScreen(
             fingers = fingers, showNames = labels && prefs.noteNames && prefs.version.intValue >= 0, showFingers = labels && prefs.fingerNumbers,
             // Until the run reaches its start, notes before a seek point stay hidden (they will not play).
             hideBefore = if (position < transport.runFromMs) transport.runFromMs else null,
+            lights = lights,
         )
         // Perform count-in: the beats of the bar near the hit line, the current one bright.
         if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
