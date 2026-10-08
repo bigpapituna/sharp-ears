@@ -183,6 +183,36 @@ private fun keyLesson(id: String, title: String, summary: String, read: List<Str
 /** Right-hand fingering for a one-octave scale up and down that starts on a white key with the thumb. */
 private const val STANDARD_SCALE = "1 2 3 1 2 3 4 5 4 3 2 1 3 2 1"
 
+/** A left-hand pattern: read it, hear both hands, the left hand alone, then both hands under a four-bar tune. */
+private fun leftHandLesson(id: String, title: String, summary: String, read: String, left: String, tune: String,
+                           bpm: Double = 72.0, beats: Int = 4): CourseLesson {
+    val both = Exercise(right = tune, left = left, bpm = bpm, beats = beats)
+    return lesson(id, title, summary,
+        read(read),
+        listen("Listen to the pattern under the tune.", both),
+        play("The left hand alone. The notes wait for you.", Exercise(left = left, bpm = bpm, practice = Practice.LEFT, beats = beats)),
+        play("Now both hands: the tune on top, the pattern underneath.", both))
+}
+
+private val LEFT_HAND_PATTERNS = listOf(
+    leftHandLesson("lh-waltz", "Waltz bass", "Root, then the chord twice: oom, pah, pah.",
+        "In three four time the left hand plays the chord's root on beat 1, then the other two notes together on beats 2 and 3. Keep beats 2 and 3 light, so the bass note sings.",
+        left = "C3:1 E3+G3:1 E3+G3:1 F2:1 A2+C3:1 A2+C3:1 G2:1 B2+D3:1 B2+D3:1 C3:1 E3+G3:1 E3+G3:1",
+        tune = "E4:2 G4:1 F4:2 A4:1 D4:2 F4:1 C4:3", bpm = 84.0, beats = 3),
+    leftHandLesson("lh-pop", "Root, fifth, octave", "The pop bass that walks up each chord.",
+        "Many pop songs carry the left hand up through each chord: the root, the fifth above it, then the root an octave higher. Your hand opens wide, from finger 5 to finger 1.",
+        left = "C3:1 G3:1 C4:2 F2:1 C3:1 F3:2 G2:1 D3:1 G3:2 C3:1 G3:1 C4:2",
+        tune = "E4:1 G4:1 C5:2 A4:1 F4:1 A4:2 B4:1 G4:1 D5:2 C5:4"),
+    leftHandLesson("lh-octaves", "Octaves", "The same note in two places, little finger and thumb.",
+        "An octave is the same note eight white keys apart. Stretch the left hand from finger 5 to the thumb and keep that shape as you move from chord to chord. Drop the hand from the wrist.",
+        left = "C2+C3:2 C2+C3:2 F2+F3:2 F2+F3:2 G2+G3:2 G2+G3:2 C2+C3:4",
+        tune = "G4:2 E4:2 A4:2 F4:2 G4:1 F4:1 D4:2 C4:4"),
+    leftHandLesson("lh-tenths", "Broken tenths", "Root, fifth, then the third an octave up.",
+        "A tenth is a third plus an octave: too wide to play at once for most hands, so it is broken. Play the root, the fifth, then the chord's third above them, rising.",
+        left = "C3:1 G3:1 E4:2 F2:1 C3:1 A3:2 G2:1 D3:1 B3:2 C3:1 G3:1 E4:2",
+        tune = "G4:2 C5:2 A4:2 C5:2 B4:2 D5:2 C5:4"),
+)
+
 private val KEYS = listOf(
     keyLesson("key-g", "G major", "One sharp: F sharp.",
         listOf("G major uses the white keys except F: every F becomes F sharp, the black key just right of F.",
@@ -412,7 +442,7 @@ val COURSE: List<CourseLevel> = listOf(
             play("Try the melody with your right hand. Make it sing.", MINUET),
             read("Now open the whole Minuet in G and play it with expression."),
             song = "minuet-g"),
-    )),
+    ) + LEFT_HAND_PATTERNS),
     CourseLevel("keys", "Keys", "Major and minor keys with sharps and flats: scales, their three main chords, and a tune in each.", KEYS),
     CourseLevel("advanced", "Advanced", "Longer scales, seventh chords, arpeggios and real repertoire.", listOf(
         run {

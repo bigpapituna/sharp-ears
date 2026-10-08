@@ -19,7 +19,7 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(39, ids.size)
+        assertEquals(43, ids.size)
         assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
@@ -104,5 +104,18 @@ class CourseTest {
         assertEquals(11, run(90.0).good)                                        // a little late is still good
         val two = run(0.0, skip = setOf(3, 4))
         assertEquals(9, two.good); assertEquals(2, two.miss); assertEquals(82, two.accuracy)
+    }
+
+    @Test fun leftHandPatternsEndTheIntermediateLevel() {
+        val lessons = COURSE.first { it.id == "intermediate" }.lessons.takeLast(4)
+        assertEquals(listOf("lh-waltz", "lh-pop", "lh-octaves", "lh-tenths"), lessons.map { it.id })
+        for (l in lessons) {
+            assertEquals(listOf(StepKind.READ, StepKind.LISTEN, StepKind.PLAY, StepKind.PLAY), l.steps.map { it.kind })
+            val alone = l.steps[2].exercise!!; val both = l.steps[3].exercise!!
+            assertTrue(l.id, alone.right.isEmpty() && alone.practice == Practice.LEFT)
+            fun beats(s: String) = s.split(" ").sumOf { it.substringAfter(':').toDouble() }
+            assertEquals("${l.id}: four bars of melody", 4.0 * both.beats, beats(both.right), 1e-9)
+            assertEquals("${l.id}: the pattern fills the same bars", beats(both.right), beats(both.left), 1e-9)
+        }
     }
 }
