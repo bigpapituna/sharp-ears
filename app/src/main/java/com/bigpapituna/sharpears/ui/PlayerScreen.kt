@@ -654,8 +654,11 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
             Dialog(onDismissRequest = { recap = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-                RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null },
-                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") }, modifier = Modifier)
+                Box(contentAlignment = Alignment.Center) {
+                    RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null },
+                        onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") }, modifier = Modifier)
+                    if (r.newBest) Confetti(r, Modifier.matchParentSize())
+                }
             }
         }
     }
@@ -832,7 +835,7 @@ private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (Tr
                 }
             }
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onAgain) { Text("Play again") }
+                ChunkyButton(onClick = onAgain) { Text("Play again") }
                 if (e.canReplay) OutlinedButton(onClick = onReplay) { Text("Hear my run") }
                 OutlinedButton(onClick = onClose) { Text("Close") }
             }

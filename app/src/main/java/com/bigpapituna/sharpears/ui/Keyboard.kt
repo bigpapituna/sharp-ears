@@ -48,15 +48,15 @@ import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.noteName
 
 // Off-white and off-black keys (no pure white or black), slate edges to match the stage.
-private val WhiteTop = Color(0xFFFDFDFE)
-private val WhiteKey = Color(0xFFF0F2F5)
-private val WhiteLow = Color(0xFFDCE0E6)
-private val WhiteLip = Color(0xFFB6BDC7)
-private val BlackTop = Color(0xFF3A404A)
-private val BlackKey = Color(0xFF111317)
-private val BlackFront = Color(0xFF4A515C)
-private val KeyEdge = Color(0xFF0E1014)
-private val KeyLabel = Color(0xFF5D6672)
+private val WhiteTop = Color(0xFFFFFDF9)
+private val WhiteKey = Color(0xFFF5F1EA)
+private val WhiteLow = Color(0xFFE2DCD2)
+private val WhiteLip = Color(0xFFBFB6A9)
+private val BlackTop = Color(0xFF3F3833)
+private val BlackKey = Color(0xFF141110)
+private val BlackFront = Color(0xFF4F4740)
+private val KeyEdge = Color(0xFF110F0D)
+private val KeyLabel = Color(0xFF6B6058)
 
 /**
  * Multi-touch piano keyboard. Each finger maps to one key; sliding onto another key re-triggers.

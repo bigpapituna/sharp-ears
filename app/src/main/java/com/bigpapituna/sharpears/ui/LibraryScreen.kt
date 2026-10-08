@@ -77,12 +77,19 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
         contentPadding = PaddingValues(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic, practice) } }
+        item {
+            Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
+                Header(micLabel, a.onMic, practice)
+                // The pup hosts the home screen: what he says depends on the day so far.
+                PupSays(pose, remember(today?.summary, practice) { greeting(today, practice, fresh = continueWith == null) },
+                    Modifier.padding(bottom = 14.dp), size = 104.dp)
+            }
+        }
         // "Practice today" is the one raised panel; Continue sits under it as a plain row.
         if (today != null) {
-            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday, pose) } }
+            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }
             first?.let { e -> item { ContinueRow(e, fresh = continueWith == null, a) } }
-        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, pose) } } }
+        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
@@ -129,7 +136,7 @@ private fun Header(micLabel: String, onMic: () -> Unit, practice: String?) {
 }
 
 @Composable
-private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, pose: Pose) = PupPanel(pose) {
+private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) = Panel {
     val p = e.progress
         Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Text(e.meta.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -143,7 +150,7 @@ private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, po
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.size(8.dp))
-        Button(onClick = { a.onOpen(e.meta) }, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) {
+        ChunkyButton(onClick = { a.onOpen(e.meta) }) {
             Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.size(6.dp))
             Text(if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play")
@@ -151,7 +158,7 @@ private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, po
 }
 
 @Composable
-private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit, pose: Pose) = PupPanel(pose) {
+private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) = Panel {
         Text("Practice today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         if (t.summary != null) {
             Text("Done for today", style = MaterialTheme.typography.headlineMedium)
@@ -163,7 +170,7 @@ private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit, pose: Pose) = Pup
             if (t.parts.isEmpty()) Text("Nothing is due. Pick any song below.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             t.parts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Spacer(Modifier.size(8.dp))
-            Button(onClick = onStart, contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)) {
+            ChunkyButton(onClick = onStart) {
                 Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Start")
@@ -171,14 +178,25 @@ private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit, pose: Pose) = Pup
         }
 }
 
-/** The home screen's one raised panel, with the pup at its top right greeting, resting or showing off the streak. */
+/** The home screen's one raised panel. */
 @Composable
-private fun PupPanel(pose: Pose, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
-    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 20.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
-        Pup(pose, size = 84.dp)
+private fun Panel(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+
+/** What the pup says on the home screen: today done, a first visit, the streak, or the time of day. */
+private fun greeting(today: TodayPanel?, practice: String?, fresh: Boolean): String {
+    val streak = practice?.let { Regex("(\\d+) days in a row").find(it)?.groupValues?.get(1) }
+    val hour = java.time.LocalTime.now().hour
+    return when {
+        today?.summary != null -> "That's today done. Rest those hands, see you tomorrow."
+        fresh -> "Hi, I'm your coach. Let's start with an easy song."
+        streak != null -> "$streak days in a row. Let's keep it going."
+        hour < 12 -> "Good morning. A few minutes at the keys?"
+        hour < 18 -> "Good afternoon. Ready when you are."
+        else -> "Good evening. A short session before the day ends?"
     }
+}
 
 /** Continue as a plain row under the panel: what was played last and where it stopped. */
 @Composable

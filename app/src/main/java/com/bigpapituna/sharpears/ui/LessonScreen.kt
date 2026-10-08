@@ -132,22 +132,26 @@ fun LessonScreen(
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
-                if (!finished) Pup(reaction ?: when {
-                    step.exercise == null -> Pose.LEARNING
+                if (!finished && feedback == null && step.exercise != null) Pup(reaction ?: when {
                     step.kind == StepKind.LISTEN -> Pose.LISTENING
                     else -> Pose.PRACTICING
                 }, size = 64.dp)
             }
             StepDots(lesson.steps.size, index, finished, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 14.dp))
-            feedback?.let {
-                Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 6.dp))
+            feedback?.takeIf { !finished }?.let {
+                PupSays(reaction ?: Pose.PRACTICING, it, Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 64.dp)
             }
             if (finished) {
-                Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Pup(Pose.LEVEL_UP, size = 140.dp)
-                    Text("Lesson complete", style = MaterialTheme.typography.headlineMedium)
-                    Text(lesson.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // The trophy pup centre stage, with confetti.
+                Box(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Pup(Pose.LEVEL_UP, size = 168.dp)
+                        Text("Lesson complete", style = MaterialTheme.typography.headlineMedium)
+                        Text(lesson.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                    Confetti(lesson.id, Modifier.matchParentSize())
                 }
             } else if (step.kind.needsMidi && deps.midi.connected.value == null) {
                 // No keyboard: say why, and let the step be skipped.
@@ -160,8 +164,11 @@ fun LessonScreen(
                 }
             } else if (step.exercise == null) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    step.text.split("\n\n").forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                    if (last && onSong != null) Button(onClick = { voice.stop(); onSong() }) {
+                    // The coach explains: his first paragraph in his bubble, the rest as plain notes under it.
+                    val paras = step.text.split("\n\n")
+                    PupSays(Pose.LEARNING, paras.first(), Modifier.padding(top = 4.dp), size = 96.dp)
+                    paras.drop(1).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                    if (last && onSong != null) ChunkyButton(onClick = { voice.stop(); onSong() }) {
                         Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.size(6.dp)); Text("Open the song")
                     }
@@ -197,10 +204,10 @@ fun LessonScreen(
             if (index > 0 && !finished) OutlinedButton(onClick = { go(index - 1); run++ }) { Text("Back") }
             Spacer(Modifier.weight(1f))
             when {
-                finished -> onNext?.let { Button(onClick = it) { Text("Next lesson") } } ?: Button(onClick = onBack) { Text("Done") }
-                last && step.exercise == null -> Button(onClick = { complete() }) { Text("Finish") }
+                finished -> onNext?.let { ChunkyButton(onClick = it) { Text("Next lesson") } } ?: ChunkyButton(onClick = onBack) { Text("Done") }
+                last && step.exercise == null -> ChunkyButton(onClick = { complete() }) { Text("Finish") }
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
-                else -> Button(onClick = { go(index + 1); run++ }) { Text("Next") }
+                else -> ChunkyButton(onClick = { go(index + 1); run++ }) { Text("Next") }
             }
         }
     }

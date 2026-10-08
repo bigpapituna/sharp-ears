@@ -27,7 +27,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "natural-voice") }
     private val recorded: Set<String> = runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet())
     /** The Kokoro speaker the recordings were made with (scripts/render_voice.py writes it), so both halves match. */
-    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().readText().trim().toInt() }.getOrDefault(16)
+    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().readText().trim().toInt() }.getOrDefault(3)
     private val modelDir = File(context.filesDir, "kokoro")
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()

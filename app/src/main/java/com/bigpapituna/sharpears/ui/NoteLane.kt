@@ -34,13 +34,13 @@ import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.noteName
 
-val LaneBackground = Color(0xFF0E1014)
-private val LaneBottom = Color(0xFF161A21)
-private val LaneGuide = Color(0xFF1C2129)
-private val HitLine = Color(0xFFDDE1E7)
+val LaneBackground = Color(0xFF110F0D)
+private val LaneBottom = Color(0xFF1B1714)
+private val LaneGuide = Color(0xFF221D19)
+private val HitLine = Color(0xFFE9E2DA)
 private val LabelInk = Color(0xFF15100C)
-private val BeatLine = Color(0xFF232A34)
-private val BeatLineBar = Color(0xFF34404E)
+private val BeatLine = Color(0xFF2A241F)
+private val BeatLineBar = Color(0xFF3E352D)
 
 /** How long the spark at the hit line lasts after a note starts. */
 private const val SPARK_MS = 220.0

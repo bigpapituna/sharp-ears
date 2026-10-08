@@ -73,7 +73,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     Text(lesson.title, style = MaterialTheme.typography.headlineMedium)
                     Text(lesson.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.size(8.dp))
-                    Button(onClick = { onOpen(lesson) }) { Text(if (ALL.indexOf(next) == 0) "Start" else "Continue") }
+                    ChunkyButton(onClick = { onOpen(lesson) }) { Text(if (ALL.indexOf(next) == 0) "Start" else "Continue") }
                 }
             }
         }

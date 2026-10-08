@@ -23,13 +23,15 @@ import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.R
 
 /*
- * Design system (taste-skill redesign, 2026-10-07)
- * Read: personal practice app for one adult learner at the piano; calm, instrument-like; Material 3 + Geist.
- * Dials: variance 4, motion 4, density 4.
- * Colour: cool slate neutrals, ONE accent (terracotta, from the logo). The lane's hand colours and the
- *   green/red key feedback are data, used only on the stage and keyboard, never as UI decoration.
- * Shape rule: interactive controls are full pills; surfaces (the one hero panel, sheets, dialogs) 20 dp;
- *   inner squares 12 dp; piano keys 6 px.
+ * Design system (taste-skill, 2026-10-07; warmed around the Golden Coach Pup 2026-10-08)
+ * Read: personal practice app for one adult learner, coached by a cartoon golden retriever. Friendly and
+ *   encouraging, still grown-up: the pup brings the play, the interface stays calm around him.
+ * Dials: variance 5, motion 6, density 4.
+ * Colour: warm neutrals (cream by day, warm charcoal by night) so the pup's gold fur belongs. ONE accent,
+ *   terracotta (his sweatband, the logo); his gold [PupGold] only as a soft tint: the glow he stands in, bubbles
+ *   and celebrations. Hand colours and green/red feedback are data, used only on the stage and keyboard.
+ * Shape rule: interactive controls are full pills (the main ones springy, see ChunkyButton); surfaces 20 dp;
+ *   speech bubbles 18 dp with a tail toward the pup; inner squares 12 dp; piano keys 6 px.
  * Type: Geist for everything, Geist Mono for times, scores and counts (tabular).
  */
 
@@ -42,47 +44,49 @@ val GeistMono = FontFamily(geistMono(400), geistMono(500), geistMono(600))
 /** Numbers that change or line up (times, percentages, counts). */
 val Numeric = TextStyle(fontFamily = GeistMono, fontFeatureSettings = "tnum")
 
-// The accent: terracotta, desaturated from the logo's orange so it sits with the slate greys.
+// The accent: terracotta, the pup's sweatband and the logo's orange.
 val Accent = Color(0xFFE38E5A)
-private val AccentDeep = Color(0xFFA9521F)          // light mode: 5:1 on the light background
+private val AccentDeep = Color(0xFFA9521F)          // light mode: 5:1 on the cream background
+/** The pup's fur: the glow he stands in and celebrations, never text or controls. */
+val PupGold = Color(0xFFF2B84B)
 
 // Stage colours (always dark): the lane, keyboard, and note feedback.
 val RightHandColor = Color(0xFFE38E5A)
 val LeftHandColor = Color(0xFF7FA6CF)
 val Good = Color(0xFF6CC08B)
 val Bad = Color(0xFFE5675F)
-val Stage = Color(0xFF0E1014)
-val StageRaised = Color(0xFF1A1E25)
-val Ink = Color(0xFFECEEF2)
-val InkDim = Color(0xFF9AA3AF)
+val Stage = Color(0xFF110F0D)
+val StageRaised = Color(0xFF1E1A17)
+val Ink = Color(0xFFF3EEE9)
+val InkDim = Color(0xFFA89E94)
 
 private val darkColors = darkColorScheme(
     primary = Accent, onPrimary = Color(0xFF2A1406),
-    primaryContainer = Color(0xFF3A2416), onPrimaryContainer = Color(0xFFF6D3BC),
-    secondary = Color(0xFFB9C2CE), onSecondary = Color(0xFF1A1E25),
-    secondaryContainer = Color(0xFF3A4350), onSecondaryContainer = Color(0xFFF4F6F9),   // selected segments, chips, nav
+    primaryContainer = Color(0xFF3A2A16), onPrimaryContainer = Color(0xFFF8DFB4),
+    secondary = Color(0xFFCBBFB3), onSecondary = Color(0xFF1E1A17),
+    secondaryContainer = Color(0xFF3E352E), onSecondaryContainer = Color(0xFFF8F3EE),   // selected segments, chips, nav
     tertiary = Good,
-    background = Color(0xFF0F1115), onBackground = Ink,
-    surface = Color(0xFF0F1115), onSurface = Ink,
-    surfaceVariant = Color(0xFF1E232B), onSurfaceVariant = InkDim,
-    surfaceContainerLowest = Color(0xFF0B0D10), surfaceContainerLow = Color(0xFF13161B),
-    surfaceContainer = Color(0xFF171B21), surfaceContainerHigh = Color(0xFF1E232B), surfaceContainerHighest = Color(0xFF262C35),
-    outline = Color(0xFF3A424D), outlineVariant = Color(0xFF262C35),
+    background = Color(0xFF14110F), onBackground = Ink,
+    surface = Color(0xFF14110F), onSurface = Ink,
+    surfaceVariant = Color(0xFF231E1A), onSurfaceVariant = InkDim,
+    surfaceContainerLowest = Color(0xFF0F0D0B), surfaceContainerLow = Color(0xFF1A1613),
+    surfaceContainer = Color(0xFF1E1A17), surfaceContainerHigh = Color(0xFF241F1B), surfaceContainerHighest = Color(0xFF2E2823),
+    outline = Color(0xFF4A413A), outlineVariant = Color(0xFF2E2823),
     error = Bad,
 )
 
 private val lightColors = lightColorScheme(
     primary = AccentDeep, onPrimary = Color(0xFFFFF7F2),
-    primaryContainer = Color(0xFFF7E1D3), onPrimaryContainer = Color(0xFF3A1A08),
-    secondary = Color(0xFF4A5361), onSecondary = Color(0xFFF7F8FA),
-    secondaryContainer = Color(0xFFD3DAE2), onSecondaryContainer = Color(0xFF14171C),
+    primaryContainer = Color(0xFFFBE6C4), onPrimaryContainer = Color(0xFF3D2A06),
+    secondary = Color(0xFF5A4E45), onSecondary = Color(0xFFFFFAF5),
+    secondaryContainer = Color(0xFFEADFD2), onSecondaryContainer = Color(0xFF1F1A16),
     tertiary = Color(0xFF2F7D4C),
-    background = Color(0xFFF4F5F7), onBackground = Color(0xFF14171C),
-    surface = Color(0xFFF4F5F7), onSurface = Color(0xFF14171C),
-    surfaceVariant = Color(0xFFE3E7EC), onSurfaceVariant = Color(0xFF5D6672),
-    surfaceContainerLowest = Color(0xFFFBFBFC), surfaceContainerLow = Color(0xFFEFF1F4),
-    surfaceContainer = Color(0xFFEAEDF1), surfaceContainerHigh = Color(0xFFE3E7EC), surfaceContainerHighest = Color(0xFFDCE1E7),
-    outline = Color(0xFFB4BCC6), outlineVariant = Color(0xFFD5DAE0),
+    background = Color(0xFFFAF6F0), onBackground = Color(0xFF1F1A16),
+    surface = Color(0xFFFAF6F0), onSurface = Color(0xFF1F1A16),
+    surfaceVariant = Color(0xFFF0E8DE), onSurfaceVariant = Color(0xFF6B6058),
+    surfaceContainerLowest = Color(0xFFFFFCF8), surfaceContainerLow = Color(0xFFF6F0E8),
+    surfaceContainer = Color(0xFFF3ECE3), surfaceContainerHigh = Color(0xFFF0E8DE), surfaceContainerHighest = Color(0xFFE9DFD3),
+    outline = Color(0xFFC9BCAE), outlineVariant = Color(0xFFE3D8CB),
     error = Color(0xFFB3261E),
 )
 

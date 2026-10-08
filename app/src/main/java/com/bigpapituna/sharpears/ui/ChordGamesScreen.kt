@@ -237,8 +237,9 @@ private fun GameScreen(
                 Pup(when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE }, size = 96.dp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onAgain) { Text("Play again") }
+                ChunkyButton(onClick = onAgain) { Text("Play again") }
             }
+            if (newBest) Confetti(game.score to level, Modifier.fillMaxWidth().height(320.dp))
             return@Column
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {

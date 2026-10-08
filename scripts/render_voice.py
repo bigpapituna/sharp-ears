@@ -2,7 +2,7 @@
 
 The line list comes from SpokenCatalogTest (it writes app/build/voice-lines.txt):
     gradlew :app:testDebugUnitTest --tests "*SpokenCatalogTest*"
-    C:\\dev\\voice-tools\\venv\\Scripts\\python -I scripts\\render_voice.py [speaker id, default 16 = am_michael, Roy's pick]
+    C:\\dev\\voice-tools\\venv\\Scripts\\python -I scripts\\render_voice.py [speaker id, default 3 = af_heart, Roy's pick (Voice 1)]
 
 Only new lines are recorded; changing the speaker records them all again. Lines no longer in the list are deleted.
 """
@@ -16,7 +16,7 @@ import soundfile as sf
 M = Path(r"C:\dev\voice-tools\models\kokoro-multi-lang-v1_0")   # full-precision model: the PC has time, the phone does not
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/assets/voice"
-speaker = int(sys.argv[1]) if len(sys.argv) > 1 else 16
+speaker = int(sys.argv[1]) if len(sys.argv) > 1 else 3
 en = "gb" if 20 <= speaker <= 27 else "us"
 
 lines = [l.split("\t", 1) for l in (ROOT / "app/build/voice-lines.txt").read_text(encoding="utf-8").splitlines() if l]

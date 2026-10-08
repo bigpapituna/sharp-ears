@@ -144,7 +144,7 @@ private fun Dictionary(sampler: Sampler) {
                 Text(notes.joinToString("  ") { noteName(it) }, style = Numeric.merge(MaterialTheme.typography.titleMedium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(onClick = {
+            ChunkyButton(onClick = {
                 Log.d(TAG, "chords: play ${chord.name} inv=$inversion $notes")
                 scope.launch { notes.forEach { sampler.noteOn(it, 90) }; delay(1500); notes.forEach(sampler::noteOff) }
             }) {
@@ -372,7 +372,7 @@ private fun Lessons(
             )
             if (today.isNotEmpty()) {
                 Spacer(Modifier.size(8.dp))
-                Button(onClick = { store.startSession(today) }) { Text("Start practice") }
+                ChunkyButton(onClick = { store.startSession(today) }) { Text("Start practice") }
             }
         }
         val (authored, fromSongs) = cur.packs.partition { it.level < 6 }
@@ -435,7 +435,7 @@ private fun Session(
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Session done", style = MaterialTheme.typography.headlineSmall)
             Text("${store.sessionCorrect} of $n played cleanly. The rest come back tomorrow.", style = MaterialTheme.typography.bodyLarge)
-            Button(onClick = store::endSession) { Text("Back to lessons") }
+            ChunkyButton(onClick = store::endSession) { Text("Back to lessons") }
         }
         return
     }
@@ -460,7 +460,7 @@ private fun Session(
             Text(item.title, style = MaterialTheme.typography.headlineSmall)
             Text("Play it through in wait mode: right hand the chords, left hand the roots. Then come back and say how it went.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = { onPlayProgression(PROGRESSIONS[item.progression], item.key) }) { Text("Open in the player") }
+            ChunkyButton(onClick = { onPlayProgression(PROGRESSIONS[item.progression], item.key) }) { Text("Open in the player") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = { store.answer(true) }) { Text("Went well") }
                 TextButton(onClick = { store.answer(false) }) { Text("Needs work") }

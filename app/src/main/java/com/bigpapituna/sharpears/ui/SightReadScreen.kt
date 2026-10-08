@@ -101,7 +101,7 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
         }
         Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
-            Button(onClick = { seed = System.nanoTime() }) { Text("New piece") }
+            ChunkyButton(onClick = { seed = System.nanoTime() }) { Text("New piece") }
         }
     }
 }
