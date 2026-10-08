@@ -88,8 +88,14 @@ class MicInput(private val context: Context) {
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) || (Build.VERSION.SDK_INT >= 31 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
     }
 
-    private var thread: Thread? = null
+    @Volatile private var thread: Thread? = null
     @Volatile private var stop = false
+
+    /** True while the mic (or the debug injector) feeds the matcher. The voice holds its lines meanwhile. */
+    val listening: Boolean get() = thread != null
+
+    /** Called on the main thread after the mic stops (the voice speaks what it held back). */
+    var onStopped: (() -> Unit)? = null
 
     /**
      * Starts the real microphone. Returns false without permission or if the device refuses.
@@ -128,9 +134,10 @@ class MicInput(private val context: Context) {
     fun stop() {
         if (recording.value?.startsWith("session-") == true) stopRecording()
         stop = true
-        thread?.join(1000)
+        val was = thread
+        was?.join(1000)
         thread = null
-        main.post { source.value = null; level.floatValue = -120f }
+        main.post { source.value = null; level.floatValue = -120f; if (was != null) onStopped?.invoke() }
     }
 
     private fun launch(label: String, body: () -> Unit) {
@@ -204,8 +211,8 @@ class MicInput(private val context: Context) {
             if (wait > 0) Thread.sleep(wait)
         }
         Log.d(TAG, "mic: injection finished")
-        main.post { source.value = null }
         thread = null
+        main.post { source.value = null; onStopped?.invoke() }
     }
 
     private fun handle(buf: FloatArray, n: Int) {

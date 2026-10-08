@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Tutorial videos stream through YouTube's embedded player. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 11+ package visibility: the TextToSpeech engine is a service the app must be allowed to see. -->
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
     <uses-feature android:name="android.software.midi" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 

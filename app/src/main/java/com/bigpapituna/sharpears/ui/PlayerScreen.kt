@@ -60,6 +60,7 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
+import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.data.KeyLabels
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.SongMeta
@@ -102,7 +103,7 @@ data class PlayerStart(
  */
 @Composable
 fun PlayerScreen(
-    song: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, prefs: Prefs, ready: Boolean,
+    song: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, ready: Boolean,
     startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
     /** Called when a run reaches the end: the Perform recap, or null in listen/wait mode (lesson exercises use it). */
     onFinished: (Recap?) -> Unit = {},
@@ -215,8 +216,11 @@ fun PlayerScreen(
     // Microphone: runs while it is switched on, in wait or perform mode, with the app on screen.
     val visible = onScreen()
     LaunchedEffect(visible) { if (!visible) savePosition() }
-    DisposableEffect(micOn, mode, visible) {
-        if (micOn && mode != Mode.LISTEN && visible) {
+    // The mic waits while the voice talks through the speaker (it would hear the phone).
+    val voiceHolds = voice.holdsMic
+    DisposableEffect(micOn, mode, visible, voiceHolds) {
+        if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
+        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }

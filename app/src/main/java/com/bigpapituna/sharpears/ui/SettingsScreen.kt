@@ -67,6 +67,10 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
                 prefs.sound && v >= 0) { prefs.sound = it }
 
+            Section("Voice")
+            Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
+                prefs.voice && v >= 0) { prefs.voice = it }
+
             Section("Microphone")
             Text("Choose the mic, test middle C, and set the sensitivity.", style = MaterialTheme.typography.bodyMedium, color = dim)
             TextButton(onClick = onMicSetup, modifier = Modifier.padding(start = 0.dp)) {

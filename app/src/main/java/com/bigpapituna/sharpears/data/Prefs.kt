@@ -41,6 +41,11 @@ class Prefs(context: Context) {
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
 
+    /** Spoken guidance: lesson steps and feedback read aloud. */
+    var voice: Boolean
+        get() = p.getBoolean("voice", true)
+        set(v) = edit { putBoolean("voice", v) }
+
     /** Note names inside the falling notes. */
     var noteNames: Boolean
         get() = p.getBoolean("noteNames", true)

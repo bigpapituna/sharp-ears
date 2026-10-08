@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
+import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.data.ImportException
 import com.bigpapituna.sharpears.data.LessonStore
 import com.bigpapituna.sharpears.data.Prefs
@@ -81,6 +82,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
     private lateinit var midi: MidiDevices
     private lateinit var mic: MicInput
+    private lateinit var voice: Voice
     private val samplerReady = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
         mic = MicInput(this)
         val repo = SongRepository(this)
         val prefs = Prefs(this).also { it.logRestored() }
+        voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
         val lessons = LessonStore(this)
         val micCheck = micCheckExercise()
 
@@ -100,6 +103,7 @@ class MainActivity : ComponentActivity() {
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
         //   --es screen chords|settings|learn [--es tab daily|dictionary|practice|progressions] [--es inject ...]
         //   --es lesson <course lesson id>
+        //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -129,6 +133,10 @@ class MainActivity : ComponentActivity() {
                 Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Home(HomeTab.CHORDS, ChordsTab.PROGRESSIONS))
             }
             else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
+        }
+
+        intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
+            android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
 
         setContent {
@@ -178,7 +186,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     when (val s = screen) {
-                        is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, prefs, samplerReady.value,
+                        is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
                             s.startMs, dump, s.start, onBack = { screen = s.back },
                             onFinished = { run ->
                                 // A lesson exercise counts once played to the end; Perform ones need their pass mark.
@@ -250,6 +258,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        voice.release()
         mic.stop()
         midi.stop()
         sampler.release()
