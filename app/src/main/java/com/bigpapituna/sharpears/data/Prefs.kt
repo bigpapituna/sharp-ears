@@ -59,6 +59,15 @@ class Prefs(context: Context) {
     fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
     fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }
 
+    /** Chord games: best score (out of 10) per game and level, or -1 before the first full round. */
+    fun gameBest(game: String, level: Int) = p.getInt("game:$game:$level", -1)
+    /** Returns true when [score] beats the saved best. */
+    fun saveGameBest(game: String, level: Int, score: Int): Boolean {
+        if (score <= gameBest(game, level)) return false
+        edit { putInt("game:$game:$level", score) }
+        return true
+    }
+
     /** The song opened most recently; the library offers to continue it. */
     var lastSongId: String?
         get() = p.getString("lastSong", null)

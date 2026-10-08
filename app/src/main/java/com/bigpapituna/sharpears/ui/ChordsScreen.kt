@@ -66,6 +66,8 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
+import com.bigpapituna.sharpears.audio.Voice
+import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.engine.Chord
 import com.bigpapituna.sharpears.engine.ChordDrill
 import com.bigpapituna.sharpears.engine.ChordType
@@ -82,13 +84,13 @@ import kotlinx.coroutines.launch
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6
 
-enum class ChordsTab { LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS }
+enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS }
 
 @Composable
 fun ChordsScreen(
-    sampler: Sampler, midi: MidiDevices, mic: MicInput,
+    sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs,
     lessons: LessonStore, micDefault: Boolean,
-    startTab: ChordsTab = ChordsTab.LESSONS, inject: String? = null,
+    startTab: ChordsTab = ChordsTab.PLAY, inject: String? = null, gameStart: GameStart = GameStart(),
     onPlayProgression: (Progression, Int) -> Unit,
 ) {
     var tab by remember { mutableStateOf(startTab) }
@@ -97,12 +99,14 @@ fun ChordsScreen(
             modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
         PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background,
             divider = {}) {
+            Tab(tab == ChordsTab.PLAY, { tab = ChordsTab.PLAY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Play") })
             Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Daily") })
             Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
             Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
             Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })
         }
         when (tab) {
+            ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
             ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression)
             ChordsTab.DICTIONARY -> Dictionary(sampler)
             ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject)

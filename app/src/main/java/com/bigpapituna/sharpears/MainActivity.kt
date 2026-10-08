@@ -54,6 +54,8 @@ import com.bigpapituna.sharpears.engine.progressionSong
 import com.bigpapituna.sharpears.engine.songPack
 import com.bigpapituna.sharpears.ui.ChordsScreen
 import com.bigpapituna.sharpears.ui.ChordsTab
+import com.bigpapituna.sharpears.ui.GameStart
+import com.bigpapituna.sharpears.engine.GameKind
 import com.bigpapituna.sharpears.ui.LibraryActions
 import com.bigpapituna.sharpears.ui.LibraryEntry
 import com.bigpapituna.sharpears.ui.LibraryScreen
@@ -70,7 +72,8 @@ const val TAG = "SharpEars"
 
 private sealed interface Screen {
     /** The three tabs. [chordsTab] and [inject] only matter for the Chords tab. */
-    data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.LESSONS, val inject: String? = null) : Screen
+    data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.PLAY, val inject: String? = null,
+                    val game: GameStart = GameStart()) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
@@ -101,7 +104,8 @@ class MainActivity : ComponentActivity() {
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
-        //   --es screen chords|settings|learn [--es tab daily|dictionary|practice|progressions] [--es inject ...]
+        //   --es screen chords|settings|learn [--es tab play|daily|dictionary|practice|progressions] [--es inject ...]
+        //   --es screen chords --es game build|hear|mm [--ei level 0-2] [--es inject ...]   (a chord game, seeded)
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
@@ -119,9 +123,11 @@ class MainActivity : ComponentActivity() {
             debuggable && intent.getStringExtra("screen") == "chords" -> Screen.Home(HomeTab.CHORDS,
                 when (intent.getStringExtra("tab")) {
                     "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
-                    else -> ChordsTab.LESSONS
+                    "daily", "lessons" -> ChordsTab.LESSONS
+                    else -> ChordsTab.PLAY
                 },
                 debugStart.inject,
+                GameStart(GameKind.entries.firstOrNull { it.id == intent.getStringExtra("game") }, intent.getIntExtra("level", 0)),
             )
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
@@ -211,7 +217,7 @@ class MainActivity : ComponentActivity() {
                             val due = remember(lv, lessons.songPacks.value) {
                                 lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
-                            HomeShell(s.tab, { screen = s.copy(tab = it, inject = null) }, badge = mapOf(HomeTab.CHORDS to due)) {
+                            HomeShell(s.tab, { screen = s.copy(tab = it, inject = null, game = GameStart()) }, badge = mapOf(HomeTab.CHORDS to due)) {
                                 when (s.tab) {
                                     HomeTab.SONGS -> {
                                         val pv = prefs.version.intValue
@@ -229,10 +235,10 @@ class MainActivity : ComponentActivity() {
                                         val pv = prefs.version.intValue
                                         LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) })
                                     }
-                                    HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, lessons, prefs.micDefault, s.chordsTab, s.inject,
+                                    HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
                                         onPlayProgression = { p, key ->
                                             screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
-                                                0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null))
+                                                0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
                                     HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "",
                                         onMicSetup = { screen = Screen.MicSetup(s) })
