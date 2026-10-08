@@ -1,9 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sharp Ears logo: a sharp sign inside an ear. 108x108 adaptive-icon grid; safe zone is the centre 66 dp circle. -->
+<!-- Launcher foreground: two falling notes meeting a keyboard, the struck key lit. 108 dp adaptive-icon frame;
+     the centre 66 dp circle is always visible, so everything sits between 24 and 84. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:strokeColor="#FF9F43" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M37,44 C37,28 50,21 61,22 C74,24 81,35 79,47 C77,57 69,60 66,68 C63,77 60,85 50,85 C43,85 39,81 38,76" />
-    <path android:strokeColor="#F2F2F7" android:strokeWidth="4" android:strokeLineCap="round"
-        android:pathData="M53,40 L50,68 M62,38 L59,66 M45,50 L68,46 M44,60 L67,56" />
+    <!-- Glow above the hit line -->
+    <path android:pathData="M24,47 h60 v13 h-60 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="47" android:endX="54" android:endY="60">
+                <item android:offset="0" android:color="#00E38E5A"/>
+                <item android:offset="1" android:color="#73E38E5A"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Left-hand note (blue) and right-hand note (orange), each with a sheen on top -->
+    <path android:fillColor="#7FA6CF" android:pathData="M28.6,20 h5.8 a3.5,3.5 0 0 1 3.5,3.5 v12 a3.5,3.5 0 0 1 -3.5,3.5 h-5.8 a3.5,3.5 0 0 1 -3.5,-3.5 v-12 a3.5,3.5 0 0 1 3.5,-3.5 z"/>
+    <path android:fillColor="#33FFFFFF" android:pathData="M28.6,20 h5.8 a3.5,3.5 0 0 1 3.5,3.5 v3.5 h-12.8 v-3.5 a3.5,3.5 0 0 1 3.5,-3.5 z"/>
+    <path android:fillColor="#E38E5A" android:pathData="M58.6,25 h5.8 a3.5,3.5 0 0 1 3.5,3.5 v26 a3.5,3.5 0 0 1 -3.5,3.5 h-5.8 a3.5,3.5 0 0 1 -3.5,-3.5 v-26 a3.5,3.5 0 0 1 3.5,-3.5 z"/>
+    <path android:fillColor="#33FFFFFF" android:pathData="M58.6,25 h5.8 a3.5,3.5 0 0 1 3.5,3.5 v6.5 h-12.8 v-6.5 a3.5,3.5 0 0 1 3.5,-3.5 z"/>
+    <!-- Four white keys, the third lit, with front lips -->
+    <path android:fillColor="#ECEEF1" android:pathData="M24.7,62 h13.6 v22.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#ECEEF1" android:pathData="M39.7,62 h13.6 v22.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#E38E5A" android:pathData="M54.7,62 h13.6 v22.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#ECEEF1" android:pathData="M69.7,62 h13.6 v22.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#B6BDC7" android:pathData="M24.7,83 h13.6 v1.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#B6BDC7" android:pathData="M39.7,83 h13.6 v1.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#A9521F" android:pathData="M54.7,83 h13.6 v1.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <path android:fillColor="#B6BDC7" android:pathData="M69.7,83 h13.6 v1.5 a2.5,2.5 0 0 1 -2.5,2.5 h-8.6 a2.5,2.5 0 0 1 -2.5,-2.5 z"/>
+    <!-- Two black keys -->
+    <path android:fillColor="#1A1D23" android:pathData="M34.7,62 h8.6 v12 a2,2 0 0 1 -2,2 h-4.6 a2,2 0 0 1 -2,-2 z"/>
+    <path android:fillColor="#1A1D23" android:pathData="M49.7,62 h8.6 v12 a2,2 0 0 1 -2,2 h-4.6 a2,2 0 0 1 -2,-2 z"/>
+    <!-- Hit line and the spark where the orange note lands -->
+    <path android:fillColor="#DDE1E7" android:pathData="M25,59.6 h58 a1,1 0 0 1 1,1 a1,1 0 0 1 -1,1 h-58 a1,1 0 0 1 -1,-1 a1,1 0 0 1 1,-1 z"/>
+    <path android:pathData="M61.5,60.5 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="61.5" android:centerY="60.5" android:gradientRadius="11">
+                <item android:offset="0" android:color="#F2FFD9C2"/>
+                <item android:offset="0.45" android:color="#8CE38E5A"/>
+                <item android:offset="1" android:color="#00E38E5A"/>
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

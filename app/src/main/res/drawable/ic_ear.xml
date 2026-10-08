@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The original "sharp inside an ear" mark, kept for the Songs header. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#E38E5A" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M37,44 C37,28 50,21 61,22 C74,24 81,35 79,47 C77,57 69,60 66,68 C63,77 60,85 50,85 C43,85 39,81 38,76" />
+    <path android:strokeColor="#F2F2F7" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M53,40 L50,68 M62,38 L59,66 M45,50 L68,46 M44,60 L67,56" />
+</vector>
