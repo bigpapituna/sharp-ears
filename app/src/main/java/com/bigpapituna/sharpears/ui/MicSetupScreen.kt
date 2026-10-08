@@ -186,6 +186,19 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             }
+            // Sending them on: stuck moments, flags, crashes and the weekly summary become issues in the private repo.
+            val rep = mic.reporter
+            var send by remember { mutableStateOf(rep.enabled) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Send them for review", style = MaterialTheme.typography.titleMedium)
+                    Text(if (!rep.hasToken) "Not set up on this phone yet (scripts\\set-report-token.ps1 on the PC)."
+                        else "On Wi-Fi, each goes to your private GitHub repo with its clip, where fixes are prepared. ${rep.pending()} waiting.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = send, enabled = rep.hasToken, onCheckedChange = { send = it; rep.enabled = it; if (it) rep.flush() },
+                    modifier = Modifier.semantics { contentDescription = "Send stuck moments for review" })
+            }
         }
 
         if (debuggable) {

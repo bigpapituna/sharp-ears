@@ -99,6 +99,8 @@ class BarActions(
     /** Turns Auto on: the tempo managed last time, nudged up on good days. */
     val onAuto: () -> Unit = {},
     val onBacking: () -> Unit = {},
+    /** "That wasn't right": flags the last 30 s for review (null hides the button). */
+    val onFlag: (() -> Unit)? = null,
     /** A new transpose, in semitones. */
     val onTranspose: (Int) -> Unit = {},
 )
@@ -183,6 +185,11 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 color = if (s.status.isNotEmpty()) MaterialTheme.colorScheme.primary else dim,
                 modifier = Modifier.padding(end = 8.dp),
             )
+            a.onFlag?.let { flag ->
+                IconButton(onClick = flag) {
+                    Icon(painterResource(R.drawable.ic_flag), contentDescription = "That wasn't right: flag the last 30 seconds for review", tint = dim)
+                }
+            }
             MoreMenu(s, a)
         }
     }

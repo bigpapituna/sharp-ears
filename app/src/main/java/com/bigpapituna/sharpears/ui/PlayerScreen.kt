@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -251,6 +254,57 @@ fun PlayerScreen(
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs }
     // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
     val stallWatch = remember { com.bigpapituna.sharpears.engine.StallWatch() }
+    // The last minute or so of inputs and waits, for a "that wasn't right" report.
+    val tail = remember { ArrayDeque<String>() }
+    fun tail(line: String) {
+        tail.addLast(java.time.LocalTime.now().toString().take(12) + "  " + line)
+        while (tail.size > 60) tail.removeFirst()
+    }
+    fun at(ms: Double) = "%d:%02d".format((ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
+    // Keyboard as answer key (MIDI on USB with the mic on: the mic plays, the keyboard checks it). Mismatches close
+    // together go into one clip, saved once things have been quiet for 3 s.
+    val answerKey = remember { com.bigpapituna.sharpears.engine.AnswerKey() }
+    val answerLines = remember { mutableListOf<String>() }
+    val answerState = remember { longArrayOf(0, 0, 0) }        // clip mark, last mismatch time, song position then
+    fun saveAnswers() {
+        if (answerLines.isEmpty()) return
+        val name = "answer-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
+        val summary = answerLines.map { it.substringAfter("  ") }.groupingBy { it }.eachCount().entries.joinToString(", ") { (k, n) -> if (n > 1) "$k (x$n)" else k }
+        val report = buildString {
+            append("title=Mic vs keyboard: ${song.title} at ${at(answerState[2].toDouble())}: $summary\n")
+            append("# sharp ears answer key: the keyboard (MIDI) says what was played, the mic disagreed\n")
+            append("song=${song.id} title=${song.title} position_ms=${answerState[2]} speed=${transport.speed} hands=${transport.practice}\n")
+            append("group=${transport.listenGroup.sorted().joinToString(",") { noteName(it) }} mic=${mic.source.value} sensitivity_db=${mic.matcher.config.sensitivityDb}\n")
+            append("mismatches (clock time):\n"); answerLines.forEach { append("  ").append(it).append('\n') }
+            append("the last minute (newest last):\n"); tail.forEach { append("  ").append(it).append('\n') }
+        }
+        Log.d(TAG, "answer key: ${answerLines.size} mismatch(es), saving $name")
+        mic.saveStall(answerState[0] + 2L * com.bigpapituna.sharpears.audio.MicInput.RATE, report, name)
+        answerLines.clear()
+    }
+    var flagging by remember { mutableStateOf(false) }
+    var flagMark by remember { mutableStateOf(0L) }
+    LaunchedEffect(micOn, midi.connected.value) {
+        if (!micOn || midi.connected.value == null || !mic.keepRecordings) return@LaunchedEffect
+        try {
+            while (true) {
+                delay(250)
+                val now = System.currentTimeMillis()
+                val found = answerKey.settle(now)
+                if (found.isNotEmpty()) {
+                    if (answerLines.isEmpty()) { answerState[0] = mic.clipMarkAgo(6); answerState[2] = transport.positionMs.toLong() }
+                    found.forEach { m ->
+                        answerLines += java.time.Instant.ofEpochMilli(m.atMs).atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(12) + "  " +
+                            (if (m.kind == com.bigpapituna.sharpears.engine.AnswerKey.Kind.MISSED) "missed " else "false ") + noteName(m.midi)
+                    }
+                    answerState[1] = now
+                }
+                if (answerLines.isNotEmpty() && (now - answerState[1] > 3_000 || answerLines.size >= 20)) saveAnswers()
+            }
+        } finally { saveAnswers() }
+    }
+    var flagAt by remember { mutableStateOf(0.0) }
+    var flagContext by remember { mutableStateOf("") }      // what was going on when the flag was tapped
     val stallMark = remember { longArrayOf(0) }
     fun stallBegin() {
         if (!micOn || transport.mode != Mode.WAIT) return
@@ -264,7 +318,8 @@ fun PlayerScreen(
         val s = stallWatch.end(System.currentTimeMillis(), outcome) ?: return
         val name = "stall-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
         Log.d(TAG, "stuck moment: ${s.waitedMs} ms on ${transport.expected.map { noteName(it.midi) }} ($outcome), saving $name")
-        mic.saveStall(stallMark[0], s.report, name)
+        val title = "Stuck: ${song.title} at ${at(transport.positionMs)} on ${transport.expected.joinToString(", ") { noteName(it.midi) }} (${s.waitedMs / 1000} s, $outcome)"
+        mic.saveStall(stallMark[0], "title=$title\n" + s.report, name)
     }
     fun pause() { stallEnd("paused"); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
@@ -311,6 +366,7 @@ fun PlayerScreen(
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         val result = transport.noteInput(midi, latencyMs)
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
+        tail("${noteName(midi)} -> $result at ${at(transport.positionMs)}" + (if (latencyMs > 0) " (mic, ${latencyMs.toInt()} ms late)" else ""))
         // Soft and loud: each right note is graded on its velocity, and the light says whether it was in range.
         if (loudness != null && (result == InputResult.CORRECT || result == InputResult.GROUP_DONE)) {
             val ok = loudness.note(velocity)
@@ -423,7 +479,11 @@ fun PlayerScreen(
             when (e) {
                 is NoteEvent.On -> {
                     held[e.midi] = RightHandColor
-                    if (micOn) Log.d(TAG, "truth NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity}")
+                    if (micOn) {
+                        Log.d(TAG, "truth NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity}")
+                        answerKey.key(System.currentTimeMillis(), e.midi, e.midi in transport.listenFor)
+                        tail("keyboard ${noteName(e.midi)}")
+                    }
                     else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi, velocity = e.velocity) }
                 }
                 is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
@@ -468,11 +528,13 @@ fun PlayerScreen(
                 is MicEvent.Strike -> {
                     Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}" +
                         (e.inferredFrom?.let { " (inferred from ${noteName(it)})" } ?: ""))
+                    if (midi.connected.value != null) answerKey.mic(System.currentTimeMillis(), e.midi)
                     stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
+                    tail("mic: a strike with none of the expected notes")
                     stallWatch.heard(System.currentTimeMillis(), "a strike with none of the expected notes in it")
                     if (mic.wrongFlash) wrongFeedback()
                     Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (flash=${mic.wrongFlash})")
@@ -571,6 +633,7 @@ fun PlayerScreen(
                     version++
                     if (wasWaiting) Log.d(TAG, "wait at ${transport.positionMs.toLong()} ms expect=${transport.expected.map { noteName(it.midi) }}")
                     if (wasWaiting) stallBegin() else stallEnd("played")
+                    if (wasWaiting) tail("waiting at ${at(transport.positionMs)} for ${transport.expected.joinToString(", ") { noteName(it.midi) }}")
                 }
                 // Perform mode: what the mic listens for moves with the song.
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
@@ -638,9 +701,33 @@ fun PlayerScreen(
                 if (backingOn) { practice = Practice.RIGHT; transport.practice = Practice.RIGHT; version++ }
                 Log.d(TAG, "backing=$backingOn hands=${transport.practice}")
             },
+            onFlag = if (mic.keepRecordings) ({
+                flagMark = mic.clipMarkAgo(28); flagAt = transport.positionMs
+                flagContext = "input=${if (micOn) "mic ${mic.source.value} sensitivity_db=${mic.matcher.config.sensitivityDb}" else "touch or MIDI"} midi=${midi.connected.value}\n" +
+                    "expected=${transport.expected.joinToString(",") { noteName(it.midi) }}\n"
+                if (playing) pause()                      // room to pick and type; the clip is already marked
+                flagging = true
+            }) else null,
         ),
         modifier = Modifier.fillMaxWidth(),
     )
+    if (flagging) FlagDialog(onDismiss = { flagging = false }) { what, note ->
+        flagging = false
+        val name = "flag-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
+        val report = buildString {
+            append("title=Flag: ${song.title} at ${at(flagAt)}: $what\n")
+            append("# sharp ears flag (\"that wasn't right\")\n")
+            append("song=${song.id} title=${song.title} position_ms=${flagAt.toLong()} mode=${transport.mode} speed=${transport.speed} hands=${transport.practice}\n")
+            append(flagContext)
+            append("what=$what\n")
+            if (note.isNotBlank()) append("note=${note.trim()}\n")
+            append("the last minute (newest last):\n")
+            tail.forEach { append("  ").append(it).append('\n') }
+        }
+        Log.d(TAG, "flag: $what at ${at(flagAt)}, saving $name")
+        if (mic.canClip) mic.saveStall(flagMark + 2L * com.bigpapituna.sharpears.audio.MicInput.RATE, report, name)
+        else { mic.reporter.saveText(name, report); mic.reporter.flush() }
+    }
 
     @Composable
     fun Lane(modifier: Modifier) = androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
@@ -958,3 +1045,38 @@ private fun BeatCounter(beats: Int, current: Int, modifier: Modifier) {
         }
     }
 }
+
+/**
+ * "That wasn't right": what went wrong, in one tap, and an optional note. The last 30 s of the mic (when kept)
+ * and the last minute of inputs go to review with it.
+ */
+@Composable
+private fun FlagDialog(onDismiss: () -> Unit, onSend: (what: String, note: String) -> Unit) {
+    val choices = listOf("It accepted a wrong note", "It missed a note I played", "It moved on too early", "Something else")
+    var what by remember { mutableStateOf(choices[0]) }
+    var note by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("That wasn't right") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("The last 30 seconds go to review with what you pick.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                choices.forEach { c ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).radioRow(c == what) { what = c },
+                        verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(selected = c == what, onClick = null)
+                        Text(c, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+                androidx.compose.material3.OutlinedTextField(note, { note = it.take(300) }, label = { Text("Note (optional)") },
+                    placeholder = { Text("e.g. the C6 in bar 2") }, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSend(what, note) }) { Text("Send") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private fun Modifier.radioRow(selected: Boolean, onClick: () -> Unit) =
+    this.then(Modifier.selectable(selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick))

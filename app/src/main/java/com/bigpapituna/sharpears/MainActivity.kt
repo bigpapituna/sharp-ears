@@ -120,6 +120,12 @@ class MainActivity : ComponentActivity() {
         mic = MicInput(this)
         val repo = SongRepository(this)
         val prefs = Prefs(this).also { it.logRestored() }
+        // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
+        if (mic.keepRecordings) {
+            mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            mic.reporter.weeklySummary(prefs.practice())
+            mic.reporter.flush()
+        }
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this, prefs)        // alarms do not survive an update or restart
         voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
         val lessons = LessonStore(this)

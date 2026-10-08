@@ -19,7 +19,9 @@ class StallReviewTest {
         for (wav in wavs) {
             val info = File(wav.path.removeSuffix(".wav") + ".txt").takeIf { it.exists() }?.readText().orEmpty()
             fun field(k: String) = Regex("(?m)(?:^|\\s)$k=(\\S+)").find(info)?.groupValues?.get(1)
-            val expected = field("expected")?.split(",")?.mapNotNull(byName::get)?.toSet().orEmpty()
+            // Answer-key clips name the notes the keyboard says the mic got wrong ("missed C6", "false E4") instead.
+            val expected = (field("expected")?.split(",")?.mapNotNull(byName::get)
+                ?: Regex("(?m)^\\s+\\S+\\s+(?:missed|false) (\\S+)$").findAll(info).mapNotNull { byName[it.groupValues[1]] }.toList()).toSet()
             val group = field("group")?.split(",")?.mapNotNull(byName::get)?.toSet()?.ifEmpty { null } ?: expected
             out.append("=== ${wav.nameWithoutExtension}\n").append(info.lines().take(4).joinToString("\n") { "  $it" }).append('\n')
             if (expected.isEmpty()) { out.append("  (no expected notes in the report)\n"); continue }

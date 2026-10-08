@@ -40,6 +40,8 @@ class MicInput(private val context: Context) {
     }
 
     private val prefs = context.getSharedPreferences("mic", Context.MODE_PRIVATE)
+    /** Sends saved stuck moments, flags and crashes to the private GitHub repo (when set up; see [Reporter]). */
+    val reporter = com.bigpapituna.sharpears.data.Reporter(context)
     private val audio = context.getSystemService(AudioManager::class.java)
     private val main = Handler(Looper.getMainLooper())
 
@@ -293,13 +295,19 @@ class MicInput(private val context: Context) {
             val dir = stallDir().apply { mkdirs() }
             val wav = File(dir, "$name.wav")
             Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-            File(dir, "$name.txt").writeText(report + "clip_starts_s=%.2f before the wait\n".format((fromMark - from) / RATE.toDouble()))
+            File(dir, "$name.txt").writeText(report + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
             // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
             val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
             while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
             Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
+            reporter.flush()
         }.start()
     }
+
+    /** Where the input was [seconds] ago (for a clip of the recent past, like a "that wasn't right" flag). */
+    fun clipMarkAgo(seconds: Int): Long = maxOf(0L, ringFrames - seconds.toLong() * RATE)
+    /** Whether clips can be saved now (recordings kept and the mic has been running). */
+    val canClip get() = ringOn && ringFrames > 0
 
     /** Deletes every saved stuck moment; returns how many. */
     fun deleteStalls(): Int = stalls().size.also { stallDir().listFiles()?.forEach { it.delete() } }

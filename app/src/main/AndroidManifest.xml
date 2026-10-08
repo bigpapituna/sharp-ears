@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Tutorial videos stream through YouTube's embedded player. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Reports go out only on Wi-Fi or another unmetered network (data/Reporter.kt). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 11+ package visibility: the TextToSpeech engine is a service the app must be allowed to see. -->
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
