@@ -19,7 +19,7 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(50, ids.size)
+        assertEquals(52, ids.size)
         assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
@@ -106,8 +106,8 @@ class CourseTest {
         assertEquals(9, two.good); assertEquals(2, two.miss); assertEquals(82, two.accuracy)
     }
 
-    @Test fun leftHandPatternsEndTheIntermediateLevel() {
-        val lessons = COURSE.first { it.id == "intermediate" }.lessons.takeLast(4)
+    @Test fun leftHandPatternLessons() {
+        val lessons = COURSE.first { it.id == "intermediate" }.lessons.filter { it.id.startsWith("lh-") }
         assertEquals(listOf("lh-waltz", "lh-pop", "lh-octaves", "lh-tenths"), lessons.map { it.id })
         for (l in lessons) {
             assertEquals(listOf(StepKind.READ, StepKind.LISTEN, StepKind.PLAY, StepKind.PLAY), l.steps.map { it.kind })
@@ -144,5 +144,20 @@ class CourseTest {
         assertFalse(r.atTop)
         r.passEnded(Mode.PERFORM, clean)
         assertTrue(r.atTop)
+    }
+
+    @Test fun pedalAndDynamicsStepsNeedMidiAndAreGradedOnTheirOwnScore() {
+        val inter = COURSE.first { it.id == "intermediate" }.lessons
+        val pedal = inter.first { it.id == "pedal" }.steps.last()
+        val loud = inter.first { it.id == "dynamics" }.steps.last()
+        assertTrue(pedal.kind.needsMidi && loud.kind.needsMidi)
+        assertEquals(Mode.PERFORM, pedal.mode); assertEquals(Mode.WAIT, loud.mode)
+        assertEquals(4, PedalGrader.chordsOf(pedal.exercise!!.toSong("p", "p")).size)
+        assertEquals(10, loud.exercise!!.toSong("d", "d").notes.size)
+        val r = Report(emptyList(), 0, 0, null)
+        assertTrue(pedal.passed(r.copy(extraScore = 100)))
+        assertFalse(pedal.passed(r.copy(extraScore = 75)))
+        assertFalse(loud.passed(r))
+        assertTrue(Step(StepKind.PERFORM, "x", Exercise(right = "C4:1")).passed(r.copy(recap = Recap(9, 0, 1, 0, 9))))
     }
 }

@@ -1,11 +1,14 @@
 package com.bigpapituna.sharpears.engine
 
 /**
- * Turns a live MIDI byte stream into note events. Handles running status, note-on with velocity 0 as
+ * Turns a live MIDI byte stream into note events (and control changes through [onControl]). Handles running status, note-on with velocity 0 as
  * note-off, system-exclusive blocks, and real-time bytes (clock, active sensing) interleaved anywhere.
  * Stateful across calls, since a message can be split between two packets. One instance per input port.
  */
-class MidiParser {
+class MidiParser(
+    /** Control changes (controller, value), e.g. the sustain pedal: 64, 0..127 (64 and up is down). */
+    private val onControl: (controller: Int, value: Int) -> Unit = { _, _ -> },
+) {
     private var status = 0            // running status, 0 = none
     private val data = IntArray(2)
     private var count = 0
@@ -38,6 +41,7 @@ class MidiParser {
         when (s and 0xF0) {
             0x90 -> out += if (data[1] == 0) NoteEvent.Off(data[0]) else NoteEvent.On(data[0], data[1])
             0x80 -> out += NoteEvent.Off(data[0])
+            0xB0 -> onControl(data[0], data[1])
         }
     }
 

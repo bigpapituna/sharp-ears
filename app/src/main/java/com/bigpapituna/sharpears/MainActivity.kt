@@ -94,7 +94,7 @@ private sealed interface Screen {
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
-    data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null) : Screen
+    data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null) : Screen
     data class MicSetup(val back: Screen) : Screen
     /** "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it. */
     data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity() {
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         //   --ef lightSlow <n>   (stretches the hit-line lights n times, to catch them in a screenshot)
         //   --ez daily true   (starts "Practice today" straight away)
+        //   --es lesson <id> --es midi "800:p1 4790:p0 1000:60/40"   (a pretend MIDI keyboard: pedal and key/velocity at ms after Play)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -157,7 +158,7 @@ class MainActivity : ComponentActivity() {
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
-                    Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject)
+                    Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"))
                 }
             openSong == null -> Screen.Home()
             openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Home())
@@ -168,6 +169,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val startDaily = debuggable && intent.getBooleanExtra("daily", false)
+        // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
+        if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
@@ -269,7 +272,8 @@ class MainActivity : ComponentActivity() {
                             BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson
                             androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
-                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null) },
+                                midiScript = s.midiScript,
+                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
                                 onDone = { prefs.markLessonDone(l.id) },
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },

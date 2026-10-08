@@ -80,6 +80,8 @@ import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
 import com.bigpapituna.sharpears.engine.AutoSpeed
+import com.bigpapituna.sharpears.engine.DynamicsGrader
+import com.bigpapituna.sharpears.engine.PedalGrader
 import com.bigpapituna.sharpears.engine.RunRecorder
 import com.bigpapituna.sharpears.engine.RunRecording
 import com.bigpapituna.sharpears.data.RunStore
@@ -110,6 +112,8 @@ data class PlayerStart(
     val timeLimitMs: Long? = null,
     /** Beat lines on the lane whatever the setting (rhythm lessons). */
     val beatLines: Boolean = false,
+    /** Debug: MIDI input played from the first Play (MidiDevices.debugPlay). */
+    val midiScript: String? = null,
 )
 
 /**
@@ -119,7 +123,9 @@ data class PlayerStart(
  */
 data class Embedded(val state: String, val labels: Boolean = true, val autoStart: Boolean = true,
                     /** A ramp step: starts at 50%, plays again after each pass, ends only once the ramp reaches 100%. */
-                    val ramp: Boolean = false)
+                    val ramp: Boolean = false,
+                    /** A MIDI step: PEDAL (graded on the sustain pedal) or DYNAMICS (soft then loud). */
+                    val special: com.bigpapituna.sharpears.engine.StepKind? = null)
 
 /**
  * Landscape player: transport bar, falling-notes lane, keyboard, and the song's tutorial video when it has one.
@@ -170,6 +176,13 @@ fun PlayerScreen(
     val runs = remember { RunStore(context) }
     var lastRun by remember { mutableStateOf<RunRecording?>(null) }
     var replay by remember { mutableStateOf<RunRecording?>(null) }
+    // MIDI steps: the sustain pedal against each chord, and soft-then-loud by velocity.
+    val special = embedded?.special
+    val pedalGrade = remember(song) { if (special == com.bigpapituna.sharpears.engine.StepKind.PEDAL) PedalGrader(PedalGrader.chordsOf(song)) else null }
+    val loudness = remember(song) { if (special == com.bigpapituna.sharpears.engine.StepKind.DYNAMICS) DynamicsGrader(song.notes.count { it.hand == Hand.RIGHT }) else null }
+    var pedalDown by remember { mutableStateOf(false) }
+    var lastVelocity by remember { mutableIntStateOf(-1) }
+    var scriptStarted by remember { mutableStateOf(false) }
     var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
 
@@ -235,6 +248,7 @@ fun PlayerScreen(
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
         transport.play(leadInMs = leadIn); playing = true
+        if (start.midiScript != null && !scriptStarted) { scriptStarted = true; midi.debugPlay(start.midiScript) }
         Log.d(TAG, "transport play from ${transport.positionMs.toLong()} ms speed=${transport.speed} mode=${transport.mode} hands=${transport.practice}")
     }
     fun setLoop(a: Double?, b: Double?) {
@@ -265,6 +279,15 @@ fun PlayerScreen(
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         val result = transport.noteInput(midi, latencyMs)
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
+        // Soft and loud: each right note is graded on its velocity, and the light says whether it was in range.
+        if (loudness != null && (result == InputResult.CORRECT || result == InputResult.GROUP_DONE)) {
+            val ok = loudness.note(velocity)
+            lastVelocity = velocity
+            Log.d(TAG, "loudness ${noteName(midi)} vel=$velocity ${if (ok) "in range" else "out of range"} (${loudness.inRange()}/${loudness.velocities.size})")
+            if (ok) lights.hit(midi, handColor(Hand.RIGHT)) else lights.wrong()
+            version++
+            return
+        }
         when (result) {
             InputResult.WRONG -> wrongFeedback()
             InputResult.CORRECT, InputResult.GROUP_DONE ->
@@ -293,7 +316,8 @@ fun PlayerScreen(
         }
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
-        onFinished(transport.report().also { Log.d(TAG, "run report ${song.id}: $it") })
+        val extra = pedalGrade?.score() ?: loudness?.score()
+        onFinished(transport.report().copy(extraScore = extra).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
             run?.let { recap = RunEnd(it, false, emptyList()) }
@@ -361,6 +385,15 @@ fun PlayerScreen(
                 }
                 is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
             }
+        }
+    }
+
+    // The sustain pedal (MIDI CC 64): graded in pedal steps, shown on the strip under the keys.
+    LaunchedEffect(midi) {
+        midi.pedal.collect { down ->
+            pedalDown = down
+            if (transport.playing) pedalGrade?.pedal(down, transport.positionMs)
+            Log.d(TAG, "pedal ${if (down) "down" else "up"} at ${transport.positionMs.toLong()} ms")
         }
     }
 
@@ -633,6 +666,9 @@ fun PlayerScreen(
         Column(modifier.background(LaneBackground)) {
             EmbeddedBar(embedded.state, playing, ready, micOn, onPlayPause = { if (playing) pause() else play() }, onMic = ::toggleMic,
                 status = when {
+                    pedalGrade != null -> if (pedalDown) "Pedal down" else "Pedal up"
+                    loudness != null -> remember(version) { loudness.nextIsSoft() }.let { soft ->
+                        (when (soft) { true -> "Softly"; false -> "Loudly"; null -> "" }) + if (lastVelocity >= 0) ", last $lastVelocity" else "" }
                     embedded.ramp && !(playing && position >= transport.anchorMs) -> "Ramp $rampPercent%"
                     mode != Mode.PERFORM || !playing -> ""
                     position < transport.anchorMs -> "Get ready"
@@ -640,6 +676,7 @@ fun PlayerScreen(
                 })
             Lane(Modifier.fillMaxWidth().weight(1f))
             Keys(Modifier.fillMaxWidth().weight(0.45f))
+            if (pedalGrade != null) PedalStrip(pedalGrade, position, song.durationMs, pedalDown, Modifier.fillMaxWidth().height(28.dp))
         }
         return
     }
@@ -801,6 +838,35 @@ private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, posit
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (name != null) Text(name, style = MaterialTheme.typography.titleLarge, color = Ink.copy(alpha = 0.78f))
         next?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
+    }
+}
+
+/**
+ * The pedal strip under the keys: the chords left to right, each with the stretch where the pedal should be down
+ * (outlined, a gap at each change), what the pedal really did (filled), and the playhead.
+ */
+@Composable
+private fun PedalStrip(g: PedalGrader, positionMs: Double, durationMs: Long, down: Boolean, modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier.background(LaneBackground).padding(horizontal = 12.dp, vertical = 8.dp)
+        .semantics { contentDescription = if (down) "Pedal down" else "Pedal up" }) {
+        val w = size.width; val h = size.height
+        fun x(ms: Double) = (w * ms / durationMs.coerceAtLeast(1)).toFloat().coerceIn(0f, w)
+        g.chordSpans().forEach { c ->
+            drawRoundRect(InkDim.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset(x(c.first + 150.0), 2f),
+                androidx.compose.ui.geometry.Size(x(c.last.toDouble()) - x(c.first + 150.0) - 6f, h - 4f),
+                androidx.compose.ui.geometry.CornerRadius(h / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+        }
+        // What the pedal did, up to now.
+        var from: Double? = null
+        (g.events + (positionMs to false)).forEach { (t, d) ->
+            if (d && from == null) from = t
+            if (!d && from != null) {
+                drawRoundRect(RightHandColor.copy(alpha = 0.85f), androidx.compose.ui.geometry.Offset(x(from!!), 5f),
+                    androidx.compose.ui.geometry.Size((x(t) - x(from!!)).coerceAtLeast(2f), h - 10f), androidx.compose.ui.geometry.CornerRadius(h / 2))
+                from = null
+            }
+        }
+        drawLine(Ink, androidx.compose.ui.geometry.Offset(x(positionMs), 0f), androidx.compose.ui.geometry.Offset(x(positionMs), h), 3f)
     }
 }
 

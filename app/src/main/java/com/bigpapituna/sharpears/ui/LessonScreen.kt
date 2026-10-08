@@ -68,6 +68,8 @@ class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput,
 @Composable
 fun LessonScreen(
     lesson: CourseLesson, startStep: Int, deps: LessonDeps, inject: String?,
+    /** Debug: MIDI input played into the first step (see MidiDevices.debugPlay). */
+    midiScript: String? = null,
     onStep: (Int) -> Unit, onSong: (() -> Unit)?, onDone: () -> Unit, onNext: (() -> Unit)?, onBack: () -> Unit,
 ) {
     val (level, _) = ALL.first { it.second == lesson }
@@ -98,9 +100,14 @@ fun LessonScreen(
         } else { advancedByItself = true; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
-        val passed = s.passed(report.recap)
+        val passed = s.passed(report)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake.
         val line = if (s.kind == StepKind.LISTEN) null
+            else if (s.kind.needsMidi) (report.extraScore ?: 0).let { score ->
+                val what = if (s.kind == StepKind.PEDAL) "Pedal changes in time" else "Notes at the right loudness"
+                val text = "$what: $score percent. " + if (passed) (if (last) "Passed." else "Passed. On to the next step.") else "You need ${s.exercise?.pass ?: 80}. Play it again."
+                com.bigpapituna.sharpears.engine.Feedback(text, text)
+            }
             else if (s.kind == StepKind.RAMP) com.bigpapituna.sharpears.engine.Feedback("Full speed. " + if (last) "Lesson done." else "On to the next step.",
                 "Full speed. " + if (last) "Lesson done." else "On to the next step.")
             else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last, flats = s.exercise?.flats == true)
@@ -130,6 +137,15 @@ fun LessonScreen(
                     Text("Lesson complete", style = MaterialTheme.typography.headlineMedium)
                     Text(lesson.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            } else if (step.kind.needsMidi && deps.midi.connected.value == null) {
+                // No keyboard: say why, and let the step be skipped.
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(step.text, style = MaterialTheme.typography.bodyLarge)
+                    Text(if (deps.prefs.micDefault) "This step needs a MIDI keyboard. The microphone hears which notes you play, not the pedal or how hard you strike."
+                        else "This step needs a MIDI keyboard connected by USB: only MIDI reports the pedal and how hard each key is struck.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skipped (needs MIDI)"); complete() }) { Text("Skip (needs MIDI)") }
+                }
             } else if (step.exercise == null) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     step.text.split("\n\n").forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
@@ -148,12 +164,14 @@ fun LessonScreen(
                             PlayerScreen(
                                 ex.toSong("${lesson.id}-${index + 1}", lesson.title), null, deps.sampler, deps.midi, deps.mic, voice, deps.prefs, deps.ready,
                                 0.0, false,
-                                PlayerStart(step.mode, ex.practice, mic = step.kind != StepKind.LISTEN && deps.prefs.micDefault && deps.mic.hasPermission(),
+                                PlayerStart(step.mode, ex.practice, mic = step.kind != StepKind.LISTEN && !step.kind.needsMidi && deps.prefs.micDefault && deps.mic.hasPermission(),
+                                    midiScript = midiScript?.takeIf { index == startStep && run == 0 },
                                     inject = inject?.takeIf { index == startStep && run == 0 && step.kind != StepKind.LISTEN },
                                     beatLines = ex.beatLines),
                                 onBack = onBack,
                                 onFinished = { exerciseEnded(step, it) },
-                                embedded = Embedded(stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP),
+                                embedded = Embedded(stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP,
+                                    special = step.kind.takeIf { it.needsMidi }),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                             )
                         }
@@ -186,6 +204,8 @@ private fun stateLabel(step: Step): String {
         StepKind.FROM_MEMORY -> "$hand, from memory"
         StepKind.PERFORM -> "$hand, in time, pass at ${ex.pass}%"
         StepKind.RAMP -> "$hand, up to ${ex.bpm.toInt()} bpm"
+        StepKind.PEDAL -> "Pedal with each chord"
+        StepKind.DYNAMICS -> "Soft, then loud"
         StepKind.READ -> ""
     }
 }

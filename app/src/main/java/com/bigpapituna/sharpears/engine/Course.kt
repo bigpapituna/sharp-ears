@@ -30,11 +30,16 @@ data class Exercise(
  * PERFORM: the notes keep moving; the step passes at the exercise's pass mark.
  * RAMP: Perform with the tempo ramp: it starts at 50% and rises 10 points after each clean pass (90% or better);
  * the step is done once it reaches 100% (the exercise's bpm is the target tempo).
+ * PEDAL (MIDI only): the chords move in time; graded on changing the sustain pedal at each chord ([PedalGrader]).
+ * DYNAMICS (MIDI only): wait mode; the phrase twice, soft then loud, graded per note ([DynamicsGrader]).
  */
-enum class StepKind { READ, LISTEN, PLAY, FROM_MEMORY, PERFORM, RAMP }
+enum class StepKind { READ, LISTEN, PLAY, FROM_MEMORY, PERFORM, RAMP, PEDAL, DYNAMICS;
+    /** Steps that need what only a MIDI keyboard reports (the pedal, how hard a key is struck). */
+    val needsMidi get() = this == PEDAL || this == DYNAMICS
+}
 
 data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = null) {
-    val mode get() = when (kind) { StepKind.LISTEN -> Mode.LISTEN; StepKind.PERFORM, StepKind.RAMP -> Mode.PERFORM; else -> Mode.WAIT }
+    val mode get() = when (kind) { StepKind.LISTEN -> Mode.LISTEN; StepKind.PERFORM, StepKind.RAMP, StepKind.PEDAL -> Mode.PERFORM; else -> Mode.WAIT }
     /** Note names and finger numbers are shown on the notes and keys. */
     val labels get() = kind != StepKind.FROM_MEMORY
 
@@ -43,8 +48,12 @@ data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = 
         StepKind.READ -> true
         StepKind.PERFORM -> recap != null && recap.accuracy >= (exercise?.pass ?: 0)
         StepKind.RAMP -> true                    // the player ends a ramp step only once the ramp has reached 100%
+        StepKind.PEDAL, StepKind.DYNAMICS -> false   // graded by [passed] with the run's report
         else -> true
     }
+
+    /** The step's run ended with [r]: pedal and dynamics steps are graded on their own score, the rest as above. */
+    fun passed(r: Report): Boolean = if (kind.needsMidi) (r.extraScore ?: 0) >= (exercise?.pass ?: 80) else passed(r.recap)
 }
 
 data class CourseLesson(
@@ -197,6 +206,25 @@ private fun leftHandLesson(id: String, title: String, summary: String, read: Str
         play("The left hand alone. The notes wait for you.", Exercise(left = left, bpm = bpm, practice = Practice.LEFT, beats = beats)),
         play("Now both hands: the tune on top, the pattern underneath.", both))
 }
+
+private val PEDAL_AND_DYNAMICS = listOf(
+    run {
+        val ex = Exercise(right = "C4+E4+G4:4 C4+E4+A4:4 C4+F4+A4:4 B3+D4+G4:4", bpm = 60.0, practice = Practice.RIGHT)
+        lesson("pedal", "The sustain pedal", "Lift and press again at every chord change.",
+            read("The right pedal keeps notes ringing after your fingers leave the keys. Rest your right heel on the floor and press with the ball of the foot.",
+                "Change it with each chord: play the new chord, lift the pedal at that moment, and press it straight down again. The old chord stops, the new one rings on. This step needs a MIDI keyboard, which reports the pedal."),
+            listen("Listen to the four chords, one bar each.", ex),
+            Step(StepKind.PEDAL, "Play each chord and change the pedal with it. The bar under the keys shows when the pedal should be down. Score 80 percent to pass.", ex))
+    },
+    run {
+        val ex = Exercise(right = "C4:1 D4:1 E4:1 F4:1 G4:2 r:2 C4:1 D4:1 E4:1 F4:1 G4:2 r:2", bpm = 72.0, practice = Practice.RIGHT)
+        lesson("dynamics", "Soft and loud", "The same phrase quietly, then strongly.",
+            read("Loudness comes from the speed of the key, not from pressing harder at the bottom. For soft notes, start close to the key and move slowly. For loud notes, drop the weight of the arm.",
+                "Play the phrase twice: the first time soft, the second time loud. A MIDI keyboard reports how hard each key is struck; the microphone cannot."),
+            listen("Listen: soft, then loud.", ex),
+            Step(StepKind.DYNAMICS, "The first five notes soft, under 50 on the keyboard's scale of 127. The next five loud, over 90. Score 80 percent to pass.", ex))
+    },
+)
 
 private val LEFT_HAND_PATTERNS = listOf(
     leftHandLesson("lh-waltz", "Waltz bass", "Root, then the chord twice: oom, pah, pah.",
@@ -494,7 +522,7 @@ val COURSE: List<CourseLevel> = listOf(
             play("Try the melody with your right hand. Make it sing.", MINUET),
             read("Now open the whole Minuet in G and play it with expression."),
             song = "minuet-g"),
-    ) + LEFT_HAND_PATTERNS),
+    ) + LEFT_HAND_PATTERNS + PEDAL_AND_DYNAMICS),
     CourseLevel("keys", "Keys", "Major and minor keys with sharps and flats: scales, their three main chords, and a tune in each.", KEYS),
     CourseLevel("advanced", "Advanced", "Longer scales, seventh chords, arpeggios and real repertoire.", listOf(
         run {

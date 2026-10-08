@@ -30,7 +30,9 @@ class RunLog {
 }
 
 /** What a run looked like: notes missed most first (midi to count), retries, and the Perform recap if any. */
-data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongKeys: Int, val recap: Recap?, val groups: Int = 0) {
+data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongKeys: Int, val recap: Recap?, val groups: Int = 0,
+                  /** A step's own score in percent (pedal changes, loudness), when it has one. */
+                  val extraScore: Int? = null) {
     val clean get() = wrongKeys == 0 && (recap == null || recap.miss == 0)
 }
 

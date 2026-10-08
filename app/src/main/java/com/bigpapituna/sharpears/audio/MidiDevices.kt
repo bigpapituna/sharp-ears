@@ -27,6 +27,9 @@ class MidiDevices(context: Context) {
     private val main = Handler(Looper.getMainLooper())
     private val _events = MutableSharedFlow<NoteEvent>(extraBufferCapacity = 256)
     val events: SharedFlow<NoteEvent> = _events
+    private val _pedal = MutableSharedFlow<Boolean>(extraBufferCapacity = 64)
+    /** The sustain pedal (CC 64): true when it goes down, false when it comes up. */
+    val pedal: SharedFlow<Boolean> = _pedal
 
     /** Every parsed note with the keyboard's System.nanoTime() timestamp, on the binder thread (fixture recording). */
     @Volatile var onTruth: ((NoteEvent, Long) -> Unit)? = null
@@ -57,6 +60,25 @@ class MidiDevices(context: Context) {
 
     fun stop() { manager?.unregisterDeviceCallback(callback); close() }
 
+    /** Debug: pretend a keyboard is connected (for steps that need MIDI on the emulator). */
+    fun debugConnect() { if (connected.value == null) connected.value = "Debug MIDI" }
+
+    /**
+     * Debug: plays a script of MIDI input from now: "800:p1 4790:p0 4900:p1 1000:60/40" (ms: pedal down/up, or
+     * key/velocity, released 250 ms later), through the same flows as a real keyboard.
+     */
+    fun debugPlay(script: String) {
+        Log.d(TAG, "midi: debug script $script")
+        script.split(' ', ',').filter { it.isNotBlank() }.forEach { item ->
+            val (t, what) = item.split(':').let { it[0].toLong() to it[1] }
+            if (what.startsWith("p")) main.postDelayed({ _pedal.tryEmit(what == "p1"); Log.d(TAG, "midi: pedal ${if (what == "p1") "down" else "up"} (debug)") }, t)
+            else what.split('/').let { (k, v) ->
+                main.postDelayed({ _events.tryEmit(NoteEvent.On(k.toInt(), v.toInt())) }, t)
+                main.postDelayed({ _events.tryEmit(NoteEvent.Off(k.toInt())) }, t + 250)
+            }
+        }
+    }
+
     private fun scan() {
         val m = manager ?: return
         val all = if (Build.VERSION.SDK_INT >= 33) m.getDevicesForTransport(MidiManager.TRANSPORT_MIDI_BYTE_STREAM).toList()
@@ -70,7 +92,10 @@ class MidiDevices(context: Context) {
         manager?.openDevice(info, { d ->
             if (d == null) { Log.d(TAG, "midi: could not open ${name(info)}"); return@openDevice }
             val p = d.openOutputPort(0) ?: run { d.close(); return@openDevice }
-            val parser = MidiParser()
+            var pedalDown = false
+            val parser = MidiParser { controller, value ->
+                if (controller == 64 && (value >= 64) != pedalDown) { pedalDown = value >= 64; _pedal.tryEmit(pedalDown); Log.d(TAG, "midi: pedal ${if (pedalDown) "down" else "up"}") }
+            }
             p.connect(object : MidiReceiver() {
                 // Runs on a binder thread; the flow buffers and the player collects on the main thread.
                 override fun onSend(msg: ByteArray, offset: Int, count: Int, timestamp: Long) {
