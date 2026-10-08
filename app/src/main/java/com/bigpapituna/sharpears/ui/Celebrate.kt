@@ -75,7 +75,7 @@ fun Celebration(
         delay(180); rest.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
     }
     val px = with(LocalDensity.current) { 320.dp.toPx() }
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).pointerInput(Unit) { detectTapGestures { } }
+    Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         Confetti(title, Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp),

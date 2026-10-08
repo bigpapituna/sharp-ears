@@ -43,7 +43,7 @@ fun HomeShell(tab: HomeTab, onTab: (HomeTab) -> Unit, badge: Map<HomeTab, Int> =
     }
     if (wide) {
         Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            NavigationRail(containerColor = MaterialTheme.colorScheme.background) {
+            NavigationRail(containerColor = androidx.compose.ui.graphics.Color.Transparent) {
                 HomeTab.entries.forEach { t ->
                     NavigationRailItem(t == tab, { onTab(t) }, icon = { icon(t) }, label = { Text(t.label) })
                 }

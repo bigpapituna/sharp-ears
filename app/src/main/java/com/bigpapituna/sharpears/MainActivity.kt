@@ -81,6 +81,7 @@ import com.bigpapituna.sharpears.ui.PlayerScreen
 import com.bigpapituna.sharpears.ui.PlayerStart
 import com.bigpapituna.sharpears.ui.SettingsScreen
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
+import com.bigpapituna.sharpears.ui.paper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -186,7 +187,8 @@ class MainActivity : ComponentActivity() {
             val s0 = screen
             val playerShown = s0 is Screen.Player || (s0 is Screen.Daily && !s0.between && s0.plan.parts[s0.index].let { it is SessionPart.Loop || it is SessionPart.Song })
             SharpEarsTheme(dark = if (playerShown) true else isSystemInDarkTheme()) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Surface(Modifier.fillMaxSize().paper(), color = androidx.compose.ui.graphics.Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onBackground) {   // textured page (ui/Backdrop.kt)
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
                     var importInto by remember { mutableStateOf<SongMeta?>(null) }
