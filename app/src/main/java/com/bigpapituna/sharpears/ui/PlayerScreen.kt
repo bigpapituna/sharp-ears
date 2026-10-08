@@ -108,6 +108,8 @@ data class PlayerStart(
     val loopBar: Int? = null,
     /** Stop after this much real time and call onTimeUp (the "Practice today" loop part). */
     val timeLimitMs: Long? = null,
+    /** Beat lines on the lane whatever the setting (rhythm lessons). */
+    val beatLines: Boolean = false,
 )
 
 /**
@@ -554,6 +556,7 @@ fun PlayerScreen(
             // Until the run reaches its start, notes before a seek point stay hidden (they will not play).
             hideBefore = if (position < transport.runFromMs) transport.runFromMs else null,
             lights = lights,
+            beatMs = if (start.beatLines || prefs.beatLines) metro.beatMs else null, beatsPerBar = metro.beatsPerBar,
         )
         // Perform count-in: the beats of the bar near the hit line, the current one bright.
         if (playing && mode == Mode.PERFORM && position < transport.anchorMs)

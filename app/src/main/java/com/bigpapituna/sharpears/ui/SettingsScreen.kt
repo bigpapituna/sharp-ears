@@ -65,6 +65,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
                 prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it }
             Toggle("Feedback light", "A flash rises from the line on a right note, a soft glow runs along it on a wrong one. Off: keys flash instead.",
                 prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it }
+            Toggle("Beat lines", "A faint line across the notes on every beat. Rhythm lessons always show them.",
+                prefs.beatLines && v >= 0) { prefs.beatLines = it }
 
             Section("Sound")
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",

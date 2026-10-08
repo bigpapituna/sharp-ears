@@ -39,6 +39,8 @@ private val LaneBottom = Color(0xFF161A21)
 private val LaneGuide = Color(0xFF1C2129)
 private val HitLine = Color(0xFFDDE1E7)
 private val LabelInk = Color(0xFF15100C)
+private val BeatLine = Color(0xFF232A34)
+private val BeatLineBar = Color(0xFF34404E)
 
 /** How long the spark at the hit line lasts after a note starts. */
 private const val SPARK_MS = 220.0
@@ -71,6 +73,9 @@ fun NoteLane(
     lights: HitLights? = null,
     /** "Hear my run": the player's own notes, drawn as thin bright blocks over the song's (sorted by start). */
     played: List<Note>? = null,
+    /** Faint lines across the lane at each beat (song ms per beat), stronger on each bar's first ([beatsPerBar]). */
+    beatMs: Double? = null,
+    beatsPerBar: Int = 4,
 ) {
     val playedLongest = remember(played) { played?.maxOfOrNull { it.durationMs } ?: 0L }
     // Ticks the lights' clock only while one is alive: the Canvas redraws, nothing recomposes.
@@ -111,6 +116,16 @@ fun NoteLane(
                 fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium))
         }
 
+        // Beat lines: where each beat will meet the hit line, the first of each bar a little stronger.
+        if (beatMs != null && beatMs > 0) {
+            var b = kotlin.math.ceil((positionMs - LOOKBEHIND_MS) / beatMs).toLong()
+            while (b * beatMs <= positionMs + LOOKAHEAD_MS) {
+                val y = lane.hitLineY - ((b * beatMs - positionMs) * lane.pxPerMs).toFloat()
+                val bar = Math.floorMod(b, beatsPerBar.toLong()) == 0L
+                drawLine(if (bar) BeatLineBar else BeatLine, Offset(0f, y), Offset(size.width, y), strokeWidth = if (bar) 3f else 2f)
+                b++
+            }
+        }
         // Faint guides at each C so the eye can find octaves.
         keys.whiteKeys.filter { it.midi % 12 == 0 }.forEach {
             drawLine(LaneGuide, Offset(it.left, 0f), Offset(it.left, size.height), strokeWidth = 2f)

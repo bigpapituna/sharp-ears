@@ -16,6 +16,8 @@ data class Exercise(
     val pass: Int = 80,
     /** Beats per bar (quarter notes), for the metronome. */
     val beats: Int = 4,
+    /** Faint lines at each beat on the lane (rhythm lessons turn them on whatever the setting). */
+    val beatLines: Boolean = false,
 )
 
 /**
@@ -114,6 +116,48 @@ private val MINUET = Exercise(right = "D5:1 G4:0.5 A4:0.5 B4:0.5 C5:0.5 D5:1 G4:
     left = "G3+B3:3 A3:3 B3:3 C4:3", bpm = 96.0, practice = Practice.RIGHT, beats = 3)
 private val ELISE = Exercise(right = "E5:0.5 D#5:0.5 E5:0.5 D#5:0.5 E5:0.5 B4:0.5 D5:0.5 C5:0.5 A4:1.5 r:0.5 C4:0.5 E4:0.5 A4:0.5 B4:1.5 r:0.5 E4:0.5 G#4:0.5 B4:0.5 C5:2",
     bpm = 72.0, practice = Practice.RIGHT)
+
+/**
+ * A rhythm lesson: read how to count it, hear it on one key, tap it on middle C in time (Perform, 80%), then the
+ * same rhythm as a short tune. Beat lines are on so each beat shows on the lane.
+ */
+private fun rhythmLesson(id: String, title: String, summary: String, read: String, rhythm: String, tune: String,
+                         bpm: Double, beats: Int = 4, count: String): CourseLesson {
+    val one = Exercise(right = rhythm, bpm = bpm, practice = Practice.RIGHT, beats = beats, beatLines = true)
+    val melody = one.copy(right = tune)
+    return lesson(id, title, summary,
+        read(read),
+        listen("Listen and count along: $count.", one),
+        perform("Now tap it on middle C with your thumb, counting out loud. Two bars of clicks count you in. Score 80 percent to pass.", one),
+        perform("The same rhythm as a little tune. Keep counting. Score 80 percent to pass.", melody))
+}
+
+private val RHYTHM = listOf(
+    rhythmLesson("rhythm-quarters", "Steady quarter notes", "One note on every beat, counted in.",
+        "A quarter note lasts one beat. Before you play, the app counts you in with two bars of clicks, and the numbers 1, 2, 3, 4 appear above the keys. Start on the next 1.",
+        rhythm = "C4:1 C4:1 C4:1 C4:1 C4:1 C4:1 C4:1 C4:1",
+        tune = "C4:1 E4:1 G4:1 E4:1 F4:1 D4:1 E4:1 C4:1", bpm = 72.0, count = "1, 2, 3, 4"),
+    rhythmLesson("rhythm-halves", "Half and whole notes", "Hold through two beats and four.",
+        "A half note lasts two beats and a whole note four. Keep counting while the key stays down, and let it go only on the next note.",
+        rhythm = "C4:2 C4:2 C4:4 C4:1 C4:1 C4:2 C4:4",
+        tune = "E4:2 D4:2 C4:4 E4:1 F4:1 G4:2 E4:4", bpm = 76.0, count = "1, 2, 3, 4"),
+    rhythmLesson("rhythm-eighths", "Eighth notes", "Two notes in one beat: 1 and 2 and.",
+        "An eighth note is half a beat. Count the beats with an and between them: 1 and 2 and 3 and 4 and. The second eighth falls on the and.",
+        rhythm = "C4:1 C4:0.5 C4:0.5 C4:1 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:2",
+        tune = "C4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 D4:0.5 C4:0.5 D4:0.5 E4:0.5 F4:0.5 G4:2", bpm = 66.0, count = "1 and 2 and 3 and 4 and"),
+    rhythmLesson("rhythm-dotted", "Dotted quarter and eighth", "Long, short: the lilt of many tunes.",
+        "A dot makes a note half as long again: a dotted quarter lasts one and a half beats. An eighth note fills the rest of the second beat. Count 1 and 2 and, and play on 1 and on the and of 2.",
+        rhythm = "C4:1.5 C4:0.5 C4:1 C4:1 C4:1.5 C4:0.5 C4:2",
+        tune = "E4:1.5 D4:0.5 C4:1 D4:1 E4:1.5 E4:0.5 E4:2", bpm = 72.0, count = "1 and 2 and 3 and 4 and"),
+    rhythmLesson("rhythm-waltz", "Three beats: waltz time", "Count 1, 2, 3 with a lean on 1.",
+        "In three four time each bar has three beats. Lean a little on beat 1: ONE, two, three. The count-in clicks three to a bar.",
+        rhythm = "C4:1 C4:1 C4:1 C4:2 C4:1 C4:1 C4:1 C4:1 C4:3",
+        tune = "C4:1 E4:1 G4:1 G4:2 E4:1 F4:1 D4:1 B3:1 C4:3", bpm = 84.0, beats = 3, count = "1, 2, 3"),
+    rhythmLesson("rhythm-syncopation", "Simple syncopation", "Notes that land between the beats.",
+        "Syncopation puts a note on the and and holds it over the next beat. Keep counting 1 and 2 and evenly; the note comes early, and the beat goes by while you hold it.",
+        rhythm = "C4:1 C4:0.5 C4:1 C4:0.5 C4:1 C4:0.5 C4:1 C4:0.5 C4:2",
+        tune = "C4:1 D4:0.5 E4:1 D4:0.5 C4:1 E4:0.5 G4:1 E4:0.5 C4:2", bpm = 66.0, count = "1 and 2 and 3 and 4 and"),
+)
 
 val COURSE: List<CourseLevel> = listOf(
     CourseLevel("basics", "Basics", "Where to sit, where the notes are, and which finger is which.", listOf(
@@ -236,6 +280,7 @@ val COURSE: List<CourseLevel> = listOf(
             read("Now open the whole song. Slow it down with the speed button if the notes come too fast."),
             song = "twinkle"),
     )),
+    CourseLevel("rhythm", "Rhythm", "Counting: quarters, halves, eighths, dotted notes, waltz time and syncopation.", RHYTHM),
     CourseLevel("intermediate", "Intermediate", "Scales in both hands, chords, inversions and progressions.", listOf(
         run {
             val e = Exercise(left = "C3:1 D3:1 E3:1 F3:1 G3:1 A3:1 B3:1 C4:1 B3:1 A3:1 G3:1 F3:1 E3:1 D3:1 C3:2", bpm = 70.0, practice = Practice.LEFT)

@@ -63,6 +63,11 @@ class Prefs(context: Context) {
         get() = p.getBoolean("fingers", true)
         set(v) = edit { putBoolean("fingers", v) }
 
+    /** Lines across the falling notes at each beat. Off by default; rhythm lessons show them anyway. */
+    var beatLines: Boolean
+        get() = p.getBoolean("beatLines", false)
+        set(v) = edit { putBoolean("beatLines", v) }
+
     /** Hit-line light for right and wrong notes; off brings back green key flashes and a red keyboard border. */
     var feedbackLight: Boolean
         get() = p.getBoolean("feedbackLight", true)

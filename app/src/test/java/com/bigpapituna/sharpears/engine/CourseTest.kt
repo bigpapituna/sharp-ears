@@ -19,8 +19,8 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(27, ids.size)
-        assertEquals(listOf("basics", "beginner", "intermediate", "advanced"), COURSE.map { it.id })
+        assertEquals(33, ids.size)
+        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "advanced"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)
@@ -70,5 +70,39 @@ class CourseTest {
         val left = ex("fingers-left").toSong("x", "x")
         val g = Fingering.of(left)
         assertEquals(listOf(5, 4, 3, 2, 1, 2, 3, 4, 5), left.notes.map { g[it] })
+    }
+
+    @Test fun rhythmLessonsTapOneKeyThenATuneInTheSameRhythm() {
+        val level = COURSE.first { it.id == "rhythm" }
+        assertEquals(6, level.lessons.size)
+        for (l in level.lessons) {
+            assertEquals(listOf(StepKind.READ, StepKind.LISTEN, StepKind.PERFORM, StepKind.PERFORM), l.steps.map { it.kind })
+            val one = l.steps[2].exercise!!
+            val tune = l.steps[3].exercise!!
+            assertTrue(l.id, one.beatLines && one.pass == 80)
+            val a = one.toSong("a", "a"); val b = tune.toSong("b", "b")
+            assertEquals("${l.id}: one key", setOf(60), a.notes.map { it.midi }.toSet())
+            assertEquals("${l.id}: same rhythm", a.notes.map { it.startMs }, b.notes.map { it.startMs })
+            val beats = one.right.split(" ").sumOf { it.substringAfter(':').toDouble() }
+            assertEquals("${l.id}: whole bars", 0.0, beats % one.beats, 1e-9)
+        }
+        assertEquals(3, level.lessons.first { it.id == "rhythm-waltz" }.steps[2].exercise!!.toSong("w", "w").timeSignature.first)
+    }
+
+    @Test fun performScoresARhythmOnOneKey() {
+        val song = COURSE.first { it.id == "rhythm" }.lessons.first { it.id == "rhythm-eighths" }.steps[2].exercise!!.toSong("e", "e")
+        fun run(offsetMs: Double, skip: Set<Int> = emptySet()): Recap {
+            val t = Transport(song).apply { mode = Mode.PERFORM; play() }
+            song.notes.forEachIndexed { i, n ->
+                while (t.positionMs < n.startMs + offsetMs) t.tick(minOf(4.0, n.startMs + offsetMs - t.positionMs))
+                if (i !in skip) assertEquals("note $i", InputResult.CORRECT, t.noteInput(60))
+            }
+            while (t.playing) t.tick(16.0)
+            return t.score!!.recap()
+        }
+        assertEquals(Recap(11, 0, 0, 0, 11), run(0.0))                          // every eighth on its own target
+        assertEquals(11, run(90.0).good)                                        // a little late is still good
+        val two = run(0.0, skip = setOf(3, 4))
+        assertEquals(9, two.good); assertEquals(2, two.miss); assertEquals(82, two.accuracy)
     }
 }
