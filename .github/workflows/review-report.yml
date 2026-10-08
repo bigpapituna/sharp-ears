@@ -48,7 +48,7 @@ jobs:
           # The runner's own Android SDK; only the platform this app compiles against is added.
           sdkm=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
           yes | "$sdkm" --licenses > /dev/null || true
-          "$sdkm" "platforms;android-37" > /dev/null
+          "$sdkm" "platforms;android-37.0" > /dev/null
           chmod +x gradlew
           ./gradlew --no-daemon -q :app:testDebugUnitTest --tests "*StallReviewTest*"
       - name: Post the review
