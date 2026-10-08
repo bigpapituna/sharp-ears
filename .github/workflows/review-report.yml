@@ -41,7 +41,7 @@ jobs:
           git show "origin/reports:reports/$name.wav" > "app/src/test/resources/stalls/$name.wav" || rm -f "app/src/test/resources/stalls/$name.wav"
       - uses: actions/setup-java@v4
         if: steps.clip.outputs.name != ''
-        with: { distribution: temurin, java-version: '17' }
+        with: { distribution: temurin, java-version: '25' }
       - name: Replay it through the matcher
         if: steps.clip.outputs.name != ''
         run: |
@@ -50,7 +50,7 @@ jobs:
           yes | "$sdkm" --licenses > /dev/null || true
           "$sdkm" "platforms;android-37.0" > /dev/null
           chmod +x gradlew
-          ./gradlew --no-daemon -q :app:testDebugUnitTest --tests "*StallReviewTest*"
+          ./gradlew --no-daemon -q -Dorg.gradle.java.home="$JAVA_HOME" :app:testDebugUnitTest --tests "*StallReviewTest*"
       - name: Post the review
         if: steps.clip.outputs.name != ''
         run: |
