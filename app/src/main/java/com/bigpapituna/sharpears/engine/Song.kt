@@ -24,6 +24,28 @@ data class Song(
     val fingering: List<Int>? = null,
 )
 
+/**
+ * The same song [semitones] higher (or lower): every note moves, so what is shown, played, expected and labelled
+ * all follow. Notes are kept on the piano (21..108). Flat spelling follows the new key's black keys.
+ */
+fun Song.transposed(semitones: Int): Song {
+    if (semitones == 0) return this
+    val moved = notes.map { it.copy(midi = (it.midi + semitones).coerceIn(21, 108)) }
+    return copy(notes = moved, groups = groupOnsets(moved), preferFlats = flatKey(moved))
+}
+
+/**
+ * Whether the notes read better with flats: the major key whose scale holds the most of them (its relative minor
+ * shares it) is F, B flat, E flat, A flat or D flat.
+ */
+fun flatKey(notes: List<Note>): Boolean {
+    if (notes.isEmpty()) return false
+    val count = IntArray(12).also { c -> notes.forEach { c[it.midi % 12]++ } }
+    val major = listOf(0, 2, 4, 5, 7, 9, 11)
+    val tonic = (0..11).maxBy { t -> major.sumOf { count[(t + it) % 12] } * 12 - t }   // ties go to the lower tonic
+    return tonic in setOf(5, 10, 3, 8, 1)
+}
+
 /** How to decide which hand plays each note. */
 sealed interface HandRule {
     data class Tracks(val right: Int, val left: Int) : HandRule

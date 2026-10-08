@@ -79,6 +79,7 @@ import com.bigpapituna.sharpears.engine.Recap
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.Transport
+import com.bigpapituna.sharpears.engine.transposed
 import com.bigpapituna.sharpears.engine.AutoSpeed
 import com.bigpapituna.sharpears.engine.DynamicsGrader
 import com.bigpapituna.sharpears.engine.PedalGrader
@@ -136,7 +137,7 @@ data class Embedded(val state: String, val labels: Boolean = true, val autoStart
  */
 @Composable
 fun PlayerScreen(
-    song: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, ready: Boolean,
+    original: Song, meta: SongMeta?, sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, ready: Boolean,
     startMs: Double, debugDump: Boolean, start: PlayerStart = PlayerStart(), onBack: () -> Unit,
     /** Called when a run reaches the end with its mistakes (and the Perform recap); lesson steps use it. */
     onFinished: (Report) -> Unit = {},
@@ -148,6 +149,11 @@ fun PlayerScreen(
     onTimeUp: () -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
+    // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
+    var transpose by remember(original.id) { mutableIntStateOf(meta?.let { prefs.transpose(it.id) } ?: 0) }
+    val song = remember(original, transpose) { original.transposed(transpose) }
+    /** Where a rebuilt transport (after a transpose) picks up. */
+    var resumeAt by remember(original.id) { mutableStateOf<Double?>(null) }
     if (embedded == null) DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
@@ -155,6 +161,11 @@ fun PlayerScreen(
     val labels = embedded?.labels ?: true
 
     val range = remember(song) { fitRange(song.notes) }
+    // Chord names follow a transpose: the bars are labelled again from the moved notes.
+    val chords = remember(song, chordTrack) {
+        if (chordTrack == null || transpose == 0) chordTrack
+        else com.bigpapituna.sharpears.engine.ChordTrack(com.bigpapituna.sharpears.engine.labelBarsAligned(song), com.bigpapituna.sharpears.engine.barMs(song))
+    }
     val transport = remember(song) { Transport(song, playable = range).apply { mode = start.mode; practice = start.practice } }
     var position by remember { mutableDoubleStateOf(0.0) }
     var playing by remember { mutableStateOf(false) }
@@ -298,6 +309,15 @@ fun PlayerScreen(
         version++
     }
     fun setSpeed(sp: Double) { speed = sp; transport.speed = sp; Log.d(TAG, "transport speed=$sp") }
+    fun setTranspose(n: Int) {
+        val to = n.coerceIn(-6, 6)
+        if (to == transpose) return
+        pause()
+        resumeAt = transport.shownMs
+        meta?.let { prefs.saveTranspose(it.id, to) }
+        Log.d(TAG, "transpose ${song.id}: $transpose -> $to semitones at ${resumeAt?.toLong()} ms")
+        transpose = to
+    }
     /** A loop pass (or the whole song) was played through: the ramp may speed up. */
     fun passEnded(r: Report) {
         val rr = ramp ?: return
@@ -448,7 +468,13 @@ fun PlayerScreen(
     }
     LaunchedEffect(song) {
         if (embedded?.ramp == true) { ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent } }
-        if (startMs > 0) seek(startMs)
+        // A transport rebuilt by a transpose keeps the speed, mode, hands and loop.
+        transport.speed = speed
+        if (transport.mode != mode) transport.mode = mode
+        if (transport.practice != practice) transport.practice = practice
+        transport.loop = loopStart?.let { a -> loopEnd?.let { b -> if (b > a) a..b else null } }
+        val at = resumeAt ?: startMs
+        if (at > 0) seek(at)
         // Before Play the first notes already hang just under the top of the lane.
         if (!debugDump) { transport.preview(PREVIEW_MS); position = transport.positionMs }
         Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)} mode=$mode hands=$practice mic=$micOn at=${startMs.toLong()} video=${tutorial != null}")
@@ -541,13 +567,16 @@ fun PlayerScreen(
         BarState(playing, ready, maxOf(position, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
             midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
             // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
-            subtitle = listOfNotNull(meta?.composer?.takeIf { it.isNotEmpty() },
+            subtitle = listOfNotNull(
+                if (transpose != 0) "${if (transpose > 0) "Up" else "Down"} ${kotlin.math.abs(transpose)} ${if (kotlin.math.abs(transpose) == 1) "semitone" else "semitones"}" else null,
+                meta?.composer?.takeIf { it.isNotEmpty() },
                 song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
             auto = if (autoOn) autoPercent else null,
-            chords = if (chordTrack != null) chordsOn else null,
+            chords = if (chords != null) chordsOn else null,
+            transpose = transpose,
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
@@ -573,6 +602,7 @@ fun PlayerScreen(
             onMic = ::toggleMic,
             onVideo = { videoOn = !videoOn; Log.d(TAG, "video panel=$videoOn") },
             onChords = { chordsOn = !chordsOn; Log.d(TAG, "chord names=$chordsOn") },
+            onTranspose = ::setTranspose,
             onMetronome = { metronomeOn = !metronomeOn; Log.d(TAG, "metronome=$metronomeOn bpm=${song.bpm} beat=${metro.beatMs.toLong()} ms") },
             onBacking = {
                 backingOn = !backingOn
@@ -608,7 +638,7 @@ fun PlayerScreen(
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
-        if (chordsOn && chordTrack != null) ChordLabel(chordTrack, position, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
+        if (chordsOn && chords != null) ChordLabel(chords, position, song.preferFlats, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
@@ -831,13 +861,13 @@ private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: 
 
 /** The bar's chord in the lane's corner, quiet, with the next chord dimmed beside it. Lookup only, no relabeling. */
 @Composable
-private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, positionMs: Double, modifier: Modifier) {
+private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, positionMs: Double, flats: Boolean, modifier: Modifier) {
     val (now, next) = track.at(positionMs.coerceAtLeast(0.0))
-    val name = now?.name
+    val name = now?.nameIn(flats)
     LaunchedEffect(name) { if (name != null) Log.d(TAG, "chord label $name at ${positionMs.toLong()} ms") }
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (name != null) Text(name, style = MaterialTheme.typography.titleLarge, color = Ink.copy(alpha = 0.78f))
-        next?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
+        next?.let { Text(it.nameIn(flats), style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
     }
 }
 

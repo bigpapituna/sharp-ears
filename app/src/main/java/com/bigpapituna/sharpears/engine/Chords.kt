@@ -25,6 +25,8 @@ fun rootName(pc: Int) = ROOT_NAMES[((pc % 12) + 12) % 12]
 
 data class Chord(val root: Int, val type: ChordType) {
     val name get() = rootName(root) + type.suffix
+    /** The name with the root spelled as a flat when the key reads in flats (Db, not C#). */
+    fun nameIn(flats: Boolean) = if (flats) noteName(root % 12 + 60, true).dropLast(1) + type.suffix else name
     val pitchClasses: Set<Int> get() = type.intervals.map { (root + it) % 12 }.toSet()
     // Ninths sit above the octave; "9th in the bass" is not offered as an inversion.
     val inversionCount get() = type.intervals.count { it < 12 }

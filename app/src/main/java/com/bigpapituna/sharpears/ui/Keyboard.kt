@@ -79,7 +79,12 @@ fun Keyboard(
     // Read only inside the Canvas, so the pulse redraws the keyboard without recomposing the screen.
     val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
-    var layout by remember { mutableStateOf<KeyboardLayout?>(null) }
+    // The geometry follows both the size and the range (a transpose can change the range under a laid-out keyboard).
+    var box by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val layout = remember(box, lowMidi, highMidi) {
+        if (box.width == 0 || box.height == 0) null else KeyboardLayout(lowMidi, highMidi, box.width.toFloat(), box.height.toFloat())
+    }
+    val currentLayout by rememberUpdatedState(layout)
     val on by rememberUpdatedState(onNoteOn)
     val off by rememberUpdatedState(onNoteOff)
 
@@ -87,10 +92,10 @@ fun Keyboard(
         modifier
             .semantics { contentDescription = "Piano keyboard ${noteName(lowMidi)} to ${noteName(highMidi)}" }
             .onGloballyPositioned { c ->
-                val l = KeyboardLayout(lowMidi, highMidi, c.size.width.toFloat(), c.size.height.toFloat())
-                if (layout?.width != l.width || layout?.height != l.height) {
-                    layout = l
+                if (c.size != box) {
+                    box = c.size
                     // Debug aid: window coordinates of each key, so adb taps hit known keys.
+                    val l = KeyboardLayout(lowMidi, highMidi, c.size.width.toFloat(), c.size.height.toFloat())
                     val o = c.positionInWindow()
                     (l.whiteKeys + l.blackKeys).forEach {
                         Log.d(TAG, "keyRect ${noteName(it.midi)} = ${(o.x + it.centerX).toInt()},${(o.y + it.touchY).toInt()}")
@@ -102,7 +107,7 @@ fun Keyboard(
                     val held = HashMap<PointerId, Int>()
                     while (true) {
                         val event = awaitPointerEvent()
-                        val l = layout ?: continue
+                        val l = currentLayout ?: continue
                         for (change in event.changes) {
                             val key = if (change.pressed) l.keyAt(change.position.x, change.position.y) else null
                             val old = held[change.id]

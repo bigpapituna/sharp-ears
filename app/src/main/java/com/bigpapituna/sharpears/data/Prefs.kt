@@ -63,6 +63,10 @@ class Prefs(context: Context) {
         get() = p.getBoolean("fingers", true)
         set(v) = edit { putBoolean("fingers", v) }
 
+    /** Transpose per song, in semitones (-6..6). */
+    fun transpose(id: String) = p.getInt("transpose:$id", 0)
+    fun saveTranspose(id: String, semitones: Int) = edit { if (semitones == 0) remove("transpose:$id") else putInt("transpose:$id", semitones) }
+
     /** The daily practice reminder: on or off, and its time in minutes after midnight (default 18:30). */
     var reminderOn: Boolean
         get() = p.getBoolean("reminderOn", false)

@@ -298,4 +298,30 @@ class TransportTest {
         t.pause(); t.preview(100.0)                                                // no longer fresh: preview does nothing
         assertEquals(3000 - LOOKAHEAD_MS + 300, t.positionMs, 0.0)
     }
+
+    @Test fun aTransposedSongMovesWhatIsPlayedShownAndExpected() {
+        val up2 = song.transposed(2)
+        assertEquals(listOf(62, 66, 50, 69), up2.notes.map { it.midi })
+        assertEquals(song.groups.map { it.startMs }, up2.groups.map { it.startMs })
+        assertTrue(song.transposed(0) === song)
+        // Listen: the sampler gets the moved notes.
+        val l = Transport(up2).apply { play() }
+        assertEquals(listOf(NoteEvent.On(62, 90)), l.run(16.0))
+        // Wait: the moved key is the one expected; the old one is wrong now.
+        val w = Transport(up2).apply { mode = Mode.WAIT; play() }
+        w.run(10.0)
+        assertEquals(listOf(62), w.expected.map { it.midi })
+        assertEquals(InputResult.WRONG, w.noteInput(60))
+        assertEquals(InputResult.GROUP_DONE, w.noteInput(62))
+        // Chord names come from the moved notes: a C major bar becomes D major.
+        val c = listOf(Note(48, 0, 2000, Hand.LEFT, 80), Note(64, 0, 2000, Hand.RIGHT, 80), Note(67, 0, 2000, Hand.RIGHT, 80))
+        val cs = Song("c", "c", 120.0, 4 to 4, c, groupOnsets(c), emptyList(), 2000)
+        assertEquals(listOf("C"), labelBars(cs).map { it.name })
+        assertEquals(listOf("D"), labelBars(cs.transposed(2)).map { it.name })
+        assertEquals("Db", labelBars(cs.transposed(1)).single().nameIn(flats = true))
+        assertEquals("C#", labelBars(cs.transposed(1)).single().nameIn(flats = false))
+        // Down a whole step from C lands in B flat: flats.
+        assertTrue(Song("s", "s", 120.0, 4 to 4, listOf(60, 62, 64, 65, 67, 69, 71).map { Note(it, 0, 1, Hand.RIGHT, 1) }, emptyList(), emptyList(), 1)
+            .transposed(-2).preferFlats)
+    }
 }

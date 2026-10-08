@@ -24,6 +24,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -75,6 +77,8 @@ data class BarState(
     val chords: Boolean? = null,
     /** null: not a progression (no backing to offer). */
     val backing: Boolean? = null,
+    /** Semitones the song is moved (-6..6). */
+    val transpose: Int = 0,
 )
 
 class BarActions(
@@ -95,6 +99,8 @@ class BarActions(
     /** Turns Auto on: the tempo managed last time, nudged up on good days. */
     val onAuto: () -> Unit = {},
     val onBacking: () -> Unit = {},
+    /** A new transpose, in semitones. */
+    val onTranspose: (Int) -> Unit = {},
 )
 
 /**
@@ -177,6 +183,7 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 color = if (s.status.isNotEmpty()) MaterialTheme.colorScheme.primary else dim,
                 modifier = Modifier.padding(end = 8.dp),
             )
+            MoreMenu(s, a)
         }
     }
 }
@@ -226,6 +233,38 @@ private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T
     }
 }
 
+
+/** "Up 2", "Down 1", "Off". */
+fun transposeLabel(n: Int) = when { n > 0 -> "Up $n"; n < 0 -> "Down ${-n}"; else -> "Off" }
+
+/** The overflow at the end of the second row: Transpose (-6..+6 semitones) for now. */
+@Composable
+private fun MoreMenu(s: BarState, a: BarActions) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More options",
+                tint = if (s.transpose != 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        androidx.compose.material3.DropdownMenu(open, onDismissRequest = { open = false }) {
+            Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Transpose", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(end = 8.dp))
+                IconButton(onClick = { a.onTranspose(s.transpose - 1) }, enabled = s.transpose > -6) {
+                    Icon(painterResource(R.drawable.ic_remove), contentDescription = "Down a semitone")
+                }
+                Text(transposeLabel(s.transpose), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+                    modifier = Modifier.width(56.dp).semantics { contentDescription = "Transpose ${if (s.transpose == 0) "off" else transposeLabel(s.transpose) + " semitones"}" },
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = if (s.transpose != 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                IconButton(onClick = { a.onTranspose(s.transpose + 1) }, enabled = s.transpose < 6) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = "Up a semitone")
+                }
+            }
+            if (s.transpose != 0) androidx.compose.material3.DropdownMenuItem(text = { Text("Back to the written key") },
+                onClick = { a.onTranspose(0); open = false })
+        }
+    }
+}
 
 /** A text pill that switches something on the stage (metronome, backing, chord names). */
 @Composable
