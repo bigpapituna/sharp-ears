@@ -1,10 +1,10 @@
 """Write the simple public-domain tunes as two-track MIDI files (track 1 right hand, track 2 left hand).
 
-Usage: python scripts/gen_songs.py   -> app/src/main/assets/songs/<id>.mid
+Usage: python scripts/gen_songs.py [ids...]   -> app/src/main/assets/songs/<id>.mid
 Tunes are traditional or long out of copyright; these arrangements (melody + one bass note per chord) are ours.
 Token format: <note><octave>:<beats>, "r" is a rest, "+" joins notes into a chord (D5+F#4:4).
 """
-import os, struct
+import os, struct, sys
 
 NAMES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
 PPQ = 480
@@ -101,11 +101,77 @@ SONGS = {
         'F#5+D5:1 E5+C#5:1 D5+B4:1 C#5+A4:1 B4+G4:1 A4+F#4:1 B4+G4:1 C#5+A4:1 '
         'D5+F#4:4',
         ' '.join(['D3:1 A2:1 B2:1 F#2:1 G2:1 D2:1 G2:1 A2:1'] * 5) + ' D2+D3:4'),
+
+    # --- Batch 2 (2026-10-08). Melody plus one bass note per chord. Written from memory, checked by bar count only.
+    'scarborough-fair': (96, (3, 4),
+        # D dorian. Are you going | Parsley, sage | Remember me | She once was
+        'D4:2 D4:1 A4:2 A4:1 E4:1.5 F4:0.5 E4:1 D4:3 '
+        'r:1 A4:1 C5:1 D5:2 C5:1 A4:1 B4:1 G4:1 A4:3 '
+        'r:1 D5:1 D5:1 D5:2 C5:1 A4:2 G4:1 F4:1 E4:2 '
+        'r:1 D4:1 A4:1 G4:2 F4:1 E4:1 D4:1 C4:1 D4:3',
+        'D3:3 D3:3 C3:3 D3:3 F3:3 C3:3 G2:3 A2:3 D3:3 F3:3 F3:3 C3:3 D3:3 C3:3 A2:3 D3:3'),
+    'auld-lang-syne': (80, (4, 4),
+        # The verse, twice (second verse). C major; pickup "Should".
+        'r:3 G3:1 '
+        'C4:1.5 C4:0.5 C4:1 E4:1 D4:1.5 C4:0.5 D4:1 E4:1 C4:1.5 C4:0.5 E4:1 G4:1 A4:3 A4:1 '
+        'G4:1.5 E4:0.5 E4:1 C4:1 D4:1.5 C4:0.5 D4:1 E4:1 C4:1.5 A3:0.5 A3:1 G3:1 C4:3 G3:1 '
+        'C4:1.5 C4:0.5 C4:1 E4:1 D4:1.5 C4:0.5 D4:1 E4:1 C4:1.5 C4:0.5 E4:1 G4:1 A4:3 A4:1 '
+        'G4:1.5 E4:0.5 E4:1 C4:1 D4:1.5 C4:0.5 D4:1 E4:1 C4:1.5 A3:0.5 A3:1 G3:1 C4:4',
+        'r:4 C3:4 G2:4 C3:4 F2:4 C3:4 G2:4 F2:4 C3:4 C3:4 G2:4 C3:4 F2:4 C3:4 G2:4 F2:4 C3:4'),
+    'silent-night': (90, (3, 4),
+        'G4:1.5 A4:0.5 G4:1 E4:3 G4:1.5 A4:0.5 G4:1 E4:3 '
+        'D5:2 D5:1 B4:3 C5:2 C5:1 G4:3 '
+        'A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3 '
+        'A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3 '
+        'D5:2 D5:1 F5:1.5 D5:0.5 B4:1 C5:3 E5:3 '
+        'C5:1 G4:1 E4:1 G4:1.5 F4:0.5 D4:1 C4:6',
+        'C3:3 C3:3 C3:3 C3:3 G2:3 G2:3 C3:3 C3:3 F2:3 F2:3 C3:3 C3:3 F2:3 F2:3 C3:3 C3:3 '
+        'G2:3 G2:3 C3:3 C3:3 C3:3 G2:3 C3:6'),
+    'jingle-bells': (120, (4, 4),
+        # The chorus
+        'E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 '
+        'F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2 '
+        'E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 '
+        'F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 G4:1 G4:1 F4:1 D4:1 C4:4',
+        'C3:4 C3:4 C3:4 C3:4 F2:4 C3:4 G2:4 G2:4 C3:4 C3:4 C3:4 C3:4 F2:4 C3:4 G2:4 C3:4'),
+    'saints': (110, (4, 4),
+        'r:1 C4:1 E4:1 F4:1 G4:4 r:1 C4:1 E4:1 F4:1 G4:4 '
+        'r:1 C4:1 E4:1 F4:1 G4:2 E4:2 C4:2 E4:2 D4:4 '
+        'r:1 E4:1 E4:1 D4:1 C4:3 C4:1 E4:2 G4:2 G4:1 F4:3 '
+        'r:1 E4:1 F4:1 G4:1 E4:2 C4:2 D4:4 C4:4',
+        'C3:4 C3:4 C3:4 C3:4 C3:4 C3:4 C3:4 G2:4 C3:4 C3:4 F2:4 F2:4 C3:4 C3:4 G2:4 C3:4'),
+    'oh-susanna': (100, (4, 4),
+        # Pickup "I come from", verse, then the chorus
+        'r:3 C4:0.5 D4:0.5 '
+        'E4:1 G4:1 G4:1.5 A4:0.5 G4:1 E4:1 C4:1.5 D4:0.5 E4:1 E4:1 D4:1 C4:1 D4:3 C4:0.5 D4:0.5 '
+        'E4:1 G4:1 G4:1.5 A4:0.5 G4:1 E4:1 C4:1.5 D4:0.5 E4:1 E4:1 D4:1 D4:1 C4:4 '
+        'F4:2 A4:2 A4:2 G4:1 G4:1 E4:1 C4:1 D4:2 r:3 C4:0.5 D4:0.5 '
+        'E4:1 G4:1 G4:1.5 A4:0.5 G4:1 E4:1 C4:1.5 D4:0.5 E4:1 E4:1 D4:1 D4:1 C4:4',
+        'r:4 C3:4 C3:4 C3:4 G2:4 C3:4 C3:4 G2:4 C3:4 F2:4 C3:4 G2:4 G2:4 C3:4 C3:4 G2:4 C3:4'),
+    'brahms-lullaby': (72, (3, 4),
+        # Wiegenlied, Op. 49 No. 4 (1868); pickup of two eighths
+        'E4:0.5 E4:0.5 '
+        'G4:2 E4:0.5 E4:0.5 G4:2 E4:0.5 G4:0.5 C5:1 B4:1.5 A4:0.5 A4:1 G4:1 D4:0.5 E4:0.5 '
+        'F4:1 D4:1 D4:0.5 E4:0.5 F4:2 D4:0.5 F4:0.5 B4:0.5 A4:0.5 G4:1 B4:1 C5:2 C4:0.5 C4:0.5 '
+        'C5:2 A4:0.5 F4:0.5 G4:2 E4:0.5 C4:0.5 F4:1 G4:1 A4:1 G4:2 C4:0.5 C4:0.5 '
+        'C5:2 A4:0.5 F4:0.5 G4:2 E4:0.5 C4:0.5 F4:1 E4:1 D4:1 C4:2',
+        'r:1 C3:3 C3:3 C3:3 G2:3 G2:3 G2:3 G2:3 C3:3 F2:3 C3:3 F2:3 C3:3 F2:3 C3:3 G2:3 C3:2'),
+    'frere-jacques': (100, (4, 4),
+        # Twice through, the left hand moving the second time
+        'C4:1 D4:1 E4:1 C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 F4:1 G4:2 E4:1 F4:1 G4:2 '
+        'G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 C4:1 G3:1 C4:2 C4:1 G3:1 C4:2 '
+        'C4:1 D4:1 E4:1 C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 F4:1 G4:2 E4:1 F4:1 G4:2 '
+        'G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 C4:1 G3:1 C4:2 C4:1 G3:1 C4:2',
+        'C3:4 C3:4 C3:4 C3:4 C3:4 C3:4 C3:4 C3:4 '
+        'C3:2 G2:2 C3:2 G2:2 C3:2 G2:2 C3:2 G2:2 C3:2 G2:2 C3:2 G2:2 C3:2 G2:2 C3:4'),
 }
 
 if __name__ == '__main__':
     out = os.path.join(os.path.dirname(__file__), '..', 'app', 'src', 'main', 'assets', 'songs')
+    only = set(sys.argv[1:])            # ids to write; all when none given
     for sid, (tempo, ts, rh, lh) in SONGS.items():
+        if only and sid not in only:
+            continue
         rb = sum(float(t.split(':')[1]) for t in rh.split())
         lb = sum(float(t.split(':')[1]) for t in lh.split())
         assert rb == lb, f'{sid}: right hand {rb} beats, left hand {lb}'

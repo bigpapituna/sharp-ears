@@ -292,6 +292,94 @@
       ]
     },
     {
+      "id": "scarborough-fair",
+      "file": "scarborough-fair.mid",
+      "title": "Scarborough Fair",
+      "composer": "Traditional (English)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "auld-lang-syne",
+      "file": "auld-lang-syne.mid",
+      "title": "Auld Lang Syne",
+      "composer": "Traditional (Scottish), words by Robert Burns",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "silent-night",
+      "file": "silent-night.mid",
+      "title": "Silent Night",
+      "composer": "Franz Xaver Gruber",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "jingle-bells",
+      "file": "jingle-bells.mid",
+      "title": "Jingle Bells",
+      "composer": "James Lord Pierpont",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "saints",
+      "file": "saints.mid",
+      "title": "When the Saints Go Marching In",
+      "composer": "Traditional (spiritual)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "oh-susanna",
+      "file": "oh-susanna.mid",
+      "title": "Oh! Susanna",
+      "composer": "Stephen Foster",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "brahms-lullaby",
+      "file": "brahms-lullaby.mid",
+      "title": "Lullaby (Wiegenlied)",
+      "composer": "Johannes Brahms",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
+      "id": "frere-jacques",
+      "file": "frere-jacques.mid",
+      "title": "Frere Jacques",
+      "composer": "Traditional (French)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": []
+    },
+    {
       "id": "alicia",
       "file": "user/alicia.mid",
       "title": "Alicia (Clair Obscur: Expedition 33)",
