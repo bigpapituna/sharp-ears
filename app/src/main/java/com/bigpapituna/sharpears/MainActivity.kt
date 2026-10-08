@@ -53,6 +53,7 @@ import com.bigpapituna.sharpears.engine.micCheckExercise
 import com.bigpapituna.sharpears.engine.progressionSong
 import com.bigpapituna.sharpears.engine.songPack
 import com.bigpapituna.sharpears.engine.ChordTrack
+import com.bigpapituna.sharpears.engine.PracticeStats
 import com.bigpapituna.sharpears.engine.barMs
 import com.bigpapituna.sharpears.engine.labelBarsAligned
 import com.bigpapituna.sharpears.ui.ChordsScreen
@@ -240,7 +241,8 @@ class MainActivity : ComponentActivity() {
                                                 onOpen = ::openSong,
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { screen = Screen.MicSetup(s) },
-                                            ))
+                                            ),
+                                            practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) })
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue

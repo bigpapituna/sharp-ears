@@ -59,14 +59,14 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
  * [continueWith] is the song last played, or null on a fresh install (the panel then suggests a first song).
  */
 @Composable
-fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions) {
+fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic) } }
+        item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic, practice) } }
         first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
@@ -93,14 +93,18 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
 }
 
 @Composable
-private fun Header(micLabel: String, onMic: () -> Unit) {
+private fun Header(micLabel: String, onMic: () -> Unit, practice: String?) {
     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         // The logo always sits on its own dark tile, as on the launcher, so the white sharp shows in light mode too.
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Stage), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.size(40.dp))
         }
         Spacer(Modifier.size(12.dp))
-        Text("Sharp Ears", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).semantics { heading() })
+        Column(Modifier.weight(1f)) {
+            Text("Sharp Ears", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+            // Practice this week, from the time the player ran; no line until there is some.
+            practice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
         TextButton(onClick = onMic) {
             Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(6.dp))

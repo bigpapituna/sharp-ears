@@ -79,7 +79,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
             }
 
             Section("Progress")
-            Text("Clears resume positions, played marks and best scores. Chord lessons keep their progress.",
+            Text("Clears resume positions, played marks, best scores and practice time. Chord lessons keep their progress.",
                 style = MaterialTheme.typography.bodyMedium, color = dim)
             TextButton(onClick = { confirmReset = true }) { Text("Reset song progress", color = MaterialTheme.colorScheme.error) }
 
@@ -102,7 +102,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String, onM
     if (confirmReset) AlertDialog(
         onDismissRequest = { confirmReset = false },
         title = { Text("Reset song progress?") },
-        text = { Text("Resume positions, played marks and best scores will be cleared.") },
+        text = { Text("Resume positions, played marks, best scores and practice time will be cleared.") },
         confirmButton = { TextButton(onClick = { prefs.resetProgress(); confirmReset = false }) { Text("Reset") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
     )

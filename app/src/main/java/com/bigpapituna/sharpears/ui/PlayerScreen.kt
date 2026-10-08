@@ -179,8 +179,19 @@ fun PlayerScreen(
     fun savePosition() {
         if (meta != null && transport.positionMs > 0 && transport.positionMs < song.durationMs) prefs.savePosition(meta.id, transport.positionMs.toLong())
     }
+    // Practice time: real time while the transport plays, written in whole seconds (every 15 s and when it stops).
+    val practiceMs = remember { doubleArrayOf(0.0) }
+    fun flushPractice() {
+        val secs = (practiceMs[0] / 1000).toInt()
+        if (secs <= 0) return
+        practiceMs[0] -= secs * 1000.0
+        prefs.addPractice(java.time.LocalDate.now(), secs)
+        Log.d(TAG, "practice +$secs s")
+    }
+    DisposableEffect(Unit) { onDispose { flushPractice() } }
+
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs }
-    fun pause() { apply(transport.pause()); playing = false; savePosition(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
+    fun pause() { apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
         // A count-in bar with the backing, or with the metronome in Perform mode; otherwise Perform's 2 s lead-in.
@@ -335,6 +346,8 @@ fun PlayerScreen(
         while (transport.playing) {
             withFrameNanos { now ->
                 val before = transport.positionMs
+                practiceMs[0] += (now - last) / 1_000_000.0
+                if (practiceMs[0] >= 15_000) flushPractice()
                 val events = transport.tick((now - last) / 1_000_000.0)
                 if (events.isNotEmpty()) apply(events)
                 // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
@@ -354,6 +367,7 @@ fun PlayerScreen(
             }
         }
         playing = false
+        flushPractice()
         Log.d(TAG, "transport stopped at ${transport.positionMs.toLong()} ms")
         if (transport.positionMs >= song.durationMs) finished()
     }

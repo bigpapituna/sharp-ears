@@ -77,8 +77,22 @@ class Prefs(context: Context) {
     fun anchor(songId: String, videoId: String): Float? = p.getFloat("anchor:$songId:$videoId", -1f).takeIf { it >= 0 }
     fun saveAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor:$songId:$videoId", sec) }
 
+    /** Practice time: seconds the transport played, per day ("practice:yyyy-MM-dd"); days past 60 are dropped. */
+    fun addPractice(day: java.time.LocalDate, seconds: Int) {
+        if (seconds <= 0) return
+        val old = com.bigpapituna.sharpears.engine.PracticeStats.stale(practice().keys, day)
+        edit {
+            putInt("practice:$day", p.getInt("practice:$day", 0) + seconds)
+            old.forEach { remove("practice:$it") }
+        }
+    }
+    fun practice(): Map<java.time.LocalDate, Int> = p.all.mapNotNull { (k, v) ->
+        if (!k.startsWith("practice:") || v !is Int) null
+        else runCatching { java.time.LocalDate.parse(k.removePrefix("practice:")) to v }.getOrNull()
+    }.toMap()
+
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it == "lastSong" }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it == "lastSong" || it.startsWith("practice:") }
         edit { keys.forEach(::remove) }
     }
 
