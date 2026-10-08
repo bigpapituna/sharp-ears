@@ -299,7 +299,10 @@ fun PlayerScreen(
     @Composable
     fun Bar() = TransportBar(
         BarState(playing, ready, position.coerceAtLeast(0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
-            midi.connected.value, micOn, { mic.level.floatValue }, title = song.title, subtitle = meta?.composer.orEmpty(),
+            midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
+            // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
+            subtitle = listOfNotNull(meta?.composer?.takeIf { it.isNotEmpty() },
+                song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
