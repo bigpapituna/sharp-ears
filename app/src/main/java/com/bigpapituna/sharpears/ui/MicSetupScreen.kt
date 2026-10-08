@@ -127,7 +127,10 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         }
 
         Text("Check: play middle C (C4) a few times", style = MaterialTheme.typography.titleMedium)
-        Text(last?.first ?: "Listening", color = when (last?.second) { true -> Good; false -> Bad; null -> MaterialTheme.colorScheme.onSurface })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Pup(Pose.LISTENING, size = 64.dp)
+            Text(last?.first ?: "Listening", color = when (last?.second) { true -> Good; false -> Bad; null -> MaterialTheme.colorScheme.onSurface })
+        }
         Text("Heard C4 $heard times", style = MaterialTheme.typography.bodySmall)
 
         FilledTonalButton(onClick = onMicCheck) { Text("Try it: C major scale in wait mode") }

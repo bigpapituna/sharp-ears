@@ -7,6 +7,9 @@ import java.security.MessageDigest
  * natural (Kokoro) voice into assets/voice/<key>.ogg; at run time a line found there plays instantly, and anything
  * else (feedback that names notes, times and scores) is generated on the phone.
  */
+/** What the pup says when a lesson step passes after a few tries. */
+const val HIGH_FIVE = "High five! You stuck with it."
+
 object SpokenCatalog {
     /** The same text the voice is handed, tidied: single spaces, trimmed. */
     fun normalize(text: String) = text.replace(Regex("\\s+"), " ").trim()
@@ -39,6 +42,7 @@ object SpokenCatalog {
             add("That is ${chordSpoken(c)}.")
             add("Yes, ${chordSpoken(c)}.")
         }
+        add(HIGH_FIVE)
         // The sample line Settings plays when a voice is chosen.
         add("Ready when you are. Play the first note.")
         return lines.toList()

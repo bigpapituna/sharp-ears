@@ -233,6 +233,8 @@ private fun GameScreen(
                     Text("${game.score} of ${game.rounds}", style = Numeric.merge(MaterialTheme.typography.displaySmall))
                 }
                 GameStat("Best streak", game.bestStreak)
+                Spacer(Modifier.weight(1f))
+                Pup(when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE }, size = 96.dp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onAgain) { Text("Play again") }

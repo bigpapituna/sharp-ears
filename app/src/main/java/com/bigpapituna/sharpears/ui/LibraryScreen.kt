@@ -71,6 +71,7 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
 fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
                   today: TodayPanel? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
+    val pose = when { today?.summary != null -> Pose.RESTING; practice?.contains("in a row") == true -> Pose.STREAK; else -> Pose.WELCOME }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -79,9 +80,9 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
         item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Header(micLabel, a.onMic, practice) } }
         // "Practice today" is the one raised panel; Continue sits under it as a plain row.
         if (today != null) {
-            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }
+            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday, pose) } }
             first?.let { e -> item { ContinueRow(e, fresh = continueWith == null, a) } }
-        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a) } } }
+        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, pose) } } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
@@ -128,13 +129,8 @@ private fun Header(micLabel: String, onMic: () -> Unit, practice: String?) {
 }
 
 @Composable
-private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) {
+private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, pose: Pose) = PupPanel(pose) {
     val p = e.progress
-    Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
         Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Text(e.meta.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
@@ -152,16 +148,10 @@ private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) {
             Spacer(Modifier.size(6.dp))
             Text(if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play")
         }
-    }
 }
 
 @Composable
-private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit, pose: Pose) = PupPanel(pose) {
         Text("Practice today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         if (t.summary != null) {
             Text("Done for today", style = MaterialTheme.typography.headlineMedium)
@@ -179,8 +169,16 @@ private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) {
                 Text("Start")
             }
         }
-    }
 }
+
+/** The home screen's one raised panel, with the pup at its top right greeting, resting or showing off the streak. */
+@Composable
+private fun PupPanel(pose: Pose, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
+    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 20.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+        Pup(pose, size = 84.dp)
+    }
 
 /** Continue as a plain row under the panel: what was played last and where it stopped. */
 @Composable

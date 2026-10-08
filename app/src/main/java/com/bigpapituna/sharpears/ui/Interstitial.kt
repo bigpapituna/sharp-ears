@@ -38,6 +38,7 @@ fun Interstitial(line: String, voice: Voice, onGo: () -> Unit, onSkip: () -> Uni
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Pup(Pose.GET_READY, size = 120.dp)
             Text(line, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onSkip) { Text("Skip") }

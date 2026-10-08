@@ -50,7 +50,10 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp)) {
-                Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 20.dp, bottom = 16.dp).semantics { heading() })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(top = 20.dp, bottom = 16.dp).semantics { heading() })
+                    Pup(Pose.LEARNING, size = 64.dp)
+                }
             }
         }
         item {

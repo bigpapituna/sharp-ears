@@ -181,6 +181,10 @@ fun PlayerScreen(
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
+    var highFive by remember { mutableStateOf(0) }                 // bumps when the player pushes through a hard passage
+    var showHighFive by remember { mutableStateOf(false) }
+    LaunchedEffect(highFive) { if (highFive > 0) { showHighFive = true; delay(2400); showHighFive = false } }
     // The notes the player plays in the current run (touch, MIDI or mic), kept for "Hear my run".
     val recorder = remember { RunRecorder() }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -300,10 +304,12 @@ fun PlayerScreen(
             return
         }
         when (result) {
-            InputResult.WRONG -> wrongFeedback()
-            InputResult.CORRECT, InputResult.GROUP_DONE ->
+            InputResult.WRONG -> { wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime()) }
+            InputResult.CORRECT, InputResult.GROUP_DONE -> {
+                if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h)); Log.d(TAG, "light hit ${noteName(midi)} $h") }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
+            }
             InputResult.IGNORED -> {}
         }
         version++
@@ -634,6 +640,10 @@ fun PlayerScreen(
         // Perform count-in: the beats of the bar near the hit line, the current one bright.
         if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
             BeatCounter(metro.beatsPerBar, metro.beatInBar(position), Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
+        // The pup: ready during the count-in, a high-five after a hard passage comes good.
+        if (showHighFive) PupSays(Pose.GREAT_JOB, "High five!", Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
+        else if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
+            Pup(Pose.GET_READY, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp)
         // Before the first Play: a quiet hint, nothing else.
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
@@ -788,6 +798,11 @@ private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (Tr
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val r = e.recap
+            Pup(when {
+                e.newBest -> Pose.LEVEL_UP
+                r != null && r.accuracy < 60 || r == null && e.wrongKeys > 10 -> Pose.MISTAKE     // "keep trying"
+                else -> Pose.GREAT_JOB
+            }, size = 96.dp)
             if (r != null) {
                 Text(if (e.newBest) "New best" else "Run complete", style = MaterialTheme.typography.labelLarge,
                     color = if (e.newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)

@@ -78,6 +78,9 @@ fun LessonScreen(
     var finished by remember { mutableStateOf(false) }
     var run by remember { mutableIntStateOf(0) }              // bumps to restart the step's player
     var advancedByItself by remember { mutableStateOf(false) }
+    var reaction by remember { mutableStateOf<Pose?>(null) }     // the pup's answer to the last try, for a few seconds
+    var fails by remember { mutableIntStateOf(0) }               // tries of this step that did not pass
+    LaunchedEffect(reaction) { if (reaction != null) { kotlinx.coroutines.delay(4000); reaction = null } }
     val step = lesson.steps[index]
     val last = index == lesson.steps.lastIndex
     val voice = deps.voice
@@ -90,7 +93,7 @@ fun LessonScreen(
         advancedByItself = false
     }
 
-    fun go(to: Int) { feedback = null; finished = false; index = to }
+    fun go(to: Int) { feedback = null; finished = false; index = to; fails = 0 }
     fun complete() {
         if (last) {
             finished = true
@@ -114,7 +117,10 @@ fun LessonScreen(
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
         feedback = line?.text
         line?.let { voice.speak(it.spoken) }
-        if (passed) complete()
+        if (s.kind != StepKind.LISTEN) reaction = if (passed) Pose.GREAT_JOB else Pose.MISTAKE
+        // Passing a step that took a few tries earns the high-five.
+        if (passed && fails >= 2) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
+        if (passed) { fails = 0; complete() } else fails++
     }
 
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -126,6 +132,11 @@ fun LessonScreen(
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
+                if (!finished) Pup(reaction ?: when {
+                    step.exercise == null -> Pose.LEARNING
+                    step.kind == StepKind.LISTEN -> Pose.LISTENING
+                    else -> Pose.PRACTICING
+                }, size = 64.dp)
             }
             StepDots(lesson.steps.size, index, finished, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 14.dp))
             feedback?.let {
@@ -134,6 +145,7 @@ fun LessonScreen(
             }
             if (finished) {
                 Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Pup(Pose.LEVEL_UP, size = 140.dp)
                     Text("Lesson complete", style = MaterialTheme.typography.headlineMedium)
                     Text(lesson.summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
