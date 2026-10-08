@@ -147,7 +147,7 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
 
     val tutorial = remember(song) {
-        meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs) }
+        meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs, song.groups.last().startMs) }
     }
     val windowSize = LocalWindowInfo.current.containerSize
     val windowHeightDp = with(LocalDensity.current) { windowSize.height.toDp() }

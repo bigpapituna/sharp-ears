@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.Video
+import com.bigpapituna.sharpears.engine.VideoSync
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
@@ -66,23 +67,35 @@ import kotlin.math.abs
  * wait mode holds; a drift over 0.4 s seeks it. Unaligned, it is an ordinary embedded player.
  * Official IFrame embed only: no download, branding and ads untouched (PLAN 6.3).
  */
-class TutorialState(val songId: String, val videos: List<Video>, private val prefs: Prefs, private val firstNoteMs: Long) {
+class TutorialState(val songId: String, val videos: List<Video>, private val prefs: Prefs, private val firstNoteMs: Long,
+                    private val lastNoteMs: Long = firstNoteMs) {
     var video by mutableStateOf(videos.first())
     var player by mutableStateOf<YouTubePlayer?>(null)
     val tracker = YouTubePlayerTracker()
     var anchor by mutableStateOf(prefs.anchor(songId, videos.first().id))
+    /** Optional second anchor at the song's last note; with it the follower uses a rate (DESIGN 3.1). */
+    var lastAnchor by mutableStateOf(prefs.lastAnchor(songId, videos.first().id))
+    val sync get() = VideoSync(firstNoteMs, lastNoteMs, anchor, lastAnchor)
 
-    fun pick(v: Video) { video = v; player = null; anchor = prefs.anchor(songId, v.id) }
+    fun pick(v: Video) { video = v; player = null; anchor = prefs.anchor(songId, v.id); lastAnchor = prefs.lastAnchor(songId, v.id) }
 
     /** "First note" tap: the video is at the song's first note right now. */
     fun align() {
         val sec = tracker.currentSecond
         anchor = sec
         prefs.saveAnchor(songId, video.id, sec)
-        Log.d(TAG, "video ${video.id} aligned: first note at %.2f s".format(sec))
+        Log.d(TAG, "video ${video.id} aligned: first note at %.2f s".format(sec) + (lastAnchor?.let { ", rate %.4f".format(sync.rate) } ?: ""))
     }
 
-    fun videoSecFor(songMs: Double): Float? = anchor?.let { (it + (songMs - firstNoteMs) / 1000.0).toFloat().coerceAtLeast(0f) }
+    /** "Last note" tap: the video is at the song's last note right now. */
+    fun alignLast() {
+        val sec = tracker.currentSecond
+        lastAnchor = sec
+        prefs.saveLastAnchor(songId, video.id, sec)
+        Log.d(TAG, "video ${video.id} aligned: last note at %.2f s, two points=${sync.twoPoints} rate %.4f".format(sec, sync.rate))
+    }
+
+    fun videoSecFor(songMs: Double): Float? = sync.videoSecFor(songMs)
 }
 
 // The nearest YouTube rate at or below the song's speed (ramp speeds like 0.6 fall between); drift seeks cover the rest.
@@ -149,7 +162,8 @@ fun TutorialPip(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean
     // Fit the window into the space it floats over: title bar plus a 16:9 video no taller than what is left.
     val bar = if (maxHeight < 260.dp) 36.dp else 44.dp
     val videoH = (maxHeight - bar).coerceIn(60.dp, 200.dp)
-    val width = videoH * 16f / 9f
+    // At least wide enough for the title bar (sync state and both anchor buttons); the video is letterboxed inside.
+    val width = maxOf(videoH * 16f / 9f, 360.dp)
     val context = LocalContext.current
     var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     Column(
@@ -165,11 +179,20 @@ fun TutorialPip(t: TutorialState, moving: Boolean, speed: Double, muted: Boolean
                 .padding(start = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(if (t.videos.size > 1) "Video ${t.videos.indexOf(t.video) + 1}/${t.videos.size}" else "Tutorial",
+            // The title says how the video follows the song: one anchor, or two (with a rate).
+            Text(when {
+                    t.anchor != null && t.sync.twoPoints -> "Synced, two points"
+                    t.anchor != null -> "Synced"
+                    t.videos.size > 1 -> "Video ${t.videos.indexOf(t.video) + 1} of ${t.videos.size}"
+                    else -> "Tutorial"
+                },
                 style = MaterialTheme.typography.labelLarge, color = InkDim, maxLines = 1,
                 modifier = Modifier.weight(1f).then(if (t.videos.size > 1) Modifier.clickable { t.pick(t.videos[(t.videos.indexOf(t.video) + 1) % t.videos.size]) } else Modifier))
             TextButton(onClick = t::align, enabled = t.player != null, contentPadding = PaddingValues(horizontal = 8.dp)) {
                 Text(if (t.anchor == null) "Sync" else "Re-sync", style = MaterialTheme.typography.labelLarge)
+            }
+            if (t.anchor != null) TextButton(onClick = t::alignLast, enabled = t.player != null, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Text("Last note", style = MaterialTheme.typography.labelLarge)
             }
             IconButton(onClick = {
                 context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${t.video.id}".toUri()))

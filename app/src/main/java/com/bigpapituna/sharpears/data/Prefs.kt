@@ -76,6 +76,9 @@ class Prefs(context: Context) {
     /** Tutorial alignment: video second at which the song's first note sounds, per song and video. */
     fun anchor(songId: String, videoId: String): Float? = p.getFloat("anchor:$songId:$videoId", -1f).takeIf { it >= 0 }
     fun saveAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor:$songId:$videoId", sec) }
+    /** Second anchor: video second at which the song's last note sounds. */
+    fun lastAnchor(songId: String, videoId: String): Float? = p.getFloat("anchor2:$songId:$videoId", -1f).takeIf { it >= 0 }
+    fun saveLastAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor2:$songId:$videoId", sec) }
 
     /** Practice time: seconds the transport played, per day ("practice:yyyy-MM-dd"); days past 60 are dropped. */
     fun addPractice(day: java.time.LocalDate, seconds: Int) {
