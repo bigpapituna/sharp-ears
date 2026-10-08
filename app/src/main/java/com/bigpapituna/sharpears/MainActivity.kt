@@ -239,6 +239,8 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) { if (startDaily) startDaily() }
                     fun finishDaily(s: Screen.Daily, done: List<SessionPart>) {
                         val secs = (System.currentTimeMillis() - s.startedAt) / 1000
+                        // Nothing done (every part skipped or left at once): no summary, the panel stays as it was.
+                        if (done.isEmpty()) { Log.d(TAG, "daily: ended with nothing done"); screen = Screen.Home(); return }
                         val summary = sessionSummary(done, secs)
                         prefs.saveDailySummary(java.time.LocalDate.now(), summary)
                         Log.d(TAG, "daily: $summary")
@@ -319,12 +321,14 @@ class MainActivity : ComponentActivity() {
                                     val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
                                     val m = songs.first { it.id == id }
                                     val song = remember(id) { repo.load(m) }
+                                    val partStart = remember(s.index) { System.currentTimeMillis() }
                                     androidx.compose.runtime.key(s.index) {
                                         PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value,
                                             if (part is SessionPart.Song) prefs.progress(id).let { if (it.completed) 0.0 else it.lastPositionMs.toDouble() } else 0.0,
                                             dump, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission(),
                                                 loopBar = (part as? SessionPart.Loop)?.bar, timeLimitMs = if (part is SessionPart.Loop) 120_000L else null),
-                                            onBack = { advanceDaily(s, completed = part is SessionPart.Loop) },
+                                            // Leaving the song after a minute or more of it counts; leaving at once does not.
+                                            onBack = { advanceDaily(s, completed = System.currentTimeMillis() - partStart >= 60_000) },
                                             onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
                                             chordTrack = lessons.songChords.value[id],
                                             onTimeUp = { advanceDaily(s, completed = true) })
