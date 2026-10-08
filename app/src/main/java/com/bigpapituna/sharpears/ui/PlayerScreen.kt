@@ -317,7 +317,7 @@ fun PlayerScreen(
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         val extra = pedalGrade?.score() ?: loudness?.score()
-        onFinished(transport.report().copy(extraScore = extra).also { Log.d(TAG, "run report ${song.id}: $it") })
+        onFinished(transport.report().copy(extraScore = extra, realMs = transport.runRealMs).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
             run?.let { recap = RunEnd(it, false, emptyList()) }

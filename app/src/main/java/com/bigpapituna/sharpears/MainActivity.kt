@@ -96,6 +96,8 @@ private sealed interface Screen {
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
     data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null) : Screen
     data class MicSetup(val back: Screen) : Screen
+    /** The sight-reading drill. [inject] (debug) feeds the mic. */
+    data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null) : Screen
     /** "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it. */
     data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
     data class Privacy(val back: Screen) : Screen
@@ -131,6 +133,7 @@ class MainActivity : ComponentActivity() {
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         //   --ef lightSlow <n>   (stretches the hit-line lights n times, to catch them in a screenshot)
         //   --ez daily true   (starts "Practice today" straight away)
+        //   --es screen sight [--ei level 1|2] [--es inject ...]   (sight-reading; seeded when injecting)
         //   --es lesson <id> --es midi "800:p1 4790:p0 1000:60/40"   (a pretend MIDI keyboard: pedal and key/velocity at ms after Play)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
@@ -156,6 +159,7 @@ class MainActivity : ComponentActivity() {
             )
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
+            debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
                     Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"))
@@ -327,6 +331,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        is Screen.SightRead -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { voice.stop(); screen = s.back }
+                            com.bigpapituna.sharpears.ui.SightReadScreen(LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.level, s.inject,
+                                onBack = { screen = s.back })
+                        }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
@@ -369,7 +378,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
-                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) })
+                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
+                            onSightRead = { screen = Screen.SightRead(s) },
+                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
                                     }
                                     HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
                                         onPlayProgression = { p, key ->

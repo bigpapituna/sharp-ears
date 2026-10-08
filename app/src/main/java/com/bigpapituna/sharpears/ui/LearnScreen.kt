@@ -45,7 +45,7 @@ internal val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
 
 /** The Learn tab: a "next lesson" panel, then each level's lessons as plain numbered rows. */
 @Composable
-fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit) {
+fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null) {
     val next = ALL.firstOrNull { !done(it.second.id) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
@@ -72,6 +72,21 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit) {
                     Spacer(Modifier.size(8.dp))
                     Button(onClick = { onOpen(lesson) }) { Text(if (ALL.indexOf(next) == 0) "Start" else "Continue") }
                 }
+            }
+        }
+        // Sight-reading sits beside the course: new music each time, so it is never "done".
+        item(key = "sight") {
+            Row(
+                Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp).padding(top = 12.dp).heightIn(min = 64.dp)
+                    .clip(RoundedCornerShape(12.dp)).clickable(onClick = onSightRead).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Sight-read", style = MaterialTheme.typography.titleMedium)
+                    Text(sightBest?.let { "Four new bars each time, names hidden. Best $it." } ?: "Four new bars each time, played once with the names hidden.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             }
         }
         COURSE.forEach { level ->

@@ -127,6 +127,16 @@ class Prefs(context: Context) {
     fun autoSpeed(id: String) = com.bigpapituna.sharpears.engine.AutoSpeed.decode(p.getString("auto:$id", null))
     fun saveAutoSpeed(id: String, a: com.bigpapituna.sharpears.engine.AutoSpeed) = edit { putString("auto:$id", a.encode()) }
 
+    /** Sight-reading: the best run per level (fewest points: seconds plus two per wrong note). */
+    fun sightBest(level: Int) = com.bigpapituna.sharpears.engine.SightScore.decode(p.getString("sight:$level", null))
+    /** Returns true when [s] beats the saved best. */
+    fun saveSightBest(level: Int, s: com.bigpapituna.sharpears.engine.SightScore): Boolean {
+        val old = sightBest(level)
+        if (old != null && old.points <= s.points) return false
+        edit { putString("sight:$level", s.encode()) }
+        return true
+    }
+
     /** "Practice today" finished on [day]: the summary row, or null. */
     fun dailySummary(day: java.time.LocalDate): String? = p.getString("daily:$day", null)
     fun saveDailySummary(day: java.time.LocalDate, summary: String) = edit {
