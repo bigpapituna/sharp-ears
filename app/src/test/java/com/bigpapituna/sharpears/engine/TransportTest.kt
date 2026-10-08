@@ -234,4 +234,68 @@ class TransportTest {
         println("fur-elise range ${noteName(elise.notes.minOf { it.midi })}..${noteName(elise.notes.maxOf { it.midi })} " +
             "-> ${noteName(r.first)}..${noteName(r.last)}, outside=${elise.notes.count { it.midi !in r }}")
     }
+
+    // Lead-in and count-in (a fresh run starts before its first group so the notes are seen falling).
+
+    @Test fun leadInFromTheTopStartsBeforeTheFirstGroup() {
+        val t = Transport(song).apply { mode = Mode.WAIT; play(leadInMs = 1000.0) }
+        assertEquals(-1000.0, t.positionMs, 0.0)
+        assertTrue(t.inLeadIn)
+        assertEquals(0.0, t.shownMs, 0.0)                                         // the timeline shows 0:00
+        t.run(500.0)
+        assertFalse(t.waiting)                                                     // falling, not held yet
+        assertEquals(InputResult.IGNORED, t.noteInput(62))                        // too early to be wrong
+        assertEquals(0, t.report().wrongKeys)
+        t.run(600.0)
+        assertTrue(t.waiting)                                                      // held at the first group
+        assertEquals(0.0, t.positionMs, 0.0)
+        assertFalse(t.inLeadIn)
+    }
+
+    @Test fun leadInAfterASeekStartsBeforeTheNextGroupAndSkipsEarlierNotes() {
+        val t = Transport(song)
+        t.seek(700.0)                                                              // next group: the chord at 1000
+        assertEquals(1000.0, t.anchorMs, 0.0)
+        t.play(leadInMs = 500.0)
+        assertEquals(500.0, t.positionMs, 0.0)
+        assertEquals(700.0, t.shownMs, 0.0)
+        assertEquals(emptyList<NoteEvent>(), t.run(400.0))                         // E4 (500..1000) is behind the seek point
+        assertEquals(setOf(NoteEvent.On(48, 70), NoteEvent.On(67, 90)), t.run(200.0).toSet())
+    }
+
+    @Test fun resumingAfterAPauseHasNoLeadIn() {
+        val t = Transport(song).apply { play() }
+        t.run(600.0); t.pause()
+        t.play(leadInMs = 1000.0)
+        assertEquals(600.0, t.positionMs, 1e-6)
+    }
+
+    @Test fun countInIsNotScoredInPerform() {
+        val t = Transport(song).apply { mode = Mode.PERFORM; play(leadInMs = 4000.0) }
+        t.run(3000.0)
+        assertTrue(t.inLeadIn)
+        assertEquals(emptySet<Int>(), t.listenFor)
+        assertEquals(InputResult.IGNORED, t.noteInput(62))                         // hands finding their place
+        assertEquals(0, t.report().wrongKeys)
+        assertEquals(0, t.score!!.recap().total)                                   // nothing graded in the count-in
+        t.run(1000.0)
+        assertEquals(InputResult.CORRECT, t.noteInput(60))                         // on time at 0
+        t.run(2500.0)
+        val r = t.score!!.recap()
+        assertEquals(3, r.total)                                                   // only the song's three groups
+        assertEquals(1, r.good)
+    }
+
+    @Test fun previewShowsTheFirstNotesAndPlayStartsFromIt() {
+        val late = notes.map { it.copy(startMs = it.startMs + 3000) }
+        val s = Song("l", "l", 120.0, 4 to 4, late, groupOnsets(late), emptyList(), 5000)
+        val t = Transport(s).apply { mode = Mode.WAIT }
+        t.preview(LOOKAHEAD_MS - 300)
+        assertEquals(3000 - LOOKAHEAD_MS + 300, t.positionMs, 0.0)               // first group just under the lane's top
+        assertTrue(LaneGeometry(1000f).visible(s, t.positionMs, 1000).isNotEmpty())
+        t.play(leadInMs = 1000.0)                                                  // already further back: no jump
+        assertEquals(3000 - LOOKAHEAD_MS + 300, t.positionMs, 0.0)
+        t.pause(); t.preview(100.0)                                                // no longer fresh: preview does nothing
+        assertEquals(3000 - LOOKAHEAD_MS + 300, t.positionMs, 0.0)
+    }
 }

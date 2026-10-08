@@ -86,10 +86,43 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         get() = if (mode == Mode.PERFORM) listenFor else if (mode != Mode.WAIT) emptySet()
         else song.groups.getOrNull(groupIndex)?.notes?.filter(::required)?.map { it.midi }?.toSet().orEmpty()
 
-    /** [leadInMs]: starting from the top, begin this far before the song so the first notes can be played on time. */
+    /**
+     * Where the current run starts: the top, the last seek, or where the hands or mode last changed. Notes
+     * before it are behind the player. The timeline shows this while the lead-in runs.
+     */
+    var runFromMs = 0.0
+        private set
+    /** The first group of the run (or [runFromMs] when none is left): the lead-in and count-in end here. */
+    var anchorMs = 0.0
+        private set
+    /** The run has not been played yet, so the next [play] may start with a lead-in. */
+    var fresh = true
+        private set
+    /** In the lead-in (or the preview before it): the song has not reached the run's first notes yet. */
+    val inLeadIn get() = positionMs < anchorMs
+    /** The position to remember and show: never earlier than where the run started. */
+    val shownMs get() = maxOf(positionMs, runFromMs)
+
+    init { resetGroups() }
+
+    /**
+     * Before Play: shows the run's first notes [aheadMs] above the hit line (the lane looks [LOOKAHEAD_MS] ahead).
+     * Only while the run is fresh; it does not change what is played.
+     */
+    fun preview(aheadMs: Double) {
+        if (!fresh || playing) return
+        positionMs = anchorMs - aheadMs
+    }
+
+    /**
+     * [leadInMs]: a fresh run (from the top, or after a seek) starts this far before its first group, so those
+     * notes are seen falling (and, in Perform, counted in) before they arrive. A preview further back is kept.
+     * Resuming after a pause has no lead-in.
+     */
     fun play(leadInMs: Double = 0.0) {
         if (positionMs >= song.durationMs) seek(0.0)
-        if (leadInMs > 0 && positionMs == 0.0) positionMs = -leadInMs
+        if (fresh && leadInMs > 0) positionMs = minOf(positionMs, anchorMs - leadInMs)
+        fresh = false
         playing = true
     }
 
@@ -98,6 +131,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     fun seek(ms: Double): List<NoteEvent> {
         val off = silence()
         positionMs = ms.coerceIn(0.0, song.durationMs.toDouble())
+        runFromMs = positionMs
         nextIndex = firstStartAtOrAfter(song.notes, positionMs)
         resetGroups()
         return off
@@ -143,6 +177,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         if (mode == Mode.PERFORM) {
             if (!playing) return InputResult.IGNORED
             val at = positionMs - latencyMs * speed
+            if (at < anchorMs - OK_MS) return InputResult.IGNORED      // the count-in: hands finding their place
             val open = score?.listening(at).orEmpty()
             if (score?.input(midi, at) != null) return InputResult.CORRECT
             log.wrong(midi, open)
@@ -167,9 +202,14 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         log.reset()
         satisfied.clear()
         waiting = false
-        scoreFromMs = positionMs
-        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, positionMs) else null
-        groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, positionMs))
+        // In a lead-in or preview the run still starts where it was cued, not at the earlier playhead.
+        val from = maxOf(positionMs, runFromMs)
+        runFromMs = from
+        anchorMs = song.groups.getOrNull(firstGroupAtOrAfter(song.groups, from))?.startMs?.toDouble() ?: from
+        fresh = true
+        scoreFromMs = from
+        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, from) else null
+        groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, from))
     }
 
     private fun nextRequiredGroup(from: Int): Int {

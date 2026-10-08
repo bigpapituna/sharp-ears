@@ -54,6 +54,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
@@ -84,8 +86,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** Perform mode starts this far (song ms) before the first note, so it can be played on time. */
-private const val LEAD_IN_MS = 2000.0
+/** Before Play, the run's first notes sit this far (song ms) above the hit line: just under the top of the lane. */
+private const val PREVIEW_MS = com.bigpapituna.sharpears.engine.LOOKAHEAD_MS * 0.75
 
 /** How the player opens. [inject] (debug) replaces the microphone with a WAV file or "synth:..." notes. */
 data class PlayerStart(
@@ -177,7 +179,8 @@ fun PlayerScreen(
         version++
     }
     fun savePosition() {
-        if (meta != null && transport.positionMs > 0 && transport.positionMs < song.durationMs) prefs.savePosition(meta.id, transport.positionMs.toLong())
+        val at = transport.shownMs
+        if (meta != null && at > 0 && at < song.durationMs) prefs.savePosition(meta.id, at.toLong())
     }
     // Practice time: real time while the transport plays, written in whole seconds (every 15 s and when it stops).
     val practiceMs = remember { doubleArrayOf(0.0) }
@@ -194,13 +197,15 @@ fun PlayerScreen(
     fun pause() { apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
-        // A count-in bar with the backing, or with the metronome in Perform mode; otherwise Perform's 2 s lead-in.
+        // A fresh run starts early so its first notes are seen falling: Perform counts in two bars (clicks and
+        // a beat counter), the backing one bar, Wait and Listen run in two beats.
         val leadIn = when {
-            backingOn || (metronomeOn && transport.mode == Mode.PERFORM) -> metro.barMs
-            transport.mode == Mode.PERFORM -> LEAD_IN_MS
-            else -> 0.0
+            transport.mode == Mode.PERFORM -> 2 * metro.barMs
+            backingOn -> metro.barMs
+            else -> 2 * metro.beatMs
         }
-        if (leadIn > 0 && transport.positionMs <= 0.0) Log.d(TAG, if (leadIn == metro.barMs) "count-in ${leadIn.toLong()} ms (${metro.beatsPerBar} beats)" else "lead-in ${leadIn.toLong()} ms")
+        if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
+            " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
         transport.play(leadInMs = leadIn); playing = true
         Log.d(TAG, "transport play from ${transport.positionMs.toLong()} ms speed=${transport.speed} mode=${transport.mode} hands=${transport.practice}")
     }
@@ -316,6 +321,8 @@ fun PlayerScreen(
     }
     LaunchedEffect(song) {
         if (startMs > 0) seek(startMs)
+        // Before Play the first notes already hang just under the top of the lane.
+        if (!debugDump) { transport.preview(PREVIEW_MS); position = transport.positionMs }
         Log.d(TAG, "player open ${song.id} range=${noteName(range.first)}..${noteName(range.last)} mode=$mode hands=$practice mic=$micOn at=${startMs.toLong()} video=${tutorial != null}")
         if (start.inject != null && embedded == null) {
             // Debug injection runs hands-free, starting with the injected audio (rendering it takes a moment).
@@ -351,8 +358,13 @@ fun PlayerScreen(
                 val events = transport.tick((now - last) / 1_000_000.0)
                 if (events.isNotEmpty()) apply(events)
                 // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
-                if ((metronomeOn || backingOn) && transport.positionMs > before && soundAllowed())
-                    metro.clicks(before, transport.positionMs).forEach { clicks.value.play(it) }
+                // The Perform count-in always clicks, metronome or not.
+                val clickTo = when {
+                    metronomeOn || backingOn -> transport.positionMs
+                    mode == Mode.PERFORM -> minOf(transport.positionMs, transport.anchorMs)
+                    else -> before
+                }
+                if (clickTo > before && soundAllowed()) metro.clicks(before, clickTo).forEach { clicks.value.play(it) }
                 if (transport.positionMs < before) Log.d(TAG, "loop wrap ${before.toLong()} -> ${transport.positionMs.toLong()} ms")
                 if (transport.passes != passes) { passes = transport.passes; transport.lastPass?.let(::passEnded) }
                 last = now
@@ -382,7 +394,7 @@ fun PlayerScreen(
 
     @Composable
     fun Bar() = TransportBar(
-        BarState(playing, ready, position.coerceAtLeast(0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
+        BarState(playing, ready, maxOf(position, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
             midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
             // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
             subtitle = listOfNotNull(meta?.composer?.takeIf { it.isNotEmpty() },
@@ -394,7 +406,7 @@ fun PlayerScreen(
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
-                position < 0 -> "Get ready…"
+                position < transport.anchorMs -> if (playing) "Get ready" else ""
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             }),
         BarActions(
@@ -438,7 +450,16 @@ fun PlayerScreen(
                 if (debugDump) laneBox = Rect(c.positionInWindow(), c.size.toSize())
             },
             fingers = fingers, showNames = labels && prefs.noteNames && prefs.version.intValue >= 0, showFingers = labels && prefs.fingerNumbers,
+            // Until the run reaches its start, notes before a seek point stay hidden (they will not play).
+            hideBefore = if (position < transport.runFromMs) transport.runFromMs else null,
         )
+        // Perform count-in: the beats of the bar near the hit line, the current one bright.
+        if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
+            BeatCounter(metro.beatsPerBar, metro.beatInBar(position), Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
+        // Before the first Play: a quiet hint, nothing else.
+        if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
+            Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
         if (chordsOn && chordTrack != null) ChordLabel(chordTrack, position, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
@@ -497,7 +518,7 @@ fun PlayerScreen(
             EmbeddedBar(embedded.state, playing, ready, micOn, onPlayPause = { if (playing) pause() else play() }, onMic = ::toggleMic,
                 status = when {
                     mode != Mode.PERFORM || !playing -> ""
-                    position < 0 -> "Get ready"
+                    position < transport.anchorMs -> "Get ready"
                     else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
                 })
             Lane(Modifier.fillMaxWidth().weight(1f))
@@ -595,5 +616,18 @@ private fun ChordLabel(track: com.bigpapituna.sharpears.engine.ChordTrack, posit
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (name != null) Text(name, style = MaterialTheme.typography.titleLarge, color = Ink.copy(alpha = 0.78f))
         next?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = InkDim.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 2.dp)) }
+    }
+}
+
+/** The count-in: "1 2 3 4" with the current beat bright and larger. */
+@Composable
+private fun BeatCounter(beats: Int, current: Int, modifier: Modifier) {
+    LaunchedEffect(current) { Log.d(TAG, "count-in beat ${current + 1} of $beats") }
+    Row(modifier.semantics { contentDescription = "Count in, beat ${current + 1}" }, horizontalArrangement = Arrangement.spacedBy(22.dp),
+        verticalAlignment = Alignment.Bottom) {
+        (0 until beats).forEach { b ->
+            Text("${b + 1}", style = Numeric.merge(if (b == current) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineSmall),
+                color = if (b == current) Ink else InkDim.copy(alpha = 0.55f))
+        }
     }
 }

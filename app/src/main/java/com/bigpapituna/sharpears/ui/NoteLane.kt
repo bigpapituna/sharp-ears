@@ -60,6 +60,8 @@ fun NoteLane(
     fingers: Map<Note, Int> = emptyMap(),
     showNames: Boolean = true,
     showFingers: Boolean = true,
+    /** Notes starting before this time are not drawn (behind a seek point, during the lead-in). */
+    hideBefore: Double? = null,
 ) {
     val longest = remember(song) { song.notes.maxOfOrNull { it.durationMs } ?: 0L }
     val scrubDelta by rememberUpdatedState(onScrub)
@@ -99,6 +101,7 @@ fun NoteLane(
         }
         for (n in lane.visible(song, positionMs, longest)) {
             if (n.midi !in lowMidi..highMidi) continue
+            if (hideBefore != null && n.startMs < hideBefore) continue
             val k = keys.rect(n.midi)
             val black = isBlack(n.midi)
             val inset = if (black) 1.5f else (k.right - k.left) * 0.09f
