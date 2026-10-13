@@ -1,0 +1,287 @@
+package com.bigpapituna.sharpears.ui.onboarding
+
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.bigpapituna.sharpears.data.Prefs
+import com.bigpapituna.sharpears.data.ProgressStore
+import com.bigpapituna.sharpears.engine.COURSE
+import com.bigpapituna.sharpears.engine.progress.DailyGoal
+import com.bigpapituna.sharpears.engine.progress.Experience
+import com.bigpapituna.sharpears.reminder.Reminder
+import com.bigpapituna.sharpears.ui.Celebration
+import com.bigpapituna.sharpears.ui.ChunkyButton
+import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.PupSays
+import com.bigpapituna.sharpears.ui.Stat
+import com.bigpapituna.sharpears.ui.paper
+import com.bigpapituna.sharpears.ui.profile.mono
+import com.bigpapituna.sharpears.ui.reducedMotion
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+
+private const val STEPS = 4
+
+/**
+ * First run, four short steps with the pup talking: welcome, have you played before, a daily goal, then a reminder and
+ * how you will play. It ends with a celebration. Answers go to [store] (experience, goal, input choice, onboardingDone);
+ * the reminder and microphone choices are set on [prefs] through its setters, and [onReminderChanged] lets the app set
+ * the alarm. [onDone] gets the lesson to open first (null to just look around). Skip leaves everything at its default.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -> Unit = {}, onDone: (startLessonId: String?) -> Unit) {
+    val context = LocalContext.current
+    val still = reducedMotion()
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var experience by rememberSaveable { mutableIntStateOf(-1) }
+    var goal by rememberSaveable { mutableIntStateOf(store.goalMinutes.takeIf { it in DailyGoal.OPTIONS } ?: DailyGoal.DEFAULT) }
+    var reminderOn by rememberSaveable { mutableStateOf(true) }
+    var reminderMinutes by rememberSaveable { mutableIntStateOf(prefs.reminderMinutes) }
+    var useMic by rememberSaveable { mutableStateOf(false) }
+    var finished by rememberSaveable { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf(false) }
+
+    fun finish(notifyOk: Boolean) {
+        store.experience = Experience.fromOrdinal(experience)
+        store.goalMinutes = goal
+        store.useMic = useMic
+        prefs.micDefault = useMic
+        prefs.reminderMinutes = reminderMinutes
+        prefs.reminderOn = reminderOn && notifyOk
+        onReminderChanged()
+        store.onboardingDone = true
+        finished = true
+    }
+    // Android 13 and up ask before an app may post notifications; asked here, when the reminder is chosen.
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> finish(granted) }
+
+    if (finished) {
+        val exp = Experience.fromOrdinal(experience) ?: Experience.NEVER
+        val unit = COURSE.firstOrNull { it.id == exp.startUnit }
+        val lesson = unit?.lessons?.firstOrNull { it.id == exp.startLessonId }
+        Celebration(
+            title = "You're all set",
+            line = lesson?.let { "Your first lesson is ready: ${it.title}." } ?: "Your first lesson is ready.",
+            stats = listOf(Stat("$goal min", "Daily goal"), Stat(unit?.title ?: "Basics", "Start at")),
+            primary = "Start learning", onPrimary = { onDone(lesson?.id) },
+            secondary = "Look around first", onSecondary = { onDone(null) },
+            pose = Pose.LEVEL_UP,
+        )
+        return
+    }
+
+    BackHandler(enabled = step > 0) { step-- }
+    val canContinue = step != 1 || experience >= 0
+    Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().weight(1f).padding(horizontal = 24.dp)) {
+            // Where we are, and a way out.
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).semantics { contentDescription = "Step ${step + 1} of $STEPS" }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repeat(STEPS) { i ->
+                        val k by animateFloatAsState(if (i <= step) 1f else 0f, tween(if (still) 0 else 300), label = "dot")
+                        Box(Modifier.height(6.dp).weight(1f).clip(CircleShape).background(MaterialTheme.colorScheme.outlineVariant)) {
+                            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = k)))
+                        }
+                    }
+                }
+                TextButton(onClick = { store.onboardingDone = true; onDone(null) }) { Text("Skip") }
+            }
+            AnimatedContent(
+                step, Modifier.weight(1f),
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    if (still) fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    else (slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { dir * it / 4 } + fadeIn(tween(340))) togetherWith
+                        (slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { -dir * it / 4 } + fadeOut(tween(180)))
+                },
+                label = "step",
+            ) { s ->
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    when (s) {
+                        0 -> WelcomeStep()
+                        1 -> ExperienceStep(experience) { experience = it }
+                        2 -> GoalStep(goal) { goal = it }
+                        else -> HabitStep(
+                            reminderOn, reminderMinutes, useMic,
+                            onReminder = { reminderOn = it }, onPickTime = { pickTime = true }, onMic = { useMic = it },
+                        )
+                    }
+                }
+            }
+            ChunkyButton(
+                onClick = {
+                    if (step < STEPS - 1) step++
+                    else if (reminderOn && !Reminder.canNotify(context)) askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else finish(true)
+                },
+                enabled = canContinue, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp),
+            ) { Text(if (step == STEPS - 1) "Finish" else "Continue") }
+        }
+    }
+
+    if (pickTime) {
+        val state = androidx.compose.material3.rememberTimePickerState(reminderMinutes / 60, reminderMinutes % 60,
+            is24Hour = android.text.format.DateFormat.is24HourFormat(context))
+        AlertDialog(
+            onDismissRequest = { pickTime = false },
+            title = { Text("Reminder time") },
+            text = { androidx.compose.material3.TimePicker(state, colors = androidx.compose.material3.TimePickerDefaults.colors(
+                periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer)) },
+            confirmButton = { TextButton(onClick = { reminderMinutes = state.hour * 60 + state.minute; pickTime = false }) { Text("Set") } },
+            dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun StepTitle(text: String) =
+    Text(text, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+
+@Composable
+private fun WelcomeStep() {
+    PupSays(Pose.WELCOME, "Hi, I'm your coach. I'll help you learn piano, a few minutes a day.", Modifier.fillMaxWidth(), size = 132.dp)
+    StepTitle("Welcome to Sharp Ears")
+    Text("Lessons that start from the very first key, songs that fall onto the keyboard, chords, ear training and theory. " +
+        "It listens as you play and tells you how it went.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("Everything stays on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ExperienceStep(picked: Int, onPick: (Int) -> Unit) {
+    PupSays(Pose.LEARNING, "Have you played before? Any answer is fine. I'll pick a good place to start.", Modifier.fillMaxWidth(), size = 96.dp)
+    StepTitle("Have you played before?")
+    Experience.entries.forEach { e -> Choice(picked == e.ordinal, e.label, e.detail) { onPick(e.ordinal) } }
+    val exp = Experience.fromOrdinal(picked)
+    if (exp != null) {
+        val unit = COURSE.firstOrNull { it.id == exp.startUnit }
+        val lesson = unit?.lessons?.firstOrNull { it.id == exp.startLessonId }
+        Text("We'll start you in ${unit?.title ?: "Basics"}" + (lesson?.let { ", with \"${it.title}\"." } ?: "."),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun GoalStep(goal: Int, onPick: (Int) -> Unit) {
+    PupSays(Pose.GET_READY, "How much time can you give me each day? Small and steady beats big and rare.", Modifier.fillMaxWidth(), size = 96.dp)
+    StepTitle("Your daily goal")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DailyGoal.OPTIONS.forEach { m ->
+            val sel = goal == m
+            val c = MaterialTheme.colorScheme
+            Column(
+                Modifier.weight(1f).heightIn(min = 72.dp).clip(RoundedCornerShape(16.dp))
+                    .background(if (sel) c.primaryContainer else c.surfaceContainerHigh)
+                    .then(if (sel) Modifier.border(2.dp, c.primary, RoundedCornerShape(16.dp)) else Modifier)
+                    .selectable(sel, role = Role.RadioButton, onClick = { onPick(m) })
+                    .semantics { contentDescription = "$m minutes a day, ${DailyGoal.name(m)}" },
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+            ) {
+                Text("$m", style = MaterialTheme.typography.titleLarge.mono(), color = if (sel) c.onPrimaryContainer else c.onSurface)
+                Text("min", style = MaterialTheme.typography.labelSmall, color = if (sel) c.onPrimaryContainer else c.onSurfaceVariant)
+            }
+        }
+    }
+    Text(DailyGoal.name(goal), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+    Text(DailyGoal.note(goal), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("You can change it any time on the You tab.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun HabitStep(
+    reminderOn: Boolean, reminderMinutes: Int, useMic: Boolean,
+    onReminder: (Boolean) -> Unit, onPickTime: () -> Unit, onMic: (Boolean) -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    val timeLabel = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
+        .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)).replace(' ', ' ')
+    PupSays(Pose.LISTENING, "Nearly there. Two quick choices and we can start.", Modifier.fillMaxWidth(), size = 96.dp)
+    StepTitle("A reminder, and how you play")
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(reminderOn, role = Role.Switch, onValueChange = onReminder),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text("Daily reminder", style = MaterialTheme.typography.titleSmall)
+            Text("A nudge to practise, once a day.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+        }
+        Switch(reminderOn, onCheckedChange = null)
+    }
+    if (reminderOn) TextButton(onClick = onPickTime, modifier = Modifier.semantics { contentDescription = "Reminder time, $timeLabel, tap to change" }) {
+        Text("Remind me at $timeLabel")
+    }
+    Text("How will you play?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+    Choice(!useMic, "Keys on screen or MIDI", "I'll tap the keys on the screen, or plug in a MIDI keyboard.") { onMic(false) }
+    Choice(useMic, "Microphone", "I play a real piano or keyboard and the app listens.") { onMic(true) }
+    Text("You can change both in Settings.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, textAlign = TextAlign.Start)
+}
+
+/** One answer: an outlined row that fills with the accent tint when picked. */
+@Composable
+private fun Choice(selected: Boolean, title: String, detail: String, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(shape)
+            .background(if (selected) c.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+            .border(if (selected) 2.dp else 1.dp, if (selected) c.primary else c.outlineVariant, shape)
+            .selectable(selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = if (selected) c.onPrimaryContainer else c.onSurface)
+        Text(detail, style = MaterialTheme.typography.bodyMedium, color = if (selected) c.onPrimaryContainer.copy(alpha = 0.85f) else c.onSurfaceVariant)
+    }
+}
