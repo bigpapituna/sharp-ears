@@ -130,12 +130,13 @@ private sealed interface Screen {
     data class EarTraining(val back: Screen, val start: EarStart? = null) : Screen
     /** First run: four questions, then the suggested lesson. */
     data object Onboarding : Screen
+    data class Theory(val back: Screen) : Screen
 }
 
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, Screen.Onboarding -> 1
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding -> 1
     is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup -> 2
 }
 
@@ -225,6 +226,7 @@ class MainActivity : ComponentActivity() {
                 intent.getBooleanExtra("workout", false) -> EarStart(workout = true)
                 else -> intent.getStringExtra("game")?.let(EarKind::byId)?.let { EarStart(it, intent.getIntExtra("level", 0)) }
             })
+            debuggable && intent.getStringExtra("screen") == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
             debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
@@ -465,6 +467,9 @@ class MainActivity : ComponentActivity() {
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
+                        }
+                        is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back }, soundOn = prefs.sound)
                         }
                         is Screen.Licences -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
