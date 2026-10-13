@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -59,6 +60,11 @@ import com.bigpapituna.sharpears.engine.theory.Cue
 import com.bigpapituna.sharpears.engine.theory.Mood
 import com.bigpapituna.sharpears.engine.theory.TheoryLesson
 import com.bigpapituna.sharpears.engine.theory.TheoryUnit
+import com.bigpapituna.sharpears.engine.theory.Visual
+import com.bigpapituna.sharpears.engine.theory.KeysVisual
+import com.bigpapituna.sharpears.engine.theory.StaffVisual
+import com.bigpapituna.sharpears.engine.theory.CircleVisual
+import com.bigpapituna.sharpears.engine.theory.ChordVisual
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.PupSays
@@ -174,13 +180,20 @@ internal fun Explainer(
             }
             SceneBar(lesson.scenes.size, index) { (clock.intValue.toFloat() / visual.durationMs).coerceIn(0f, 1f) }
             PupSays(scene.mood.pose(), scene.caption, Modifier.padding(top = 14.dp, bottom = 12.dp).heightIn(min = 80.dp), size = 76.dp)
-            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                androidx.compose.runtime.key(index) {
-                    SceneCanvas(visual, time = { if (still) visual.durationMs else clock.intValue }, description = scene.caption,
-                        modifier = Modifier.fillMaxSize().padding(6.dp).graphicsLayer {
-                            alpha = enter.value
-                            translationX = (1 - enter.value) * 48.dp.toPx() * if (forward) 1 else -1
-                        })
+            // The stage is only as tall as the lesson's tallest scene needs (a share of its width), centred in the room
+            // left over: on a tall phone a full-height panel left the keyboard scenes floating in empty space.
+            // One height per lesson, so the panel does not jump between scenes.
+            val ratio = remember(lesson) { lesson.scenes.maxOf { stageRatio(it.visual) } }
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().heightIn(max = maxWidth * ratio).fillMaxHeight().clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    androidx.compose.runtime.key(index) {
+                        SceneCanvas(visual, time = { if (still) visual.durationMs else clock.intValue }, description = scene.caption,
+                            modifier = Modifier.fillMaxSize().padding(6.dp).graphicsLayer {
+                                alpha = enter.value
+                                translationX = (1 - enter.value) * 48.dp.toPx() * if (forward) 1 else -1
+                            })
+                    }
                 }
             }
         }
@@ -203,6 +216,14 @@ internal fun Explainer(
             }
         }
     }
+}
+
+/** Stage height as a share of its width that each kind of scene needs (keys are wide, the circle is round). */
+private fun stageRatio(v: Visual): Float = when (v) {
+    is KeysVisual -> 0.8f
+    is StaffVisual -> if (v.grand) 1.0f else 0.85f
+    is CircleVisual, is ChordVisual -> 1.05f
+    else -> 0.9f
 }
 
 /** One segment per scene: done ones full, the current one filling as it plays (read while drawing). */
