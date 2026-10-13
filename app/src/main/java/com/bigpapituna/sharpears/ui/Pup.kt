@@ -2,12 +2,8 @@ package com.bigpapituna.sharpears.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -35,7 +31,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -72,38 +78,100 @@ enum class Pose(val res: Int) {
 /**
  * The pup in [pose], standing in a soft gold glow with his shadow on the ground. A new pose hops in; then he keeps
  * moving a little the way the pose suggests (a wave, a jump, a head tilt, slow breathing), and his shadow shrinks
- * as he leaves the ground. Still when the phone's animations are off. Decorative: the text beside him says what
+ * as he leaves the ground. Between poses he is alive: he blinks every few seconds, looks around every 6 to 10 s,
+ * wiggles when tapped ([onTap]) and drifts sleepy when left alone ([sleepyAfterMs]). All of it is transforms
+ * of the one pose image. Still when the phone's animations are off. Decorative: the text beside him says what
  * he means, so screen readers skip him.
  */
 @Composable
-fun Pup(pose: Pose, modifier: Modifier = Modifier, size: Dp = 88.dp) {
+fun Pup(
+    pose: Pose, modifier: Modifier = Modifier, size: Dp = 88.dp,
+    /** Tapping him: a happy wiggle, then this. Without it he takes no touches (and stays out of the way). */
+    onTap: (() -> Unit)? = null,
+    /** After this long with no new pose and no tap he gets sleepy: slower sway, a slow nod. The home screen uses 30 s. */
+    sleepyAfterMs: Long? = null,
+) {
     val still = reducedMotion()
+    val scope = rememberCoroutineScope()
     val hop = remember { Animatable(1f) }
     LaunchedEffect(pose) {
         if (still) return@LaunchedEffect
         hop.snapTo(0.6f)
         hop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
     }
-    val t = rememberInfiniteTransition(label = "pup")
-    // One 0..1 cycle; each pose turns it into its own motion below.
+    // One 0..1 cycle, advanced by a frame clock so its speed can ease down when he is sleepy; each pose turns it
+    // into its own motion below. Read only in the layer and draw blocks, so he never recomposes per frame.
     val period = when (pose) { Pose.RESTING -> 3200; Pose.GREAT_JOB, Pose.LEVEL_UP -> 900; Pose.STREAK -> 420; Pose.PRACTICING -> 500; else -> 1600 }
-    val c by t.animateFloat(0f, 1f, infiniteRepeatable(tween(period, easing = LinearEasing), RepeatMode.Restart), label = "cycle")
-    val wave = kotlin.math.sin(c * 2 * Math.PI).toFloat()                  // -1..1, smooth
-    val bounce = kotlin.math.abs(kotlin.math.sin(c * Math.PI)).toFloat()   // 0..1..0, a hop per cycle
-    val m = if (still) 0f else 1f
-    val lift = when (pose) { Pose.GREAT_JOB, Pose.LEVEL_UP -> 0.12f; Pose.STREAK -> 0.04f; Pose.PRACTICING -> 0.02f; else -> 0f } * bounce * m
+    val cycle = remember { mutableFloatStateOf(0f) }
+    val blink = remember { Animatable(0f) }       // 0 open .. 1 eyes shut (a quick squash of the whole pup)
+    val look = remember { Animatable(0f) }        // -1 left .. 1 right
+    val wiggle = remember { Animatable(1f) }      // 0..1 through a wiggle; 1 = none
+    val sleepy = remember { Animatable(0f) }      // 0 awake .. 1 drowsy
+    var taps by remember { mutableIntStateOf(0) }
+    val periodNow by rememberUpdatedState(period)
+    if (!still) {
+        LaunchedEffect(Unit) {
+            var last = 0L
+            while (true) withFrameNanos { now ->
+                if (last != 0L) {
+                    val speed = 1f - 0.6f * sleepy.value
+                    cycle.floatValue = (cycle.floatValue + (now - last) / 1e6f / periodNow * speed) % 1f
+                }
+                last = now
+            }
+        }
+        LaunchedEffect(Unit) {
+            val r = java.util.Random()
+            while (true) {
+                delay(2600L + r.nextInt(3400) + (sleepy.value * 2500).toLong())
+                val shut = 70 + (sleepy.value * 260).toInt()                    // drowsy blinks are slow
+                blink.animateTo(1f, tween(shut)); blink.animateTo(0f, tween(110 + shut / 2))
+                if (r.nextInt(5) == 0 && sleepy.value < 0.5f) { blink.animateTo(1f, tween(60)); blink.animateTo(0f, tween(100)) }
+            }
+        }
+        LaunchedEffect(Unit) {
+            val r = java.util.Random()
+            while (true) {
+                delay(6000L + r.nextInt(4000))
+                if (sleepy.value > 0.5f) continue
+                look.animateTo((if (r.nextBoolean()) 1f else -1f) * (0.6f + 0.4f * r.nextFloat()), spring(dampingRatio = 0.6f, stiffness = 120f))
+                delay(700L + r.nextInt(900))
+                look.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 90f))
+            }
+        }
+        if (sleepyAfterMs != null) LaunchedEffect(pose, taps, sleepyAfterMs) {
+            sleepy.animateTo(0f, tween(400))
+            delay(sleepyAfterMs)
+            sleepy.animateTo(1f, tween(2500))
+        }
+    }
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    Box(modifier.size(size).drawBehind {
+    val m = if (still) 0f else 1f
+    val liftOf = when (pose) { Pose.GREAT_JOB, Pose.LEVEL_UP -> 0.12f; Pose.STREAK -> 0.04f; Pose.PRACTICING -> 0.02f; else -> 0f }
+    fun bounce() = kotlin.math.abs(kotlin.math.sin(cycle.floatValue * Math.PI)).toFloat()   // 0..1..0, a hop per cycle
+    val tap = if (onTap == null) Modifier else Modifier.pointerInput(Unit) {
+        detectTapGestures {
+            taps++
+            if (!still) scope.launch { wiggle.snapTo(0f); wiggle.animateTo(1f, tween(700, easing = LinearEasing)) }
+            onTap()
+        }
+    }
+    Box(modifier.size(size).then(tap).drawBehind {
         // The glow he stands in, and his shadow (smaller while he is in the air).
+        val lift = liftOf * bounce() * m
         val glow = Offset(this.size.width / 2, this.size.height * 0.56f)
         val r = this.size.width * 0.56f
         drawCircle(Brush.radialGradient(listOf(PupGold.copy(alpha = if (dark) 0.22f else 0.30f), Color.Transparent), glow, r), r, glow)
-        val w = this.size.width * 0.58f * (1f - 2.2f * lift)
+        val w = this.size.width * 0.58f * (1f - 2.2f * lift) * (1f + 0.03f * look.value * look.value)
         drawOval(if (dark) Color.Black.copy(alpha = 0.32f) else Color(0xFF5A4030).copy(alpha = 0.16f),
-            topLeft = Offset((this.size.width - w) / 2, this.size.height * 0.93f), size = Size(w, this.size.height * 0.07f))
+            topLeft = Offset((this.size.width - w) / 2 + this.size.width * 0.03f * look.value, this.size.height * 0.93f), size = Size(w, this.size.height * 0.07f))
     }) {
         Image(painterResource(pose.res), contentDescription = null, modifier = Modifier.fillMaxSize().graphicsLayer {
             transformOrigin = TransformOrigin(0.5f, 1f)                 // moves from the feet
+            val c = cycle.floatValue
+            val wave = kotlin.math.sin(c * 2 * Math.PI).toFloat()      // -1..1, smooth
+            val bounce = bounce()
+            val lift = liftOf * bounce * m
             val s = hop.value
             scaleX = s; scaleY = s
             translationY = -size.toPx() * lift
@@ -117,6 +185,24 @@ fun Pup(pose: Pose, modifier: Modifier = Modifier, size: Dp = 88.dp) {
                 Pose.GET_READY -> { val p = 1f + 0.05f * bounce * m; scaleX = s * p; scaleY = s * p }
                 Pose.RESTING -> scaleY = s * (1f + 0.025f * wave * m)               // slow breathing
                 Pose.PRACTICING -> {}
+            }
+            // Idle life on top of the pose: a blink (a quick squash reads as one from a distance), a look around,
+            // a sleepy nod, and a wiggle when tapped.
+            val b = blink.value
+            scaleY *= 1f - 0.06f * b
+            scaleX *= 1f + 0.025f * b
+            val lk = look.value
+            rotationZ += 4f * lk
+            translationX = size.toPx() * 0.03f * lk
+            val z = sleepy.value
+            rotationZ += z * 3f * kotlin.math.sin(c * 2 * Math.PI + 1.3).toFloat()
+            translationY += size.toPx() * 0.015f * z
+            val wg = wiggle.value
+            if (wg < 1f) {
+                val fade = 1f - wg
+                rotationZ += 9f * kotlin.math.sin(wg * 6 * Math.PI).toFloat() * fade
+                val pop = 1f + 0.08f * kotlin.math.sin(wg * Math.PI).toFloat()
+                scaleX *= pop; scaleY *= pop
             }
         })
     }
@@ -149,9 +235,10 @@ fun SpeechBubble(line: String, modifier: Modifier = Modifier, style: TextStyle =
 
 /** The pup with what he says beside him, for the moments he speaks up (greetings, feedback, results). */
 @Composable
-fun PupSays(pose: Pose, line: String, modifier: Modifier = Modifier, size: Dp = 72.dp) =
+fun PupSays(pose: Pose, line: String, modifier: Modifier = Modifier, size: Dp = 72.dp,
+            onTap: (() -> Unit)? = null, sleepyAfterMs: Long? = null) =
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Pup(pose, size = size)
+        Pup(pose, size = size, onTap = onTap, sleepyAfterMs = sleepyAfterMs)
         SpeechBubble(line, Modifier.weight(1f, fill = false))
     }
 
