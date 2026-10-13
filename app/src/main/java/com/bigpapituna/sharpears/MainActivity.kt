@@ -82,6 +82,18 @@ import com.bigpapituna.sharpears.ui.PlayerStart
 import com.bigpapituna.sharpears.ui.SettingsScreen
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.paper
+import androidx.compose.animation.AnimatedContent
+import com.bigpapituna.sharpears.data.PracticeStore
+import com.bigpapituna.sharpears.data.ProgressStore
+import com.bigpapituna.sharpears.engine.ear.EarKind
+import com.bigpapituna.sharpears.ui.ear.EarStart
+import com.bigpapituna.sharpears.ui.ear.EarTrainingScreen
+import com.bigpapituna.sharpears.ui.motion.screenTransitions
+import com.bigpapituna.sharpears.ui.onboarding.OnboardingScreen
+import com.bigpapituna.sharpears.ui.practice.PracticeScreen
+import com.bigpapituna.sharpears.ui.practice.PracticeTab
+import com.bigpapituna.sharpears.ui.profile.ProfileScreen
+import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,9 +101,9 @@ import kotlinx.coroutines.withContext
 const val TAG = "SharpEars"
 
 private sealed interface Screen {
-    /** The three tabs. [chordsTab] and [inject] only matter for the Chords tab. */
+    /** The five tabs. [chordsTab], [inject] and [game] only matter for Chords, [practiceTab] for Practice. */
     data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.PLAY, val inject: String? = null,
-                    val game: GameStart = GameStart()) : Screen
+                    val game: GameStart = GameStart(), val practiceTab: PracticeTab = PracticeTab.SCALES) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
@@ -103,7 +115,27 @@ private sealed interface Screen {
     data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
     data class Privacy(val back: Screen) : Screen
     data class Licences(val back: Screen) : Screen
+    /** Settings, pushed from the gear on You (it was a tab before 2.0). */
+    data class Settings(val back: Screen) : Screen
+    /** The ear training hub (Learn), or straight into a game or the workout with [start]. */
+    data class EarTraining(val back: Screen, val start: EarStart? = null) : Screen
+    /** First run: four questions, then the suggested lesson. */
+    data object Onboarding : Screen
 }
+
+/** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
+private fun depthOf(s: Screen) = when (s) {
+    is Screen.Home -> 0
+    is Screen.Settings, is Screen.EarTraining, Screen.Onboarding -> 1
+    is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup -> 2
+}
+
+/** The player is always dark, like a video; everything else follows the system. */
+private fun playerShown(s: Screen) = s is Screen.Player ||
+    (s is Screen.Daily && !s.between && s.plan.parts[s.index].let { it is SessionPart.Loop || it is SessionPart.Song })
+
+/** The stage: the player, or a Practice today part that runs one. */
+private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
 
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
@@ -129,13 +161,18 @@ class MainActivity : ComponentActivity() {
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this, prefs)        // alarms do not survive an update or restart
         voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
         val lessons = LessonStore(this)
+        val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
+        val practiceStore = PracticeStore(this)
         val micCheck = micCheckExercise()
 
         // Debug builds accept extras to open a screen directly:
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
-        //   --es screen chords|settings|learn [--es tab play|daily|dictionary|practice|progressions] [--es inject ...]
+        //   --es screen chords|settings|learn|profile [--es tab play|daily|dictionary|practice|progressions] [--es inject ...]
+        //   --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner]
+        //   --es screen ear [--es game rhythm|melody|pitch|degree|prog --ei level 0-2 | --ez workout true]
+        //   --es screen onboarding   (the first-run flow, whatever was answered before)
         //   --es screen chords --es game build|hear|mm [--ei level 0-2] [--es inject ...]   (a chord game, seeded)
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
@@ -165,8 +202,16 @@ class MainActivity : ComponentActivity() {
                 debugStart.inject,
                 GameStart(GameKind.entries.firstOrNull { it.id == intent.getStringExtra("game") }, intent.getIntExtra("level", 0)),
             )
-            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
+            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
+            debuggable && intent.getStringExtra("screen") == "profile" -> Screen.Home(HomeTab.YOU)
+            debuggable && intent.getStringExtra("screen") == "onboarding" -> Screen.Onboarding
+            debuggable && intent.getStringExtra("screen") == "practice" -> Screen.Home(HomeTab.PRACTICE,
+                practiceTab = PracticeTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: PracticeTab.SCALES)
+            debuggable && intent.getStringExtra("screen") == "ear" -> Screen.EarTraining(Screen.Home(HomeTab.LEARN), when {
+                intent.getBooleanExtra("workout", false) -> EarStart(workout = true)
+                else -> intent.getStringExtra("game")?.let(EarKind::byId)?.let { EarStart(it, intent.getIntExtra("level", 0)) }
+            })
             debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
@@ -189,10 +234,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var screen by remember { mutableStateOf(first) }
-            // The player is always dark, like a video; everything else follows the system.
-            val s0 = screen
-            val playerShown = s0 is Screen.Player || (s0 is Screen.Daily && !s0.between && s0.plan.parts[s0.index].let { it is SessionPart.Loop || it is SessionPart.Song })
-            SharpEarsTheme(dark = if (playerShown) true else isSystemInDarkTheme()) {
+            SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 Surface(Modifier.fillMaxSize().paper(), color = androidx.compose.ui.graphics.Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onBackground) {   // textured page (ui/Backdrop.kt)
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
@@ -282,7 +324,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    when (val s = screen) {
+                    // One transition for the whole stack (ui/motion/Transitions.kt). The key is the screen's class only, so
+                    // changes inside a screen (a tab, Daily's index, a lesson step) do not count as a new screen; HomeShell
+                    // cross-fades its own tabs. Inside, always use `s`, never the outer `screen`.
+                    val still = reducedMotion()
+                    val systemDark = isSystemInDarkTheme()
+                    AnimatedContent(screen, Modifier.fillMaxSize(), label = "screen", contentKey = { it::class },
+                        transitionSpec = screenTransitions(still, isStage = ::isStage, depth = ::depthOf)) { s ->
+                    // Each screen keeps its own theme while it animates out (the home does not turn dark under the curtain).
+                    SharpEarsTheme(dark = playerShown(s) || systemDark) {
+                    when (s) {
                         is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
                             s.startMs, dump, s.start, onBack = { screen = s.back },
                             chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
@@ -352,6 +403,26 @@ class MainActivity : ComponentActivity() {
                             com.bigpapituna.sharpears.ui.SightReadScreen(LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.level, s.inject,
                                 onBack = { screen = s.back })
                         }
+                        is Screen.EarTraining -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            // The hub handles Back itself: a game goes back to the hub, the hub to Learn.
+                            EarTrainingScreen(sampler, midi, mic, voice, prefs.micDefault, onBack = { screen = s.back },
+                                sound = { prefs.sound }, start = s.start)
+                        }
+                        Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) }) { lessonId ->
+                                // The suggested first lesson opens straight away; Back from it lands on Learn.
+                                screen = lessonId?.let { id -> COURSE.flatMap { it.lessons }.firstOrNull { it.id == id } }
+                                    ?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
+                            }
+                        }
+                        is Screen.Settings -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "", voice = voice,
+                                onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
+                                onMicSetup = { screen = Screen.MicSetup(s) },
+                                onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
+                                onBack = { screen = s.back })
+                        }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
@@ -371,8 +442,8 @@ class MainActivity : ComponentActivity() {
                             val due = remember(lv, lessons.songPacks.value) {
                                 lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
-                            HomeShell(s.tab, { screen = s.copy(tab = it, inject = null, game = GameStart()) }, badge = mapOf(HomeTab.CHORDS to due)) {
-                                when (s.tab) {
+                            HomeShell(s.tab, { screen = s.copy(tab = it, inject = null, game = GameStart()) }, badge = mapOf(HomeTab.CHORDS to due)) { tab ->
+                                when (tab) {
                                     HomeTab.SONGS -> {
                                         val pv = prefs.version.intValue
                                         val entries = remember(songs, pv) {
@@ -397,21 +468,22 @@ class MainActivity : ComponentActivity() {
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
                                         LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
-                            onSightRead = { screen = Screen.SightRead(s) },
-                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
+                                            onSightRead = { screen = Screen.SightRead(s) },
+                                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
                                     }
+                                    HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore, onOpenExercise = { _, _ -> },
+                                        startTab = s.practiceTab, onTab = { screen = s.copy(practiceTab = it) })
                                     HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
                                         onPlayProgression = { p, key ->
                                             screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
                                                 0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
-                                    HomeTab.SETTINGS -> SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "", voice = voice,
-                                        onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
-                                        onMicSetup = { screen = Screen.MicSetup(s) },
-                                        onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) })
+                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { screen = Screen.Settings(s) })
                                 }
                             }
                         }
+                    }
+                    }
                     }
                     dailyDone?.let { (parts, min, streak) ->
                         com.bigpapituna.sharpears.ui.Celebration("Done for today!",

@@ -94,6 +94,8 @@ fun PracticeScreen(
     modifier: Modifier = Modifier,
     startTab: PracticeTab = PracticeTab.SCALES,
     onEvent: (PracticeEvent) -> Unit = {},
+    /** A tab was picked (integration: remembers it across the player and counts the metronome and tuner as used). */
+    onTab: (PracticeTab) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(startTab) }
     Column(modifier) {
@@ -101,7 +103,7 @@ fun PracticeScreen(
             modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
         PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background, divider = {}) {
             PracticeTab.entries.forEach { t ->
-                Tab(tab == t, { tab = t }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text(t.label) })
+                Tab(tab == t, { tab = t; onTab(t) }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text(t.label) })
             }
         }
         when (tab) {

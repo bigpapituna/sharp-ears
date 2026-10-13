@@ -14,6 +14,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -49,7 +50,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** The reminder was switched or its time changed: set (or cancel) the alarm. */
                    onReminder: () -> Unit = {},
                    onMicSetup: () -> Unit,
-                   onPrivacy: () -> Unit, onLicences: () -> Unit) {
+                   onPrivacy: () -> Unit, onLicences: () -> Unit,
+                   /** Settings is a pushed screen (from the gear on You): a back arrow beside the heading. */
+                   onBack: (() -> Unit)? = null) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30).
     val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
@@ -86,7 +89,10 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                onBack?.let { IconButton(onClick = it) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") } }
+                Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = if (onBack != null) 4.dp else 0.dp).semantics { heading() })
+            }
 
             Section("Keyboard")
             Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
