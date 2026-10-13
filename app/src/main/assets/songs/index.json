@@ -458,6 +458,365 @@
       "videos": []
     },
     {
+      "id": "mary-had-a-little-lamb",
+      "file": "mary-had-a-little-lamb.mid",
+      "title": "Mary Had a Little Lamb",
+      "composer": "Traditional (American)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First verse",
+          "bar": 1
+        },
+        {
+          "name": "Second verse",
+          "bar": 9
+        }
+      ]
+    },
+    {
+      "id": "hot-cross-buns",
+      "file": "hot-cross-buns.mid",
+      "title": "Hot Cross Buns",
+      "composer": "Traditional (English)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First time",
+          "bar": 1
+        },
+        {
+          "name": "Second time",
+          "bar": 5
+        }
+      ]
+    },
+    {
+      "id": "row-row-row-your-boat",
+      "file": "row-row-row-your-boat.mid",
+      "title": "Row, Row, Row Your Boat",
+      "composer": "Traditional",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Row the boat",
+          "bar": 1
+        },
+        {
+          "name": "Merrily",
+          "bar": 5
+        },
+        {
+          "name": "Again",
+          "bar": 9
+        },
+        {
+          "name": "Merrily again",
+          "bar": 13
+        }
+      ]
+    },
+    {
+      "id": "london-bridge",
+      "file": "london-bridge.mid",
+      "title": "London Bridge",
+      "composer": "Traditional (English)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First time",
+          "bar": 1
+        },
+        {
+          "name": "Second time",
+          "bar": 9
+        }
+      ]
+    },
+    {
+      "id": "yankee-doodle",
+      "file": "yankee-doodle.mid",
+      "title": "Yankee Doodle",
+      "composer": "Traditional (American)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Verse",
+          "bar": 1
+        },
+        {
+          "name": "Verse again",
+          "bar": 5
+        },
+        {
+          "name": "Chorus",
+          "bar": 9
+        },
+        {
+          "name": "Chorus again",
+          "bar": 13
+        }
+      ]
+    },
+    {
+      "id": "old-macdonald",
+      "file": "old-macdonald.mid",
+      "title": "Old MacDonald Had a Farm",
+      "composer": "Traditional",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Old MacDonald",
+          "bar": 1
+        },
+        {
+          "name": "And on his farm",
+          "bar": 5
+        },
+        {
+          "name": "Last time",
+          "bar": 9
+        }
+      ]
+    },
+    {
+      "id": "haydn-surprise",
+      "file": "haydn-surprise.mid",
+      "title": "Surprise Symphony (theme)",
+      "composer": "Joseph Haydn",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Haydn died in 1809)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Theme",
+          "bar": 1
+        },
+        {
+          "name": "Second time",
+          "bar": 5
+        },
+        {
+          "name": "The surprise",
+          "bar": 9
+        },
+        {
+          "name": "Ending",
+          "bar": 13
+        }
+      ]
+    },
+    {
+      "id": "au-clair-de-la-lune",
+      "file": "au-clair-de-la-lune.mid",
+      "title": "Au clair de la lune",
+      "composer": "Traditional (French)",
+      "difficulty": "easy",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First time",
+          "bar": 1
+        },
+        {
+          "name": "Second time",
+          "bar": 5
+        }
+      ]
+    },
+    {
+      "id": "lightly-row",
+      "file": "lightly-row.mid",
+      "title": "Lightly Row",
+      "composer": "Traditional (German)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First phrase",
+          "bar": 1
+        },
+        {
+          "name": "Second phrase",
+          "bar": 5
+        },
+        {
+          "name": "Middle",
+          "bar": 9
+        },
+        {
+          "name": "Last phrase",
+          "bar": 13
+        }
+      ]
+    },
+    {
+      "id": "we-wish-you-a-merry-christmas",
+      "file": "we-wish-you-a-merry-christmas.mid",
+      "title": "We Wish You a Merry Christmas",
+      "composer": "Traditional (English)",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Arrangement written for Sharp Ears (melody and bass); the tune is in the public domain",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First time",
+          "bar": 1
+        },
+        {
+          "name": "Second time",
+          "bar": 9
+        }
+      ]
+    },
+    {
+      "id": "eine-kleine-nachtmusik",
+      "file": "eine-kleine-nachtmusik.mid",
+      "title": "Eine kleine Nachtmusik (opening)",
+      "composer": "Wolfgang Amadeus Mozart",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Mozart died in 1791)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Opening",
+          "bar": 1
+        },
+        {
+          "name": "Answer",
+          "bar": 5
+        }
+      ]
+    },
+    {
+      "id": "gymnopedie-1",
+      "file": "gymnopedie-1.mid",
+      "title": "Gymnopedie No. 1 (opening)",
+      "composer": "Erik Satie",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Satie died in 1925)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Introduction",
+          "bar": 1
+        },
+        {
+          "name": "Melody",
+          "bar": 5
+        }
+      ]
+    },
+    {
+      "id": "hall-of-the-mountain-king",
+      "file": "hall-of-the-mountain-king.mid",
+      "title": "In the Hall of the Mountain King (theme)",
+      "composer": "Edvard Grieg",
+      "difficulty": "hard",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Grieg died in 1907)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Creeping in",
+          "bar": 1
+        },
+        {
+          "name": "Higher",
+          "bar": 5
+        }
+      ]
+    },
+    {
+      "id": "rondo-alla-turca",
+      "file": "rondo-alla-turca.mid",
+      "title": "Rondo alla Turca (theme)",
+      "composer": "Wolfgang Amadeus Mozart",
+      "difficulty": "hard",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Mozart died in 1791)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "Theme",
+          "bar": 1
+        },
+        {
+          "name": "Theme again",
+          "bar": 5
+        },
+        {
+          "name": "Last note",
+          "bar": 9
+        }
+      ]
+    },
+    {
+      "id": "bach-toccata-opening",
+      "file": "bach-toccata-opening.mid",
+      "title": "Toccata in D minor (opening)",
+      "composer": "Johann Sebastian Bach",
+      "difficulty": "medium",
+      "hands": "auto",
+      "license": "Public Domain",
+      "attribution": "Simplified arrangement written for Sharp Ears; the music is in the public domain (Bach died in 1750)",
+      "videos": [],
+      "sections": [
+        {
+          "name": "First statement",
+          "bar": 1
+        },
+        {
+          "name": "Echo, an octave lower",
+          "bar": 3
+        },
+        {
+          "name": "Chords",
+          "bar": 5
+        }
+      ]
+    },
+    {
       "id": "alicia",
       "file": "user/alicia.mid",
       "title": "Alicia (Clair Obscur: Expedition 33)",
