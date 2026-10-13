@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <!-- Metronome: a tapered body with a swinging arm -->
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M300,860Q283,860 271.5,848.5Q260,837 260,820L260,780L700,780L700,820Q700,837 688.5,848.5Q677,860 660,860L300,860ZM270,720L390,200Q396,174 416,157Q436,140 462,140L498,140Q524,140 544,157Q564,174 570,200L600,330L700,230Q712,218 728.5,218Q745,218 757,230Q769,242 769,258.5Q769,275 757,287L622,422L690,720L270,720ZM350,650L610,650L560,420L498,482Q486,494 469.5,494Q453,494 441,482Q429,470 429,453.5Q429,437 441,425L520,346L495,220L465,220L350,650Z"/>
+</vector>
