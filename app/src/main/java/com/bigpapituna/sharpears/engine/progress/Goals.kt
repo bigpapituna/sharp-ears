@@ -103,3 +103,18 @@ object Streaks {
     /** Practising at [now] after [last] counts as a comeback when at least a week went by. */
     fun isComeback(last: LocalDate?, now: LocalDate) = last != null && daysAway(last, now) >= 7
 }
+
+/** The calendar heatmap's tint steps. */
+object Heat {
+    /** 0 for no practice, 1 under half the goal, 2 under the goal, 3 goal met, 4 twice the goal or more. */
+    fun level(seconds: Int, goalMinutes: Int): Int {
+        if (seconds <= 0) return 0
+        val goal = goalMinutes * 60f
+        return when {
+            seconds >= 2 * goal -> 4
+            seconds >= goal -> 3
+            seconds >= goal / 2 -> 2
+            else -> 1
+        }
+    }
+}
