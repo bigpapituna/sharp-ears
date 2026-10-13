@@ -508,9 +508,9 @@ private fun DrawScope.circleScene(v: CircleVisual, t: Int, ink: StageInk) {
         val inner = if (v.minors) innerMid - innerW / 2 else outerMid - ringW / 2
         val big = (inner * 0.42f).coerceAtMost(44.dp.toPx())
         text(ink, count, Offset(c.x, c.y - big * 0.35f), TextKind.TITLE, pxSp(big), ink.accent, alpha = arrived, scale = pop)
-        text(ink, if (stopKey == 6) "F♯ or G♭" else key.label, Offset(c.x, c.y + big * 0.45f), TextKind.TITLE, pxSp((big * 0.36f).coerceAtLeast(12.dp.toPx())), ink.ink, alpha = arrived)
+        text(ink, if (stopKey == 6) "F♯ or G♭" else key.label, Offset(c.x, c.y + big * 0.45f), TextKind.TITLE, pxSp((big * 0.46f).coerceAtLeast(14.dp.toPx())), ink.ink, alpha = arrived)
         val sub = if (v.minors) CIRCLE_MINORS[stopKey].label else keySignature(f).joinToString(" ") { it.label }.ifEmpty { "No sharps or flats" }
-        text(ink, sub, Offset(c.x, c.y + big * 0.85f), TextKind.LABEL, pxSp((big * 0.27f).coerceAtLeast(10.dp.toPx())), if (v.minors) ink.blue else ink.dim, alpha = arrived)
+        text(ink, sub, Offset(c.x, c.y + big * 1.0f), TextKind.LABEL, pxSp((big * 0.34f).coerceAtLeast(12.dp.toPx())), if (v.minors) ink.blue else ink.dim, alpha = arrived)
     }
 }
 
