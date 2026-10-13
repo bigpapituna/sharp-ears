@@ -95,6 +95,16 @@ class Prefs(context: Context) {
         get() = p.getBoolean("feedbackLight", true)
         set(v) = edit { putBoolean("feedbackLight", v) }
 
+    /** The ghost hand over the player's keys, showing which finger plays next. */
+    var ghostHand: Boolean
+        get() = p.getBoolean("ghostHand", true)
+        set(v) = edit { putBoolean("ghostHand", v) }
+
+    /** A light buzz on right and wrong notes played on the touch keys (never for the mic or MIDI). */
+    var haptics: Boolean
+        get() = p.getBoolean("haptics", true)
+        set(v) = edit { putBoolean("haptics", v) }
+
     /** Learn course: lessons finished (exercise played through, or marked done). */
     fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
     fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }

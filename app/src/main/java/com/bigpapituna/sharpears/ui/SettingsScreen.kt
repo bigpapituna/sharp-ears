@@ -111,10 +111,14 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it }
             Toggle("Beat lines", "A faint line across the notes on every beat. Rhythm lessons always show them.",
                 prefs.beatLines && v >= 0) { prefs.beatLines = it }
+            Toggle("Ghost hand", "A hand over the keys shows which finger plays next.",
+                prefs.ghostHand && v >= 0) { prefs.ghostHand = it }
 
             Section("Sound")
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
                 prefs.sound && v >= 0) { prefs.sound = it }
+            Toggle("Vibration on touch keys", "A light tap for a right note, a double tap for a wrong one, when you play on the screen.",
+                prefs.haptics && v >= 0) { prefs.haptics = it }
 
             Section("Voice")
             Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",

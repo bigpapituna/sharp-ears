@@ -205,6 +205,9 @@ fun PlayerScreen(
     var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    // Touch keys buzz (right: a tick, wrong: a double tap); the mic and MIDI never do, the phone may be on a stand.
+    val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
+    var touchRun by remember { mutableStateOf(false) }             // this run was played on the touch keys
 
     val tutorial = remember(song) {
         meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs, song.groups.last().startMs) }
@@ -254,7 +257,7 @@ fun PlayerScreen(
     }
     DisposableEffect(Unit) { onDispose { flushPractice() } }
 
-    fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs }
+    fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs; lights.resetCombo() }
     // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
     val stallWatch = remember { com.bigpapituna.sharpears.engine.StallWatch() }
     // The last minute or so of inputs and waits, for a "that wasn't right" report.
@@ -334,7 +337,7 @@ fun PlayerScreen(
             backingOn -> metro.barMs
             else -> 2 * metro.beatMs
         }
-        if (transport.fresh) recorder.clear()
+        if (transport.fresh) { recorder.clear(); touchRun = false }
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
         transport.play(leadInMs = leadIn); playing = true
@@ -355,7 +358,8 @@ fun PlayerScreen(
         return Hand.RIGHT
     }
     fun wrongFeedback() {
-        if (prefs.feedbackLight) { lights.wrong(); Log.d(TAG, "light wrong") } else { wrongFlash++; Log.d(TAG, "redFlash") }
+        // In Perform only a miss breaks the streak (the bar's "Streak N"), so a wrong key leaves the combo standing.
+        if (prefs.feedbackLight) { lights.wrong(breaksCombo = transport.mode != Mode.PERFORM); Log.d(TAG, "light wrong") } else { wrongFlash++; Log.d(TAG, "redFlash") }
     }
     /** The run as played so far, kept in memory and in files/runs (library songs). */
     fun keepRun() {
@@ -365,9 +369,12 @@ fun PlayerScreen(
         runs.save(r)
     }
     fun keyReleased(midi: Int) { if (transport.playing) recorder.off(midi, transport.positionMs) }
-    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80) {
+    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80): InputResult {
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
+        // Perform: a note that raised the "good" count was on time (Perfect), any other right note was OK (Good).
+        val good0 = transport.score?.recap()?.good ?: 0
         val result = transport.noteInput(midi, latencyMs)
+        val grade = if (transport.mode == Mode.PERFORM) (if ((transport.score?.recap()?.good ?: 0) > good0) HitLights.PERFECT else HitLights.GOOD) else null
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
         tail("${noteName(midi)} -> $result at ${at(transport.positionMs)}" + (if (latencyMs > 0) " (mic, ${latencyMs.toInt()} ms late)" else ""))
         // Soft and loud: each right note is graded on its velocity, and the light says whether it was in range.
@@ -377,18 +384,19 @@ fun PlayerScreen(
             Log.d(TAG, "loudness ${noteName(midi)} vel=$velocity ${if (ok) "in range" else "out of range"} (${loudness.inRange()}/${loudness.velocities.size})")
             if (ok) lights.hit(midi, handColor(Hand.RIGHT)) else lights.wrong()
             version++
-            return
+            return result
         }
         when (result) {
             InputResult.WRONG -> { wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime()) }
             InputResult.CORRECT, InputResult.GROUP_DONE -> {
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
-                if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h)); Log.d(TAG, "light hit ${noteName(midi)} $h") }
+                if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             }
             InputResult.IGNORED -> {}
         }
         version++
+        return result
     }
     fun setSpeed(sp: Double) { speed = sp; transport.speed = sp; Log.d(TAG, "transport speed=$sp") }
     fun setTranspose(n: Int) {
@@ -457,11 +465,12 @@ fun PlayerScreen(
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
             progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
             recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null)
+            if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
             progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
-            if (transport.mode == Mode.WAIT) recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null)
+            if (transport.mode == Mode.WAIT) { recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null); if (touchRun) haptics.success() }
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
         }
     }
@@ -644,6 +653,8 @@ fun PlayerScreen(
                 }
                 // Perform mode: what the mic listens for moves with the song.
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
+                // The lane's combo counter follows the Perform streak (only misses break it).
+                if (mode == Mode.PERFORM) transport.score?.let { lights.streak(it.streakNow) }
             }
         }
         playing = false
@@ -792,18 +803,35 @@ fun PlayerScreen(
         var wrongVisible by remember { mutableStateOf(false) }
         LaunchedEffect(wrongFlash) { if (wrongFlash > 0) { wrongVisible = true; delay(150); wrongVisible = false } }
         val keyLabels = remember(prefs.version.intValue, range) { if (labels) keyLabels(prefs.keyLabels, range) else emptyMap() }
-        Keyboard(
-            lowMidi = range.first, highMidi = range.last, lit = lit,
-            onNoteOn = { m, v ->
-                Log.d(TAG, "NoteOn ${noteName(m)} midi=$m vel=$v src=touch")
-                touched[m] = RightHandColor; if (prefs.sound && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v); keyStruck(m, velocity = v)
-            },
-            onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m); keyReleased(m) },
-            modifier = modifier.then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
-            pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
-            // The key the song waits for shows its suggested finger.
-            labels = if (labels && prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
-        )
+        // The ghost hand plays the part the player is asked for (everything in Listen). Hidden when labels are
+        // (from memory, sight-reading): showing the next finger would give the notes away.
+        val ghost = remember(song, fingers, practice, mode) {
+            com.bigpapituna.sharpears.ui.motion.ghostNotes(song, fingers) { mode == Mode.LISTEN || transport.required(it) }
+        }
+        Box(modifier) {
+            // No `flash` here: the player's feedback lives on the hit line, never on green or red keys.
+            Keyboard(
+                lowMidi = range.first, highMidi = range.last, lit = lit,
+                onNoteOn = { m, v ->
+                    Log.d(TAG, "NoteOn ${noteName(m)} midi=$m vel=$v src=touch")
+                    touched[m] = RightHandColor; if (prefs.sound && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v)
+                    touchRun = true
+                    when (keyStruck(m, velocity = v)) {
+                        InputResult.CORRECT, InputResult.GROUP_DONE -> haptics.tick()
+                        InputResult.WRONG -> haptics.miss()
+                        InputResult.IGNORED -> {}
+                    }
+                },
+                onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m); keyReleased(m) },
+                modifier = Modifier.fillMaxSize().then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
+                pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
+                // The key the song waits for shows its suggested finger.
+                labels = if (labels && prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
+                sheen = !playing,
+            )
+            com.bigpapituna.sharpears.ui.motion.GhostHand(ghost, { position }, range.first, range.last, Modifier.matchParentSize(),
+                visible = labels && prefs.ghostHand && prefs.version.intValue >= 0)
+        }
     }
 
     // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks.
