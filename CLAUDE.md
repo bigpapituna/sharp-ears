@@ -92,6 +92,36 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
 - Debug injection: --es song fur-elise --es mode wait --es hands right --es inject 'synth:76,75,76@700' (or a WAV path on the device, 48 kHz PCM16 mono).
 - Input path: Keyboard (touch), MidiDevices.events and MicInput.events (SharedFlow, emitted on a binder thread, collected on main) -> PlayerScreen.keyStruck -> Transport.noteInput. P6 (mic) feeds the same keyStruck.
 
+## 2.0 revamp (integrated 2026-10-13, branch `integration`; see REVAMP.md)
+Six teams' work merged and wired. Emulator only (emulator-5556); not on Roy's phone yet. 339 JVM tests, lint 0 errors.
+- Tabs: Songs, Learn, Practice, Chords, You (HomeShell, rail when 600 dp or wider). Settings is a pushed screen
+  (Screen.Settings) from the gear on You. Screen changes animate (ui/motion/Transitions.kt screenTransitions: curtain into
+  and out of the player, forward/back by depth); AnimatedContent keys on the screen class only, HomeShell cross-fades tabs.
+- Progress (Team B): data/ProgressStore.kt (prefs file "profile") made in MainActivity, catchUp() once at start, provided
+  as ui/profile/LocalProgress. Events are recorded at the call sites in ui/profile/INTEGRATION.md (practice flushes, song
+  runs, lesson steps and lessons, chord rounds and games, ear rounds/games/workout as "ear:<kind>" / "ear:workout",
+  Practice today, sight-reading, first mic, import, scales/warm-ups/metronome/tuner). ProgressOverlays (level-up, toasts)
+  sit on the root but never on the stage: a level-up earned mid-song waits until the player closes. Lesson, chord game
+  and ear game celebrations show +XP and the level bar (xpBarFor in LocalProgress.kt).
+- Onboarding (ui/onboarding): first run only; anyone with XP after catchUp() counts as onboarded. Ends in the suggested lesson.
+- Practice tab (Team C, data/PracticeStore.kt "practice"): scales, arpeggios, warm-ups open in the full player, wait mode,
+  at the exercise tempo (id "practice-" + title.hashCode()); metronome; tuner (needs the mic).
+- Learn: the course path (70 lessons, 10 levels, Team F) with Ear training (Team D, Screen.EarTraining, data/EarStore.kt
+  "ear") and Sight-read rows above it. A marked comment in LearnScreen holds the place for Team A's Theory row (not built).
+- Player (Team E): ghost hand over the keys (Prefs.ghostHand, Settings > Falling notes; hidden when labels are), Perform
+  grades on the lights, combo counter following the Perform streak, haptics on touch keys (Prefs.haptics, Settings > Sound).
+- Home: goal line ("3 of 10 min today") over the weekly line, streak-aware greeting, the pup answers taps and dozes after 30 s.
+- Settings > Reset progress also clears EarStore and PracticeStore; XP and achievements stay. Export/import carries
+  progress, mastery, mic, profile, ear, practice, theory.
+- Debug routes (debug builds): --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner],
+  --es screen ear [--es game rhythm|melody|pitch|degree|prog --ei level 0-2 | --ez workout true], --es screen profile,
+  --es screen onboarding, --es screen settings (now a pushed screen over You), --es screen motion [--es demo celebrate|cheer|pup|keys].
+- Jank (emulator-5556, 10 s twinkle wait run with injected mic): 76 to 87% janky, p50 61 ms, but a still Learn screen and the
+  motion demo measured the same that afternoon (two emulators on one host, the composer at 65% CPU), so it says nothing
+  about the player. Measure on the Fold with the profile build before release.
+- Open: Theory academy (Team A) to wire; Ear celebrations show XP, the workout's does not; the level-up overlay can cover a
+  lesson's celebration (it is still there behind it).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
@@ -106,7 +136,7 @@ Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leon
 - Songs tab: "Practice today" is the one raised panel; Continue is a plain row under it. Between session parts: one line, no card, spoken, with Skip.
 - The transport bar's second row ends in a three-dot overflow (Transpose); stage toggles stay pills. Material defaults that bring a second colour (the TimePicker's pink AM/PM) are recoloured to the accent.
 - Beat lines and the count-in numbers live on the stage only.
-- Navigation: Songs / Learn / Chords / Settings bottom bar (rail when the window is 600 dp or wider). Player loop is one button: start, end, clear.
+- Navigation (2.0): Songs / Learn / Practice / Chords / You bottom bar (rail when the window is 600 dp or wider); Settings opens from the gear on You. Player loop is one button: start, end, clear.
 
 ## Privacy and licences (2026-10-07)
 This repo is Roy's private build (keeps personal music, debug build). The public Play app will be a separate app: see docs/publishing.md (what to remove or replace, Play checklist, data safety answers) and docs/privacy-policy.md (draft to host). In-app: Settings > About > Privacy (honest about debug recordings) and Licences (full texts in assets/licenses). Debug recordings: Microphone setup > Keep practice recordings (MicInput.keepRecordings, default on in debug, never in release) with Delete recordings. The video window credits the channel on YouTube.

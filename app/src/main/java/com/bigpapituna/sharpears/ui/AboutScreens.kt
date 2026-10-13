@@ -69,8 +69,8 @@ private fun Link(label: String, url: String) {
 fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit) = TextPage("Privacy", onBack) {
     Para("Sharp Ears has no account, no ads and no analytics. It does not send anything about you or your playing anywhere.")
     Heading("Microphone")
-    Para("The microphone is used only to hear which piano notes you play. It listens only while a song, lesson or chord game " +
-        "has the mic switched on and the app is on screen. The sound is analysed on this phone and then discarded.")
+    Para("The microphone is used only to hear which piano notes you play. It listens only while a song, lesson, chord or ear training game, " +
+        "or the tuner has the mic switched on and the app is on screen. The sound is analysed on this phone and then discarded.")
     if (canRecord) {
         Para("This is a private development build. With Keep practice recordings switched on, it saves your last 4 mic sessions " +
             "on this phone so note detection can be tuned from your playing, plus short clips when wait mode gets stuck, when you flag " +
@@ -80,8 +80,9 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         TextButton(onClick = onMicSetup) { Text("Microphone setup") }
     }
     Heading("What is stored")
-    Para("Your settings, song progress, best scores, practice minutes, lesson and chord progress, and any MIDI files you import " +
-        "are kept in the app's private storage on this phone. Uninstalling the app removes them. Settings has a reset for song progress.")
+    Para("Your settings, song progress, best scores, practice minutes, lesson and chord progress, XP, level, achievements and goals, " +
+        "ear training scores, what you practised with the scales and warm-ups, and any MIDI files you import are kept in the app's " +
+        "private storage on this phone. Uninstalling the app removes them. Settings has a reset for progress (XP and achievements stay).")
     Heading("Internet")
     Para("The app itself uses the internet only to show tutorial videos. When you open one, YouTube's embedded player loads " +
         "from YouTube and connects to Google, and YouTube's terms and Google's privacy policy apply to it. " +

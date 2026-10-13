@@ -16,7 +16,7 @@ no analytics and no tracking. Everything it keeps stays on your device.
 ## Microphone
 
 The app asks for microphone access so it can hear which piano notes you play. The microphone is used only while you
-have it switched on in a song, lesson or chord game and the app is on screen. The sound is analysed on your device
+have it switched on in a song, lesson, chord or ear training game, or the tuner, and the app is on screen. The sound is analysed on your device
 to detect notes and is then discarded. It is never recorded, saved or sent anywhere.
 
 You can refuse or withdraw microphone access at any time in your device settings. The app still works with on-screen
@@ -28,10 +28,13 @@ The app stores, in its private storage on your device only:
 
 - your settings (for example key labels and sound),
 - your progress: song positions, scores, completed lessons, chord practice schedule and practice minutes,
+- your XP, level, achievements, daily goal and practice streak, and your answers to the first-run questions,
+- ear training scores and the daily workout days, and what you practised with the scales, warm-ups and metronome,
 - MIDI files you choose to import.
 
-This information is not transmitted to us or to anyone else. Uninstalling the app deletes it. You can clear song
-progress in Settings.
+All of it is kept in the app's own settings files on your device. This information is not transmitted to us or to
+anyone else. Uninstalling the app deletes it. You can reset progress in Settings (XP and achievements are kept until
+you uninstall), and export it to a file you choose.
 
 ## MIDI keyboards
 
