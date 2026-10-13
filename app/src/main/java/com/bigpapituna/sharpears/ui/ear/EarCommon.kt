@@ -48,7 +48,8 @@ internal class EarEnv(
 )
 
 /** The first letter lowercased, for a level name inside a sentence. */
-internal fun String.lowerFirst() = replaceFirstChar { it.lowercase() }
+/** "Five notes" to "five notes", but "C major" stays (a note name is a capital letter on its own). */
+internal fun String.lowerFirst() = if (length > 1 && this[1].isLowerCase()) replaceFirstChar { it.lowercase() } else this
 
 internal enum class ChoiceState { NEUTRAL, RIGHT, WRONG, DIMMED }
 

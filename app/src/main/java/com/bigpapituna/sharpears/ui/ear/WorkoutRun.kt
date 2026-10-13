@@ -60,6 +60,10 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
     val results = remember { mutableStateListOf<WorkoutGame>() }
     val started = remember { SystemClock.elapsedRealtime() }
     var seconds by remember { mutableIntStateOf(0) }
+    // Integration: XP at the start, and the celebration waits one frame for the report so it can show the XP earned.
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val xpAtStart = remember { progress?.xp ?: 0 }
+    var reported by remember { mutableStateOf(false) }
 
     when {
         index >= plan.items.size -> {
@@ -68,7 +72,9 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
                 seconds = ((SystemClock.elapsedRealtime() - started) / 1000).toInt()
                 store.recordWorkout(total.score, total.rounds)
                 env.report(EarEvent.Workout(results.size, total.score, total.rounds, total.bestStreak, seconds))
+                reported = true
             }
+            if (!reported) return
             val good = total.score * 2 >= total.rounds
             @Suppress("UNUSED_VARIABLE") val saved = store.version.intValue          // read so the streak line updates once today is saved
             Celebration(
@@ -79,6 +85,8 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
                 primary = "Done", onPrimary = onExit,
                 pose = if (total.score * 10 >= total.rounds * 8) Pose.LEVEL_UP else if (good) Pose.GREAT_JOB else Pose.MISTAKE,
                 sampler = env.sampler.takeIf { env.sound() && good },
+                xpGained = progress?.let { (it.xp - xpAtStart).takeIf { g -> g > 0 } },
+                xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtStart, it.xp) },
             )
         }
         upNext -> UpNext(plan, index, results, onStart = { upNext = false }, onExit = onExit)
@@ -100,7 +108,7 @@ private fun UpNext(plan: WorkoutPlan, index: Int, results: List<WorkoutGame>, on
     val c = MaterialTheme.colorScheme
     val item = plan.items[index]
     val line = if (index == 0) "Three quick games, about five minutes. First up: ${item.kind.title.lowerFirst()}."
-        else results.last().let { "Nice, ${it.score} of ${it.rounds}. Next up: ${item.kind.title.lowerFirst()}." }
+        else results.last().let { "${if (it.score * 2 >= it.rounds) "Nice" else "Done"}, ${it.score} of ${it.rounds}. Next up: ${item.kind.title.lowerFirst()}." }
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {
         Text("Daily workout", style = MaterialTheme.typography.titleLarge, color = c.primary)

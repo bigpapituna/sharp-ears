@@ -96,6 +96,12 @@ data class XpBar(val from: Float, val to: Float, val caption: String? = null)
  * with a bar filling ([xpBar] for real level progress; without it the bar simply fills). The pup wiggles when
  * tapped. Covers the screen until [onPrimary] or [onSecondary]. With animations off everything is in place at once.
  */
+/**
+ * How many Celebrations are on screen now (integration): the level-up overlay waits while this is above zero, so a
+ * finish reads in order, celebration first, then the level gained.
+ */
+val celebrationsShowing = androidx.compose.runtime.mutableIntStateOf(0)
+
 @Composable
 fun Celebration(
     title: String, line: String, stats: List<Stat>, primary: String, onPrimary: () -> Unit,
@@ -104,6 +110,7 @@ fun Celebration(
     newBest: Boolean = false, xpGained: Int? = null, xpBar: XpBar? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
+    androidx.compose.runtime.DisposableEffect(Unit) { celebrationsShowing.intValue++; onDispose { celebrationsShowing.intValue-- } }
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     fun anim() = Animatable(if (still) 1f else 0f)

@@ -97,9 +97,11 @@ fun AchievementToast(achievement: Achievement?, onDismiss: () -> Unit, modifier:
  * toasts (one at a time, held back while a level-up is showing). Fed by [ProgressStore].
  */
 @Composable
-fun ProgressOverlays(store: ProgressStore, modifier: Modifier = Modifier) {
+fun ProgressOverlays(store: ProgressStore, modifier: Modifier = Modifier,
+                     /** Integration: keep a pending level-up back (a Celebration is showing); toasts still come. */
+                     holdLevelUp: Boolean = false) {
     Box(modifier.fillMaxSize()) {
-        val up = store.levelUp.value
+        val up = store.levelUp.value?.takeIf { !holdLevelUp }
         AchievementToast(if (up == null) store.toasts.firstOrNull() else null, onDismiss = store::popToast, modifier = Modifier.align(Alignment.TopCenter))
         if (up != null) LevelUpOverlay(up, store.xp, onDone = store::consumeLevelUp)
     }

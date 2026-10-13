@@ -578,7 +578,10 @@ class MainActivity : ComponentActivity() {
                     }
                     // Level-ups and achievement toasts, last so they sit on top. Not on the stage: a level-up waits until
                     // the song is over (the store keeps it pending), so it never interrupts playing.
-                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) { ProgressOverlays(progress) }
+                    // A Celebration on screen holds the level-up back until it closes: celebration first, then the level.
+                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                        ProgressOverlays(progress, holdLevelUp = com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
+                    }
                 }
             }
             }
