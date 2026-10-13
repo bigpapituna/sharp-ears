@@ -168,6 +168,8 @@ class MainActivity : ComponentActivity() {
         val lessons = LessonStore(this)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
+        // Someone who already played (XP from catchUp or since) skips the first-run questions.
+        if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         val practiceStore = PracticeStore(this)
         val micCheck = micCheckExercise()
 
@@ -232,6 +234,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val startDaily = debuggable && intent.getBooleanExtra("daily", false)
+        // First run: the onboarding questions, unless a debug route asked for a screen.
+        val opening = if (!progress.onboardingDone && first == Screen.Home() && !startDaily) Screen.Onboarding else first
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
         if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
@@ -239,7 +243,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            var screen by remember { mutableStateOf(first) }
+            var screen by remember { mutableStateOf(opening) }
             // Every screen can report XP events through LocalProgress without a new parameter.
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
