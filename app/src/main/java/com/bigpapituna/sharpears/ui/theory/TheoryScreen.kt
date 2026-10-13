@@ -122,14 +122,19 @@ fun TheoryScreen(
     soundOn: Boolean = true,
     onLessonDone: (lessonId: String, percent: Int) -> Unit = { _, _ -> },
     onUnitComplete: (unitId: String, percent: Int, seconds: Int) -> Unit = { _, _, _ -> },
+    /** Integration: the seconds a lesson took (explainer and quiz), reported when its quiz ends; they count as practice. */
+    onPractice: (seconds: Int) -> Unit = {},
 ) {
     val context = LocalContext.current
+    // Integration: XP when the lesson opened, so its celebration can show what the lesson earned.
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    var xpAtOpen by remember { mutableStateOf(progress?.xp ?: 0) }
     val clicks = remember { runCatching { Clicks(context) }.getOrNull() }
     DisposableEffect(Unit) { onDispose { clicks?.release() } }
     var nav by remember { mutableStateOf(debugStart(context)) }
     val version = store.version.intValue
 
-    fun open(lessonId: String) { nav = Nav.Watch(lessonId, 0, System.currentTimeMillis()) }
+    fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, System.currentTimeMillis()) }
     fun toPath() { voice.stop(); nav = Nav.Path }
 
     when (val n = nav) {
@@ -152,6 +157,7 @@ fun TheoryScreen(
                 Quiz(unit, lesson, sampler, voice, n.startAt, onDone = { correct, total ->
                     val secs = ((System.currentTimeMillis() - n.openedAt) / 1000).toInt()
                     val f = store.finish(n.lessonId, correct, total, secs)
+                    onPractice(secs)
                     onLessonDone(n.lessonId, f.percent)
                     f.unitCompleted?.let { u ->
                         val p = store.progress()
@@ -166,6 +172,8 @@ fun TheoryScreen(
             val after = lessonAfter(n.lessonId)
             val unitDone = n.finish.unitCompleted != null
             val p = remember(version) { store.progress() }
+            val xpGained = progress?.let { (it.xp - xpAtOpen).takeIf { g -> g > 0 } }
+            val xpBar = progress?.takeIf { xpGained != null }?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, it.xp) }
             Box(Modifier.fillMaxSize()) {
                 if (unitDone) Celebration(
                     "Unit ${unit.number} complete!", "You finished ${unit.title.replaceFirstChar { it.lowercase() }}." + (after?.let { " Next up: ${it.first.title}." } ?: " That was the last unit."),
@@ -173,12 +181,14 @@ fun TheoryScreen(
                         Stat("${unit.lessons.size}", "Lessons")),
                     primary = if (after != null) "Next unit" else "Done", onPrimary = { after?.let { open(it.second.id) } ?: toPath() },
                     secondary = "All units", onSecondary = ::toPath, pose = Pose.LEVEL_UP, sampler = sampler.takeIf { soundOn },
+                    xpGained = xpGained, xpBar = xpBar,
                 ) else Celebration(
                     "Lesson complete!", lesson.summary,
                     listOf(Stat("${n.correct}/${n.total}", "Score"), Stat(clock(n.seconds), "Time"),
                         Stat("${store.best(n.lessonId) ?: n.finish.percent}%", if (n.finish.newBest) "New best" else "Best")),
                     primary = if (after != null) "Next lesson" else "Done", onPrimary = { after?.let { open(it.second.id) } ?: toPath() },
                     secondary = "All lessons", onSecondary = ::toPath, pose = Pose.GREAT_JOB, sampler = sampler.takeIf { soundOn },
+                    xpGained = xpGained, xpBar = xpBar,
                 )
             }
         }

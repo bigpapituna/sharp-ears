@@ -88,6 +88,7 @@ import com.bigpapituna.sharpears.ui.paper
 import androidx.compose.animation.AnimatedContent
 import com.bigpapituna.sharpears.data.PracticeStore
 import com.bigpapituna.sharpears.data.EarStore
+import com.bigpapituna.sharpears.data.TheoryStore
 import com.bigpapituna.sharpears.data.ProgressStore
 import com.bigpapituna.sharpears.engine.ear.EarKind
 import com.bigpapituna.sharpears.ui.ear.EarStart
@@ -177,6 +178,7 @@ class MainActivity : ComponentActivity() {
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         val practiceStore = PracticeStore(this)
         val earStore = EarStore(this)                  // read for the Learn row and reset from Settings; the hub keeps its own
+        val theory = TheoryStore(this)                 // one store for the Learn card and the academy, so the card updates
         val micCheck = micCheckExercise()
 
         // Debug builds accept extras to open a screen directly:
@@ -462,14 +464,22 @@ class MainActivity : ComponentActivity() {
                                 onMicSetup = { screen = Screen.MicSetup(s) },
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
                                 onBack = { screen = s.back },
-                                onResetProgress = { earStore.reset(); practiceStore.clear(); Log.d(TAG, "progress: reset (prefs, ear, practice; XP kept)") })
+                                onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory; XP kept)") })
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
                         }
                         is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                            com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back }, soundOn = prefs.sound)
+                            com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back },
+                                store = theory, soundOn = prefs.sound,
+                                // Time in a lesson is practice; recorded first, so the lesson's XP lands after the minutes.
+                                onPractice = { secs ->
+                                    prefs.addPractice(java.time.LocalDate.now(), secs)
+                                    if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
+                                },
+                                onLessonDone = { id, _ -> progress.record(ProgressEvent.TheoryLesson(id)) },
+                                onUnitComplete = { unit, _, _ -> progress.record(ProgressEvent.TheoryUnit(unit)) })
                         }
                         is Screen.Licences -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -519,6 +529,7 @@ class MainActivity : ComponentActivity() {
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
                                             onEar = { screen = Screen.EarTraining(s) },
+                                            theory = { m -> com.bigpapituna.sharpears.ui.theory.TheoryCard(theory, onOpen = { screen = Screen.Theory(s) }, modifier = m) },
                                             earStreak = remember { earStore.workoutStreak() })
                                     }
                                     HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,

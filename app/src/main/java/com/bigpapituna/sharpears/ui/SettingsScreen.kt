@@ -157,7 +157,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 TextButton(onClick = { importFrom.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }) { Text("Import progress") }
             }
             progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
-            Text("Reset clears resume positions, played marks, best scores, practice time, ear training scores and the practice tools' records. " +
+            Text("Reset clears resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records. " +
                 "Chord lessons, XP and achievements are kept.",
                 style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
             TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
@@ -206,7 +206,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         onDismissRequest = { confirmReset = false },
         title = { Text("Reset progress?") },
         // XP and achievements stay on purpose: they record what was done, and a reset should not take that away.
-        text = { Text("Resume positions, played marks, best scores, practice time, ear training scores and the practice tools' records " +
+        text = { Text("Resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records " +
             "will be cleared. Your XP, level and achievements are kept.") },
         confirmButton = { TextButton(onClick = { prefs.resetProgress(); onResetProgress(); confirmReset = false }) { Text("Reset") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
