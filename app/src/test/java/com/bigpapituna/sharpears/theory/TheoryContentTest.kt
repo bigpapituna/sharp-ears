@@ -98,6 +98,19 @@ class TheoryContentTest {
         assertEquals(-1, v.current(0)); assertEquals(0, v.current(v.frameAt(0))); assertEquals(7, v.current(v.durationMs))
     }
 
+    @Test fun progressFindsTheNextLessonAndCompletedUnits() {
+        val done = mutableSetOf<String>()
+        val p = com.bigpapituna.sharpears.engine.theory.TheoryProgress({ it in done }, { if (it in done) 80 else null })
+        assertEquals("keys-pattern", p.next?.second?.id)
+        THEORY[0].lessons.forEach { done += it.id }
+        assertEquals(1, p.unitsDone)
+        assertEquals(80, p.unitScore(THEORY[0]))
+        assertEquals(THEORY[1].lessons[0].id, p.next?.second?.id)
+        assertEquals(THEORY[1].lessons[0].id, com.bigpapituna.sharpears.engine.theory.lessonAfter(THEORY[0].lessons.last().id)?.second?.id)
+        assertEquals(null, com.bigpapituna.sharpears.engine.theory.lessonAfter(THEORY_LESSONS.last().second.id))
+        assertEquals(67, com.bigpapituna.sharpears.engine.theory.percent(4, 6))
+    }
+
     private fun all(): List<Pair<String, String>> = THEORY.flatMap { u ->
         listOf(u.id to u.title, u.id to u.about) + u.lessons.flatMap { l ->
             listOf(l.id to l.title, l.id to l.summary) +

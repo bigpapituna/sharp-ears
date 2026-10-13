@@ -103,6 +103,7 @@ private sealed interface Screen {
     data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
     data class Privacy(val back: Screen) : Screen
     data class Licences(val back: Screen) : Screen
+    data class Theory(val back: Screen) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -167,6 +168,7 @@ class MainActivity : ComponentActivity() {
             )
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Home(HomeTab.SETTINGS)
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
+            debuggable && intent.getStringExtra("screen") == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
             debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
@@ -355,6 +357,9 @@ class MainActivity : ComponentActivity() {
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
+                        }
+                        is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back }, soundOn = prefs.sound)
                         }
                         is Screen.Licences -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }

@@ -120,7 +120,7 @@ private val unitKeyboard = TheoryUnit("keys", 1, "The keyboard", "Octaves, the b
             keys("C3", "C6", listOf(kf("C3"), kf("C4"), kf("C5"), kf("C6", "Octaves")), stepMs = 700, finale = "C3 C4 C5 C6"), Mood.LISTEN),
     ), listOf(
         play("Play any C.", "C4", "C is just left of the two black keys.", low = "C3", high = "B4"),
-        play("Play middle C.", "C4", "Middle C is the C nearest the middle of the keyboard.", low = "C3", high = "C6", anyOctave = false),
+        play("Play middle C.", "C4", "Middle C is the C nearest the middle of the keyboard.", low = "C3", high = "C5", anyOctave = false),
         play("Play an F.", "F4", "F is just left of the group of three black keys.", low = "C4", high = "B5"),
         choice("Which note is lit?", listOf("C", "D", "E", "F"), 2, "E is just right of the two black keys.", show = stillKeys("E4")),
         choice("From one C up to the next C is called", listOf("a step", "an octave", "a chord"), 1, "Eight white keys from C to C make an octave."),
