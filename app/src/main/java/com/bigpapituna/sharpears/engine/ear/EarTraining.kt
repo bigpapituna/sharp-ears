@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.engine.ear
 import com.bigpapituna.sharpears.engine.ChordGame
 import com.bigpapituna.sharpears.engine.GameLine
 import com.bigpapituna.sharpears.engine.Lit
+import com.bigpapituna.sharpears.engine.noteName
 import com.bigpapituna.sharpears.engine.rootName
 import com.bigpapituna.sharpears.engine.spokenPitch
 
@@ -138,8 +139,19 @@ val MAJOR_SCALE = listOf(0, 2, 4, 5, 7, 9, 11)
 /** Natural minor. */
 val MINOR_SCALE = listOf(0, 2, 3, 5, 7, 8, 10)
 
-fun keyName(pc: Int, minor: Boolean) = rootName(pc) + if (minor) " minor" else " major"
-fun keySpoken(pc: Int, minor: Boolean) = spokenPitch(pc) + if (minor) " minor" else " major"
+/** True for the keys written with flats (F, B flat, E flat... and D, G, C, F minor...), false for natural and sharp keys. */
+fun flatKey(pc: Int, minor: Boolean) = ((pc % 12) + 12) % 12 in (if (minor) setOf(0, 2, 3, 5, 7, 10) else setOf(1, 3, 5, 8, 10))
+
+/** A pitch class spelled for its key: "Bb" in F major, "G#" in A major. */
+fun spell(pc: Int, flats: Boolean) = noteName(60 + ((pc % 12) + 12) % 12, flats).dropLast(1)
+
+/** The same as the voice says it ("B flat", "G sharp"). */
+fun spellSpoken(pc: Int, flats: Boolean) = (if (flats) FLAT_SPOKEN else SHARP_SPOKEN)[((pc % 12) + 12) % 12]
+private val SHARP_SPOKEN = listOf("C", "C sharp", "D", "D sharp", "E", "F", "F sharp", "G", "G sharp", "A", "A sharp", "B")
+private val FLAT_SPOKEN = listOf("C", "D flat", "D", "E flat", "E", "F", "G flat", "G", "A flat", "A", "B flat", "B")
+
+fun keyName(pc: Int, minor: Boolean) = spell(pc, flatKey(pc, minor)) + if (minor) " minor" else " major"
+fun keySpoken(pc: Int, minor: Boolean) = spellSpoken(pc, flatKey(pc, minor)) + if (minor) " minor" else " major"
 
 /** Where a key's tonic sits: from middle C up to F sharp, then the octave below (G3 to B3), so the scale stays in reach. */
 fun tonicMidi(pc: Int) = if (pc <= 6) 60 + pc else 48 + pc

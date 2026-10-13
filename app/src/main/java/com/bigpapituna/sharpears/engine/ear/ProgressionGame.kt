@@ -5,7 +5,6 @@ import com.bigpapituna.sharpears.engine.ChordGame
 import com.bigpapituna.sharpears.engine.ChordType
 import com.bigpapituna.sharpears.engine.GameLine
 import com.bigpapituna.sharpears.engine.Lit
-import com.bigpapituna.sharpears.engine.rootName
 import com.bigpapituna.sharpears.engine.voiceLead
 import java.util.Random
 
@@ -105,7 +104,7 @@ class ProgressionGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
 
     override fun choose(id: Int): ChordGame.Answer {
         if (finished || roundOver) return ignored()
-        val chords = chordsOf(target, key).distinct().joinToString(", ") { it.name }
+        val chords = chordsOf(target, key).distinct().joinToString(", ") { chordLabel(it, key, target.minor) }
         val where = "In ${keyName(key, target.minor)} that is $chords."
         if (id == target.id) return endRound(true, GameLine("Yes: ${target.label} (${target.nickname}). ${target.blurb}",
             "Yes, ${target.nickname}. ${target.blurb}"))
@@ -116,5 +115,8 @@ class ProgressionGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
     }
 
     /** The key's chord names for a log line (tests). */
-    fun chordNames(): List<String> = chordsOf(target, key).map { rootName(it.root) + it.type.suffix }
+    fun chordNames(): List<String> = chordsOf(target, key).map { chordLabel(it, key, target.minor) }
 }
+
+/** A chord's name spelled for the key it is in: "Bb" in F major, "G#m" in E major. */
+fun chordLabel(c: Chord, key: Int, minor: Boolean) = spell(c.root, flatKey(key, minor)) + c.type.suffix

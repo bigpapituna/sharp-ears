@@ -92,7 +92,7 @@ class MelodyMemoryGame(level: Int, seed: Long = System.nanoTime(), rounds: Int =
     override fun describe() = melody.joinToString(" ") { noteName(it) }
 
     /** The melody's notes by letter, no octave: "C D E G". */
-    private fun letters() = melody.joinToString(" ") { noteName(it).dropLast(1) }
+    private fun letters() = melody.joinToString(" ") { spell(it % 12, flatKey(tonicPc, minor)) }
 
     override fun input(midi: Int): ChordGame.Answer {
         if (finished || roundOver) return ignored()

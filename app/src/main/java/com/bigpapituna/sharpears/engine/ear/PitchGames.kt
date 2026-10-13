@@ -4,7 +4,6 @@ import com.bigpapituna.sharpears.engine.ChordGame
 import com.bigpapituna.sharpears.engine.GameLine
 import com.bigpapituna.sharpears.engine.Lit
 import com.bigpapituna.sharpears.engine.noteName
-import com.bigpapituna.sharpears.engine.rootName
 import java.util.Random
 
 /** The keys of the keyboard the pitch games use, for the mic to listen to. */
@@ -151,7 +150,7 @@ class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
         wrongs++
         val d = scale.indexOf(((midi - tonicPc) % 12 + 12) % 12)
         val shown = if (wrongs == 2) " Here is the note." else ""
-        val what = if (d < 0) "${rootName(midi)} is not in $keyLabel." else "That was ${solfege(d, minor)}, step ${d + 1}."
+        val what = if (d < 0) "${spell(midi % 12, flatKey(tonicPc, minor))} is not in $keyLabel." else "That was ${solfege(d, minor)}, step ${d + 1}."
         val spoken = if (d < 0) what else "That was ${solfegeSpoken(solfege(d, minor))}, step ${d + 1}."
         return wrong(GameLine("$what$shown", "$spoken$shown"))
     }
@@ -163,7 +162,7 @@ class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
         val s = solfege(degree, minor)
         val said = solfege(id, minor)
         return endRound(false, GameLine(
-            "That was $s, step ${degree + 1} of $keyLabel (${rootName(target)}), not $said. ${feel(degree)}",
+            "That was $s, step ${degree + 1} of $keyLabel (${spell(target % 12, flatKey(tonicPc, minor))}), not $said. ${feel(degree)}",
             "That was ${solfegeSpoken(s)}, step ${degree + 1}, not ${solfegeSpoken(said)}. ${feel(degree)}"))
     }
 }

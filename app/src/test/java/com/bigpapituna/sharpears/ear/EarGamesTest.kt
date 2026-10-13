@@ -1,12 +1,20 @@
 package com.bigpapituna.sharpears.ear
 
+import com.bigpapituna.sharpears.engine.Chord
 import com.bigpapituna.sharpears.engine.ChordGame
+import com.bigpapituna.sharpears.engine.ChordType
 import com.bigpapituna.sharpears.engine.ear.Answering
 import com.bigpapituna.sharpears.engine.ear.EarKind
 import com.bigpapituna.sharpears.engine.ear.EarTrainer
 import com.bigpapituna.sharpears.engine.ear.MelodyMemoryGame
 import com.bigpapituna.sharpears.engine.ear.RhythmTapGame
+import com.bigpapituna.sharpears.engine.ear.chordLabel
+import com.bigpapituna.sharpears.engine.ear.flatKey
+import com.bigpapituna.sharpears.engine.ear.keyName
+import com.bigpapituna.sharpears.engine.ear.keySpoken
 import com.bigpapituna.sharpears.engine.ear.newTrainer
+import com.bigpapituna.sharpears.engine.ear.spell
+import com.bigpapituna.sharpears.engine.ear.spellSpoken
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -94,5 +102,18 @@ class EarGamesTest {
             val miss = g.choose((g.answerId()!! + 1) % 7)
             assertFalse(miss.line!!.spoken, miss.line!!.spoken.contains('#') || miss.line!!.spoken.contains('/'))
         }
+    }
+
+    @Test fun notesAreSpelledForTheirKey() {
+        assertEquals("F major", keyName(5, false)); assertEquals("Bb major", keyName(10, false)); assertEquals("A major", keyName(9, false))
+        assertEquals("D minor", keyName(2, true)); assertEquals("E minor", keyName(4, true)); assertEquals("C minor", keyName(0, true))
+        assertEquals("B flat major", keySpoken(10, false)); assertEquals("G sharp", spellSpoken(8, false)); assertEquals("A flat", spellSpoken(8, true))
+        assertEquals("Bb", spell(10, true)); assertEquals("A#", spell(10, false))
+        assertEquals("G#m", chordLabel(Chord(8, ChordType.MINOR), 4, false))                 // in E major
+        assertEquals("Fm", chordLabel(Chord(5, ChordType.MINOR), 8, false))
+        assertEquals("Bb", chordLabel(Chord(10, ChordType.MAJOR), 5, false))                 // in F major
+        // The melody names its notes the way the key writes them.
+        val g = (1L..200L).map { MelodyMemoryGame(1, it) }.first { it.tonicPc == 5 }
+        while (!g.finished) { val a = g.melody.map { g.input(it) }.last(); assertFalse(a.line!!.text, a.line!!.text.contains("#")); g.next() }
     }
 }

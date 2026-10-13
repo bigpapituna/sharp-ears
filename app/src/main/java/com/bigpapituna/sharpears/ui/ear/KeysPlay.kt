@@ -142,7 +142,8 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             ChordGame.Outcome.WRONG -> {
                 missedThisRound = true
                 m?.let { flashKey(it, Bad) }
-                a.line?.let { hint = it.text to false; env.voice.speak(it.spoken, deferrable = false) }
+                // A game that replays itself after a wrong note lets the replay be the answer; the others say what was wrong.
+                a.line?.let { hint = it.text to false; if (!trainer.replayOnWrong) env.voice.speak(it.spoken, deferrable = false) }
                 if (trainer.replayOnWrong) scope.launch { delay(700); replayIntro = false; replay++ }
             }
             ChordGame.Outcome.FOUND -> {
