@@ -8,10 +8,11 @@ import com.bigpapituna.sharpears.engine.ProgressBackup
 
 /**
  * Export and import of everything the app remembers: song progress and settings ("progress"), chord mastery
- * ("mastery") and the microphone setup ("mic"), as one JSON file the player picks a place for.
+ * ("mastery") and the microphone setup ("mic"), as one JSON file the player picks a place for. Since 2.0 also XP,
+ * achievements and goals ("profile"), ear training ("ear"), the practice tools ("practice") and theory ("theory").
  */
 object ProgressFiles {
-    val NAMES = listOf("progress", "mastery", "mic")
+    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory")
 
     fun export(context: Context, uri: Uri) {
         val text = ProgressBackup.encode(NAMES.associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all })

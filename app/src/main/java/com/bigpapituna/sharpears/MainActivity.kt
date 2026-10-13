@@ -94,6 +94,11 @@ import com.bigpapituna.sharpears.ui.practice.PracticeScreen
 import com.bigpapituna.sharpears.ui.practice.PracticeTab
 import com.bigpapituna.sharpears.ui.profile.ProfileScreen
 import com.bigpapituna.sharpears.ui.reducedMotion
+import com.bigpapituna.sharpears.engine.ear.EarEvent
+import com.bigpapituna.sharpears.engine.progress.ProgressEvent
+import com.bigpapituna.sharpears.ui.practice.PracticeKind
+import com.bigpapituna.sharpears.ui.profile.LocalProgress
+import com.bigpapituna.sharpears.ui.profile.ProgressOverlays
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -162,6 +167,7 @@ class MainActivity : ComponentActivity() {
         voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
         val lessons = LessonStore(this)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
+        progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
         val practiceStore = PracticeStore(this)
         val micCheck = micCheckExercise()
 
@@ -234,6 +240,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var screen by remember { mutableStateOf(first) }
+            // Every screen can report XP events through LocalProgress without a new parameter.
+            androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 Surface(Modifier.fillMaxSize().paper(), color = androidx.compose.ui.graphics.Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onBackground) {   // textured page (ui/Backdrop.kt)
@@ -295,6 +303,7 @@ class MainActivity : ComponentActivity() {
                         if (done.isEmpty()) { Log.d(TAG, "daily: ended with nothing done"); screen = Screen.Home(); return }
                         val summary = sessionSummary(done, secs)
                         prefs.saveDailySummary(java.time.LocalDate.now(), summary)
+                        progress.record(ProgressEvent.DailySession(done.size))
                         Log.d(TAG, "daily: $summary")
                         voice.speak("Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
                         dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), PracticeStats.streak(prefs.practice(), java.time.LocalDate.now()))
@@ -308,6 +317,21 @@ class MainActivity : ComponentActivity() {
                         else screen = s.copy(index = s.index + 1, between = true, done = done)
                     }
 
+                    // Ear training: a tick per round, a game's credit at its end, the workout like a game plus its practice time.
+                    fun earEvent(e: EarEvent) {
+                        fun practised(secs: Int) {
+                            if (secs <= 0) return
+                            prefs.addPractice(java.time.LocalDate.now(), secs)
+                            progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
+                        }
+                        when (e) {
+                            is EarEvent.Round -> progress.record(ProgressEvent.EarRound(e.clean))
+                            is EarEvent.GameComplete -> { practised(e.seconds); progress.record(ProgressEvent.GameComplete("ear:" + e.kind.id, e.level, e.score, e.rounds)) }
+                            is EarEvent.Workout -> { practised(e.seconds); progress.record(ProgressEvent.GameComplete("ear:workout", 0, e.score, e.rounds)) }
+                        }
+                        Log.d(TAG, "ear: $e -> xp ${progress.xp}")
+                    }
+
                     val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                         val into = importInto
                         if (uri == null) return@rememberLauncherForActivityResult
@@ -315,6 +339,7 @@ class MainActivity : ComponentActivity() {
                             try {
                                 val m = withContext(Dispatchers.IO) { repo.import(uri, into) }
                                 Log.d(TAG, "import ok ${m.id} -> ${m.file}")
+                                progress.record(ProgressEvent.FeatureUsed("import"))
                                 libraryVersion++
                             } catch (e: ImportException) {
                                 Log.d(TAG, "import failed: ${e.message}"); importError = e.message
@@ -344,7 +369,7 @@ class MainActivity : ComponentActivity() {
                                 midiScript = s.midiScript,
                                 onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
-                                onDone = { prefs.markLessonDone(l.id) },
+                                onDone = { prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id)) },
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
                                 onBack = { screen = s.back }) }
                         }
@@ -361,7 +386,11 @@ class MainActivity : ComponentActivity() {
                                     // Chord practice does not run the player, so its time is counted here.
                                     androidx.compose.runtime.DisposableEffect(s.index) {
                                         val t0 = System.currentTimeMillis()
-                                        onDispose { prefs.addPractice(java.time.LocalDate.now(), ((System.currentTimeMillis() - t0) / 1000).toInt()) }
+                                        onDispose {
+                                            val secs = ((System.currentTimeMillis() - t0) / 1000).toInt()
+                                            prefs.addPractice(java.time.LocalDate.now(), secs)
+                                            if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
+                                        }
                                     }
                                     androidx.compose.foundation.layout.Column {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
@@ -375,7 +404,7 @@ class MainActivity : ComponentActivity() {
                                     BackHandler { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
                                         onStep = {}, onSong = null,
-                                        onDone = { prefs.markLessonDone(l.id) },
+                                        onDone = { prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id)) },
                                         onNext = null,
                                         onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }) }
                                 }
@@ -406,7 +435,7 @@ class MainActivity : ComponentActivity() {
                         is Screen.EarTraining -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             // The hub handles Back itself: a game goes back to the hub, the hub to Learn.
                             EarTrainingScreen(sampler, midi, mic, voice, prefs.micDefault, onBack = { screen = s.back },
-                                sound = { prefs.sound }, start = s.start)
+                                onReport = ::earEvent, sound = { prefs.sound }, start = s.start)
                         }
                         Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) }) { lessonId ->
@@ -472,7 +501,14 @@ class MainActivity : ComponentActivity() {
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
                                     }
                                     HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore, onOpenExercise = { _, _ -> },
-                                        startTab = s.practiceTab, onTab = { screen = s.copy(practiceTab = it) })
+                                        startTab = s.practiceTab,
+                                        onEvent = { e -> progress.record(ProgressEvent.FeatureUsed(if (e.kind == PracticeKind.WARMUP) "warmups" else "scales")) },
+                                        onTab = { t ->
+                                            screen = s.copy(practiceTab = t)
+                                            // The metronome and tuner have no "start" of their own: opening them is using them.
+                                            when (t) { PracticeTab.METRONOME -> "metronome"; PracticeTab.TUNER -> "tuner"; else -> null }
+                                                ?.let { progress.record(ProgressEvent.FeatureUsed(it)) }
+                                        })
                                     HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
                                         onPlayProgression = { p, key ->
                                             screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
@@ -502,7 +538,11 @@ class MainActivity : ComponentActivity() {
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
                             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
                     }
+                    // Level-ups and achievement toasts, last so they sit on top. Not on the stage: a level-up waits until
+                    // the song is over (the store keeps it pending), so it never interrupts playing.
+                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) { ProgressOverlays(progress) }
                 }
+            }
             }
         }
     }

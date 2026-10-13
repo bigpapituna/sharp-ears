@@ -48,6 +48,7 @@ import com.bigpapituna.sharpears.engine.toSong
 @Composable
 fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = null, onBack: () -> Unit) {
     var level by remember { mutableIntStateOf(startLevel.coerceIn(1, 2)) }
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     // Injected (debug) runs use a fixed seed so the notes are known in advance.
     var seed by remember { mutableLongStateOf(if (inject != null) 1L else System.nanoTime()) }
     val piece = remember(level, seed) { sightPiece(level, seed).also { Log.d(TAG, "sight: level $level ${it.keyName}: ${it.exercise.right} | ${it.exercise.left}") } }
@@ -84,6 +85,7 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                             onFinished = { r ->
                                 val s = SightScore.of(r.realMs, r.wrongKeys)
                                 val newBest = prefs.saveSightBest(level, s)
+                                progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
                                 Log.d(TAG, "sight: level $level done in ${s.seconds} s, ${s.wrong} wrong, points ${s.points}, newBest=$newBest")
                                 deps.voice.speak((if (newBest) "A new best: " else "Done: ") + "${s.seconds} seconds" +
                                     if (s.wrong == 0) ", no wrong notes." else ", ${s.wrong} wrong.")

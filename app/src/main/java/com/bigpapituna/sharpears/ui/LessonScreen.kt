@@ -86,6 +86,10 @@ fun LessonScreen(
     var retries by remember { mutableIntStateOf(0) }
     var cheers by remember { mutableIntStateOf(lesson.id.hashCode()) }
     val openedAt = remember { System.currentTimeMillis() }
+    // XP: each step passed is reported here, the lesson itself by onDone (MainActivity); the celebration shows the sum.
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val xpAtOpen = remember { progress?.xp ?: 0 }
+    var xpAtEnd by remember { mutableIntStateOf(0) }
     var tookSecs by remember { mutableStateOf(0L) }
     val step = lesson.steps[index]
     val last = index == lesson.steps.lastIndex
@@ -101,10 +105,12 @@ fun LessonScreen(
 
     fun go(to: Int) { feedback = null; bar = null; finished = false; index = to; fails = 0 }
     fun complete() {
+        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.LessonStepPassed)
         if (last) {
             finished = true
             tookSecs = (System.currentTimeMillis() - openedAt) / 1000
             onDone()
+            xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak("Lesson complete.")
         } else { advancedByItself = true; index++ }
@@ -228,6 +234,8 @@ fun LessonScreen(
         primary = if (onNext != null) "Next lesson" else "Done", onPrimary = { voice.stop(); (onNext ?: onBack)() },
         secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
         sampler = deps.sampler.takeIf { deps.prefs.sound },
+        xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
+        xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
     )
     }
 }

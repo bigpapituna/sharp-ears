@@ -106,6 +106,9 @@ fun EarTrainingScreen(
 @Composable
 private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onExit: () -> Unit, onAgain: () -> Unit) {
     val trainer = remember { newTrainer(kind, level) }
+    // Integration: the XP this game earned (rounds and the game, reported through env.report) on the celebration.
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val xpAtStart = remember { progress?.xp ?: 0 }
     val started = remember { android.os.SystemClock.elapsedRealtime() }
     var newBest by remember { mutableStateOf<Boolean?>(null) }
     val done = newBest
@@ -128,6 +131,9 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
         primary = "Play again", onPrimary = onAgain, secondary = "Ear training", onSecondary = onExit,
         pose = when { done -> Pose.LEVEL_UP; ok -> Pose.GREAT_JOB; else -> Pose.MISTAKE },
         sampler = env.sampler.takeIf { env.sound() && ok },
+        newBest = done,
+        xpGained = progress?.let { (it.xp - xpAtStart).takeIf { g -> g > 0 } },
+        xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtStart, it.xp) },
     )
 }
 

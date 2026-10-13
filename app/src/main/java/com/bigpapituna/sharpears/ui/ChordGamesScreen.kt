@@ -128,6 +128,8 @@ private fun GameScreen(
     val scope = rememberCoroutineScope()
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
     val round = remember(version) { game.round }
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val xpAtStart = remember { progress?.xp ?: 0 }
     val finished = remember(version) { game.finished }
 
     fun sound() = prefs.sound && (!(micOn && phase == Phase.ANSWER) || mic.headphonesOn())
@@ -165,6 +167,7 @@ private fun GameScreen(
     LaunchedEffect(finished) {
         if (!finished) return@LaunchedEffect
         newBest = prefs.saveGameBest(kind.id, level, game.score)
+        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.GameComplete(kind.id, level, game.score, game.rounds))
         Log.d(TAG, "games: ${kind.id} level $level finished score=${game.score} bestStreak=${game.bestStreak} newBest=$newBest")
         voice.speak("${game.score} out of ${game.rounds}." + if (newBest) " A new best." else "")
     }
@@ -177,6 +180,8 @@ private fun GameScreen(
             ChordGame.Outcome.WRONG -> { wrongFlash++; a.line?.let { line = it.text to false; voice.speak(it.spoken, deferrable = false) } }
             ChordGame.Outcome.FOUND -> a.line?.let { line = it.text to true }
             ChordGame.Outcome.DONE -> {
+                // The chord's root (pitch class) counts toward the every-key achievements; the melodic games have none.
+                progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.ChordRound((game as? ChordGame)?.target?.root))
                 line = a.line!!.text to a.clean
                 voice.speak(a.line.spoken)
                 phase = Phase.BETWEEN                                  // the mic stops, so the voice can speak
@@ -224,6 +229,9 @@ private fun GameScreen(
             primary = "Play again", onPrimary = onAgain, secondary = "Games", onSecondary = onExit,
             pose = when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE },
             sampler = sampler.takeIf { sound() && game.score * 2 >= game.rounds },
+            newBest = newBest,
+            xpGained = progress?.let { (it.xp - xpAtStart).takeIf { g -> g > 0 } },
+            xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtStart, it.xp) },
         )
         return
     }

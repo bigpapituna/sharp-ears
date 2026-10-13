@@ -78,6 +78,7 @@ import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.NoteEvent
 import com.bigpapituna.sharpears.engine.Practice
+import com.bigpapituna.sharpears.engine.progress.ProgressEvent
 import com.bigpapituna.sharpears.engine.Recap
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Song
@@ -203,6 +204,7 @@ fun PlayerScreen(
     var scriptStarted by remember { mutableStateOf(false) }
     var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
 
     val tutorial = remember(song) {
         meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs, song.groups.last().startMs) }
@@ -247,6 +249,7 @@ fun PlayerScreen(
         if (secs <= 0) return
         practiceMs[0] -= secs * 1000.0
         prefs.addPractice(java.time.LocalDate.now(), secs)
+        progress?.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))      // after Prefs: the goal reads both
         Log.d(TAG, "practice +$secs s")
     }
     DisposableEffect(Unit) { onDispose { flushPractice() } }
@@ -447,14 +450,17 @@ fun PlayerScreen(
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
         if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
+        val wasCompleted = prefs.progress(meta.id).completed
         if (run != null) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
+            progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
             recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null)
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
+            progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
             if (transport.mode == Mode.WAIT) recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null)
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
         }
@@ -544,12 +550,13 @@ fun PlayerScreen(
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
-        if (granted) { micOn = true; prefs.micDefault = true; if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
+        if (granted) { micOn = true; prefs.micDefault = true; progress?.record(ProgressEvent.FeatureUsed("mic")); if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
         if (micOn) { micOn = false; prefs.micDefault = false; Log.d(TAG, "mic off"); return }
         if (!mic.hasPermission()) { askMic.launch(Manifest.permission.RECORD_AUDIO); return }
         micOn = true; prefs.micDefault = true
+        progress?.record(ProgressEvent.FeatureUsed("mic"))           // counted once (features are a set)
         // The mic listens in wait and perform mode.
         if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT)
         Log.d(TAG, "mic on")
