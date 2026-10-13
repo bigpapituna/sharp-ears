@@ -223,6 +223,9 @@ data class RoutineItem(val warmup: Warmup, val reps: Int, val bpm: Int) {
 /** Keys the routine rotates through, easiest first. */
 val ROUTINE_KEYS = listOf(0, 7, 5, 2, 9, 4, 10, 3)
 
+/** The key a routine built with [seed] is in. */
+fun routineRoot(seed: Int): Int = ROUTINE_KEYS[Math.floorMod(seed, ROUTINE_KEYS.size)]
+
 private val ROUTINE_ORDER = listOf("five-finger", "repeated", "scale", "trill-12", "contrary", "independence-rh", "hanon-1", "trill-23", "hanon-2",
     "independence-lh", "hanon-3", "trill-34", "hanon-4", "trill-45", "hanon-5")
 
@@ -231,7 +234,7 @@ private val ROUTINE_ORDER = listOf("five-finger", "repeated", "scale", "trill-12
  * easy finger work first, harder patterns later, and each repeated to fill its share of the time. Longer
  * routines also take in more of the catalog.
  */
-fun buildRoutine(minutes: Int, level: Int, seed: Int = 0, root: Int = ROUTINE_KEYS[Math.floorMod(seed, ROUTINE_KEYS.size)]): List<RoutineItem> {
+fun buildRoutine(minutes: Int, level: Int, seed: Int = 0, root: Int = routineRoot(seed)): List<RoutineItem> {
     val lvl = level.coerceIn(1, 3)
     val catalog = warmupCatalog(root).filter { it.level <= lvl }
     fun rank(w: Warmup): Int {

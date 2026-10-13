@@ -37,6 +37,17 @@ class PitchTest {
         }
     }
 
+    @Test fun detectionIsCheapEnoughForTwentyHertz() {
+        val audio = PianoSynth.render(listOf(SynthNote(45, 0.0, 1500.0)), 1500.0)
+        val window = audio.copyOfRange(7200, 7200 + 4096)
+        repeat(20) { detector.detect(window) }                          // warm up the JIT
+        val t0 = System.nanoTime()
+        repeat(50) { detector.detect(window) }
+        val ms = (System.nanoTime() - t0) / 50 / 1e6
+        println("detect: $ms ms")
+        assertTrue("detect takes $ms ms", ms < 25)
+    }
+
     @Test fun pureTonesReportTheirCents() {
         for (cents in listOf(-45.0, -20.0, -5.0, 0.0, 7.0, 30.0, 45.0)) {
             val f = 440.0 * Math.pow(2.0, cents / 1200)

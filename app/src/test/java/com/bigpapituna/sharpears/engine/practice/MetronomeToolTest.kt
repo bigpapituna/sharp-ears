@@ -97,6 +97,18 @@ class MetronomeToolTest {
         assertEquals(listOf(false, true, true, false, true, true, false), flags.take(7))
     }
 
+    @Test fun changingTheTempoMidwayTakesEffectOnTheNextBeat() {
+        val s = TickSchedule(MetronomeConfig(bpm = 60))
+        assertEquals(0.0, s.next().timeMs, 1e-9)
+        s.setBpm(120)
+        assertEquals(1000.0, s.next().timeMs, 1e-9)                // the beat already scheduled keeps its slot
+        assertEquals(1500.0, s.next().timeMs, 1e-9)
+        s.setBpm(5)
+        assertEquals(MIN_BPM, s.next().bpm)
+        assertEquals("Allegro", tempoName(132))
+        assertEquals("Largo", tempoName(50))
+    }
+
     @Test fun tapTempoUsesTheMedianGap() {
         val tap = TapTempo()
         assertNull(tap.tap(0))

@@ -53,6 +53,7 @@ class PitchDetector(
 
     private val diff = DoubleArray(tauMax + 2)
     private val cmnd = DoubleArray(tauMax + 2)
+    private var hann = DoubleArray(0)
 
     /** The pitch of the last [WINDOW] samples of [x] (of its first [count]), or null for silence, noise and unpitched sound. */
     fun detect(x: FloatArray, count: Int = x.size): PitchResult? {
@@ -115,6 +116,7 @@ class PitchDetector(
      * interpolates the peak. Falls back to [coarse] unless the peak is clear and inside the search range.
      */
     private fun refine(x: FloatArray, base: Int, len: Int, coarse: Double): Double {
+        if (hann.size != len) hann = DoubleArray(len) { 0.5 - 0.5 * cos(2 * PI * it / (len - 1)) }
         val steps = 21
         val centsAt = DoubleArray(steps) { -40.0 + 4.0 * it }
         val mag = DoubleArray(steps)
@@ -124,9 +126,8 @@ class PitchDetector(
             val cw = cos(omega); val sw = sin(omega)
             var re = 0.0; var im = 0.0
             var pr = 1.0; var pi = 0.0                                       // e^{-j omega n}, as a rotating phasor
-            val hannStep = 2 * PI / (len - 1)
             for (n in 0 until len) {
-                val s = x[base + n] * (0.5 - 0.5 * cos(hannStep * n))
+                val s = x[base + n] * hann[n]
                 re += s * pr; im -= s * pi
                 val nr = pr * cw + pi * sw
                 pi = pi * cw - pr * sw

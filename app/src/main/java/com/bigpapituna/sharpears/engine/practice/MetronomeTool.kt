@@ -21,12 +21,12 @@ enum class TickLevel { STRONG, MEDIUM, WEAK, SUB }
  * eighth). Tempo counts pulses: 6/8 at 120 clicks six eighths per bar at 120 per minute. [accents] gives each
  * beat its level (the grouping: 3+2 in 5/4, 2+2+3 in 7/8).
  */
-enum class TimeSig(val label: String, val beats: Int, val unit: Int, val accents: List<TickLevel>) {
-    FOUR_FOUR("4/4", 4, 4, listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK)),
-    THREE_FOUR("3/4", 3, 4, listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK)),
-    SIX_EIGHT("6/8", 6, 8, listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.WEAK)),
-    FIVE_FOUR("5/4", 5, 4, listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK)),
-    SEVEN_EIGHT("7/8", 7, 8, listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.WEAK));
+enum class TimeSig(val label: String, val beats: Int, val unit: Int, val grouping: String, val accents: List<TickLevel>) {
+    FOUR_FOUR("4/4", 4, 4, "Four beats, a lighter stress on the third", listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK)),
+    THREE_FOUR("3/4", 3, 4, "Three beats, stress on the first", listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK)),
+    SIX_EIGHT("6/8", 6, 8, "Clicks every eighth note, in two groups of three", listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.WEAK)),
+    FIVE_FOUR("5/4", 5, 4, "Five beats, grouped three plus two", listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK)),
+    SEVEN_EIGHT("7/8", 7, 8, "Clicks every eighth note, grouped two, two and three", listOf(TickLevel.STRONG, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.MEDIUM, TickLevel.WEAK, TickLevel.WEAK));
 
     init { require(accents.size == beats) }
 }
@@ -113,6 +113,22 @@ class TickSchedule(val config: MetronomeConfig) {
 
     /** The time the next tick will fall at. */
     val nextTimeMs get() = time
+
+    /** Changes the tempo from the next beat on (a bar already under way keeps its place). */
+    fun setBpm(newBpm: Int) { bpm = clampBpm(newBpm) }
+}
+
+/** The classical word for a tempo. */
+fun tempoName(bpm: Int): String = when {
+    bpm < 40 -> "Grave"
+    bpm < 60 -> "Largo"
+    bpm < 66 -> "Larghetto"
+    bpm < 76 -> "Adagio"
+    bpm < 108 -> "Andante"
+    bpm < 120 -> "Moderato"
+    bpm < 156 -> "Allegro"
+    bpm < 176 -> "Vivace"
+    else -> "Presto"
 }
 
 /** Ticks in the first [ms] milliseconds of a fresh schedule (a convenience for tests and previews). */
