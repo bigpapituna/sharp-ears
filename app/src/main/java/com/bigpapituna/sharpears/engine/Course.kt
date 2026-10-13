@@ -334,6 +334,161 @@ private val KEYS = listOf(
         tune = "D4:1 F4:1 A4:2 Bb4:1 A4:1 G4:2 F4:1 E4:1 D4:1 E4:1 D4:4", flats = true),
 )
 
+/**
+ * A song lesson: one idea to read, the opening phrase heard, the right hand alone, the left hand alone, both hands
+ * in time (Perform, 80%), then on to the whole song in the library.
+ */
+private fun songLesson(id: String, title: String, summary: String, idea: String, phrase: Exercise, song: String,
+                       open: String): CourseLesson = lesson(id, title, summary,
+    read(idea),
+    listen("Listen to the opening phrase, both hands.", phrase),
+    play("Right hand alone. The app plays the left hand. Letters and finger numbers are on the notes.", phrase.copy(practice = Practice.RIGHT)),
+    play("Now the left hand alone. The app plays the tune.", phrase.copy(practice = Practice.LEFT)),
+    perform("Both hands, in time. The notes keep moving. Score 80 percent to pass.", phrase),
+    read(open),
+    song = song)
+
+// Opening phrases (four bars) of the repertoire songs, written in the same notation as scripts/gen_songs.py.
+private val MARY_X = Exercise(right = "E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:2 D4:1 D4:1 D4:2 E4:1 G4:1 G4:2",
+    left = "C3:4 C3:4 G2:4 C3:4", bpm = 90.0)
+private val BUNS_X = Exercise(right = "E4:1 D4:1 C4:2 E4:1 D4:1 C4:2 C4:0.5 C4:0.5 C4:0.5 C4:0.5 D4:0.5 D4:0.5 D4:0.5 D4:0.5 E4:1 D4:1 C4:2",
+    left = "C3:4 C3:4 C3:2 G2:2 C3:4", bpm = 80.0)
+private val ROW_X = Exercise(right = "C4:1.5 C4:1.5 C4:1 D4:0.5 E4:1.5 E4:1 D4:0.5 E4:1 F4:0.5 G4:3",
+    left = "C3:3 C3:3 C3:3 C3:3", bpm = 84.0, beats = 3)
+private val LONDON_X = Exercise(right = "G4:0.75 A4:0.25 G4:0.5 F4:0.5 E4:0.5 F4:0.5 G4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 F4:0.5 G4:1",
+    left = "C3:2 C3:2 G2:2 C3:2", bpm = 96.0, beats = 2)
+private val YANKEE_X = Exercise(right = "C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 D4:1 G3:1 C4:1 C4:1 D4:1 E4:1 C4:1 B3:3",
+    left = "C3:4 C3:2 G2:2 C3:4 C3:2 G2:2", bpm = 100.0)
+private val MACDONALD_X = Exercise(right = "C4:1 C4:1 C4:1 G3:1 A3:1 A3:1 G3:2 E4:1 E4:1 D4:1 D4:1 C4:4",
+    left = "C3:4 F3:2 C3:2 C3:2 G2:2 C3:4", bpm = 96.0)
+private val LIGHTLY_X = Exercise(right = "G4:1 E4:1 E4:2 F4:1 D4:1 D4:2 C4:1 D4:1 E4:1 F4:1 G4:1 G4:1 G4:2",
+    left = "C3:2 G3:2 G2:2 D3:2 C3:2 G3:2 G2:2 D3:2", bpm = 92.0)
+private val WEWISH_X = Exercise(right = "G4:1 G4:0.5 A4:0.5 G4:0.5 F#4:0.5 E4:1 E4:1 E4:1 A4:1 A4:0.5 B4:0.5 A4:0.5 G4:0.5 F#4:1 D4:1 D4:1",
+    left = "G2:1 B2+D3:2 C3:1 E3+G3:2 D3:1 F#3+A3:2 D3:1 F#3+A3:2", bpm = 108.0, beats = 3)
+private val EINE_X = Exercise(right = "G4:1 r:0.5 D4:0.5 G4:1 r:0.5 D4:0.5 G4:0.5 D4:0.5 G4:0.5 B4:0.5 D5:2 C5:1 r:0.5 A4:0.5 C5:1 r:0.5 A4:0.5 C5:0.5 A4:0.5 F#4:0.5 A4:0.5 D5:2",
+    left = "G2:2 D3:2 G2:2 D3:2 D3:2 A3:2 D3:2 A3:2", bpm = 100.0)
+private val GYMNO_X = Exercise(right = "F#5:3 A5:3 G5:3 F#5:3",
+    left = "G2:1 B3+D4+F#4:2 D3:1 A3+C#4+F#4:2 G2:1 B3+D4+F#4:2 D3:1 A3+C#4+F#4:2", bpm = 56.0, beats = 3)
+private val TOCCATA_X = Exercise(right = "A5:0.25 G5:0.25 A5:3.5 G5:0.25 F5:0.25 E5:0.25 D5:0.25 C#5:0.25 D5:2.75 " +
+    "A4:0.25 G4:0.25 A4:3.5 G4:0.25 F4:0.25 E4:0.25 D4:0.25 C#4:0.25 D4:2.75 C#4+E4+G4+Bb4:4 D4+F4+A4+D5:4",
+    left = "r:16 D2+A2:4 D2+A2+D3:4", bpm = 56.0)
+private val SCARBOROUGH_X = Exercise(right = "D4:2 D4:1 A4:2 A4:1 E4:1.5 F4:0.5 E4:1 D4:3",
+    left = "D3:3 D3:3 C3:3 D3:3", bpm = 84.0, beats = 3)
+
+private const val OPEN_SONG = "Now open the whole song. The sections are marked on the bar at the bottom, so you can loop one at a time."
+
+private val REPERTOIRE_1 = listOf(
+    songLesson("rep-mary", "Mary Had a Little Lamb", "Four notes and a steady walk.",
+        "Rest your right hand in the C position, thumb on C. This tune uses only C, D, E and G, so the hand hardly moves. Watch the three E notes in bar two: lift a little between them so each one is heard.",
+        MARY_X, "mary-had-a-little-lamb", OPEN_SONG),
+    songLesson("rep-buns", "Hot Cross Buns", "Quick notes in the middle bar.",
+        "Hot Cross Buns has one trick, in bar three: eight quick notes, C four times and D four times. Count one and two and three and four and, so each quick note lasts half a beat. Keep the wrist loose and let each finger drop on its own key.",
+        BUNS_X, "hot-cross-buns", OPEN_SONG),
+    songLesson("rep-row", "Row, Row, Row Your Boat", "Long and short notes in threes.",
+        "Each bar here has three beats, and the notes come in long and short pairs. A long note lasts a beat and a half. Say the words as you play: row, row, row your boat. The merrily bars use six quick notes, so keep them light and even.",
+        ROW_X, "row-row-row-your-boat", OPEN_SONG),
+    songLesson("rep-london", "London Bridge", "A long-short lilt in two four.",
+        "The first two notes of London Bridge are a long-short pair: G for three quarters of a beat, then a quick A. Say Lon-don with a little skip, then keep the beat steady. Count one two, one two.",
+        LONDON_X, "london-bridge", OPEN_SONG),
+    songLesson("rep-yankee", "Yankee Doodle", "A march with low pickup notes.",
+        "Yankee Doodle marches on steady quarter notes. Bar two ends on the G below middle C, and bar four ends on the B just under it. Let your thumb reach down for those two notes, then come straight back to the C position.",
+        YANKEE_X, "yankee-doodle", OPEN_SONG),
+    songLesson("rep-macdonald", "Old MacDonald Had a Farm", "A tune that is wider than five fingers.",
+        "This tune is a little wider than the five finger position. It runs from the G below middle C up to E. Start with your thumb on that low G, and for E, I, E, I, O slide the hand up so your thumb sits on C.",
+        MACDONALD_X, "old-macdonald", OPEN_SONG),
+)
+
+private val REPERTOIRE_2 = listOf(
+    songLesson("rep-lightly", "Lightly Row", "Four phrases and one shape.",
+        "Lightly Row has four phrases: A, A again, a middle B, then A once more. Spot the shape before you play. Phrase A steps down and then climbs, and the middle repeats single notes. Knowing the plan makes the whole song quicker to learn.",
+        LIGHTLY_X, "lightly-row", OPEN_SONG),
+    songLesson("rep-wewish", "We Wish You a Merry Christmas", "G major in waltz time.",
+        "This carol is in G major, so every F becomes F sharp, the black key just right of F. It moves in three four time too: the bass note on beat one, the chord on beats two and three. Find the F sharp before you start.",
+        WEWISH_X, "we-wish-you-a-merry-christmas", OPEN_SONG),
+    songLesson("rep-eine", "Eine kleine Nachtmusik", "Mozart's famous opening.",
+        "Mozart opens with a game of jumps: G, then the D below it, again and again, before the notes climb a G chord to the high D. Practise the jump from G down to D until it is calm. The eighth rests are part of the rhythm, so count straight through them.",
+        EINE_X, "eine-kleine-nachtmusik", OPEN_SONG),
+    songLesson("rep-gymno", "Gymnopedie No. 1", "Slow, soft and spacious.",
+        "Satie wants this very slowly and very softly. The left hand rocks between two chords, G major seventh and D major seventh, one bar each. Let the bass note of every bar ring, keep the chord light, and let the melody float on top.",
+        GYMNO_X, "gymnopedie-1", OPEN_SONG),
+    songLesson("rep-toccata", "Toccata in D minor", "A famous opening in two echoes.",
+        "Bach's most famous opening is only a few notes: A, G, A with a long hold, then a quick run down to D. The same idea comes back an octave lower, then thick chords arrive. Take a breath at each hold, as an organist would, and play the quick notes evenly.",
+        TOCCATA_X, "bach-toccata-opening", OPEN_SONG),
+    songLesson("rep-scarborough", "Scarborough Fair", "An old tune in three four.",
+        "Scarborough Fair uses only white keys, starting and ending on D. That gives it its old, open sound. It is in three four time, so feel one strong beat and two light ones in every bar.",
+        SCARBOROUGH_X, "scarborough-fair", OPEN_SONG),
+)
+
+private const val SCALE_C = "C4:1 D4:1 E4:1 F4:1 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F4:1 E4:1 D4:1 C4:2"
+private const val SCALE_G = "G4:1 A4:1 B4:1 C5:1 D5:1 E5:1 F#5:1 G5:1 F#5:1 E5:1 D5:1 C5:1 B4:1 A4:1 G4:2"
+private const val SCALE_F = "F4:1 G4:1 A4:1 Bb4:1 C5:1 D5:1 E5:1 F5:1 E5:1 D5:1 C5:1 Bb4:1 A4:1 G4:1 F4:2"
+private const val SCALE_C_LEFT = "C3:1 D3:1 E3:1 F3:1 G3:1 A3:1 B3:1 C4:1 B3:1 A3:1 G3:1 F3:1 E3:1 D3:1 C3:2"
+private const val SCALE_G_LEFT = "G3:1 A3:1 B3:1 C4:1 D4:1 E4:1 F#4:1 G4:1 F#4:1 E4:1 D4:1 C4:1 B3:1 A3:1 G3:2"
+private const val SCALE_F_LEFT = "F3:1 G3:1 A3:1 Bb3:1 C4:1 D4:1 E4:1 F4:1 E4:1 D4:1 C4:1 Bb3:1 A3:1 G3:1 F3:2"
+private const val PASS_80 = "Score 80 percent to pass."
+
+private const val LEGATO = "C4:1 D4:1 E4:1 F4:1 G4:1 F4:1 E4:1 D4:1 C4:4"
+private const val STACCATO = "C4:0.5 r:0.5 D4:0.5 r:0.5 E4:0.5 r:0.5 F4:0.5 r:0.5 G4:0.5 r:0.5 F4:0.5 r:0.5 E4:0.5 r:0.5 D4:0.5 r:0.5 C4:2 r:2"
+private const val TOUCH_MIX = "C4:1 D4:1 E4:1 F4:1 G4:0.5 r:0.5 G4:0.5 r:0.5 G4:0.5 r:0.5 G4:0.5 r:0.5 " +
+    "A4:1 G4:1 F4:1 E4:1 D4:0.5 r:0.5 D4:0.5 r:0.5 C4:2"
+
+private val SOFT_LOUD = Exercise(right = "E4:1 F4:1 G4:1 A4:1 G4:2 r:2 E4:1 F4:1 G4:1 A4:1 G4:2 r:2", bpm = 72.0, practice = Practice.RIGHT)
+private val PROGRESSION = Exercise(right = "C4+E4+G4:4 B3+D4+G4:4 C4+E4+A4:4 C4+F4+A4:4", left = "C3:4 G2:4 A2:4 F2:4", bpm = 60.0)
+
+private val TECHNIQUE_2 = listOf(
+    lesson("t2-scales", "Scales in C, G and F", "Book fingering, both hands, in time.",
+        read("Three scales, three sets of fingers. In C and G the right hand plays 1 2 3, the thumb tucks under, then 1 2 3 4 5. F major has a black key under finger 4, B flat.",
+            "Keep the wrist level, move the thumb early, and play every note the same loudness. The finger numbers on screen show the right hand."),
+        perform("C major, both hands an octave apart, up and back. $PASS_80",
+            Exercise(right = SCALE_C, left = SCALE_C_LEFT, bpm = 72.0, fingers = STANDARD_SCALE)),
+        perform("G major. Finger 4 plays F sharp on the way up and on the way down. $PASS_80",
+            Exercise(right = SCALE_G, left = SCALE_G_LEFT, bpm = 72.0, fingers = STANDARD_SCALE)),
+        perform("F major. Finger 4 plays B flat, then the thumb tucks under to C. $PASS_80",
+            Exercise(right = SCALE_F, left = SCALE_F_LEFT, bpm = 72.0, flats = true, fingers = "1 2 3 4 1 2 3 4 3 2 1 4 3 2 1"))),
+    run {
+        val chords = Exercise(right = "C4:0.5 E4:0.5 G4:0.5 E4:0.5 C4:0.5 E4:0.5 G4:0.5 E4:0.5 F4:0.5 A4:0.5 C5:0.5 A4:0.5 F4:0.5 A4:0.5 C5:0.5 A4:0.5 " +
+            "G4:0.5 B4:0.5 D5:0.5 B4:0.5 G4:0.5 B4:0.5 D5:0.5 B4:0.5 C4:0.5 E4:0.5 G4:0.5 E4:0.5 C4:2",
+            left = "C3:4 F3:4 G2:4 C3:4", bpm = 66.0)
+        lesson("t2-broken", "Broken chords", "One chord, one note at a time: C, F and G.",
+            read("A broken chord plays the notes of a chord one after another. Here the hand stays still over each chord: bottom, middle, top, middle, again. See the chord shape first, then let the fingers roll through it.",
+                "The left hand holds the root. Change the hand shape on the first note of each bar, not in the middle."),
+            listen("Listen to the chords: C, F, G, then C again.", chords),
+            play("Right hand alone, the notes waiting for you. The app plays the left hand.", chords.copy(practice = Practice.RIGHT)),
+            perform("Both hands, in time, with even notes. $PASS_80", chords))
+    },
+    run {
+        val both = Exercise(right = "$LEGATO $STACCATO", bpm = 76.0, practice = Practice.RIGHT)
+        lesson("t2-touch", "Legato and staccato", "Smooth and detached, side by side.",
+            read("Legato means smooth: each note starts as the last one ends, with no gap. Staccato means short and detached: the key pops back up at once.",
+                "Both are about what the finger does after it lands. Keep the arm relaxed, and play staccato from the wrist, as if the keys were warm."),
+            listen("Listen: first smooth, then short.", both),
+            play("Smooth first. Keep each key down until the next one is down.", Exercise(right = LEGATO, bpm = 76.0, practice = Practice.RIGHT)),
+            play("Now short and light. The rests show where the key should come up.", Exercise(right = STACCATO, bpm = 76.0, practice = Practice.RIGHT)),
+            perform("Smooth bars and short bars mixed, in time. $PASS_80", Exercise(right = TOUCH_MIX, bpm = 76.0, practice = Practice.RIGHT)))
+    },
+    lesson("t2-shaping", "Shaping a phrase", "Rise to the high note, then settle.",
+        read("A phrase is like a sentence: it rises to a peak and settles. Start softly, grow toward the highest note, and let the last note fade.",
+            "Loudness comes from the speed of the key, so let the weight of your arm travel into it. Never hit."),
+        listen("Listen: the phrase soft, then loud.", SOFT_LOUD),
+        play("Now play it yourself. Grow toward the A, then ease off.", SOFT_LOUD),
+        Step(StepKind.DYNAMICS, "The first five notes soft, under 50 on the keyboard's scale of 127. The next five loud, over 90. $PASS_80", SOFT_LOUD)),
+    lesson("t2-pedal-progression", "Pedal on a chord progression", "A fresh pedal at every chord change.",
+        read("The sustain pedal joins the chords of a progression into one smooth sound. The rule is simple: play the new chord, then lift the pedal and press it straight down again.",
+            "Pedalled late, the old chord blurs into the new one. Today's four chords are C, G, A minor and F, the pattern behind countless songs. The pedal step needs a MIDI keyboard."),
+        listen("Listen to the four chords, one bar each.", PROGRESSION),
+        play("Play the chords with both hands. Practise the change of hand first, pedal later.", PROGRESSION),
+        Step(StepKind.PEDAL, "Play each chord and change the pedal with it. The bar under the keys shows when the pedal should be down. $PASS_80", PROGRESSION)),
+    lesson("t2-sight", "Sight-reading habits", "Look ahead, keep the beat, never stop.",
+        read("Good sight-readers follow five habits. Check the key and time signature first. Scan for the highest and lowest notes. Count one bar in before you start. Keep your eyes a beat ahead of your hands.",
+            "And never stop for a wrong note: keep the beat going and fix it next time. The sight-reading drill in Practice gives you endless new lines."),
+        play("Read this line first, then play it. Look at the shape: where does it step, and where does it jump?",
+            Exercise(right = "E4:1 F4:1 G4:1 E4:1 D4:2 C4:2 E4:1 G4:1 C5:1 G4:1 E4:4", bpm = 72.0, practice = Practice.RIGHT)),
+        perform("A new line, in time. Do not stop for a wrong note. $PASS_80",
+            Exercise(right = "C4:1 D4:1 E4:1 G4:1 F4:2 D4:2 E4:1 G4:1 E4:1 C4:1 D4:2 G3:2", bpm = 72.0, practice = Practice.RIGHT)),
+        perform("One more, in G with an F sharp. Keep your eyes ahead of your hands. $PASS_80",
+            Exercise(right = "G4:1 A4:1 B4:1 D5:1 C5:2 A4:2 B4:1 A4:1 F#4:1 D4:1 G4:4", bpm = 72.0, practice = Practice.RIGHT))),
+)
+
 val COURSE: List<CourseLevel> = listOf(
     CourseLevel("basics", "Basics", "Where to sit, where the notes are, and which finger is which.", listOf(
         run {
@@ -572,4 +727,7 @@ val COURSE: List<CourseLevel> = listOf(
             song = "fur-elise"),
     )),
     CourseLevel("technique", "Technique", "Daily drills that build even, independent fingers, played faster each clean pass.", TECHNIQUE),
+    CourseLevel("repertoire-1", "Repertoire 1", "Six easy tunes, learned phrase by phrase: hands apart, then together.", REPERTOIRE_1),
+    CourseLevel("repertoire-2", "Repertoire 2", "Six medium pieces: new keys, longer phrases and famous openings.", REPERTOIRE_2),
+    CourseLevel("technique-2", "Technique 2", "Scales with the book fingering, broken chords, touch, shaping, pedal and sight-reading habits.", TECHNIQUE_2),
 )

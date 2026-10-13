@@ -15,8 +15,12 @@ import java.io.File
 /** The bundled content: songs parse with both hands, a broken import is refused with a message, lesson packs load. */
 class LibraryContentTest {
     private companion object {
+        /** The 2026-10-13 content batch (Sharp Ears 2.0): public-domain tunes for the Repertoire levels, no videos yet. */
+        val NEW_SONGS = listOf("mary-had-a-little-lamb", "hot-cross-buns", "row-row-row-your-boat", "london-bridge", "yankee-doodle",
+            "old-macdonald", "haydn-surprise", "au-clair-de-la-lune", "lightly-row", "we-wish-you-a-merry-christmas",
+            "eine-kleine-nachtmusik", "gymnopedie-1", "hall-of-the-mountain-king", "rondo-alla-turca", "bach-toccata-opening")
         val TO_CURATE = setOf("scarborough-fair", "auld-lang-syne", "silent-night", "jingle-bells", "saints", "oh-susanna",
-            "brahms-lullaby", "frere-jacques")
+            "brahms-lullaby", "frere-jacques") + NEW_SONGS
     }
     private val assets = File("src/main/assets")
     private val index = File(assets, "songs/index.json").readText()
@@ -26,7 +30,7 @@ class LibraryContentTest {
 
     @Test fun everyBundledSongParsesWithBothHandsAndHasATutorial() {
         val bundled = entries.filter { !it.second.startsWith("user/") }
-        assertEquals("23 bundled songs", 23, bundled.size)
+        assertEquals("23 older songs and 15 new ones", 38, bundled.size)
         for ((id, file) in bundled) {
             val rule = if (id == "prelude-c") HandRule.Tracks(right = 2, left = 1) else HandRule.Auto
             val song = SmfParser.parse(File(assets, "songs/$file").readBytes(), id, id, rule)
@@ -81,6 +85,37 @@ class LibraryContentTest {
             Regex("\"progression\": (\\d+)").findAll(text).forEach { assertTrue(p.name, it.groupValues[1].toInt() in PROGRESSIONS.indices) }
             Regex("\"requires\": \\[([^]]*)]").find(text)!!.groupValues[1].split(",").map { it.trim().trim('"') }.filter { it.isNotEmpty() }
                 .forEach { req -> assertTrue("${p.name} requires $req", packs.any { it.nameWithoutExtension == req }) }
+        }
+    }
+
+    @Test fun newSongsAreCompleteSectionedAndPublicDomain() {
+        @Suppress("UNCHECKED_CAST")
+        val songs = (com.bigpapituna.sharpears.engine.MiniJson.read(index) as Map<String, Any?>)["songs"] as List<Map<String, Any?>>
+        val byId = songs.associateBy { it["id"] as String }
+        assertEquals("ids are unique", songs.size, byId.size)
+        val difficulties = NEW_SONGS.map { byId.getValue(it)["difficulty"] }
+        assertTrue("a spread of difficulty: $difficulties", setOf("easy", "medium", "hard").all { it in difficulties })
+        for (id in NEW_SONGS) {
+            val meta = byId.getValue(id)
+            for (key in listOf("title", "composer", "license", "attribution")) {
+                val v = meta[key] as String
+                assertTrue("$id $key", v.isNotBlank() && v.none { it in "\u2014\u2013" })
+            }
+            assertEquals("$id license", "Public Domain", meta["license"])
+            assertEquals("$id file", "$id.mid", meta["file"])
+            assertEquals("$id: no tutorial videos yet", emptyList<Any?>(), meta["videos"])
+            val song = SmfParser.parse(File(assets, "songs/$id.mid").readBytes(), id, meta["title"] as String, HandRule.Auto)
+            assertTrue("$id has ${song.notes.size} notes", song.notes.size > 20)
+            assertTrue("$id has both hands", song.notes.any { it.hand == Hand.RIGHT } && song.notes.any { it.hand == Hand.LEFT })
+            assertTrue("$id is at least ten seconds", song.durationMs >= 10_000)
+            // Sections: listed in the index (name and bar) and written into the file as markers, in the same order.
+            @Suppress("UNCHECKED_CAST")
+            val listed = meta["sections"] as List<Map<String, Any?>>
+            assertTrue("$id sections", listed.size >= 2)
+            assertEquals("$id: sections in the file", listed.map { it["name"] }, song.sections.map { it.name })
+            assertEquals("$id: first section starts at the top", 0L, song.sections.first().startMs)
+            assertTrue("$id: sections run forward", song.sections.zipWithNext().all { (a, b) -> a.startMs < b.startMs && a.endMs == b.startMs })
+            assertTrue("$id: the last section ends with the song", song.sections.last().endMs == song.durationMs)
         }
     }
 }

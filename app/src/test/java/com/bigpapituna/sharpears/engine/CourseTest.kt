@@ -19,15 +19,15 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(52, ids.size)
-        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique"), COURSE.map { it.id })
+        assertEquals(70, ids.size)
+        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"), COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
-            assertTrue("${lesson.id} has 3 to 5 steps", lesson.steps.size in 3..5)
+            assertTrue("${lesson.id} has 3 to 6 steps", lesson.steps.size in 3..6)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)
             assertTrue("${lesson.id} has something to play", lesson.steps.any { it.exercise != null })
             if (lesson.songId != null) assertEquals("${lesson.id} ends by opening its song", StepKind.READ, lesson.steps.last().kind)
             for (step in lesson.steps) {
-                assertTrue("${lesson.id} step text", step.text.isNotBlank() && step.text.none { it in "—–·" })
+                assertTrue("${lesson.id} step text", step.text.isNotBlank() && step.text.none { it in "—–·#&/" })
                 assertEquals("${lesson.id}: only reading steps have no exercise", step.kind == StepKind.READ, step.exercise == null)
                 val ex = step.exercise ?: continue
                 val song = ex.toSong(lesson.id, lesson.title)
@@ -120,8 +120,7 @@ class CourseTest {
     }
 
     @Test fun techniqueDrillsEndOnATempoRamp() {
-        val level = COURSE.last()
-        assertEquals("technique", level.id)
+        val level = COURSE.first { it.id == "technique" }
         assertEquals(listOf("five-c", "five-g", "five-f", "five-d", "five-a", "hanon-1", "contrary"), level.lessons.map { it.id })
         for (l in level.lessons) {
             val last = l.steps.last()
@@ -159,5 +158,70 @@ class CourseTest {
         assertFalse(pedal.passed(r.copy(extraScore = 75)))
         assertFalse(loud.passed(r))
         assertTrue(Step(StepKind.PERFORM, "x", Exercise(right = "C4:1")).passed(r.copy(recap = Recap(9, 0, 1, 0, 9))))
+    }
+
+    private val newSongIds = listOf("mary-had-a-little-lamb", "hot-cross-buns", "row-row-row-your-boat", "london-bridge", "yankee-doodle",
+        "old-macdonald", "haydn-surprise", "au-clair-de-la-lune", "lightly-row", "we-wish-you-a-merry-christmas",
+        "eine-kleine-nachtmusik", "gymnopedie-1", "hall-of-the-mountain-king", "rondo-alla-turca", "bach-toccata-opening")
+
+    private fun libraryIds(): Set<String> =
+        Regex("\"id\": \"([^\"]+)\",\\s*\"file\"").findAll(java.io.File("src/main/assets/songs/index.json").readText()).map { it.groupValues[1] }.toSet()
+
+    @Test fun repertoireLessonsTeachAPhraseThenSendYouToTheSong() {
+        val library = libraryIds()
+        for ((levelId, songs) in listOf(
+            "repertoire-1" to listOf("mary-had-a-little-lamb", "hot-cross-buns", "row-row-row-your-boat", "london-bridge", "yankee-doodle", "old-macdonald"),
+            "repertoire-2" to listOf("lightly-row", "we-wish-you-a-merry-christmas", "eine-kleine-nachtmusik", "gymnopedie-1", "bach-toccata-opening", "scarborough-fair"),
+        )) {
+            val level = COURSE.first { it.id == levelId }
+            assertEquals(levelId, 6, level.lessons.size)
+            assertEquals("$levelId: one lesson per song, in order", songs, level.lessons.map { it.songId })
+            for (l in level.lessons) {
+                assertTrue("${l.songId} is in the library", l.songId in library)
+                assertEquals(l.id, listOf(StepKind.READ, StepKind.LISTEN, StepKind.PLAY, StepKind.PLAY, StepKind.PERFORM, StepKind.READ), l.steps.map { it.kind })
+                val phrase = l.steps[1].exercise!!
+                assertEquals(l.id, Practice.RIGHT, l.steps[2].exercise!!.practice)
+                assertEquals(l.id, Practice.LEFT, l.steps[3].exercise!!.practice)
+                assertEquals(l.id, 80, l.steps[4].exercise!!.pass)
+                val song = phrase.toSong(l.id, l.title)
+                assertTrue("${l.id}: both hands in the phrase", song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT })
+                fun beats(s: String) = s.split(" ").sumOf { it.substringAfter(':').toDouble() }
+                assertEquals("${l.id}: the hands fill the same bars", beats(phrase.right), beats(phrase.left), 1e-9)
+                assertEquals("${l.id}: whole bars", 0.0, beats(phrase.right) % phrase.beats, 1e-9)
+            }
+        }
+        // The repertoire covers every easy and medium song written for it, so none of the new tunes is orphaned in the library.
+        val taught = COURSE.flatMap { it.lessons }.mapNotNull { it.songId }.toSet()
+        assertTrue(newSongIds.filter { it !in taught }.toString(), newSongIds.filter { it !in taught }.toSet() ==
+            setOf("haydn-surprise", "au-clair-de-la-lune", "hall-of-the-mountain-king", "rondo-alla-turca"))
+    }
+
+    @Test fun technique2CoversScalesChordsTouchShapingPedalAndSightReading() {
+        val level = COURSE.first { it.id == "technique-2" }
+        assertEquals(listOf("t2-scales", "t2-broken", "t2-touch", "t2-shaping", "t2-pedal-progression", "t2-sight"), level.lessons.map { it.id })
+        val scales = level.lessons.first { it.id == "t2-scales" }
+        assertEquals(listOf(StepKind.READ, StepKind.PERFORM, StepKind.PERFORM, StepKind.PERFORM), scales.steps.map { it.kind })
+        for (step in scales.steps.drop(1)) {
+            val ex = step.exercise!!
+            val song = ex.toSong("s", "s")
+            assertEquals("a fingering for every right-hand note", song.notes.count { it.hand == Hand.RIGHT }, ex.fingers.split(" ").size)
+            assertEquals("one octave up and back, both hands", 15, song.notes.count { it.hand == Hand.LEFT })
+            assertEquals(80, ex.pass)
+        }
+        assertTrue(scales.steps[3].exercise!!.toSong("f", "f").preferFlats)
+        assertTrue(level.lessons.first { it.id == "t2-shaping" }.steps.last().kind == StepKind.DYNAMICS)
+        val pedal = level.lessons.first { it.id == "t2-pedal-progression" }.steps.last()
+        assertEquals(StepKind.PEDAL, pedal.kind)
+        assertEquals(4, PedalGrader.chordsOf(pedal.exercise!!.toSong("p", "p")).size)
+        // Staccato is shown as notes with rests: as many rests as notes in the short version.
+        val touch = level.lessons.first { it.id == "t2-touch" }
+        val short = touch.steps[3].exercise!!.right.split(" ")
+        assertTrue(short.count { it.startsWith("r:") } >= short.count { !it.startsWith("r:") } - 2)
+        assertEquals(StepKind.PERFORM, level.lessons.first { it.id == "t2-sight" }.steps.last().kind)
+    }
+
+    @Test fun everyLessonSongExistsInTheLibrary() {
+        val library = libraryIds()
+        for (l in COURSE.flatMap { it.lessons }) l.songId?.let { assertTrue("${l.id}: $it", it in library) }
     }
 }
