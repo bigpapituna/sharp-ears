@@ -52,6 +52,7 @@ private fun label(midi: Int, flats: Boolean) = noteName(midi, flats).let { if (m
  * Falling notes for [song] at [positionMs]. Columns line up with a [Keyboard] of the same width and range.
  * Each block shows its note name and, below it, the suggested finger ([fingers]); a note glows while it sounds
  * and sparks where it meets the keyboard. Vertical drags scrub: dragging down moves time forward.
+ * [lights] adds the hit feedback on top: flashes, sparks, the combo counter and Perform grade words.
  */
 @Composable
 fun NoteLane(
@@ -78,6 +79,11 @@ fun NoteLane(
     beatsPerBar: Int = 4,
 ) {
     val playedLongest = remember(played) { played?.maxOfOrNull { it.durationMs } ?: 0L }
+    val still = reducedMotion()
+    val lightText = rememberTextMeasurer()
+    if (lights != null) { lights.still = still; lights.measurer = lightText }
+    // The key geometry, rebuilt only when the size or range changes (not every frame).
+    val layoutCache = remember { arrayOfNulls<KeyboardLayout>(1) }
     // Ticks the lights' clock only while one is alive: the Canvas redraws, nothing recomposes.
     if (lights != null) LaunchedEffect(lights) {
         snapshotFlow { lights.added.intValue }.collect {
@@ -105,7 +111,8 @@ fun NoteLane(
         }
     ) {
         drawRect(Brush.verticalGradient(listOf(LaneBackground, LaneBottom)))
-        val keys = KeyboardLayout(lowMidi, highMidi, size.width, size.height)
+        val keys = layoutCache[0]?.takeIf { it.width == size.width && it.height == size.height && it.lowMidi == lowMidi && it.highMidi == highMidi }
+            ?: KeyboardLayout(lowMidi, highMidi, size.width, size.height).also { layoutCache[0] = it }
         val lane = LaneGeometry(size.height)
         val whiteW = keys.whiteKeys.firstOrNull()?.let { it.right - it.left } ?: 20f
         val radius = minOf(6.dp.toPx(), whiteW * 0.22f)
