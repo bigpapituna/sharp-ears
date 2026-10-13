@@ -52,7 +52,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    onMicSetup: () -> Unit,
                    onPrivacy: () -> Unit, onLicences: () -> Unit,
                    /** Settings is a pushed screen (from the gear on You): a back arrow beside the heading. */
-                   onBack: (() -> Unit)? = null) {
+                   onBack: (() -> Unit)? = null,
+                   /** After Prefs.resetProgress(): the other stores that keep scores (ear training, practice tools). */
+                   onResetProgress: () -> Unit = {}) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30).
     val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
@@ -155,9 +157,10 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 TextButton(onClick = { importFrom.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }) { Text("Import progress") }
             }
             progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
-            Text("Reset clears resume positions, played marks, best scores and practice time. Chord lessons keep their progress.",
+            Text("Reset clears resume positions, played marks, best scores, practice time, ear training scores and the practice tools' records. " +
+                "Chord lessons, XP and achievements are kept.",
                 style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
-            TextButton(onClick = { confirmReset = true }) { Text("Reset song progress", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
 
             Section("About")
             Text("Sharp Ears $versionName, a personal piano trainer.", style = MaterialTheme.typography.bodyMedium)
@@ -201,9 +204,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     }
     if (confirmReset) AlertDialog(
         onDismissRequest = { confirmReset = false },
-        title = { Text("Reset song progress?") },
-        text = { Text("Resume positions, played marks, best scores and practice time will be cleared.") },
-        confirmButton = { TextButton(onClick = { prefs.resetProgress(); confirmReset = false }) { Text("Reset") } },
+        title = { Text("Reset progress?") },
+        // XP and achievements stay on purpose: they record what was done, and a reset should not take that away.
+        text = { Text("Resume positions, played marks, best scores, practice time, ear training scores and the practice tools' records " +
+            "will be cleared. Your XP, level and achievements are kept.") },
+        confirmButton = { TextButton(onClick = { prefs.resetProgress(); onResetProgress(); confirmReset = false }) { Text("Reset") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
     )
 }

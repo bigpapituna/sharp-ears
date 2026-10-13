@@ -459,7 +459,8 @@ class MainActivity : ComponentActivity() {
                                 onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
                                 onMicSetup = { screen = Screen.MicSetup(s) },
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
-                                onBack = { screen = s.back })
+                                onBack = { screen = s.back },
+                                onResetProgress = { earStore.reset(); practiceStore.clear(); Log.d(TAG, "progress: reset (prefs, ear, practice; XP kept)") })
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
