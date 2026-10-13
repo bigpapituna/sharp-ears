@@ -244,7 +244,11 @@ class MicInput(private val context: Context) {
         main.post { source.value = null; onStopped?.invoke() }
     }
 
+    /** Raw input, on the audio thread, for tools that read the mic besides note matching (the tuner). */
+    @Volatile var tap: ((samples: FloatArray, count: Int) -> Unit)? = null
+
     private fun handle(buf: FloatArray, n: Int) {
+        tap?.invoke(buf, n)
         writer?.let { w -> synchronized(this) { w.append(buf, n) } }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         for (e in matcher.process(buf, n)) _events.tryEmit(e)
