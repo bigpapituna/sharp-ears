@@ -56,6 +56,7 @@ import com.bigpapituna.sharpears.engine.Song
 import com.bigpapituna.sharpears.engine.micCheckExercise
 import com.bigpapituna.sharpears.engine.progressionSong
 import com.bigpapituna.sharpears.engine.songPack
+import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.engine.ChordTrack
 import com.bigpapituna.sharpears.engine.PracticeStats
 import com.bigpapituna.sharpears.engine.LessonItem
@@ -504,7 +505,13 @@ class MainActivity : ComponentActivity() {
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
                                     }
-                                    HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore, onOpenExercise = { _, _ -> },
+                                    HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,
+                                        // A scale or warm-up plays like a lesson step: the full player in wait mode at the exercise's
+                                        // tempo; Back returns to this tab (the tab picked is kept in the Home screen).
+                                        onOpenExercise = { ex, title ->
+                                            screen = Screen.Player(ex.toSong("practice-" + title.hashCode(), title), null,
+                                                PlayerStart(Mode.WAIT, ex.practice, mic = prefs.micDefault && mic.hasPermission(), beatLines = ex.beatLines), 0.0, s)
+                                        },
                                         startTab = s.practiceTab,
                                         onEvent = { e -> progress.record(ProgressEvent.FeatureUsed(if (e.kind == PracticeKind.WARMUP) "warmups" else "scales")) },
                                         onTab = { t ->
