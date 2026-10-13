@@ -100,6 +100,9 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
 
     fun secondsToday(today: LocalDate = LocalDate.now()): Int = practiceLog()[today] ?: 0
 
+    /** "3 of 10 min today", for the home greeting. */
+    fun goalLine(today: LocalDate = LocalDate.now()): String = DailyGoal.line(secondsToday(today), goalMinutes)
+
     fun streak(today: LocalDate = LocalDate.now()): StreakResult =
         Streaks.compute(practiceLog().filterValues { it > 0 }.keys, today)
 

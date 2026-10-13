@@ -25,6 +25,9 @@ class GoalsTest {
         assertEquals(1, DailyGoal.minutes(20))               // any practice shows as a minute
         assertEquals(3, DailyGoal.minutes(150))
         DailyGoal.OPTIONS.forEach { assertTrue(DailyGoal.note(it).isNotBlank()) }
+        assertEquals("0 of 10 min today", DailyGoal.line(0, 10))
+        assertEquals("3 of 10 min today", DailyGoal.line(200, 10))
+        assertEquals("Goal met, 12 min today", DailyGoal.line(730, 10))
     }
 
     @Test fun noPracticeNoStreak() {

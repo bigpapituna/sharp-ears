@@ -20,6 +20,15 @@ object DailyGoal {
 
     fun name(minutes: Int) = when (minutes) { 5 -> "Light"; 10 -> "Steady"; 15 -> "Regular"; 20 -> "Serious"; 30 -> "Dedicated"; else -> "Custom" }
 
+    /** One line for the home greeting or a badge: "3 of 10 min today", or "Goal met, 12 min today". */
+    fun line(seconds: Int, goalMinutes: Int): String {
+        val min = seconds / 60
+        return when {
+            met(seconds, goalMinutes) -> "Goal met, $min min today"
+            else -> "$min of $goalMinutes min today"
+        }
+    }
+
     /** What a goal gets you, in plain words. */
     fun note(minutes: Int) = when (minutes) {
         5 -> "A gentle habit. About 35 minutes a week keeps what you know fresh."
