@@ -85,6 +85,7 @@ import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.paper
 import androidx.compose.animation.AnimatedContent
 import com.bigpapituna.sharpears.data.PracticeStore
+import com.bigpapituna.sharpears.data.EarStore
 import com.bigpapituna.sharpears.data.ProgressStore
 import com.bigpapituna.sharpears.engine.ear.EarKind
 import com.bigpapituna.sharpears.ui.ear.EarStart
@@ -172,6 +173,7 @@ class MainActivity : ComponentActivity() {
         // Someone who already played (XP from catchUp or since) skips the first-run questions.
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         val practiceStore = PracticeStore(this)
+        val earStore = EarStore(this)                  // read for the Learn row and reset from Settings; the hub keeps its own
         val micCheck = micCheckExercise()
 
         // Debug builds accept extras to open a screen directly:
@@ -503,7 +505,9 @@ class MainActivity : ComponentActivity() {
                                         val pv = prefs.version.intValue
                                         LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
                                             onSightRead = { screen = Screen.SightRead(s) },
-                                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label })
+                                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
+                                            onEar = { screen = Screen.EarTraining(s) },
+                                            earStreak = remember { earStore.workoutStreak() })
                                     }
                                     HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,
                                         // A scale or warm-up plays like a lesson step: the full player in wait mode at the exercise's

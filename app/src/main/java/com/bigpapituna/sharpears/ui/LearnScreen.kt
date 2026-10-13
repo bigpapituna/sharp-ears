@@ -66,6 +66,7 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.CourseLevel
+import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /** Lessons in course order, for "next lesson" and numbering. */
 internal val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
@@ -89,7 +90,8 @@ private val SWING = 72.dp
  * next lesson.
  */
 @Composable
-fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null) {
+fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null,
+                onEar: () -> Unit = {}, earStreak: Int = 0) {
     val next = ALL.firstOrNull { !done(it.second.id) }?.second
     var open by remember { mutableStateOf<String?>(null) }
     val rows = remember(open, next) {
@@ -115,16 +117,14 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     }
                     Pup(Pose.LEARNING, size = 64.dp)
                 }
-                // Sight-reading sits beside the course: new music each time, so it is never "done".
-                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .clickable(onClick = onSightRead).padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Sight-read", style = MaterialTheme.typography.titleMedium)
-                        Text(sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    }
-                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                // Beside the course: practice that is never "done" (new music, new rounds each time).
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // THEORY ACADEMY: Team A's TheoryScreen goes here as the first row (title "Theory", its unit progress as
+                    // the subtitle), opening its own pushed screen like Ear training. Not built yet; nothing is shown until it is.
+                    SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
+                        earStreak.takeIf { it > 0 }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
+                    SideRow("Sight-read", sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
+                        null, R.drawable.ic_play_arrow, onSightRead)
                 }
             }
         }
@@ -144,6 +144,21 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         if (next == null) item(key = "end") {
             PupSays(Pose.LEVEL_UP, "Every lesson done. Keep going with songs and daily practice.", Modifier.widthIn(max = 560.dp).padding(20.dp), size = 96.dp)
         }
+    }
+}
+
+/** A row beside the course (Ear training, Sight-read): title, what it is, an optional status in the accent. */
+@Composable
+private fun SideRow(title: String, detail: String, status: String?, icon: Int, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            status?.let { Text(it, style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp)) }
+        }
+        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
     }
 }
 
