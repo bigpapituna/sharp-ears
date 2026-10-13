@@ -93,7 +93,7 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
 - Input path: Keyboard (touch), MidiDevices.events and MicInput.events (SharedFlow, emitted on a binder thread, collected on main) -> PlayerScreen.keyStruck -> Transport.noteInput. P6 (mic) feeds the same keyStruck.
 
 ## 2.0 revamp (integrated 2026-10-13, branch `integration`; see REVAMP.md)
-Six teams' work merged and wired. Emulator only (emulator-5556); not on Roy's phone yet. 339 JVM tests, lint 0 errors.
+All six teams' work merged and wired (Theory last). Emulator only (emulator-5556); not on Roy's phone yet. 361 JVM tests, lint 0 errors.
 - Tabs: Songs, Learn, Practice, Chords, You (HomeShell, rail when 600 dp or wider). Settings is a pushed screen
   (Screen.Settings) from the gear on You. Screen changes animate (ui/motion/Transitions.kt screenTransitions: curtain into
   and out of the player, forward/back by depth); AnimatedContent keys on the screen class only, HomeShell cross-fades tabs.
@@ -101,26 +101,35 @@ Six teams' work merged and wired. Emulator only (emulator-5556); not on Roy's ph
   as ui/profile/LocalProgress. Events are recorded at the call sites in ui/profile/INTEGRATION.md (practice flushes, song
   runs, lesson steps and lessons, chord rounds and games, ear rounds/games/workout as "ear:<kind>" / "ear:workout",
   Practice today, sight-reading, first mic, import, scales/warm-ups/metronome/tuner). ProgressOverlays (level-up, toasts)
-  sit on the root but never on the stage: a level-up earned mid-song waits until the player closes. Lesson, chord game
-  and ear game celebrations show +XP and the level bar (xpBarFor in LocalProgress.kt).
+  sit on the root but never on the stage: a level-up earned mid-song waits until the player closes, and one earned with a
+  Celebration waits until it closes (celebrationsShowing in ui/Celebrate.kt, ProgressOverlays holdLevelUp). Lesson, chord
+  game, ear game, workout and theory celebrations show +XP and the level bar (xpBarFor in LocalProgress.kt).
 - Onboarding (ui/onboarding): first run only; anyone with XP after catchUp() counts as onboarded. Ends in the suggested lesson.
 - Practice tab (Team C, data/PracticeStore.kt "practice"): scales, arpeggios, warm-ups open in the full player, wait mode,
   at the exercise tempo (id "practice-" + title.hashCode()); metronome; tuner (needs the mic).
-- Learn: the course path (70 lessons, 10 levels, Team F) with Ear training (Team D, Screen.EarTraining, data/EarStore.kt
-  "ear") and Sight-read rows above it. A marked comment in LearnScreen holds the place for Team A's Theory row (not built).
+- Learn: the course path (70 lessons, 10 levels, Team F) with three rows above it: Theory (Team A, TheoryCard, one
+  TheoryStore "theory" in MainActivity shared with Screen.Theory/TheoryScreen; lessons record TheoryLesson, units
+  TheoryUnit, a lesson's seconds count as practice), Ear training (Team D, Screen.EarTraining, data/EarStore.kt "ear")
+  and Sight-read. The theory stage panel is sized by the lesson's scenes (Explainer stageRatio), centred on tall phones.
 - Player (Team E): ghost hand over the keys (Prefs.ghostHand, Settings > Falling notes; hidden when labels are), Perform
   grades on the lights, combo counter following the Perform streak, haptics on touch keys (Prefs.haptics, Settings > Sound).
 - Home: goal line ("3 of 10 min today") over the weekly line, streak-aware greeting, the pup answers taps and dozes after 30 s.
-- Settings > Reset progress also clears EarStore and PracticeStore; XP and achievements stay. Export/import carries
+- Settings > Reset progress also clears EarStore, PracticeStore and TheoryStore; XP and achievements stay. Export/import carries
   progress, mastery, mic, profile, ear, practice, theory.
 - Debug routes (debug builds): --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner],
   --es screen ear [--es game rhythm|melody|pitch|degree|prog --ei level 0-2 | --ez workout true], --es screen profile,
-  --es screen onboarding, --es screen settings (now a pushed screen over You), --es screen motion [--es demo celebrate|cheer|pup|keys].
+  --es screen onboarding, --es screen settings (now a pushed screen over You), --es screen motion [--es demo celebrate|cheer|pup|keys],
+  --es screen theory [--es theory <lesson id> [--ei scene n | --es part quiz [--ei question n] | --es part done|unit]].
+- Voice lines: engine/SpokenCatalog.kt also lists the theory scene lines, quiz prompts and explanations (as the voice reads
+  them, engine/theory spokenTheory: "4/4" said "4 4", sharps and flats by name), the cheers (CHEER_TITLES) and the ear
+  training lines with fixed words (prompts, note, step and progression answers, melody prompts per key and length).
+  1789 lines; 844 recorded in Kokoro speaker 3 on 2026-10-13. After changing spoken copy: gradlew :app:testDebugUnitTest
+  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scriptsender_voice.py.
 - Jank (emulator-5556, 10 s twinkle wait run with injected mic): 76 to 87% janky, p50 61 ms, but a still Learn screen and the
   motion demo measured the same that afternoon (two emulators on one host, the composer at 65% CPU), so it says nothing
   about the player. Measure on the Fold with the profile build before release.
-- Open: Theory academy (Team A) to wire; Ear celebrations show XP, the workout's does not; the level-up overlay can cover a
-  lesson's celebration (it is still there behind it).
+- Open: skipped ear rounds still earn the 5 XP of a round (Team D reports every round); onboarding and the pup's tap lines
+  are shown, not spoken, so they are not in the voice catalog.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
