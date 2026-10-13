@@ -205,8 +205,10 @@ fun Keyboard(
             for ((midi, label) in labels) {
                 if (midi !in lowMidi..highMidi) continue
                 val k = l.rect(midi)
-                val m = labelCache.getOrPut("$label|${k.black}") {
-                    text.measure(label, TextStyle(color = if (k.black) Ink else KeyLabel, fontSize = 14.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
+                // A lit white key is darker (hand colour, sunk), so its label turns light like a black key's.
+                val light = k.black || lit[midi] != null
+                val m = labelCache.getOrPut("$label|$light") {
+                    text.measure(label, TextStyle(color = if (light) Ink else KeyLabel, fontSize = 14.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
                 }
                 val lip = (k.bottom - k.top) * if (k.black) 0.12f else 0.07f
                 // Centred on the key, but kept inside it (and the keyboard), so "C2" on the first key is never cut.

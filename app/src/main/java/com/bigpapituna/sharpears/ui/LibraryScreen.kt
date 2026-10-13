@@ -157,7 +157,7 @@ private fun Header(micLabel: String, onMic: () -> Unit, practice: String?, goal:
 
 @Composable
 private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions) = Panel {
-    val p = e.progress
+        val p = e.progress
         Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Text(e.meta.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
