@@ -313,3 +313,14 @@ fun Question.rightAnswers(): Int = when (this) {
     is Listen -> if (answer in options.indices && options.toSet().size == options.size) 1 else 0
     is PlayIt -> if (anyOctave) 1 else (low..high).count { accepts(it) }
 }
+
+/**
+ * A theory line as the voice should read it (integration): "4/4" is said "4 4", sharps and flats by name, "C♯/D♭"
+ * as "C sharp or D flat", "&" as "and". The screen keeps the written form; SpokenCatalog records this one.
+ */
+fun spokenTheory(text: String): String = text
+    .replace(Regex("(\\d+)/(\\d+)"), "$1 $2")
+    .replace(Regex("([A-G])[#♯]"), "$1 sharp").replace(Regex("([A-G])♭"), "$1 flat")
+    .replace("♯", " sharp").replace("♭", " flat")
+    .replace("/", " or ").replace("&", " and ")
+    .replace(Regex("\\s+"), " ").trim()

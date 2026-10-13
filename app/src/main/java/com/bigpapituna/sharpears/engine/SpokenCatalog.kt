@@ -1,5 +1,13 @@
 package com.bigpapituna.sharpears.engine
 
+import com.bigpapituna.sharpears.engine.ear.PROGRESSION_CATALOG
+import com.bigpapituna.sharpears.engine.ear.degreeFeel
+import com.bigpapituna.sharpears.engine.ear.keySpoken
+import com.bigpapituna.sharpears.engine.ear.pitchSpoken
+import com.bigpapituna.sharpears.engine.ear.solfege
+import com.bigpapituna.sharpears.engine.ear.solfegeSpoken
+import com.bigpapituna.sharpears.engine.theory.THEORY_LESSONS
+import com.bigpapituna.sharpears.engine.theory.spokenTheory
 import java.security.MessageDigest
 
 /**
@@ -9,6 +17,9 @@ import java.security.MessageDigest
  */
 /** What the pup says when a lesson step passes after a few tries. */
 const val HIGH_FIVE = "High five! You stuck with it."
+
+/** The short cheers (cheer bars, the theory quiz says them aloud); ui/Celebrate.kt cheerTitle picks one. */
+val CHEER_TITLES = listOf("Nice work!", "Great job!", "That's it!", "Well played!", "You got it!", "Spot on!")
 
 object SpokenCatalog {
     /** The same text the voice is handed, tidied: single spaces, trimmed. */
@@ -45,6 +56,56 @@ object SpokenCatalog {
         add(HIGH_FIVE)
         // The sample line Settings plays when a voice is chosen.
         add("Ready when you are. Play the first note.")
+
+        // 2.0: the Theory Academy speaks every scene's line, each quiz prompt, the explanation of a miss, and a cheer.
+        for ((_, lesson) in THEORY_LESSONS) {
+            lesson.scenes.forEach { add(spokenTheory(it.say)) }
+            lesson.quiz.forEach { add(spokenTheory(it.prompt)); add(spokenTheory(it.explain)) }
+        }
+        CHEER_TITLES.forEach(::add)
+        earLines().forEach(::add)
         return lines.toList()
+    }
+
+    /**
+     * Ear training lines whose words are fixed by the game (engine/ear): the prompts, and the answers that name a note,
+     * a step of the scale or a progression rather than a timing. Rhythm verdicts with numbers past "spot on" stay
+     * generated on the phone.
+     */
+    private fun earLines(): List<String> = buildList {
+        add("Which note is it?"); add("Which step of the scale is this?"); add("Which progression is this?"); add("Listen, then tap the rhythm.")
+        add("Yes, first time."); add("Yes.")
+        // Melody memory: the keys each level draws from, and the melody's length as it grows over ten rounds.
+        val melodyKeys = mapOf(
+            (0 to false) to (2..12), (7 to false) to (3..12), (5 to false) to (3..12), (2 to false) to (3..12), (10 to false) to (3..12),
+            (9 to true) to (3..12), (4 to true) to (3..12), (2 to true) to (3..12), (0 to true) to (3..12))
+        for ((key, lengths) in melodyKeys) for (n in lengths) add("Play it back: $n notes, in ${keySpoken(key.first, key.second)}.")
+        // Perfect pitch: right, a wrong key (with the note shown on the second), a wrong button.
+        for (pc in 0..11) {
+            val p = pitchSpoken(pc)
+            add("Yes, $p.")
+            add("That was $p, not the note you heard."); add("That was $p, not the note you heard. Here is the note.")
+            for (other in 0..11) if (other != pc) add("That was $p, not ${pitchSpoken(other)}.")
+        }
+        // Scale degrees in major and minor: right, a wrong key, a wrong button (with what the right step feels like).
+        val feels = ::degreeFeel
+        for (minor in listOf(false, true)) for (d in 0..6) {
+            val s = solfegeSpoken(solfege(d, minor))
+            add("Yes, $s, step ${d + 1}.")
+            add("That was $s, step ${d + 1}."); add("That was $s, step ${d + 1}. Here is the note.")
+            for (o in 0..6) if (o != d) {
+                val said = solfegeSpoken(solfege(o, minor))
+                add("That was $s, step ${d + 1}, not $said. ${feels(d, minor)}")
+            }
+        }
+        // Progressions: right, or the one it was and the one picked (same mode).
+        val cat = PROGRESSION_CATALOG
+        for (t in cat) {
+            add("Yes, ${t.nickname}. ${t.blurb}")
+            cat.filter { it.minor == t.minor && it.id != t.id }.forEach { add("That was ${t.nickname}. ${t.blurb} You picked ${it.nickname}.") }
+        }
+        // Rhythm tap: a clean round.
+        for (n in 1..16) add("Spot on: all $n notes within 80 milliseconds.")
+        // Game scores out of ten are in the lesson block above.
     }
 }

@@ -121,22 +121,7 @@ class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
     override fun micGroups() = micNotes().map { setOf(it) }
     override fun describe() = "${solfege(degree, minor)} (${degree + 1}) in $keyLabel: ${noteName(target)}"
 
-    private fun feel(d: Int) = if (minor) when (d) {
-        2 -> "me is the dark third of the minor home chord."
-        5 -> "le is the low sixth, a mournful step."
-        6 -> "te is the low seventh, a softer pull than ti."
-        else -> feelCommon(d)
-    } else feelCommon(d)
-
-    private fun feelCommon(d: Int) = when (d) {
-        0 -> "do is home: the note everything rests on."
-        1 -> "re sits just above home and leans back down to do."
-        2 -> "mi is bright and steady, the third of the home chord."
-        3 -> "fa leans down towards mi."
-        4 -> "sol is strong and open, the fifth of the home chord."
-        5 -> "la is the gentle step above sol."
-        else -> "ti is the leading tone: it pulls up to do."
-    }
+    private fun feel(d: Int) = degreeFeel(d, minor)
 
     private fun right(): ChordGame.Answer {
         val s = solfege(degree, minor)
@@ -165,4 +150,22 @@ class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
             "That was $s, step ${degree + 1} of $keyLabel (${spell(target % 12, flatKey(tonicPc, minor))}), not $said. ${feel(degree)}",
             "That was ${solfegeSpoken(s)}, step ${degree + 1}, not ${solfegeSpoken(said)}. ${feel(degree)}"))
     }
+}
+
+/** What scale step [d] feels like, said after a wrong answer in the scale degree game (and pre-recorded by SpokenCatalog). */
+fun degreeFeel(d: Int, minor: Boolean): String = if (minor) when (d) {
+    2 -> "me is the dark third of the minor home chord."
+    5 -> "le is the low sixth, a mournful step."
+    6 -> "te is the low seventh, a softer pull than ti."
+    else -> degreeFeelCommon(d)
+} else degreeFeelCommon(d)
+
+private fun degreeFeelCommon(d: Int) = when (d) {
+    0 -> "do is home: the note everything rests on."
+    1 -> "re sits just above home and leans back down to do."
+    2 -> "mi is bright and steady, the third of the home chord."
+    3 -> "fa leans down towards mi."
+    4 -> "sol is strong and open, the fifth of the home chord."
+    5 -> "la is the gentle step above sol."
+    else -> "ti is the leading tone: it pulls up to do."
 }

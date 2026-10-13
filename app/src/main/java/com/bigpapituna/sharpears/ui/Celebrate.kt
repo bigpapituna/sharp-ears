@@ -358,4 +358,4 @@ private fun TypedText(text: String, typed: State<Int>, style: TextStyle, color: 
 }
 
 /** Short, varied words for a passed step, so the bar does not say the same thing every time. */
-fun cheerTitle(seed: Int) = listOf("Nice work!", "Great job!", "That's it!", "Well played!", "You got it!", "Spot on!")[Math.floorMod(seed, 6)]
+fun cheerTitle(seed: Int) = com.bigpapituna.sharpears.engine.CHEER_TITLES.let { it[Math.floorMod(seed, it.size)] }

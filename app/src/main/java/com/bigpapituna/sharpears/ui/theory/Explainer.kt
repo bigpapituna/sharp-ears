@@ -150,7 +150,7 @@ internal fun Explainer(
         sound.stopAll()
         onScene(index)
         Log.d(TAG, "theory: ${lesson.id} scene ${index + 1}/${lesson.scenes.size} ${visual::class.simpleName}")
-        voice.speak(scene.say, interrupt = true)
+        voice.speak(com.bigpapituna.sharpears.engine.theory.spokenTheory(scene.say), interrupt = true)
     }
     // Play the scene while not paused; once it is over and the caption said, move on by itself.
     LaunchedEffect(index, run, playing) {
