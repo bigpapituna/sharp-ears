@@ -77,6 +77,8 @@ import com.bigpapituna.sharpears.engine.GameKind
 import com.bigpapituna.sharpears.ui.LibraryActions
 import com.bigpapituna.sharpears.ui.LibraryEntry
 import com.bigpapituna.sharpears.ui.LibraryScreen
+import com.bigpapituna.sharpears.ui.GoalState
+import com.bigpapituna.sharpears.engine.progress.DailyGoal
 import com.bigpapituna.sharpears.ui.MicSetupScreen
 import com.bigpapituna.sharpears.ui.PlayerScreen
 import com.bigpapituna.sharpears.ui.PlayerStart
@@ -499,6 +501,10 @@ class MainActivity : ComponentActivity() {
                                                 val plan = todayPlan()
                                                 TodayPanel(plan.aboutLabel, plan.parts.map { it.row },
                                                     prefs.dailySummary(java.time.LocalDate.now()))
+                                            },
+                                            goal = remember(pv, progress.version.intValue) {
+                                                val st = progress.streak()
+                                                GoalState(progress.goalLine(), DailyGoal.met(progress.secondsToday(), progress.goalMinutes), st.streak, st.atRisk)
                                             })
                                     }
                                     HomeTab.LEARN -> {

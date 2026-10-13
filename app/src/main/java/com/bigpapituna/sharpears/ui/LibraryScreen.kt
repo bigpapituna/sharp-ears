@@ -30,6 +30,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +50,15 @@ import com.bigpapituna.sharpears.data.SongProgress
 data class LibraryEntry(val meta: SongMeta, val available: Boolean, val progress: SongProgress,
                         /** The other arrangement (easy or full) when the piece has one. */
                         val pair: SongMeta? = null)
+
+/** Today's goal and streak for the header and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. */
+data class GoalState(val line: String, val met: Boolean, val streak: Int, val atRisk: Boolean)
+
+/** What the pup says when he is tapped on the home screen: one at random, never the same twice in a row. */
+private val PUP_TAPS = listOf(
+    "Woof! You've got this.", "Every minute at the keys counts.", "Slow and steady makes it stick.", "Mistakes mean you're learning.",
+    "Ready when you are.", "Your fingers remember more than you think.", "One more song? I'll listen.", "Small steps, big music.",
+)
 
 /** The "Practice today" panel: the plan's length and parts, or today's summary once it is done. */
 data class TodayPanel(val about: String, val parts: List<String>, val summary: String?)
@@ -69,9 +80,15 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
  */
 @Composable
 fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
-                  today: TodayPanel? = null) {
+                  today: TodayPanel? = null, goal: GoalState? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
-    val pose = when { today?.summary != null -> Pose.RESTING; practice?.contains("in a row") == true -> Pose.STREAK; else -> Pose.WELCOME }
+    val pose = when {
+        today?.summary != null -> Pose.RESTING
+        goal?.met == true -> Pose.GREAT_JOB
+        (goal?.streak ?: 0) >= 3 || goal == null && practice?.contains("in a row") == true -> Pose.STREAK
+        else -> Pose.WELCOME
+    }
+    var tapLine by remember { mutableStateOf<String?>(null) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -79,10 +96,12 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
     ) {
         item {
             Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
-                Header(micLabel, a.onMic, practice)
-                // The pup hosts the home screen: what he says depends on the day so far.
-                PupSays(pose, remember(today?.summary, practice) { greeting(today, practice, fresh = continueWith == null) },
-                    Modifier.padding(bottom = 14.dp), size = 104.dp)
+                Header(micLabel, a.onMic, practice, goal?.line)
+                // The pup hosts the home screen: what he says depends on the day so far; a tap gets a word of encouragement,
+                // and left alone for half a minute he dozes off.
+                PupSays(pose, tapLine ?: remember(today?.summary, practice, goal) { greeting(today, practice, goal, fresh = continueWith == null) },
+                    Modifier.padding(bottom = 14.dp), size = 104.dp,
+                    onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000)
             }
         }
         // "Practice today" is the one raised panel; Continue sits under it as a plain row.
@@ -115,7 +134,7 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
 }
 
 @Composable
-private fun Header(micLabel: String, onMic: () -> Unit, practice: String?) {
+private fun Header(micLabel: String, onMic: () -> Unit, practice: String?, goal: String?) {
     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         // The logo always sits on its own dark tile, as on the launcher, so the white sharp shows in light mode too.
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Stage), contentAlignment = Alignment.Center) {
@@ -124,7 +143,8 @@ private fun Header(micLabel: String, onMic: () -> Unit, practice: String?) {
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
             Text("Sharp Ears", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-            // Practice this week, from the time the player ran; no line until there is some.
+            // Today against the daily goal, then practice this week (no week line until there is some).
+            goal?.let { Text(it, style = Numeric.merge(MaterialTheme.typography.bodySmall), color = MaterialTheme.colorScheme.primary) }
             practice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         TextButton(onClick = onMic) {
@@ -185,12 +205,14 @@ private fun Panel(content: @Composable androidx.compose.foundation.layout.Column
         .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
 
 /** What the pup says on the home screen: today done, a first visit, the streak, or the time of day. */
-private fun greeting(today: TodayPanel?, practice: String?, fresh: Boolean): String {
+private fun greeting(today: TodayPanel?, practice: String?, goal: GoalState?, fresh: Boolean): String {
     val streak = practice?.let { Regex("(\\d+) days in a row").find(it)?.groupValues?.get(1) }
     val hour = java.time.LocalTime.now().hour
     return when {
         today?.summary != null -> "That's today done. Rest those hands, see you tomorrow."
         fresh -> "Hi, I'm your coach. Let's start with an easy song."
+        goal?.met == true -> "That's today's goal. Rest those hands."
+        goal != null && goal.atRisk -> "Your ${goal.streak} day streak is waiting. ${goal.line.replaceFirstChar { it.uppercase() }}."
         streak != null -> "$streak days in a row. Let's keep it going."
         hour < 12 -> "Good morning. A few minutes at the keys?"
         hour < 18 -> "Good afternoon. Ready when you are."
