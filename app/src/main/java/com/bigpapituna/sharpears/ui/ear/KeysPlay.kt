@@ -50,6 +50,7 @@ import com.bigpapituna.sharpears.engine.ear.Answering
 import com.bigpapituna.sharpears.engine.ear.EarEvent
 import com.bigpapituna.sharpears.engine.ear.EarKind
 import com.bigpapituna.sharpears.engine.ear.EarTrainer
+import com.bigpapituna.sharpears.engine.ear.ProgressionGame
 import com.bigpapituna.sharpears.engine.noteName
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.ui.WrongGlow
@@ -89,6 +90,10 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     var review by remember { mutableStateOf<Review?>(null) }
     var missedThisRound by remember { mutableStateOf(false) }
     var pings by remember { mutableIntStateOf(0) }                              // sounds played, for the pup's ripple
+    var stepsPlayed by remember { mutableIntStateOf(0) }                        // steps of the question sounded so far
+    var activeBeat by remember { mutableIntStateOf(-1) }                        // the progression slot sounding now
+    var beatsHeard by remember { mutableIntStateOf(0) }
+    val prog = trainer as? ProgressionGame
     var micOn by remember { mutableStateOf(env.micDefault && env.mic.hasPermission()) }
     val touched = remember { mutableStateMapOf<Int, Color>() }                  // fingers down
     val flash = remember { mutableStateMapOf<Int, Color>() }                    // judged keys, for a moment
@@ -107,16 +112,28 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     // Keys light only where seeing them is the point: melody memory's demonstration, and the key's chord and scale
     // before a scale degree. A note that is the answer (perfect pitch, the degree's note) never lights; the pup's
     // ripple pings instead, one ring per sound.
-    suspend fun playSteps(steps: List<com.bigpapituna.sharpears.engine.ear.Step>, light: Boolean) {
-        for (s in steps) {
+    // [beats]: the progression's beats per chord, so its slots light beat by beat (a held chord lights two).
+    suspend fun playSteps(steps: List<com.bigpapituna.sharpears.engine.ear.Step>, light: Boolean, beats: List<Int>? = null) {
+        var beat = 0
+        for ((i, s) in steps.withIndex()) {
             if (env.sound()) s.notes.forEach { env.sampler.noteOn(it, s.velocity) }
             pings++
+            stepsPlayed = i + 1
             if (light) s.notes.forEach { glow[it] = RightHandColor }
-            try { delay(s.holdMs.toLong()) } finally {
+            try {
+                val b = beats?.getOrNull(i)
+                if (b == null) delay(s.holdMs.toLong())
+                else for (k in 0 until b) {
+                    activeBeat = beat + k; beatsHeard = beat + k + 1
+                    delay(if (k < b - 1) PROG_BEAT_MS else s.holdMs - PROG_BEAT_MS * (b - 1))
+                }
+            } finally {
                 s.notes.forEach { env.sampler.noteOff(it); glow.remove(it) }
             }
+            beat += beats?.getOrNull(i) ?: 1
             if (s.gapMs > 0) delay(s.gapMs.toLong())
         }
+        activeBeat = -1
     }
 
     fun flashKey(m: Int, color: Color) {
@@ -134,9 +151,11 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             Log.d(TAG, "ear: ${trainer.kind.id} level ${trainer.level} round ${round + 1}: ${p.text} (${trainer.describe()})")
             if (round == 0 || trainer.kind == EarKind.MELODY) { env.voice.speak(p.spoken); voiceDone() }
         }
+        activeBeat = -1; beatsHeard = 0; stepsPlayed = 0
         delay(150)
         if (replay == 0 || replayIntro) playSteps(trainer.intro(), light = true)
-        playSteps(trainer.toPlay(), light = trainer.kind == EarKind.MELODY)
+        stepsPlayed = 0
+        playSteps(trainer.toPlay(), light = trainer.kind == EarKind.MELODY, beats = prog?.target?.steps?.map { it.beats })
         delay(150)
         phase = Phase.ANSWER
     }
@@ -210,7 +229,8 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
 
     val pose = when {
         phase == Phase.PROMPT -> Pose.LISTENING
-        missedThisRound -> Pose.MISTAKE
+        review?.clean == true -> Pose.GREAT_JOB                              // he cheers with the bar
+        missedThisRound || review != null -> Pose.MISTAKE
         trainer.streak >= 3 -> Pose.STREAK
         else -> Pose.GET_READY
     }
@@ -225,12 +245,14 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             GameHeader(trainer, label, pose, if (finished) "" else trainer.prompt().text, onExit,
                 listening = phase == Phase.PROMPT, pings = pings)
+            if (prog != null && !finished) ProgressionSlots(prog, activeBeat, beatsHeard, revealed = phase == Phase.REVIEW,
+                clean = rev?.clean == true, modifier = Modifier.padding(top = 6.dp))
             // What was wrong reads in the neutral colour: a hint, not a scolding.
             Text(hint?.first ?: if (phase == Phase.PROMPT) "Listen" else "", color = when {
                 hint == null -> MaterialTheme.colorScheme.primary
                 hint?.second == false -> MaterialTheme.colorScheme.onSurfaceVariant
                 else -> MaterialTheme.colorScheme.tertiary
-            }, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
+            }, style = MaterialTheme.typography.titleSmall, minLines = if (prog != null) 1 else 2, maxLines = 2)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (usesKeys) FilterChip(micOn, {
                     if (micOn) micOn = false else if (env.mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
@@ -249,16 +271,16 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             }
             if (usesChoices) {
                 val answer = if (phase == Phase.REVIEW) trainer.answerId() else null
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    trainer.choices().forEach { c ->
-                        val state = when {
-                            answer == null -> ChoiceState.NEUTRAL
-                            c.id == answer -> ChoiceState.RIGHT
-                            c.id == rev?.picked -> ChoiceState.WRONG
-                            else -> ChoiceState.DIMMED
-                        }
-                        ChoiceButton(c, state, enabled = phase == Phase.ANSWER) { pick(c.id) }
-                    }
+                fun stateOf(c: com.bigpapituna.sharpears.engine.ear.Choice) = when {
+                    answer == null -> ChoiceState.NEUTRAL
+                    c.id == answer -> ChoiceState.RIGHT
+                    c.id == rev?.picked -> ChoiceState.WRONG
+                    else -> ChoiceState.DIMMED
+                }
+                // Choice-only games get big answer cards; the others keep the row of pills beside the keys.
+                if (!usesKeys) AnswerCards(trainer.choices(), ::stateOf, enabled = phase == Phase.ANSWER) { pick(it) }
+                else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    trainer.choices().forEach { c -> ChoiceButton(c, stateOf(c), enabled = phase == Phase.ANSWER) { pick(c.id) } }
                 }
             }
             // The how-to shows in the first round only; the hub sheet has it too.
