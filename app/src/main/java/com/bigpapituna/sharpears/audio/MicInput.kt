@@ -249,7 +249,9 @@ class MicInput(private val context: Context) {
 
     private fun handle(buf: FloatArray, n: Int) {
         tap?.invoke(buf, n)
-        writer?.let { w -> synchronized(this) { w.append(buf, n) } }
+        // The writer is read inside the lock: stopRecording() nulls and closes it under the same lock, and a stale
+        // reference taken outside would append to a closed file (EBADF at the end of every recording).
+        synchronized(this) { writer?.append(buf, n) }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         for (e in matcher.process(buf, n)) _events.tryEmit(e)
         if (framesRead - lastLevelPost >= RATE / 15) {
