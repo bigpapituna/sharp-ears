@@ -80,7 +80,27 @@ import com.bigpapituna.sharpears.engine.PROGRESSION_KEYS
 import com.bigpapituna.sharpears.engine.Progression
 import com.bigpapituna.sharpears.engine.noteName
 import com.bigpapituna.sharpears.engine.rootName
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
+import com.bigpapituna.sharpears.engine.Hand
+import com.bigpapituna.sharpears.engine.chordTitle
+import com.bigpapituna.sharpears.engine.isBlack
+import com.bigpapituna.sharpears.ui.motion.pressScale
+import com.bigpapituna.sharpears.ui.practice.FingerDot
+import com.bigpapituna.sharpears.ui.practice.KeyPicker
+import com.bigpapituna.sharpears.ui.practice.PanelColor
+import com.bigpapituna.sharpears.ui.practice.Pill
+import com.bigpapituna.sharpears.ui.practice.PupLine
+import com.bigpapituna.sharpears.ui.practice.ScaleKeyboard
+import com.bigpapituna.sharpears.ui.practice.SlidingSegments
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.launch
 
 private const val LOW = 48   // C3
@@ -117,6 +137,27 @@ fun ChordsScreen(
     }
 }
 
+/** The dictionary's qualities in three groups, in the order a learner meets them. */
+private val QUALITY_GROUPS = listOf(
+    "Triads" to listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.DIM, ChordType.AUG, ChordType.SUS2, ChordType.SUS4),
+    "Sevenths" to listOf(ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7, ChordType.DIM7, ChordType.HALF_DIM),
+    "More" to listOf(ChordType.SIX, ChordType.MIN6, ChordType.ADD9, ChordType.NINE),
+)
+
+/** What each note of a chord is, from the root, for the pup's line. */
+private fun intervalWord(semitones: Int) = when (semitones) {
+    2 -> "a second"; 3 -> "a minor third"; 4 -> "a major third"; 5 -> "a fourth"; 6 -> "a flat fifth"; 7 -> "a fifth"
+    8 -> "a sharp fifth"; 9 -> "a sixth"; 10 -> "a minor seventh"; 11 -> "a major seventh"; 14 -> "a ninth"; else -> "the root"
+}
+
+private fun ordinalWord(i: Int) = listOf("Root position", "First inversion", "Second inversion", "Third inversion")[i]
+
+/**
+ * The chord dictionary: the chord's name and a dark keyboard panel pinned at the top (fingers on every key, a
+ * Play button that walks the notes one by one with a finger dot, then strikes them together), and under it one
+ * scrolling strip of roots, one of qualities grouped as triads, sevenths and more, and the inversions as a
+ * segmented control. Never a wrapping wall of chips.
+ */
 @Composable
 private fun Dictionary(sampler: Sampler) {
     var root by remember { mutableIntStateOf(0) }
@@ -125,45 +166,99 @@ private fun Dictionary(sampler: Sampler) {
     val chord = Chord(root, type)
     if (inversion >= chord.inversionCount) inversion = 0
     val notes = chord.voicing(inversion)
+    val fingers = chord.fingering(inversion)
     val scope = rememberCoroutineScope()
-    val touched = remember { mutableStateMapOf<Int, Color>() }
+    val sounding = remember { mutableStateMapOf<Int, Hand>() }
+    val touched = remember { mutableStateMapOf<Int, Hand>() }
+    val dots = remember { mutableStateMapOf<Hand, FingerDot>() }
+    var job by remember { mutableStateOf<Job?>(null) }
+    fun stop() { job?.cancel(); job = null }
+    DisposableEffect(root, type, inversion) { onDispose { stop() } }
+    fun play() {
+        Log.d(TAG, "chords: play ${chord.name} inv=$inversion $notes")
+        job = scope.launch {
+            val me = coroutineContext[Job]
+            try {
+                // One by one with the finger on each, then all together.
+                for ((m, f) in notes.zip(fingers)) {
+                    sounding[m] = Hand.RIGHT; dots[Hand.RIGHT] = FingerDot(m, f); sampler.noteOn(m, 80)
+                    delay(380)
+                    sampler.noteOff(m); sounding.remove(m)
+                    delay(40)
+                }
+                dots.clear()
+                delay(160)
+                notes.forEach { sounding[it] = Hand.RIGHT; sampler.noteOn(it, 90) }
+                delay(1500)
+            } finally {
+                notes.forEach { sampler.noteOff(it) }
+                sounding.clear(); dots.clear()
+                if (job === me) job = null
+            }
+        }
+    }
+    // Two octaves from middle C, moved up (or widened) only when the chord reaches past them.
+    var low = 60
+    while (notes.max() > low + 23 && notes.min() >= low + 12) low += 12
+    val high = if (notes.max() > low + 23) low + 35 else low + 23
+    val c = MaterialTheme.colorScheme
 
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0..11).forEach { r -> FilterChip(root == r, { root = r }, label = { Text(rootName(r)) }) }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ChordType.entries.forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t.label) }) }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0 until chord.inversionCount).forEach { i ->
-                FilterChip(inversion == i, { inversion = i }, label = { Text(if (i == 0) "Root position" else "Inversion $i") })
+    Column(Modifier.fillMaxSize()) {
+        // Pinned: the chord and its keyboard.
+        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(PanelColor)
+            .padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(chordTitle(chord), style = MaterialTheme.typography.displaySmall, color = Ink, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(notes.joinToString("  ") { noteName(it) }, style = Numeric.merge(MaterialTheme.typography.titleSmall), color = InkDim)
+                }
+                Box(Modifier.pressScale(0.9f).size(56.dp).clip(CircleShape).background(RightHandColor)
+                    .clickable(role = Role.Button) { if (job != null) stop() else play() }
+                    .semantics { contentDescription = if (job != null) "Stop" else "Play ${chord.name}" },
+                    contentAlignment = Alignment.Center) {
+                    Icon(painterResource(if (job != null) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null,
+                        tint = PanelColor, modifier = Modifier.size(28.dp))
+                }
             }
-        }
-        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(chord.name, style = MaterialTheme.typography.displaySmall)
-                Text(notes.joinToString("  ") { noteName(it) }, style = Numeric.merge(MaterialTheme.typography.titleMedium),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val whites = (low..high).count { !isBlack(it) }
+                val keyH = (maxWidth / whites * 4.2f).coerceIn(120.dp, 200.dp)
+                ScaleKeyboard(low, high, notes.zip(fingers).toMap(), emptyMap(), sounding + touched, dots,
+                    onNoteOn = { m -> touched[m] = Hand.RIGHT; sampler.noteOn(m, 90) },
+                    onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
+                    description = "${chord.name}: " + notes.zip(fingers).joinToString(", ") { (n, f) -> "${noteName(n)} finger $f" },
+                    modifier = Modifier.fillMaxWidth().height(keyH + 16.dp))
             }
-            ChunkyButton(onClick = {
-                Log.d(TAG, "chords: play ${chord.name} inv=$inversion $notes")
-                scope.launch { notes.forEach { sampler.noteOn(it, 90) }; delay(1500); notes.forEach(sampler::noteOff) }
-            }) {
-                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.size(6.dp)); Text("Hear it")
-            }
+            Text("Right hand fingers, 1 is the thumb", style = MaterialTheme.typography.labelMedium, color = InkDim, modifier = Modifier.padding(start = 4.dp))
         }
-        Text("Numbers on the keys are right-hand fingers, from 1 (thumb) to 5 (little finger).", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Keyboard(
-            LOW, HIGH,
-            lit = notes.associateWith { RightHandColor } + touched,
-            onNoteOn = { m, v -> touched[m] = Good; sampler.noteOn(m, v) },
-            onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-            modifier = Modifier.fillMaxWidth().height(220.dp),
-            labels = notes.zip(chord.fingering(inversion)).associate { (n, f) -> n to f.toString() },
-        )
+        // Under it, the choices: one strip each.
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            KeyPicker((0..11).map { rootName(it) }, root, List(12) { 0 }, { root = it })
+            val strip = rememberLazyListState(initialFirstVisibleItemIndex = 0)
+            LazyRow(Modifier.fillMaxWidth(), state = strip, contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                QUALITY_GROUPS.forEachIndexed { g, (name, types) ->
+                    item(key = name) {
+                        Text(name, style = MaterialTheme.typography.labelMedium, color = c.onSurfaceVariant,
+                            modifier = Modifier.padding(start = if (g == 0) 0.dp else 12.dp, end = 2.dp))
+                    }
+                    items(types.size, key = { types[it].name }) { i ->
+                        val t = types[i]
+                        Pill(t.label.replaceFirstChar { it.uppercase() }, t == type, { type = t })
+                    }
+                }
+            }
+            SlidingSegments((0 until chord.inversionCount).map { if (it == 0) "Root" else listOf("1st", "2nd", "3rd")[it - 1] }, inversion,
+                { inversion = it }, Modifier.padding(horizontal = 20.dp).fillMaxWidth(), height = 40.dp,
+                descriptions = (0 until chord.inversionCount).map(::ordinalWord))
+            val built = type.intervals.drop(1).joinToString(", ", transform = ::intervalWord).let { s ->
+                val i = s.lastIndexOf(", "); if (i < 0) s else s.substring(0, i) + " and " + s.substring(i + 2)
+            }
+            PupLine(if (job != null) Pose.LISTENING else Pose.LEARNING,
+                "${chordTitle(chord)}: the root, then $built." + if (inversion > 0) " ${ordinalWord(inversion)}: ${noteName(notes.first()).dropLast(1)} is at the bottom." else "",
+                Modifier.padding(horizontal = 16.dp))
+        }
     }
 }
 

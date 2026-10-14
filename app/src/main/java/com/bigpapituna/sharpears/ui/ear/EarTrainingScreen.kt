@@ -207,7 +207,7 @@ private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last
                     Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
                         EarArt(item.kind)
                     }
-                    Text(item.kind.title, style = MaterialTheme.typography.labelLarge, color = c.onSurface, maxLines = 1,
+                    Text(item.kind.title, style = MaterialTheme.typography.labelLarge, color = c.onSurface, maxLines = 2,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
                     Text("${item.rounds} rounds", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 2.dp))

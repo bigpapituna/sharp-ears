@@ -14,10 +14,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -102,8 +100,8 @@ internal fun CardGrid(count: Int, modifier: Modifier = Modifier, item: @Composab
         val cols = if (maxWidth >= 600.dp) 3 else 2
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until count).chunked(cols).forEach { row ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { item(it, Modifier.weight(1f).fillMaxHeight()) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { item(it, Modifier.weight(1f)) }
                     repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
@@ -124,19 +122,16 @@ internal fun GameCard(
     Column(modifier.pressScale().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
         .clickable(role = Role.Button, onClickLabel = "How to play", onClick = onOpen).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(14.dp))
+        Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(14.dp))
             .background(if (artOnPanel) PanelColor else c.surfaceContainerHighest).clearAndSetSemantics { }, contentAlignment = Alignment.Center, content = art)
-        Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 22.sp), maxLines = 2,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
-                Text("Level ${level + 1}", style = Numeric.merge(MaterialTheme.typography.labelMedium), color = c.onSurfaceVariant)
-            }
-            BestRing(best, Modifier.size(42.dp))
+        Column(Modifier.padding(horizontal = 4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 22.sp), maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
+            Text("Level ${level + 1}", style = Numeric.merge(MaterialTheme.typography.labelMedium), color = c.onSurfaceVariant)
         }
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Stars(mastered, Modifier.weight(1f))
+            BestRing(best, Modifier.size(40.dp))
             PlayDisc(onPlay, "Play $title, level ${level + 1}")
         }
     }
