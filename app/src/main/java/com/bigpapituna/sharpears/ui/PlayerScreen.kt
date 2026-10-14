@@ -31,8 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -59,7 +57,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.bigpapituna.sharpears.TAG
@@ -97,7 +94,6 @@ import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.noteName
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /** Before Play, the run's first notes sit this far (song ms) above the hit line: just under the top of the lane. */
 private const val PREVIEW_MS = com.bigpapituna.sharpears.engine.LOOKAHEAD_MS * 0.75
@@ -430,7 +426,7 @@ fun PlayerScreen(
         onFinished(transport.report().copy(extraScore = extra, realMs = transport.runRealMs).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
-            run?.let { recap = RunEnd(it, false, emptyList()) }
+            run?.let { recap = RunEnd(it, false, emptyList(), timeMs = transport.runRealMs.toLong()) }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
         }
@@ -459,18 +455,27 @@ fun PlayerScreen(
         }
         if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
         val wasCompleted = prefs.progress(meta.id).completed
+        // The recap shows the XP this run earned and the level bar, as lessons do.
+        val xpBefore = progress?.xp
+        fun xp(gained: Int?) = gained?.takeIf { it > 0 }
+        fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
+        val timeMs = transport.runRealMs.toLong()
         if (run != null) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
-            progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
-            recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null)
+            val earned = progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
+            recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null, timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar())
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
-            progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
-            if (transport.mode == Mode.WAIT) { recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null); if (touchRun) haptics.success() }
+            val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
+            if (transport.mode == Mode.WAIT) {
+                recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null,
+                    timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar())
+                if (touchRun) haptics.success()
+            }
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
         }
     }
@@ -780,12 +785,12 @@ fun PlayerScreen(
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
-            Dialog(onDismissRequest = { recap = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-                Box(contentAlignment = Alignment.Center) {
-                    RecapCard(r, speed, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar, onClose = { recap = null },
-                        onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") }, modifier = Modifier)
-                    if (r.newBest) Confetti(r, Modifier.matchParentSize())
-                }
+            // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
+            Dialog(onDismissRequest = { recap = null },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+                RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar,
+                    onClose = { recap = null },
+                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") })
             }
         }
     }
@@ -935,63 +940,12 @@ fun PlayerScreen(
     }
 }
 
-/** How a run ended: the Perform [recap] (null after a wait-mode run), a new best, and the hardest bars. */
-data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0, val canReplay: Boolean = false)
-
-/** The end of a run: the Perform score (or "Played through" after wait mode), then the hardest bars to loop. */
-@Composable
-private fun RecapCard(e: RunEnd, speed: Double, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, onReplay: () -> Unit, modifier: Modifier) {
-    Card(modifier.padding(16.dp).widthIn(max = 600.dp), shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface)) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            val r = e.recap
-            Pup(when {
-                e.newBest -> Pose.LEVEL_UP
-                r != null && r.accuracy < 60 || r == null && e.wrongKeys > 10 -> Pose.MISTAKE     // "keep trying"
-                else -> Pose.GREAT_JOB
-            }, size = 96.dp)
-            if (r != null) {
-                Text(if (e.newBest) "New best" else "Run complete", style = MaterialTheme.typography.labelLarge,
-                    color = if (e.newBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                // Score and counts side by side, so the card fits a phone held sideways.
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Text("${r.accuracy}%", style = Numeric.merge(MaterialTheme.typography.displayMedium))
-                    RecapStat("Good", r.good); RecapStat("OK", r.ok); RecapStat("Missed", r.miss)
-                }
-                Text(
-                    when {
-                        r.good + r.ok == 0 -> "No notes hit in time yet."
-                        abs(r.biasMs) < 25 -> "Timing: right on the beat."
-                        r.biasMs > 0 -> "Timing: ${r.biasMs} ms late on average."
-                        else -> "Timing: ${-r.biasMs} ms early on average."
-                    } + (if (r.longestStreak > 0) " Longest streak ${r.longestStreak}." else "") + if (speed < 1.0) " Played at ${(speed * 100).toInt()}%." else "",
-                    style = MaterialTheme.typography.bodyMedium, color = InkDim, textAlign = TextAlign.Center,
-                )
-            } else {
-                Text("Played through", style = MaterialTheme.typography.headlineSmall)
-                Text(if (e.wrongKeys == 0) "No wrong notes." else "${e.wrongKeys} wrong ${if (e.wrongKeys == 1) "note" else "notes"} on the way.",
-                    style = MaterialTheme.typography.bodyMedium, color = InkDim, textAlign = TextAlign.Center)
-            }
-            TroubleSpots.line(e.spots)?.let { line ->
-                Text(line, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 6.dp))
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-                    e.spots.forEach { s -> OutlinedButton(onClick = { onLoop(s) }) { Text("Loop bar ${s.bar}") } }
-                }
-            }
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ChunkyButton(onClick = onAgain) { Text("Play again") }
-                if (e.canReplay) OutlinedButton(onClick = onReplay) { Text("Hear my run") }
-                OutlinedButton(onClick = onClose) { Text("Close") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecapStat(label: String, value: Int) = Column(horizontalAlignment = Alignment.CenterHorizontally) {
-    Text("$value", style = Numeric.merge(MaterialTheme.typography.titleLarge))
-    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
+/**
+ * How a run ended: the Perform [recap] (null after a wait-mode run), a new best, the hardest bars, how long the run
+ * took in real time ([timeMs]) and the XP it earned with the level bar (library songs only), shown by [RunRecap].
+ */
+data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0, val canReplay: Boolean = false,
+                  val timeMs: Long = 0, val xpGained: Int? = null, val xpBar: XpBar? = null)
 
 /** Key labels from the setting: every C with its octave, or every white key's letter as well. */
 private fun keyLabels(setting: KeyLabels, range: IntRange): Map<Int, String> = when (setting) {

@@ -392,7 +392,8 @@ class MainActivity : ComponentActivity() {
                                 BackHandler { finishDaily(s, s.done) }
                                 Interstitial(part.next, voice, onGo = { screen = s.copy(between = false) },
                                     onSkip = { voice.stop(); advanceDaily(s, completed = false) },
-                                    onEnd = { voice.stop(); finishDaily(s, s.done) })
+                                    onEnd = { voice.stop(); finishDaily(s, s.done) },
+                                    parts = s.plan.parts, index = s.index, done = s.done)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                                     BackHandler { advanceDaily(s, completed = false) }
