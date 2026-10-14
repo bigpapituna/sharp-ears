@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
@@ -58,6 +59,7 @@ import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.engine.theory.Click
 import com.bigpapituna.sharpears.engine.theory.Cue
 import com.bigpapituna.sharpears.engine.theory.Mood
+import com.bigpapituna.sharpears.engine.theory.Scene
 import com.bigpapituna.sharpears.engine.theory.TheoryLesson
 import com.bigpapituna.sharpears.engine.theory.TheoryUnit
 import com.bigpapituna.sharpears.engine.theory.Visual
@@ -82,22 +84,22 @@ internal fun Mood.pose() = when (this) {
  * Plays a scene's cues: notes through the [sampler] (each released after its hold) and clicks through [clicks].
  * A note struck again cancels the older release, so a repeated key is never cut short.
  */
-internal class SceneSound(private val sampler: Sampler, private val clicks: Clicks?) {
+internal class SceneSound(private val sampler: Sampler?, private val clicks: Clicks?) {
     private val offAt = HashMap<Int, Int>()
 
     fun play(c: Cue) {
         c.click?.let { clicks?.play(it == Click.ACCENT) }
-        c.notes.forEach { sampler.noteOn(it, c.velocity); offAt[it] = c.atMs + c.holdMs }
+        c.notes.forEach { sampler?.noteOn(it, c.velocity); offAt[it] = c.atMs + c.holdMs }
     }
 
     fun release(t: Int) {
         val due = offAt.filterValues { it <= t }.keys
-        due.forEach { sampler.noteOff(it); offAt.remove(it) }
+        due.forEach { sampler?.noteOff(it); offAt.remove(it) }
     }
 
     val ringing get() = offAt.isNotEmpty()
 
-    fun stopAll() { offAt.keys.forEach(sampler::noteOff); offAt.clear() }
+    fun stopAll() { offAt.keys.forEach { sampler?.noteOff(it) }; offAt.clear() }
 }
 
 /**
@@ -120,6 +122,111 @@ internal suspend fun runClock(clock: MutableIntState, durationMs: Int, cues: Lis
 }
 
 /**
+ * A list of scenes being played: which one is showing, whether it is playing or paused, a counter bumped to watch
+ * it again, and its clock (ms into the scene's animation). [rememberScenePlayback] drives it.
+ */
+@Stable
+internal class ScenePlayback(val scenes: List<Scene>, start: Int) {
+    var index by mutableIntStateOf(start.coerceIn(0, scenes.lastIndex))
+        private set
+    var playing by mutableStateOf(true)
+    var run by mutableIntStateOf(0)
+        private set
+    var forward by mutableStateOf(true)
+        private set
+    val clock = mutableIntStateOf(0)
+    val scene get() = scenes[index]
+    val last get() = index == scenes.lastIndex
+    /** How far the current scene has played, 0 to 1 (read while drawing). */
+    fun fraction() = (clock.intValue.toFloat() / scene.visual.durationMs).coerceIn(0f, 1f)
+    fun go(to: Int) { forward = to >= index; index = to.coerceIn(0, scenes.lastIndex); playing = true }
+    fun replay() { playing = true; run++ }
+}
+
+/**
+ * Plays [scenes] while composed: each scene's caption said once as it opens (spoken the way Theory reads it), its
+ * sounds through [sampler] and [clicks] in time with the clock, then on to the next scene by itself once the
+ * animation and the caption are over (the last one stays). Pause holds the clock, the sound and the voice.
+ * [interruptFirst] false lets the first caption queue behind a line already being said. [tag] marks the log lines.
+ */
+@Composable
+internal fun rememberScenePlayback(
+    scenes: List<Scene>, sampler: Sampler, clicks: Clicks?, voice: Voice, start: Int = 0, tag: String,
+    interruptFirst: Boolean = true, onScene: (Int) -> Unit = {},
+): ScenePlayback {
+    val pb = remember(scenes) { ScenePlayback(scenes, start) }
+    val sound = remember { SceneSound(sampler, clicks) }
+    var said by remember { mutableIntStateOf(0) }
+    DisposableEffect(Unit) { onDispose { sound.stopAll(); voice.stop() } }
+    // A new scene (or Watch again): back to its start, the caption said once.
+    LaunchedEffect(pb.index, pb.run) {
+        pb.clock.intValue = 0
+        sound.stopAll()
+        onScene(pb.index)
+        Log.d(TAG, "$tag scene ${pb.index + 1}/${scenes.size} ${pb.scene.visual::class.simpleName}")
+        voice.speak(com.bigpapituna.sharpears.engine.theory.spokenTheory(pb.scene.say), interrupt = said > 0 || interruptFirst)
+        said++
+    }
+    // Play the scene while not paused; once it is over and the caption said, move on by itself.
+    LaunchedEffect(pb.index, pb.run, pb.playing) {
+        if (!pb.playing) { sound.stopAll(); return@LaunchedEffect }
+        val scene = pb.scene
+        val shownAt = System.currentTimeMillis()
+        runClock(pb.clock, scene.visual.durationMs, scene.visual.cues, sound)
+        if (pb.last) return@LaunchedEffect
+        withTimeoutOrNull(15_000) { snapshotFlow { voice.speaking.value }.first { !it } }
+        // With the voice off, leave time to read the caption.
+        val readMs = if (voice.enabled) 0L else 1500L + scene.caption.split(' ').size * 260L
+        delay(maxOf(1100L, readMs - (System.currentTimeMillis() - shownAt)))
+        Log.d(TAG, "$tag autoplay to scene ${pb.index + 2}")
+        pb.go(pb.index + 1)
+    }
+    return pb
+}
+
+/**
+ * The stage: the one raised panel, as tall as the tallest of the scenes needs (a share of its width, so the panel
+ * does not jump between scenes), centred in the room it is given. Each scene slides in from the side it comes from.
+ * With the phone's animations off each scene is drawn finished.
+ */
+@Composable
+internal fun SceneStage(pb: ScenePlayback, modifier: Modifier = Modifier, roomier: Boolean = false) {
+    val still = reducedMotion()
+    val enter = remember { Animatable(1f) }
+    LaunchedEffect(pb.index) { if (!still) { enter.snapTo(0f); enter.animateTo(1f, tween(380, easing = FastOutSlowInEasing)) } }
+    // A lesson's stage ([roomier]) takes a little more height and sits under the pup, its spare room below.
+    val ratio = remember(pb.scenes) { pb.scenes.maxOf { stageRatio(it.visual) } * if (roomier) 1.2f else 1f }
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = if (roomier) Alignment.TopCenter else Alignment.Center) {
+        Box(Modifier.fillMaxWidth().heightIn(max = maxWidth * ratio).fillMaxHeight().clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            androidx.compose.runtime.key(pb.index) {
+                val visual = pb.scene.visual
+                SceneCanvas(visual, time = { if (still) visual.durationMs else pb.clock.intValue }, description = pb.scene.caption,
+                    modifier = Modifier.fillMaxSize().padding(6.dp).graphicsLayer {
+                        alpha = enter.value
+                        translationX = (1 - enter.value) * 48.dp.toPx() * if (pb.forward) 1 else -1
+                    })
+            }
+        }
+    }
+}
+
+/** Pause or play, and watch this scene again: the player's two round controls. */
+@Composable
+internal fun SceneControls(pb: ScenePlayback, voice: Voice, tag: String) {
+    FilledTonalIconButton(onClick = {
+        pb.playing = !pb.playing
+        if (!pb.playing) voice.stop()
+        Log.d(TAG, "$tag ${if (pb.playing) "play" else "pause"} at ${pb.clock.intValue} ms")
+    }, modifier = Modifier.size(48.dp)) {
+        Icon(painterResource(if (pb.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow), contentDescription = if (pb.playing) "Pause" else "Play")
+    }
+    IconButton(onClick = { pb.replay() }, modifier = Modifier.size(48.dp)) {
+        Icon(painterResource(R.drawable.ic_repeat), contentDescription = "Watch this again")
+    }
+}
+
+/**
  * The animated explainer: the pup says each scene's caption (spoken too, with the voice on) over its animation on
  * the stage, the one raised panel. Scenes play themselves one after another; Pause holds the animation, sound and
  * voice; Back, Watch again and Next move by hand. A segmented bar shows the scenes, the current one filling as it
@@ -130,45 +237,8 @@ internal fun Explainer(
     unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, clicks: Clicks?, voice: Voice, startScene: Int,
     onScene: (Int) -> Unit, onQuiz: () -> Unit, onClose: () -> Unit,
 ) {
-    val still = reducedMotion()
-    var index by remember { mutableIntStateOf(startScene.coerceIn(0, lesson.scenes.lastIndex)) }
-    var playing by remember { mutableStateOf(true) }
-    var run by remember { mutableIntStateOf(0) }            // bumps to watch the scene again
-    var forward by remember { mutableStateOf(true) }
-    val clock = remember { mutableIntStateOf(0) }
-    val sound = remember { SceneSound(sampler, clicks) }
-    val scene = lesson.scenes[index]
-    val visual = scene.visual
-    val last = index == lesson.scenes.lastIndex
-    DisposableEffect(Unit) { onDispose { sound.stopAll(); voice.stop() } }
-
-    fun go(to: Int) { forward = to >= index; index = to; playing = true }
-
-    // A new scene (or Watch again): back to its start, the caption said once.
-    LaunchedEffect(index, run) {
-        clock.intValue = 0
-        sound.stopAll()
-        onScene(index)
-        Log.d(TAG, "theory: ${lesson.id} scene ${index + 1}/${lesson.scenes.size} ${visual::class.simpleName}")
-        voice.speak(com.bigpapituna.sharpears.engine.theory.spokenTheory(scene.say), interrupt = true)
-    }
-    // Play the scene while not paused; once it is over and the caption said, move on by itself.
-    LaunchedEffect(index, run, playing) {
-        if (!playing) { sound.stopAll(); return@LaunchedEffect }
-        val shownAt = System.currentTimeMillis()
-        runClock(clock, visual.durationMs, visual.cues, sound)
-        if (last) return@LaunchedEffect
-        withTimeoutOrNull(15_000) { snapshotFlow { voice.speaking.value }.first { !it } }
-        // With the voice off, leave time to read the caption.
-        val readMs = if (voice.enabled) 0L else 1500L + scene.caption.split(' ').size * 260L
-        delay(maxOf(1100L, readMs - (System.currentTimeMillis() - shownAt)))
-        Log.d(TAG, "theory: ${lesson.id} autoplay to scene ${index + 2}")
-        go(index + 1)
-    }
-    // The stage slides in from the side we are heading.
-    val enter = remember { Animatable(1f) }
-    LaunchedEffect(index) { if (!still) { enter.snapTo(0f); enter.animateTo(1f, tween(380, easing = FastOutSlowInEasing)) } }
-
+    val pb = rememberScenePlayback(lesson.scenes, sampler, clicks, voice, startScene, tag = "theory: ${lesson.id}", onScene = onScene)
+    val scene = pb.scene
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -178,57 +248,41 @@ internal fun Explainer(
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
             }
-            SceneBar(lesson.scenes.size, index) { (clock.intValue.toFloat() / visual.durationMs).coerceIn(0f, 1f) }
+            SceneBar(lesson.scenes.size, pb.index, pb::fraction)
             PupSays(scene.mood.pose(), scene.caption, Modifier.padding(top = 14.dp, bottom = 12.dp).heightIn(min = 80.dp), size = 76.dp)
-            // The stage is only as tall as the lesson's tallest scene needs (a share of its width), centred in the room
-            // left over: on a tall phone a full-height panel left the keyboard scenes floating in empty space.
-            // One height per lesson, so the panel does not jump between scenes.
-            val ratio = remember(lesson) { lesson.scenes.maxOf { stageRatio(it.visual) } }
-            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Box(Modifier.fillMaxWidth().heightIn(max = maxWidth * ratio).fillMaxHeight().clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                    androidx.compose.runtime.key(index) {
-                        SceneCanvas(visual, time = { if (still) visual.durationMs else clock.intValue }, description = scene.caption,
-                            modifier = Modifier.fillMaxSize().padding(6.dp).graphicsLayer {
-                                alpha = enter.value
-                                translationX = (1 - enter.value) * 48.dp.toPx() * if (forward) 1 else -1
-                            })
-                    }
-                }
-            }
+            // On a tall phone a full-height panel left the keyboard scenes floating in empty space: the stage is only
+            // as tall as the lesson's tallest scene needs.
+            SceneStage(pb, Modifier.weight(1f))
         }
         Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { go(index - 1) }, enabled = index > 0, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
-            FilledTonalIconButton(onClick = {
-                playing = !playing
-                if (!playing) voice.stop()
-                Log.d(TAG, "theory: ${if (playing) "play" else "pause"} at ${clock.intValue} ms")
-            }, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play_arrow), contentDescription = if (playing) "Pause" else "Play")
-            }
-            IconButton(onClick = { playing = true; run++ }, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_repeat), contentDescription = "Watch this again")
-            }
+            OutlinedButton(onClick = { pb.go(pb.index - 1) }, enabled = pb.index > 0, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
+            SceneControls(pb, voice, "theory:")
             Spacer(Modifier.weight(1f))
-            ChunkyButton(onClick = { if (last) { sound.stopAll(); voice.stop(); onQuiz() } else go(index + 1) }) {
-                Text(if (last) "Start quiz" else "Next")
+            ChunkyButton(onClick = { if (pb.last) { voice.stop(); onQuiz() } else pb.go(pb.index + 1) }) {
+                Text(if (pb.last) "Start quiz" else "Next")
             }
         }
     }
 }
 
 /** Stage height as a share of its width that each kind of scene needs (keys are wide, the circle is round). */
-private fun stageRatio(v: Visual): Float = when (v) {
+internal fun stageRatio(v: Visual): Float = when (v) {
     is KeysVisual -> 0.8f
     is StaffVisual -> if (v.grand) 1.0f else 0.85f
     is CircleVisual, is ChordVisual -> 1.05f
+    is com.bigpapituna.sharpears.engine.theory.PhraseVisual -> if (v.hasRight && v.hasLeft) 1.1f else 0.95f
+    is com.bigpapituna.sharpears.engine.theory.PedalVisual -> if (v.foot) 0.95f else 1.05f
+    is com.bigpapituna.sharpears.engine.theory.LaneVisual -> 1.0f
+    is com.bigpapituna.sharpears.engine.theory.SongMapVisual -> 0.62f
+    is com.bigpapituna.sharpears.engine.theory.FingerNumbersVisual, is com.bigpapituna.sharpears.engine.theory.HandShapeVisual -> 0.85f
+    is com.bigpapituna.sharpears.engine.theory.PostureVisual -> 0.86f
     else -> 0.9f
 }
 
 /** One segment per scene: done ones full, the current one filling as it plays (read while drawing). */
 @Composable
-private fun SceneBar(count: Int, current: Int, fraction: () -> Float) {
+internal fun SceneBar(count: Int, current: Int, fraction: () -> Float) {
     val c = MaterialTheme.colorScheme
     Canvas(Modifier.fillMaxWidth().height(6.dp).padding(horizontal = 4.dp).semantics { contentDescription = "Scene ${current + 1} of $count" }) {
         val gap = 5.dp.toPx()
@@ -247,3 +301,26 @@ private fun SceneBar(count: Int, current: Int, fraction: () -> Float) {
 @Composable
 internal fun StillScene(visual: com.bigpapituna.sharpears.engine.theory.Visual, modifier: Modifier = Modifier, description: String = "") =
     SceneCanvas(visual, time = { visual.durationMs }, modifier = modifier, description = description)
+
+/**
+ * One visual playing on its own, outside an explainer (a state screen, a Chords item): once with its sounds through
+ * [sampler] (null: silent), then with [loop] again every few seconds, silently. Bump [replay] to hear it again.
+ * With the phone's animations off it is drawn finished.
+ */
+@Composable
+internal fun ScenePreview(visual: Visual, modifier: Modifier = Modifier, sampler: Sampler? = null, loop: Boolean = false, replay: Int = 0, description: String = "") {
+    val still = reducedMotion()
+    val clock = remember { mutableIntStateOf(0) }
+    val sound = remember(sampler) { SceneSound(sampler, null) }
+    DisposableEffect(sound) { onDispose { sound.stopAll() } }
+    LaunchedEffect(visual, replay) {
+        var pass = 0
+        do {
+            clock.intValue = 0
+            runClock(clock, visual.durationMs, if (pass == 0) visual.cues else emptyList(), sound)
+            pass++
+            if (loop) delay(1800)
+        } while (loop)
+    }
+    SceneCanvas(visual, time = { if (still) visual.durationMs else clock.intValue }, modifier = modifier, description = description)
+}

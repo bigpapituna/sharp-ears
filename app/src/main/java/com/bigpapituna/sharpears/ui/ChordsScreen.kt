@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -519,12 +520,10 @@ private fun Lessons(
             val due = today.count { mastery[it.id]?.seen == true }
             Text("Today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text(if (today.isEmpty()) "All caught up" else "${today.size} chords to practice", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                when {
-                    today.isEmpty() -> "Come back tomorrow, or practice any pack below."
-                    due == 0 -> "All new. Chords you play cleanly come back less often."
-                    else -> "$due to review and ${today.size - due} new."
-                },
+            if (today.isEmpty()) PupSays(Pose.RESTING, "Come back tomorrow, or practice any pack below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
+                style = MaterialTheme.typography.bodyLarge)
+            else Text(
+                if (due == 0) "All new. Chords you play cleanly come back less often." else "$due to review and ${today.size - due} new.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (today.isNotEmpty()) {
@@ -537,7 +536,7 @@ private fun Lessons(
             Text("Packs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
             authored.sortedBy { it.level }.forEach { PackRow(it, store, cur.unlocked(it, mastery), cur, mastery, now) }
             Text("From your songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
-            if (fromSongs.isEmpty()) Text("Finding the chords in your songs.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (fromSongs.isEmpty()) PupSays(Pose.LISTENING, "Finding the chords in your songs.", size = 48.dp, style = MaterialTheme.typography.bodyMedium)
             fromSongs.forEach { PackRow(it, store, true, cur, mastery, now) }
         }
     }
@@ -619,8 +618,18 @@ private fun Session(
         is LessonItem.ProgressionItem -> Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             progress()
             Text(item.title, style = MaterialTheme.typography.headlineSmall)
-            Text("Play it through in wait mode: right hand the chords, left hand the roots. Then come back and say how it went.",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // The pup's line over the progression playing on the staff and keys (tap to hear it again).
+            PupSays(Pose.LISTENING, "Play it through in wait mode: right hand the chords, left hand the roots. Then come back and say how it went.",
+                size = 56.dp, style = MaterialTheme.typography.bodyMedium)
+            var replay by remember(store.sessionIndex) { mutableIntStateOf(0) }
+            val visual = remember(item) { com.bigpapituna.sharpears.engine.progressionVisual(PROGRESSIONS[item.progression], item.key) }
+            Box(Modifier.fillMaxWidth().widthIn(max = 560.dp).aspectRatio(1.3f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                com.bigpapituna.sharpears.ui.theory.ScenePreview(visual, Modifier.fillMaxSize().padding(6.dp), sampler = sampler, replay = replay,
+                    description = "${item.title}, chord by chord on the staff and keys")
+                androidx.compose.material3.IconButton(onClick = { replay++ }, modifier = Modifier.align(Alignment.TopEnd)) {
+                    Icon(painterResource(R.drawable.ic_repeat), contentDescription = "Hear it again")
+                }
+            }
             ChunkyButton(onClick = { onPlayProgression(PROGRESSIONS[item.progression], item.key) }) { Text("Open in the player") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = { store.answer(true) }) { Text("Went well") }

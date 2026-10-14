@@ -90,6 +90,25 @@ fun rightHand(c: Chord, inversion: Int, base: Int): List<Int> =
 private fun distance(a: List<Int>, b: List<Int>): Int =
     if (a.size == b.size) a.zip(b).sumOf { (x, y) -> abs(x - y) } else abs(a.average() - b.average()).toInt() * a.size
 
+/**
+ * A progression as a picture (2.0.1): its chords voice-led as the player plays them, one after another on the staff
+ * and keys, each with its name and numeral. Keys with flats in their name (F, B flat, E flat, A flat, D flat) spell
+ * the black keys as flats.
+ */
+fun progressionVisual(p: Progression, key: Int): com.bigpapituna.sharpears.engine.theory.ChordVisual {
+    val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
+    val voicings = voiceLead(chords)
+    val flats = Math.floorMod(key, 12) in setOf(1, 3, 5, 8, 10)
+    val steps = chords.mapIndexed { i, c ->
+        val name = c.nameIn(flats).replace("#", "\u266F").replace(Regex("^([A-G])b"), "$1\u266D")
+        com.bigpapituna.sharpears.engine.theory.ChordStep(voicings[i].map { com.bigpapituna.sharpears.engine.theory.Pitch.of(it, flats) }, name,
+            p.degrees[i].numeral, build = false)
+    }
+    val all = voicings.flatten()
+    return com.bigpapituna.sharpears.engine.theory.ChordVisual(steps, com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow(all.min() - 2),
+        com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove(all.max() + 2), noteMs = 500, holdMs = if (chords.size > 6) 650 else 1100)
+}
+
 /** A progression as a song: one chord per bar (4 beats), right hand voice-led chords, left hand the root. */
 fun progressionSong(p: Progression, key: Int, bpm: Double = 72.0): Song {
     val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }

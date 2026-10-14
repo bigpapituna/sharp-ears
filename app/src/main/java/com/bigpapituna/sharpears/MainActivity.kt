@@ -117,7 +117,7 @@ private sealed interface Screen {
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
-    data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null) : Screen
+    data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null, val scene: Int = 0) : Screen
     data class MicSetup(val back: Screen) : Screen
     /** The sight-reading drill. [inject] (debug) feeds the mic. */
     data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null) : Screen
@@ -217,7 +217,10 @@ class MainActivity : ComponentActivity() {
                 },
                 debugStart.inject,
                 GameStart(GameKind.entries.firstOrNull { it.id == intent.getStringExtra("game") }, intent.getIntExtra("level", 0)),
-            )
+            ).also {
+                // --es pack <id>: start a Chords session on that pack, locked or not (to see its items).
+                intent.getStringExtra("pack")?.let { id -> lessons.curriculum().packs.firstOrNull { p -> p.id == id }?.let { p -> lessons.startSession(p.items) } }
+            }
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
             debuggable && intent.getStringExtra("screen") == "profile" -> Screen.Home(HomeTab.YOU)
@@ -232,7 +235,7 @@ class MainActivity : ComponentActivity() {
             debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
-                    Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"))
+                    Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"), intent.getIntExtra("scene", 0))
                 }
             openSong == null -> Screen.Home()
             openSong == MIC_CHECK_ID -> Screen.Player(micCheck, null, debugStart, seekMs, Screen.Home())
@@ -379,8 +382,8 @@ class MainActivity : ComponentActivity() {
                             BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson
                             androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
-                                midiScript = s.midiScript,
-                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null) },
+                                midiScript = s.midiScript, startScene = s.scene,
+                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
                                 onDone = { prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id)) },
                                 onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
@@ -516,7 +519,8 @@ class MainActivity : ComponentActivity() {
                                             practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
                                             today = remember(pv, lv, lessons.songPacks.value) {
                                                 val plan = todayPlan()
-                                                TodayPanel(plan.aboutLabel, plan.parts.map { it.row },
+                                                // Debug --ez emptyToday true: the panel with nothing due (for screenshots).
+                                                TodayPanel(plan.aboutLabel, if (debuggable && intent.getBooleanExtra("emptyToday", false)) emptyList() else plan.parts.map { it.row },
                                                     prefs.dailySummary(java.time.LocalDate.now()))
                                             },
                                             goal = remember(pv, progress.version.intValue) {

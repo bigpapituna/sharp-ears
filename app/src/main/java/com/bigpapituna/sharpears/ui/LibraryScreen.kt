@@ -194,7 +194,8 @@ private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) = Panel {
         } else {
             Text(t.about.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineMedium)
             // One line per part, in the order they run.
-            if (t.parts.isEmpty()) Text("Nothing is due. Pick any song below.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (t.parts.isEmpty()) PupSays(Pose.WELCOME, "Nothing is due. Pick any song below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
+                style = MaterialTheme.typography.bodyLarge)
             t.parts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Spacer(Modifier.size(8.dp))
             ChunkyButton(onClick = onStart) {

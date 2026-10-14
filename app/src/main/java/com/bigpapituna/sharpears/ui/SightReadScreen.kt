@@ -71,10 +71,11 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                 FilterChip(level == 1, { level = 1 }, label = { Text("Level 1") })
                 FilterChip(level == 2, { level = 2 }, label = { Text("Level 2") })
             }
-            Text(
+            // The pup says what this level reads, over the piece.
+            PupSays(Pose.GET_READY,
                 if (level == 1) "C major, right hand, quarter and half notes."
                 else "${piece.keyName}, eighth notes too, and a bass note in the left hand.",
-                style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                Modifier.padding(horizontal = 4.dp, vertical = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge)
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 SharpEarsTheme(dark = true) {
                     key(level, seed) {

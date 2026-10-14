@@ -135,6 +135,26 @@ ender_voice.py.
 - Open: skipped ear rounds still earn the 5 XP of a round (Team D reports every round); onboarding and the pup's tap lines
   are shown, not spoken, so they are not in the voice catalog.
 
+## 2.0.1 engaging lessons (2026-10-14, branch `engaging-lessons`)
+Roy: "I don't like areas that have just text." Every Learn reading step is now a short animated explainer, like Theory.
+- Model: Step.scenes (engine/theory Scene); read(scene(...), ...) builds a READ step, text = the captions joined (kept for
+  the voice catalog and TalkBack). Builders in engine/LessonScenes.kt. 85 read steps in 70 lessons, 2 to 4 scenes each
+  (232 scenes): FingerNumbers 52, SongMap 31, Phrase 30, Keys 29, Dynamics 22, Rhythm 17, Chord 13, Lane 10, Pedal 8,
+  Articulation 5, Staff 4, Interval 3, Posture 2, HandShape 2, Midi 2, ValueTree 1, Pop 1 (repertoire lessons preview their
+  phrase; Technique 2 uses Articulation, Dynamics and Pedal).
+- New visuals (engine/theory/Theory.kt, drawn in ui/theory/LessonScenes.kt, pure functions of the clock): Posture, HandShape,
+  FingerNumbers (FingerStep presses, spread for stretches; the hand glides, thumb under), Pedal (late = blur), Dynamics,
+  Articulation, Phrase (token notation, grand staff + keys, passes per hand, look-ahead), Lane, SongMap (loop, speed), Midi.
+- Player: Explainer.kt is shared (rememberScenePlayback, SceneStage, SceneBar, SceneControls, ScenePreview). LessonScreen
+  plays a read step's scenes (voice says each caption; Back/Pause/Watch again/Next through the scenes, then the steps).
+  Exercise instructions are the pup's bubble.
+- Sweep: MIDI-needed step (pup + MidiVisual), Chords progression item (progressionVisual playing), Today panel empty
+  line, Chords all-caught-up, sight-read and mic intros, interstitial: all the pup's, not plain text.
+- Debug: --es lesson <id> --ei step n --ei scene n; --es screen chords --es pack 06-progressions; --ez emptyToday true.
+- Voice: SpokenCatalog adds every scene caption (spokenTheory(say)); 1989 lines. CourseScenesTest checks scenes, ranges
+  and captions. emulator-5556 crashed in host GPU mode once on 2026-10-14: start it with -gpu swiftshader_indirect
+  -crash-report-mode disabled.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

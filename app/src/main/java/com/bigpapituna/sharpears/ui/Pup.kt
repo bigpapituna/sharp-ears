@@ -236,10 +236,10 @@ fun SpeechBubble(line: String, modifier: Modifier = Modifier, style: TextStyle =
 /** The pup with what he says beside him, for the moments he speaks up (greetings, feedback, results). */
 @Composable
 fun PupSays(pose: Pose, line: String, modifier: Modifier = Modifier, size: Dp = 72.dp,
-            onTap: (() -> Unit)? = null, sleepyAfterMs: Long? = null) =
+            onTap: (() -> Unit)? = null, sleepyAfterMs: Long? = null, style: TextStyle? = null) =
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Pup(pose, size = size, onTap = onTap, sleepyAfterMs = sleepyAfterMs)
-        SpeechBubble(line, Modifier.weight(1f, fill = false))
+        SpeechBubble(line, Modifier.weight(1f, fill = false), style ?: MaterialTheme.typography.titleMedium)
     }
 
 /**
