@@ -21,8 +21,10 @@ data class SongArt(val notes: List<ArtNote>, val durationMs: Long) {
             if (song.notes.isEmpty()) return SongArt(emptyList(), song.durationMs)
             val first = song.notes.minOf { it.startMs }
             val barMs = 60_000.0 / song.bpm.coerceAtLeast(1.0) * song.timeSignature.first.coerceAtLeast(1) * 4.0 / song.timeSignature.second.coerceAtLeast(1)
-            val window = (barMs * bars).coerceIn(1500.0, 9000.0)
-            val shown = song.notes.filter { it.startMs - first < window }.sortedWith(compareBy({ it.startMs }, { it.midi })).take(MAX_NOTES)
+            val bound = (barMs * bars).coerceIn(1500.0, 9000.0)
+            val shown = song.notes.filter { it.startMs - first < bound }.sortedWith(compareBy({ it.startMs }, { it.midi })).take(MAX_NOTES)
+            // When the note cap cuts the bars short, the window shrinks to the notes kept, so they fill the tile.
+            val window = ((shown.maxOf { it.startMs + it.durationMs / 2 } - first) * 1.1).coerceIn(1200.0, bound)
             // Columns by pitch, with wide leaps (the bass far under the tune) closed up to two steps, so the
             // contour shows and the tile has no empty middle.
             val column = HashMap<Int, Int>()

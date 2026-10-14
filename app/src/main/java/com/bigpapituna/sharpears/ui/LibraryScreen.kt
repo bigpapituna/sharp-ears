@@ -261,7 +261,8 @@ private fun ContinueRow(e: LibraryEntry, fresh: Boolean, a: LibraryActions, art:
 /** A difficulty group's heading: its stars, its name and size, and how many of its songs have been played through. */
 @Composable
 private fun GroupHeader(label: String, group: List<LibraryEntry>, stars: Int) {
-    val played = group.count { it.progress.completed || it.progress.bestAccuracy >= 0 }
+    val open = group.count { it.available }
+    val played = group.count { it.available && (it.progress.completed || it.progress.bestAccuracy >= 0) }
     Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (stars > 0) DifficultyStars(stars, size = 16.dp)
@@ -269,7 +270,7 @@ private fun GroupHeader(label: String, group: List<LibraryEntry>, stars: Int) {
         Text(label, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Text("${group.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.weight(1f))
-        if (group.isNotEmpty()) Text("$played of ${group.size} played", style = Numeric.merge(MaterialTheme.typography.labelMedium),
+        if (open > 0) Text("$played of $open played", style = Numeric.merge(MaterialTheme.typography.labelMedium),
             color = if (played > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

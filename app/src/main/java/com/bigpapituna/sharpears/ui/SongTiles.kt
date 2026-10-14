@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -92,7 +93,8 @@ fun SongTile(art: SongArt?, locked: Boolean, modifier: Modifier = Modifier, size
     }
     val still = reducedMotion()
     val shown by animateFloatAsState(if (art != null) 1f else 0f, if (still) tween(0) else tween(420), label = "art")
-    Canvas(modifier.size(size).clip(RoundedCornerShape(12.dp)).clearAndSetSemantics { }) {
+    // A hairline edge keeps the dark tile apart from a dark page.
+    Canvas(modifier.size(size).clip(RoundedCornerShape(12.dp)).border(1.dp, c.outlineVariant, RoundedCornerShape(12.dp)).clearAndSetSemantics { }) {
         val h = this.size.height
         val wd = this.size.width
         drawRect(Brush.verticalGradient(listOf(StageRaised, Stage)))
