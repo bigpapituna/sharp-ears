@@ -52,7 +52,7 @@ import com.bigpapituna.sharpears.engine.ear.EarKind
 import com.bigpapituna.sharpears.engine.ear.EarTrainer
 import com.bigpapituna.sharpears.engine.noteName
 import com.bigpapituna.sharpears.audio.MicInput
-import com.bigpapituna.sharpears.ui.Bad
+import com.bigpapituna.sharpears.ui.WrongGlow
 import com.bigpapituna.sharpears.ui.Cheer
 import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Good
@@ -146,7 +146,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
         when (a.outcome) {
             ChordGame.Outcome.WRONG -> {
                 missedThisRound = true
-                m?.let { flashKey(it, Bad) }
+                m?.let { flashKey(it, WrongGlow) }
                 // A game that replays itself after a wrong note lets the replay be the answer; the others say what was wrong.
                 a.line?.let { hint = it.text to false; if (!trainer.replayOnWrong) env.voice.speak(it.spoken, deferrable = false) }
                 if (trainer.replayOnWrong) scope.launch { delay(700); replayIntro = false; replay++ }
@@ -156,7 +156,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
                 a.line?.let { hint = it.text to true }
             }
             ChordGame.Outcome.DONE -> {
-                m?.let { flashKey(it, if (a.clean) Good else Bad) }
+                m?.let { flashKey(it, if (a.clean) Good else WrongGlow) }
                 hint = null
                 review = Review(a.line!!, a.clean, picked)
                 phase = Phase.REVIEW                                     // the mic stops, so the voice can speak

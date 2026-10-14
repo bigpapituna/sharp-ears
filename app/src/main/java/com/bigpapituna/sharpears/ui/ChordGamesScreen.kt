@@ -4,23 +4,17 @@ import android.Manifest
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,8 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
@@ -60,7 +52,12 @@ import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.NoteEvent
 import com.bigpapituna.sharpears.engine.chordTitle
 import com.bigpapituna.sharpears.engine.noteName
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import com.bigpapituna.sharpears.ui.ear.CardGrid
+import com.bigpapituna.sharpears.ui.ear.GameHeader
+import com.bigpapituna.sharpears.ui.ear.lowerFirst
+import com.bigpapituna.sharpears.ui.ear.missTitle
 import com.bigpapituna.sharpears.ui.ear.GameCard
 import com.bigpapituna.sharpears.ui.ear.GameSheet
 import com.bigpapituna.sharpears.ui.ear.MiniKeys
@@ -128,11 +125,17 @@ private fun ChordArt(g: GameKind) = when (g) {
     GameKind.PLAYBACK -> MiniKeys(periodMs = 3000) { t -> val notes = listOf(60, 62, 64, 65, 67, 64); mapOf(notes[(t * notes.size).toInt().coerceAtMost(notes.lastIndex)] to 1f) }
 }
 
-private enum class Phase { PROMPT, ANSWER, BETWEEN }
+private enum class Phase { PROMPT, ANSWER, REVIEW }
+
+/** How a finished round went, for the cheer bar. */
+private class RoundEnd(val text: String, val clean: Boolean)
 
 /**
- * One game of ten rounds. Each round: the voice says the prompt and the sampler plays the chord (mic off, so it
- * cannot hear the phone), then the mic listens (if on) for the answer; touch and MIDI work throughout the answer.
+ * One game of ten rounds, dressed like the ear games: the pup's header (listening while the app plays), keys
+ * that burst green across the chord when a round lands, a soft warm flash on a wrong key, and the cheer bar
+ * with the pup after each round. The answer shown after a slip reads in the neutral colour: the chord was
+ * still found. Each round: the voice says the prompt and the sampler plays the chord (mic off, so it cannot
+ * hear the phone), then the mic listens (if on) for the answer; touch and MIDI work throughout the answer.
  */
 @Composable
 private fun GameScreen(
@@ -144,11 +147,15 @@ private fun GameScreen(
     var phase by remember { mutableStateOf(Phase.PROMPT) }
     var replay by remember { mutableIntStateOf(0) }
     var line by remember { mutableStateOf<Pair<String, Boolean>?>(null) }   // text, good
-    var wrongFlash by remember { mutableIntStateOf(0) }
+    var review by remember { mutableStateOf<RoundEnd?>(null) }
+    var missed by remember { mutableStateOf(false) }
+    var pings by remember { mutableIntStateOf(0) }
     var newBest by remember { mutableStateOf(false) }
     var micOn by remember { mutableStateOf(micDefault && mic.hasPermission() || inject != null) }
     val touched = remember { mutableStateMapOf<Int, Color>() }
+    val flash = remember { mutableStateMapOf<Int, Color>() }               // judged keys: a ripple each
     val scope = rememberCoroutineScope()
+    val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics()
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
     val round = remember(version) { game.round }
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
@@ -163,15 +170,21 @@ private fun GameScreen(
         Log.d(TAG, "games: play ${game.describe()} " + groups.joinToString(" ") { g -> g.joinToString("+") { noteName(it) } })
         if (groups.size == 1) {                                             // a chord rings
             groups[0].forEach { sampler.noteOn(it, 85) }
+            pings++
             delay(1600)
             groups[0].forEach(sampler::noteOff)
         } else groups.forEach { g ->                                        // a melody: one note after another
             g.forEach { sampler.noteOn(it, 85) }
+            pings++
             delay(620)
             g.forEach(sampler::noteOff)
             delay(80)
         }
         delay(200)
+    }
+    fun flashKeys(keys: Collection<Int>, color: Color, ms: Long) {
+        keys.forEach { flash[it] = color }
+        scope.launch { delay(ms); keys.forEach { if (flash[it] == color) flash.remove(it) } }
     }
 
     // Each round (and each Replay): prompt and chord with the mic off, then listen.
@@ -200,19 +213,32 @@ private fun GameScreen(
         val a = game.input(m, System.currentTimeMillis())
         Log.d(TAG, "games: heard ${noteName(m)} src=$src -> ${a.outcome} clean=${a.clean} score=${game.score} streak=${game.streak}")
         when (a.outcome) {
-            ChordGame.Outcome.WRONG -> { wrongFlash++; a.line?.let { line = it.text to false; voice.speak(it.spoken, deferrable = false) } }
-            ChordGame.Outcome.FOUND -> a.line?.let { line = it.text to true }
+            ChordGame.Outcome.WRONG -> {
+                missed = true
+                flashKeys(listOf(m), WrongGlow, 450)
+                haptics.miss()
+                a.line?.let { line = it.text to false; voice.speak(it.spoken, deferrable = false) }
+            }
+            ChordGame.Outcome.FOUND -> { flashKeys(listOf(m), Good, 450); a.line?.let { line = it.text to true } }
             ChordGame.Outcome.DONE -> {
                 // The chord's root (pitch class) counts toward the every-key achievements; the melodic games have none.
                 progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.ChordRound((game as? ChordGame)?.target?.root))
-                line = a.line!!.text to a.clean
+                // The success moment: a green burst across every key of the answer (a warm one when it took a slip).
+                flashKeys(game.lit().keys + m, if (a.clean) Good else RightHandColor, 900)
+                if (a.clean) haptics.success()
+                line = null
+                review = RoundEnd(a.line!!.text, a.clean)
                 voice.speak(a.line.spoken)
-                phase = Phase.BETWEEN                                  // the mic stops, so the voice can speak
-                scope.launch { voiceDone(); delay(900); line = null; game.next(); version++ }
+                phase = Phase.REVIEW                                   // the mic stops, so the voice can speak
             }
             ChordGame.Outcome.IGNORED -> {}
         }
         version++
+    }
+    fun goOn() {
+        voice.stop()
+        review = null; line = null; missed = false; replay = 0
+        game.next(); version++
     }
 
     LaunchedEffect(midi) {
@@ -258,53 +284,62 @@ private fun GameScreen(
         )
         return
     }
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(kind.title, style = MaterialTheme.typography.titleLarge)
-                Text(kind.levels[level], style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            TextButton(onClick = onExit) { Text(if (finished) "Games" else "End game") }
-        }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text("Round ${round + 1} of ${game.rounds}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(remember(version) { game.prompt().text }, style = MaterialTheme.typography.headlineMedium)
-            }
-            GameStat("Score", game.score)
-            GameStat("Streak", game.streak)
-        }
-        Text(line?.first ?: "", color = if (line?.second == false) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
-            style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
-        FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(micOn, {
-                if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
-            }, label = { Text(if (micOn) "Listening" else "Use mic") },
-                leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
-            if (game.toPlay().isNotEmpty()) OutlinedButton(onClick = { if (phase == Phase.ANSWER) replay++ }, enabled = phase == Phase.ANSWER) {
-                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(6.dp)); Text("Hear again")
-            }
-            TextButton(onClick = { voice.stop(); line = null; game.skip(); version++ }, enabled = phase != Phase.BETWEEN) { Text("Skip") }
-        }
-        Text(kind.howToFor(level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        var wrongVisible by remember { mutableStateOf(false) }
-        LaunchedEffect(wrongFlash) { if (wrongFlash > 0) { wrongVisible = true; delay(400); wrongVisible = false } }
-        val lit = remember(version) {
-            game.lit().mapValues { (_, l) -> when (l) { Lit.SHOWN -> RightHandColor.copy(alpha = 0.5f); Lit.GIVEN -> RightHandColor; Lit.FOUND -> Good } }
-        } + touched
-        Keyboard(
-            LOW, HIGH, lit = lit,
-            onNoteOn = { m, vel -> touched[m] = RightHandColor; if (sound()) sampler.noteOn(m, vel); strike(m, "touch") },
-            onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-            modifier = Modifier.fillMaxWidth().height(220.dp).then(if (wrongVisible) Modifier.border(3.dp, Bad, RoundedCornerShape(6.dp)) else Modifier),
-        )
-        Spacer(Modifier.heightIn(min = 8.dp))
+    val rev = review
+    val plays = game.toPlay().isNotEmpty()
+    val pose = when {
+        rev != null -> if (rev.clean) Pose.GREAT_JOB else Pose.LEARNING
+        phase == Phase.PROMPT && plays -> Pose.LISTENING
+        missed -> Pose.MISTAKE
+        game.streak >= 3 -> Pose.STREAK
+        else -> Pose.GET_READY
     }
-}
-
-@Composable
-private fun GameStat(label: String, value: Int) = Column(horizontalAlignment = Alignment.End) {
-    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Text("$value", style = Numeric.merge(MaterialTheme.typography.headlineSmall))
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GameHeader(kind.title, "Level ${level + 1}: ${kind.levels[level].lowerFirst()}", null, round, game.rounds, rev != null,
+                game.score, game.streak, pose, remember(version) { game.prompt().text }, onExit,
+                listening = phase == Phase.PROMPT && plays, pings = pings)
+            // Hints and what was wrong, in the neutral colour; a found note in green.
+            Text(line?.first ?: if (phase == Phase.PROMPT && plays) "Listen" else "", color = when {
+                line == null -> MaterialTheme.colorScheme.primary
+                line?.second == false -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> MaterialTheme.colorScheme.tertiary
+            }, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
+            FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(micOn, {
+                    if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
+                }, label = { Text(if (micOn) "Listening" else "Use mic") },
+                    leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
+                if (plays) OutlinedButton(onClick = { if (phase == Phase.ANSWER) replay++ }, enabled = phase == Phase.ANSWER) {
+                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp)); Text("Hear again")
+                }
+                TextButton(onClick = { voice.stop(); line = null; missed = false; game.skip(); version++ }, enabled = phase != Phase.REVIEW) { Text("Skip") }
+            }
+            // The how-to shows in the first round only; the hub's sheet has it too.
+            if (round == 0) Text(kind.howToFor(level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val lit = remember(version) {
+                game.lit().mapValues { (_, l) -> when (l) { Lit.SHOWN -> RightHandColor.copy(alpha = 0.5f); Lit.GIVEN -> RightHandColor; Lit.FOUND -> Good } }
+            }.let { l -> if (rev?.clean == true) l.mapValues { Good } else l } + touched     // a clean round: the whole chord green
+            Keyboard(
+                LOW, HIGH, lit = lit,
+                onNoteOn = { m, vel -> touched[m] = RightHandColor; if (sound()) sampler.noteOn(m, vel); strike(m, "touch") },
+                onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
+                modifier = Modifier.fillMaxWidth().height(220.dp),
+                flash = flash,
+            )
+            Spacer(Modifier.height(if (rev != null) 240.dp else 12.dp))
+        }
+        if (rev != null) CheerBar(
+            if (rev.clean) Cheer.GOOD else Cheer.MISS,
+            when {
+                rev.clean -> cheerTitle(round + game.score)
+                kind == GameKind.BUILD -> "You built it"
+                else -> missTitle(round + game.score)
+            },
+            rev.text + if (!rev.clean && kind == GameKind.BUILD) " Clean next time for the point." else "",
+            if (round + 1 >= game.rounds) "See results" else "Continue",
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) { goOn() }
+    }
 }
