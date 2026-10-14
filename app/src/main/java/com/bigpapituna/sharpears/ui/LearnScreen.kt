@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -66,6 +68,9 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.CourseLevel
+import com.bigpapituna.sharpears.engine.LessonKind
+import com.bigpapituna.sharpears.engine.kind
+import com.bigpapituna.sharpears.engine.lessonKind
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /** Lessons in course order, for "next lesson" and numbering. */
@@ -165,15 +170,42 @@ private fun SideRow(title: String, detail: String, status: String?, icon: Int, o
 
 private enum class StopState { DONE, NEXT, LATER }
 
-/** A unit's banner: its name and what it covers, with a progress bar. The unit in progress is filled with the accent. */
+/** The icon for a lesson (or step) kind: a book to read, an ear to listen, a hand to play, the metronome to perform, a note for a song. */
+private fun LessonKind.icon() = when (this) {
+    LessonKind.READ -> R.drawable.ic_book
+    LessonKind.LISTEN -> R.drawable.ic_hearing
+    LessonKind.PLAY -> R.drawable.ic_hand
+    LessonKind.PERFORM -> R.drawable.ic_practice
+    LessonKind.SONG -> R.drawable.ic_music_note
+}
+
+/**
+ * A unit's banner: "Unit n", its name and what it covers, with a progress bar and the kinds of lesson inside as
+ * small icons. The unit in progress is filled with the accent.
+ */
 @Composable
 private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean) {
     val c = MaterialTheme.colorScheme
     val bg = if (current) c.primary else c.surfaceContainerHigh
     val ink = if (current) c.onPrimary else c.onSurface
+    val number = remember(level) { COURSE.indexOf(level) + 1 }
+    val kinds = remember(level) { level.lessons.map { it.kind }.distinct().sortedBy { it.ordinal } }
     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 12.dp)
         .clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Unit $number", style = Numeric.merge(MaterialTheme.typography.labelMedium), color = ink.copy(alpha = 0.75f), modifier = Modifier.weight(1f))
+            // What is inside: one small icon per kind of lesson.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics(mergeDescendants = true) {
+                contentDescription = kinds.joinToString(", ") { it.label }
+            }) {
+                kinds.forEach { k ->
+                    Box(Modifier.size(26.dp).background(ink.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(k.icon()), contentDescription = null, tint = ink.copy(alpha = 0.9f), modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.Bottom) {
             Text(level.title, style = MaterialTheme.typography.headlineSmall, color = ink, modifier = Modifier.weight(1f).semantics { heading() })
             Text("$done of ${level.lessons.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = ink.copy(alpha = 0.8f))
@@ -186,8 +218,8 @@ private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean) {
 }
 
 /**
- * One stop on the trail, shifted sideways by [wind]. The next stop is larger, pulses, has a bobbing "Start" above it
- * and the pup beside it pointing at it.
+ * One stop on the trail, shifted sideways by [wind], with its lesson's title under it (as on the Theory path). The
+ * next stop is larger, pulses, has a bobbing "Start" above it and the pup beside it pointing at it.
  */
 @Composable
 private fun StopRow(lesson: CourseLesson, number: Int, wind: Float, state: StopState, onClick: () -> Unit) {
@@ -200,12 +232,15 @@ private fun StopRow(lesson: CourseLesson, number: Int, wind: Float, state: StopS
                 val bob by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "bob")
                 StartTag(Modifier.padding(bottom = 6.dp).graphicsLayer { translationY = if (still) 0f else -6.dp.toPx() * bob })
             }
-            StopButton(state, number, lesson.title, onClick)
+            StopButton(state, number, lesson.title, lesson.kind, onClick)
+            Text(lesson.title, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 2,
+                color = if (state == StopState.LATER) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.widthIn(max = 150.dp).padding(top = 2.dp).clearAndSetSemantics { })
         }
         // The pup on the roomier side, pointing at the stop (his pose points right, so he is mirrored on the right).
         if (state == StopState.NEXT) {
             val right = wind < 0f
-            Pup(Pose.GET_READY, size = 96.dp, modifier = Modifier.offset(x = x + if (right) 120.dp else (-120).dp, y = 18.dp)
+            Pup(Pose.GET_READY, size = 96.dp, modifier = Modifier.offset(x = x + if (right) 132.dp else (-132).dp, y = 8.dp)
                 .graphicsLayer { if (right) scaleX = -1f })
         }
     }
@@ -222,14 +257,17 @@ private fun StartTag(modifier: Modifier) {
             moveTo(s.width / 2 - tail, s.height - tail - 1); lineTo(s.width / 2, s.height); lineTo(s.width / 2 + tail, s.height - tail - 1); close()
         }
     }
-    Text("START", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+    Text("Start", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
         modifier = modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape).background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
             .padding(start = 14.dp, end = 14.dp, top = 7.dp, bottom = 14.dp))
 }
 
-/** A round stop with a darker lip it sinks into when pressed, like the main buttons. */
+/**
+ * A round stop with a darker lip it sinks into when pressed, like the main buttons. Inside, the icon of the
+ * lesson's [kind]; a done stop also wears a small tick.
+ */
 @Composable
-private fun StopButton(state: StopState, number: Int, title: String, onClick: () -> Unit) {
+private fun StopButton(state: StopState, number: Int, title: String, kind: LessonKind, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val size: Dp = if (state == StopState.NEXT) 80.dp else 68.dp
     val lip = 6.dp
@@ -247,20 +285,21 @@ private fun StopButton(state: StopState, number: Int, title: String, onClick: ()
             val k = 1f + 0.28f * ring; scaleX = k; scaleY = k; alpha = (1f - ring) * 0.5f
         }.border(3.dp, c.primary, CircleShape))
         Box(Modifier.size(size, size + lip).clickable(source, indication = null, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "Lesson $number, $title, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started" } }) {
+            .semantics { contentDescription = "Lesson $number, $title, ${kind.label.lowercase()}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started" } }) {
             Box(Modifier.size(size).offset(y = lip).background(edge, CircleShape))
             Box(Modifier.size(size).offset { IntOffset(0, sink.roundToPx()) }.background(face, CircleShape), contentAlignment = Alignment.Center) {
-                when (state) {
-                    StopState.DONE -> Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.onPrimary, modifier = Modifier.size(32.dp))
-                    StopState.NEXT -> Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, tint = c.onPrimary, modifier = Modifier.size(38.dp))
-                    StopState.LATER -> Text("$number", style = Numeric.merge(MaterialTheme.typography.titleLarge), color = c.onSurfaceVariant)
+                Icon(painterResource(kind.icon()), contentDescription = null, tint = if (state == StopState.LATER) c.onSurfaceVariant else c.onPrimary,
+                    modifier = Modifier.size(if (state == StopState.NEXT) 36.dp else 30.dp))
+                if (state == StopState.DONE) Box(Modifier.align(Alignment.BottomEnd).size(24.dp).background(c.surface, CircleShape),
+                    contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.primary, modifier = Modifier.size(18.dp))
                 }
             }
         }
     }
 }
 
-/** The card a tapped stop opens: title, what it covers, how many steps, and the way in. */
+/** The card a tapped stop opens: title, what it covers, its steps as a row of icons, and the way in. */
 @Composable
 private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onStart: () -> Unit) {
     val density = LocalDensity.current
@@ -271,12 +310,26 @@ private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onSta
             moveTo(s.width / 2 - tail, tail + 1); lineTo(s.width / 2, 0f); lineTo(s.width / 2 + tail, tail + 1); close()
         }
     }
+    val c = MaterialTheme.colorScheme
     Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 8.dp)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh, shape).padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 18.dp),
+        .background(c.surfaceContainerHigh, shape).padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(lesson.title, style = MaterialTheme.typography.titleLarge)
-        Text("${lesson.summary} ${lesson.steps.size} steps.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text(lesson.summary, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+        // The steps in order, joined like a little trail.
+        FlowRow(Modifier.padding(vertical = 6.dp).semantics(mergeDescendants = true) {
+            contentDescription = "${lesson.steps.size} steps: " + lesson.steps.joinToString(", ") { it.lessonKind.label.lowercase() }
+        }, verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            lesson.steps.forEachIndexed { i, step ->
+                if (i > 0) Box(Modifier.size(width = 12.dp, height = 2.dp).background(c.outlineVariant))
+                Box(Modifier.size(32.dp).background(c.surfaceContainerHighest, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(step.lessonKind.icon()), contentDescription = null, tint = c.primary, modifier = Modifier.size(18.dp))
+                }
+            }
+            Text("${lesson.steps.size} steps", style = Numeric.merge(MaterialTheme.typography.labelMedium), color = c.onSurfaceVariant,
+                modifier = Modifier.padding(start = 10.dp))
+        }
+        ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text(when { done -> "Practise again"; next -> "Start"; else -> "Jump ahead" })
         }
     }
