@@ -230,8 +230,9 @@ internal fun DragNumber(
     }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (big) 14.dp else 6.dp)) {
         Chevron(left = true, color = dim, size = if (big) 12.dp else 8.dp)
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { translationX = nudge.value }) {
-            Text("$value", style = (if (big) MaterialTheme.typography.displayLarge else MaterialTheme.typography.titleLarge).merge(Numeric)
-                .copy(fontWeight = FontWeight.SemiBold).let { if (big) it.copy(fontSize = 96.sp, lineHeight = 96.sp, platformStyle = PlatformTextStyle(includeFontPadding = false),
+            // The hero number is Nunito (the headline face: no slashed zero at 96 sp); small readouts keep the mono figures.
+            Text("$value", style = (if (big) MaterialTheme.typography.displayLarge else MaterialTheme.typography.titleLarge.merge(Numeric))
+                .copy(fontWeight = if (big) FontWeight.ExtraBold else FontWeight.SemiBold).let { if (big) it.copy(fontSize = 96.sp, lineHeight = 96.sp, platformStyle = PlatformTextStyle(includeFontPadding = false),
                     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)) else it.copy(lineHeight = 24.sp) },
                 color = ink, textAlign = TextAlign.Center)
             Text(unit, style = MaterialTheme.typography.labelSmall, color = dim)
