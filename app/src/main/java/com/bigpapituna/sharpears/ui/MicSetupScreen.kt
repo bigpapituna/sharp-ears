@@ -106,7 +106,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Microphone setup", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         }
         if (!granted) {
-            Text("Sharp Ears listens to your piano through the microphone. Nothing is recorded or sent anywhere.")
+            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. Nothing is recorded or sent anywhere.",
+                size = 88.dp, style = MaterialTheme.typography.bodyLarge)
             Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
             return@Column
         }
