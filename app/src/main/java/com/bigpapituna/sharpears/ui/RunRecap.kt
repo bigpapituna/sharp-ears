@@ -103,12 +103,14 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     val m = remember(e) { RecapMotion(still) }
+    // The sunburst, confetti, trophy and flourish only for a best worth it (RunWords.CELEBRATE_FROM).
+    val party = RunWords.celebrates(e.recap?.accuracy ?: 0, e.newBest)
     LaunchedEffect(e) {
-        if (e.newBest && sampler != null) launch { flourish(sampler) }
+        if (party && sampler != null) launch { flourish(sampler) }
         if (still) return@LaunchedEffect
         launch { m.rise.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 200f)) }
         delay(260)
-        if (e.newBest || (e.recap?.accuracy ?: 0) >= 85) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (party || (e.recap?.accuracy ?: 0) >= 85) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         launch { m.pop.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 380f)) }
         delay(160)
         launch { m.rest.animateTo(1f, tween(600, easing = FastOutSlowInEasing)) }
@@ -116,12 +118,12 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         m.count.animateTo(1f, tween(1000, easing = LinearEasing))
         if (e.xpGained != null) { m.xp.animateTo(1f, tween(1100, easing = LinearEasing)); haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
     }
-    val spin = if (e.newBest && !still) rememberInfiniteTransition(label = "spin")
+    val spin = if (party && !still) rememberInfiniteTransition(label = "spin")
         .animateFloat(0f, 360f, infiniteRepeatable(tween(45_000, easing = LinearEasing), RepeatMode.Restart), label = "spin") else null
     val r = e.recap
     val hardest = e.spots.firstOrNull()?.bar
     val pose = when {
-        e.newBest -> Pose.LEVEL_UP
+        party -> Pose.LEVEL_UP
         r != null -> when { r.accuracy >= 85 -> Pose.GREAT_JOB; r.accuracy >= 50 -> Pose.PRACTICING; else -> Pose.MISTAKE }
         else -> when { e.wrongKeys == 0 -> Pose.GREAT_JOB; e.wrongKeys <= 5 -> Pose.PRACTICING; else -> Pose.MISTAKE }
     }
@@ -135,12 +137,12 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     }
 
     Box(Modifier.fillMaxSize().paper()) {
-        if (e.newBest) Confetti(e, Modifier.fillMaxSize())
+        if (party) Confetti(e, Modifier.fillMaxSize())
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             val wide = maxWidth > maxHeight * 1.2f
             val pupSize = if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
-                Box(Modifier.size(pupSize * 1.25f).sunburst(e.newBest, spin, m.rise), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     Pup(pose, size = pupSize, onTap = {}, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
                         val s = 0.5f + 0.5f * m.rise.value; scaleX = s; scaleY = s; alpha = m.rise.value.coerceIn(0f, 1f)
@@ -192,8 +194,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             if (wide) Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 Column(Modifier.weight(0.42f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), content = head)
-                Column(Modifier.weight(0.58f).fillMaxHeight().padding(vertical = 8.dp), verticalArrangement = Arrangement.Center) {
-                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = numbers)
+                Column(Modifier.weight(0.58f).fillMaxHeight().padding(vertical = 8.dp)) {
+                    // The numbers scroll inside the space left over, so Play again never leaves the screen.
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), content = numbers)
                     Spacer(Modifier.height(16.dp))
                     actions()
                 }

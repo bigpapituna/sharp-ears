@@ -10,7 +10,8 @@ class RunWordsTest {
     private fun recap(good: Int, ok: Int, miss: Int, bias: Int = 0) = Recap(good, ok, miss, bias, longestStreak = good)
 
     @Test fun headlines() {
-        assertEquals("New best!", RunWords.title(12, newBest = true))
+        assertEquals("A first pass", RunWords.title(12, newBest = true))      // a first score is a "best", not a party
+        assertEquals("New best!", RunWords.title(72, newBest = true))
         assertEquals("Beautifully played", RunWords.title(95, false))
         assertEquals("Nicely done", RunWords.title(75, false))
         assertEquals("Getting there", RunWords.title(45, false))

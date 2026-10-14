@@ -5,9 +5,13 @@ package com.bigpapituna.sharpears.engine
  * No milliseconds and no symbols: timing reads as "right on the beat" or "a hair late".
  */
 object RunWords {
+    /** A best worth a party: the first score of a song is always a "best", but 2% is not a celebration. */
+    fun celebrates(accuracy: Int, newBest: Boolean) = newBest && accuracy >= CELEBRATE_FROM
+    const val CELEBRATE_FROM = 60
+
     /** The headline for a Perform run at [accuracy] percent. */
     fun title(accuracy: Int, newBest: Boolean): String = when {
-        newBest -> "New best!"
+        celebrates(accuracy, newBest) -> "New best!"
         accuracy >= 90 -> "Beautifully played"
         accuracy >= 70 -> "Nicely done"
         accuracy >= 40 -> "Getting there"
