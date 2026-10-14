@@ -88,6 +88,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     var hint by remember { mutableStateOf<Pair<String, Boolean>?>(null) }      // text, good
     var review by remember { mutableStateOf<Review?>(null) }
     var missedThisRound by remember { mutableStateOf(false) }
+    var pings by remember { mutableIntStateOf(0) }                              // sounds played, for the pup's ripple
     var micOn by remember { mutableStateOf(env.micDefault && env.mic.hasPermission()) }
     val touched = remember { mutableStateMapOf<Int, Color>() }                  // fingers down
     val flash = remember { mutableStateMapOf<Int, Color>() }                    // judged keys, for a moment
@@ -103,10 +104,14 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     fun touchSound() = env.sound() && (!(micOn && usesKeys && phase == Phase.ANSWER) || env.mic.headphonesOn())
     suspend fun voiceDone() { delay(250); while (env.voice.speaking.value) delay(50) }
 
-    suspend fun playSteps(steps: List<com.bigpapituna.sharpears.engine.ear.Step>) {
+    // Keys light only where seeing them is the point: melody memory's demonstration, and the key's chord and scale
+    // before a scale degree. A note that is the answer (perfect pitch, the degree's note) never lights; the pup's
+    // ripple pings instead, one ring per sound.
+    suspend fun playSteps(steps: List<com.bigpapituna.sharpears.engine.ear.Step>, light: Boolean) {
         for (s in steps) {
             if (env.sound()) s.notes.forEach { env.sampler.noteOn(it, s.velocity) }
-            s.notes.forEach { glow[it] = RightHandColor }
+            pings++
+            if (light) s.notes.forEach { glow[it] = RightHandColor }
             try { delay(s.holdMs.toLong()) } finally {
                 s.notes.forEach { env.sampler.noteOff(it); glow.remove(it) }
             }
@@ -130,8 +135,8 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             if (round == 0 || trainer.kind == EarKind.MELODY) { env.voice.speak(p.spoken); voiceDone() }
         }
         delay(150)
-        if (replay == 0 || replayIntro) playSteps(trainer.intro())
-        playSteps(trainer.toPlay())
+        if (replay == 0 || replayIntro) playSteps(trainer.intro(), light = true)
+        playSteps(trainer.toPlay(), light = trainer.kind == EarKind.MELODY)
         delay(150)
         phase = Phase.ANSWER
     }
@@ -218,9 +223,14 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            GameHeader(trainer, label, pose, if (finished) "" else trainer.prompt().text, onExit)
-            Text(hint?.first ?: "", color = if (hint?.second == false) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
-                style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
+            GameHeader(trainer, label, pose, if (finished) "" else trainer.prompt().text, onExit,
+                listening = phase == Phase.PROMPT, pings = pings)
+            // What was wrong reads in the neutral colour: a hint, not a scolding.
+            Text(hint?.first ?: if (phase == Phase.PROMPT) "Listen" else "", color = when {
+                hint == null -> MaterialTheme.colorScheme.primary
+                hint?.second == false -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> MaterialTheme.colorScheme.tertiary
+            }, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (usesKeys) FilterChip(micOn, {
                     if (micOn) micOn = false else if (env.mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
