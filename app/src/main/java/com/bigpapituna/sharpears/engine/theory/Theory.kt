@@ -324,3 +324,317 @@ fun spokenTheory(text: String): String = text
     .replace("♯", " sharp").replace("♭", " flat")
     .replace("/", " or ").replace("&", " and ")
     .replace(Regex("\\s+"), " ").trim()
+
+// ---- Lessons (2.0.1): the body at the piano, touch and phrases ---------------------------------------------------
+// The Learn course's reading steps are short explainers too (engine/Course.kt Step.scenes). These visuals show what
+// words alone did before: how to sit, the hand's shape, finger numbers, the pedal, loud and soft, smooth and short,
+// and a song's opening phrase.
+
+/** A soft rising chime for the moment a picture settles into place, so a still picture is heard as well as seen. */
+private val CHIME = listOf(72, 76, 79, 84, 79, 76)
+
+/** A part of the body at the piano that a [PostureVisual] puts right. */
+enum class PostureCue { BENCH, EDGE, BACK, ELBOWS, LEVEL, HANDS }
+
+data class PostureStep(val cue: PostureCue, val label: String)
+
+/**
+ * A figure seated at the piano, side view. Each step moves one part from a poor position into a good one (the
+ * bench slides to the right distance, the back straightens, the elbows settle a little ahead of the body, a level
+ * line appears under the forearms, the hands rest on the keys) and pops its label. Parts not listed start right.
+ */
+data class PostureVisual(val steps: List<PostureStep>, val stepMs: Int = 1500) : Visual {
+    val leadMs get() = 600
+    val moveMs get() = 800
+    fun stepAt(i: Int) = leadMs + i * stepMs
+    override val durationMs get() = stepAt(steps.size) + 300
+    override val cues get() = steps.mapIndexed { i, s ->
+        if (s.cue == PostureCue.HANDS) Cue(stepAt(i) + moveMs, listOf(60, 64, 67), 900, velocity = 60)
+        else Cue(stepAt(i) + moveMs - 120, listOf(CHIME[i % CHIME.size]), 500, velocity = 50)
+    }
+    /** How far [cue] has moved into place at [t]: 0 the poor position, 1 right. */
+    fun settled(cue: PostureCue, t: Int): Float = steps.indexOfFirst { it.cue == cue }.let { if (it < 0) 1f else progress(t, stepAt(it), moveMs) }
+}
+
+/** A move of the hand in a [HandShapeVisual]. */
+enum class HandMove { HANG, BALL, CURL, TIPS, THUMB }
+
+data class HandStep(val move: HandMove, val label: String)
+
+/**
+ * A right hand over the keys, from above. HANG: it dangles loose, then floats down over the keys. BALL: a faint
+ * ball appears under the palm. CURL: the fingers curl round it (and the ball fades). TIPS: the fingertips land on
+ * [keys], one per finger, and sound. THUMB: the thumb turns onto its side and plays its key. Moves not listed that
+ * come before the listed ones (in that order) start done; those after them do not happen. [keys] are the keys
+ * under fingers 1 to 5.
+ */
+data class HandShapeVisual(val steps: List<HandStep>, val keys: List<Int> = listOf(60, 62, 64, 65, 67), val stepMs: Int = 1600) : Visual {
+    val leadMs get() = 500
+    val moveMs get() = 850
+    fun stepAt(i: Int) = leadMs + i * stepMs
+    override val durationMs get() = stepAt(steps.size) + 300
+    private val thumbMoves get() = steps.any { it.move == HandMove.THUMB }
+    override val cues get() = steps.flatMapIndexed { i, s ->
+        val land = stepAt(i) + moveMs - 150
+        when (s.move) {
+            HandMove.TIPS -> (if (thumbMoves) 1..4 else 0..4).map { k -> Cue(land + k * 80, listOf(keys[k]), 700, velocity = 62) }
+            HandMove.THUMB -> listOf(Cue(land, listOf(keys[0]), 800, velocity = 62))
+            else -> listOf(Cue(land, listOf(CHIME[i % CHIME.size]), 500, velocity = 48))
+        }
+    }.sortedBy { it.atMs }
+    fun has(move: HandMove) = steps.any { it.move == move }
+    /** How far [move] has gone at [t]: 0 not started, 1 done. A move not listed is done if it comes before the last listed one. */
+    fun done(move: HandMove, t: Int): Float = steps.indexOfFirst { it.move == move }.let {
+        if (it >= 0) progress(t, stepAt(it), moveMs) else if (move.ordinal < steps.maxOf { s -> s.move.ordinal }) 1f else 0f
+    }
+}
+
+/** One finger pressing [key]: the right hand's or the left's, finger 1 (thumb) to 5. */
+data class FingerPress(val right: Boolean, val finger: Int, val key: Int)
+
+/**
+ * A moment of a [FingerNumbersVisual]: these fingers press together. [label] pops over them; [spread] is how far
+ * apart the fingers sit, in white keys (1 is one finger per key; an octave stretch is about 1.75).
+ */
+data class FingerStep(val presses: List<FingerPress>, val label: String? = null, val spread: Float = 1f)
+
+/**
+ * Both hands over the keys from above, the left one mirrored. With [intro] the numbers 1 to 5 pop onto the fingers
+ * in order, each finger pressing and sounding its key ([rightKeys], [leftKeys]: fingers 1 to 5; empty hides that
+ * hand). Then [steps] play one every [stepMs]: the hand glides so the finger is over its key (the thumb tucking
+ * under, a finger crossing over) and the finger presses, its number lit.
+ */
+data class FingerNumbersVisual(
+    val rightKeys: List<Int> = listOf(60, 62, 64, 65, 67), val leftKeys: List<Int> = listOf(55, 53, 52, 50, 48),
+    val intro: Boolean = true, val steps: List<FingerStep> = emptyList(), val popMs: Int = 600, val stepMs: Int = 520,
+) : Visual {
+    val leadMs get() = 450
+    /** When finger [f] (1..5) gets its number in the intro. */
+    fun popAt(f: Int) = leadMs + (f - 1) * popMs
+    val stepsStart get() = if (intro) popAt(6) + 250 else leadMs + 400
+    fun stepAt(i: Int) = stepsStart + i * stepMs
+    override val durationMs get() = if (steps.isEmpty()) popAt(6) + 300 else stepAt(steps.size) + 450
+    override val cues get() = (if (intro) (1..5).mapNotNull { f ->
+        listOfNotNull(rightKeys.getOrNull(f - 1), leftKeys.getOrNull(f - 1)).takeIf { it.isNotEmpty() }?.let { Cue(popAt(f), it, (popMs * 0.85f).toInt(), velocity = 70) }
+    } else emptyList()) + steps.mapIndexedNotNull { i, s -> s.presses.map { it.key }.takeIf { it.isNotEmpty() }?.let { Cue(stepAt(i), it, (stepMs * 0.9f).toInt(), velocity = 72) } }
+    private val allKeys get() = rightKeys + leftKeys + steps.flatMap { s -> s.presses.map { it.key } }
+    val low get() = whiteAtOrBelow(allKeys.min() - 2)
+    val high get() = whiteAtOrAbove(allKeys.max() + 2)
+}
+
+private val BLACK = setOf(1, 3, 6, 8, 10)
+fun whiteAtOrBelow(m: Int) = if (Math.floorMod(m, 12) in BLACK) m - 1 else m
+fun whiteAtOrAbove(m: Int) = if (Math.floorMod(m, 12) in BLACK) m + 1 else m
+
+/**
+ * The sustain pedal under a run of chords. A keyboard shows each chord (the hands leave the keys while it rings
+ * on), a lane below draws the pedal line as it happens, and a foot on the pedal presses and lifts. The pedal lifts
+ * as each new chord sounds and goes down [downAfterMs] later (an arrow marks "down after the chord"); with [late]
+ * it changes half a bar late and the old chord blurs into the new one. [foot] draws the foot larger, labelled.
+ */
+data class PedalVisual(
+    val chords: List<List<Int>>, val names: List<String> = emptyList(), val chordMs: Int = 1900, val downAfterMs: Int = 380,
+    val late: Boolean = false, val foot: Boolean = false,
+) : Visual {
+    val leadMs get() = 700
+    fun chordAt(i: Int) = leadMs + i * chordMs
+    /** When the fingers leave the chord's keys (the pedal holds the sound on). */
+    fun releaseAt(i: Int) = chordAt(i) + minOf(700, chordMs / 2)
+    /** When the pedal comes up before chord [i] rings on (i >= 1), and when it goes down again. */
+    fun liftAt(i: Int) = if (i == 0) chordAt(0) else chordAt(i) + if (late) chordMs / 2 else 0
+    fun downAt(i: Int) = liftAt(i) + if (late && i > 0) 180 else downAfterMs
+    override val durationMs get() = chordAt(chords.size) + 900
+    override val cues get() = chords.mapIndexed { i, c ->
+        val end = if (i + 1 < chords.size) liftAt(i + 1) + 60 else durationMs - 200
+        Cue(chordAt(i), c, end - chordAt(i), velocity = 72)
+    }
+    /** How far down the pedal is at [t]: 0 up, 1 down. */
+    fun pedal(t: Int): Float {
+        if (chords.isEmpty() || t < downAt(0)) return 0f
+        if (t > durationMs - 500) return 1f - progress(t, durationMs - 500, 250)
+        val i = chords.indices.last { t >= liftAt(it) }
+        if (i == 0) return progress(t, downAt(0), 160)
+        val u = t - liftAt(i)
+        return when {
+            u < 110 -> 1f - u / 110f
+            t < downAt(i) -> 0f
+            else -> progress(t, downAt(i), 160)
+        }
+    }
+    /** The chord showing at [t], or -1 before the first. */
+    fun current(t: Int) = chords.indices.lastOrNull { t >= chordAt(it) } ?: -1
+    val low get() = whiteAtOrBelow(chords.flatten().min() - 2)
+    val high get() = whiteAtOrAbove(chords.flatten().max() + 2)
+}
+
+/**
+ * Loud and soft: a short phrase plays, each note (or chord) at its level (MIDI velocity, 1 to 127). A dot per
+ * note grows with its loudness and a curve under the phrase traces the swell as it plays; [marks] (p, f, or a
+ * word) pop under the notes they belong to.
+ */
+data class DynamicsVisual(val notes: List<List<Int>>, val levels: List<Int>, val marks: Map<Int, String> = emptyMap(), val stepMs: Int = 520) : Visual {
+    init { require(notes.size == levels.size) { "one level per note" } }
+    val leadMs get() = 500
+    fun noteAt(i: Int) = leadMs + i * stepMs
+    override val durationMs get() = noteAt(notes.size) + 700
+    override val cues get() = notes.mapIndexed { i, n -> Cue(noteAt(i), n, (stepMs * 0.92f).toInt(), velocity = levels[i].coerceIn(1, 127)) }
+}
+
+/** Smooth or short. */
+enum class Touch(val label: String) { LEGATO("Legato, smooth"), STACCATO("Staccato, short") }
+
+/**
+ * The same notes played in each of [touches] in turn: legato under a slur that draws itself, the keys held until
+ * the next one goes down; staccato with a dot over each short note, the key popping straight back up.
+ */
+data class ArticulationVisual(val notes: List<Int>, val touches: List<Touch> = listOf(Touch.LEGATO, Touch.STACCATO), val stepMs: Int = 430,
+                              val labels: List<String> = emptyList()) : Visual {
+    val leadMs get() = 500
+    val passMs get() = notes.size * stepMs + 800
+    fun passAt(k: Int) = leadMs + k * passMs
+    fun noteAt(k: Int, i: Int) = passAt(k) + i * stepMs
+    fun hold(touch: Touch) = if (touch == Touch.LEGATO) stepMs + 30 else (stepMs * 0.32f).toInt()
+    fun label(k: Int) = labels.getOrNull(k) ?: touches[k].label
+    override val durationMs get() = passAt(touches.size) - 300
+    override val cues get() = touches.flatMapIndexed { k, touch -> notes.mapIndexed { i, n -> Cue(noteAt(k, i), listOf(n), hold(touch), velocity = 74) } }
+    val low get() = whiteAtOrBelow(notes.min() - 2)
+    val high get() = whiteAtOrAbove(notes.max() + 2)
+}
+
+/** A note or chord of a phrase (a rest when [pitches] is empty): [start] and [length] in beats; [left] for the left hand. */
+data class PhraseNote(val pitches: List<Pitch>, val start: Float, val length: Float, val left: Boolean) {
+    val rest get() = pitches.isEmpty()
+}
+
+/** The notes of one hand from the course's exercise notation ("C4:1 r:1 C4+E4+G4:2"; "r" is a rest). */
+fun phraseNotes(spec: String, left: Boolean): List<PhraseNote> {
+    var beat = 0f
+    val out = mutableListOf<PhraseNote>()
+    for (tok in spec.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }) {
+        val (names, len) = tok.split(':').let { it[0] to it[1].toFloat() }
+        out += PhraseNote(if (names == "r") emptyList() else names.split('+').map(Pitch::parse), beat, len, left)
+        beat += len
+    }
+    return out
+}
+
+/** Which hand a pass of a [PhraseVisual] is about (the other is drawn faint and heard softly). */
+enum class PhraseHands(val label: String) { BOTH("Hands together"), RIGHT("Right hand"), LEFT("Left hand") }
+
+/**
+ * A phrase in the course's notation shown on a staff (a grand staff when it has both hands), with a keyboard under
+ * it. The staff draws itself, then the notes slide in and sound in rhythm at [bpm], their keys lighting. Each of
+ * [passes] plays the phrase once more, the hand it names in front. [upTo] keeps the first beats only (0: all).
+ * With [lookAhead] a soft band runs one beat ahead of the notes being played: where the eyes should be.
+ */
+data class PhraseVisual(
+    val right: String, val left: String = "", val bpm: Int = 80, val beats: Int = 4, val keyFifths: Int = 0,
+    val passes: List<PhraseHands> = listOf(PhraseHands.BOTH), val upTo: Float = 0f, val lookAhead: Boolean = false,
+) : Visual {
+    val notes: List<PhraseNote> by lazy {
+        (phraseNotes(right, false) + phraseNotes(left, true)).filter { upTo <= 0f || it.start < upTo - 0.001f }.sortedBy { it.start }
+    }
+    /** The phrase's length in beats. */
+    val span: Float get() = if (upTo > 0f) upTo else notes.maxOfOrNull { it.start + it.length } ?: 0f
+    val hasRight get() = notes.any { !it.left && !it.rest }
+    val hasLeft get() = notes.any { it.left && !it.rest }
+    private val sounding get() = notes.filter { !it.rest }
+    val beatMs get() = 60_000f / bpm
+    val drawMs get() = 1300
+    fun passAt(k: Int) = drawMs + 300 + k * ((span * beatMs).toInt() + 700)
+    /** When [beat] of pass [k] is played. */
+    fun at(k: Int, beat: Float) = passAt(k) + (beat * beatMs).toInt()
+    override val durationMs get() = passAt(passes.size) - 700 + 500
+    override val cues get() = passes.flatMapIndexed { k, hands ->
+        notes.filter { !it.rest }.map { n ->
+            val front = hands == PhraseHands.BOTH || (hands == PhraseHands.LEFT) == n.left
+            val hold = (minOf(n.length, (span - n.start).coerceAtLeast(0.25f)) * beatMs * 0.92f).toInt()
+            Cue(at(k, n.start), n.pitches.map { it.midi }, hold, velocity = if (front) 80 else 38)
+        }
+    }.sortedBy { it.atMs }
+    /** The pass playing at [t] and the beat it has reached, or null between passes. */
+    fun cursor(t: Int): Pair<Int, Float>? = passes.indices.lastOrNull { t >= passAt(it) }?.let { k ->
+        val b = (t - passAt(k)) / beatMs
+        if (b > span) null else k to b
+    }
+    val low get() = whiteAtOrBelow(sounding.minOf { n -> n.pitches.minOf { it.midi } } - 2)
+    val high get() = whiteAtOrAbove(sounding.maxOf { n -> n.pitches.maxOf { it.midi } } + 2)
+}
+
+/**
+ * Falling notes, as in the player: the blocks fall onto the keys and sound as they touch the line, long blocks
+ * holding the key down until they have passed. A big count (1, 2, 3, 4) follows the beat, with [countIn] bars of
+ * clicks first.
+ */
+data class LaneVisual(val right: String, val left: String = "", val bpm: Int = 72, val beats: Int = 4, val countIn: Int = 0, val clicks: Boolean = true) : Visual {
+    val notes: List<PhraseNote> by lazy { (phraseNotes(right, false) + phraseNotes(left, true)).filter { !it.rest }.sortedBy { it.start } }
+    val beatMs get() = 60_000f / bpm
+    /** How many beats of falling the lane shows above the line. */
+    val fallBeats get() = 2.5f
+    val startAt get() = (fallBeats * beatMs).toInt() + 400 + (countIn * beats * beatMs).toInt()
+    /** Beats from the first note: negative during the count-in. */
+    fun beatAt(t: Int) = (t - startAt) / beatMs
+    fun hitAt(beat: Float) = startAt + (beat * beatMs).toInt()
+    val total get() = notes.maxOfOrNull { it.start + it.length }?.let { kotlin.math.ceil(it / beats) * beats } ?: beats.toFloat()
+    override val durationMs get() = hitAt(total) + 400
+    override val cues get() = (notes.map { Cue(hitAt(it.start), it.pitches.map { p -> p.midi }, (it.length * beatMs * 0.92f).toInt(), velocity = 82) } +
+        if (clicks) (-countIn * beats until total.toInt()).map { b -> Cue(hitAt(b.toFloat()), click = if (Math.floorMod(b, beats) == 0) Click.ACCENT else Click.BEAT) } else emptyList())
+        .filter { it.atMs >= 0 }.sortedBy { it.atMs }
+    val low get() = whiteAtOrBelow(notes.minOf { n -> n.pitches.minOf { it.midi } } - 3)
+    val high get() = whiteAtOrAbove(notes.maxOf { n -> n.pitches.maxOf { it.midi } } + 3)
+}
+
+/** One run of the playhead over sections [from]..[to] of a [SongMapVisual], at [speed] percent. */
+data class MapPass(val from: Int, val to: Int, val speed: Int = 100)
+
+/**
+ * A whole song as the player's section bar: labelled [sections], a playhead running along it and the song's tune
+ * ([melody], shared out over the sections) heard as it goes. A pass over fewer sections than all shows the loop
+ * bracket around them; a pass under 100 percent shows the speed.
+ */
+data class SongMapVisual(val sections: List<String>, val passes: List<MapPass>, val melody: List<Int> = emptyList(), val sectionMs: Int = 1500) : Visual {
+    val leadMs get() = 600
+    val gapMs get() = 600
+    fun length(p: MapPass) = (p.to - p.from + 1) * sectionMs * 100 / p.speed
+    fun passAt(k: Int) = leadMs + passes.take(k).sumOf { length(it) + gapMs }
+    override val durationMs get() = passAt(passes.size) - gapMs + 400
+    /** The tune heard over section [s]: the melody shared out over the sections, wrapping round. */
+    fun chunk(s: Int): List<Int> {
+        if (melody.isEmpty()) return emptyList()
+        val per = maxOf(1, melody.size / sections.size)
+        val from = Math.floorMod(s, sections.size) * per % melody.size
+        return melody.subList(from, minOf(melody.size, from + per))
+    }
+    override val cues get() = passes.flatMapIndexed { k, p ->
+        val secMs = sectionMs * 100 / p.speed
+        (p.from..p.to).flatMap { s ->
+            val notes = chunk(s)
+            val each = secMs / maxOf(1, notes.size)
+            notes.mapIndexed { j, n -> Cue(passAt(k) + (s - p.from) * secMs + j * each, listOf(n), (each * 0.9f).toInt(), velocity = 70) }
+        }
+    }
+    /** The pass under way at [t] and where the playhead is, in sections from the start of the song (null between passes). */
+    fun playhead(t: Int): Pair<Int, Float>? = passes.indices.lastOrNull { t >= passAt(it) }?.let { k ->
+        val p = passes[k]
+        val f = (t - passAt(k)).toFloat() / (sectionMs * 100 / p.speed)
+        if (f > p.to - p.from + 1) null else k to p.from + f
+    }
+}
+
+/** A message a keyboard sends over its cable: a key at a velocity, or the pedal (null [note]). */
+data class MidiSignal(val note: Int?, val velocity: Int = 80, val label: String)
+
+/**
+ * A digital piano plugged into the phone by a USB cable: the cable draws itself and its plug slides home, then
+ * each signal sounds (a key struck at its velocity, or the pedal going down) and runs along the cable as a pulse,
+ * its label popping up by the phone.
+ */
+data class MidiVisual(val signals: List<MidiSignal>, val stepMs: Int = 1100) : Visual {
+    val leadMs get() = 300
+    val plugMs get() = 1300
+    fun signalAt(i: Int) = leadMs + plugMs + 300 + i * stepMs
+    /** How long a pulse takes to run from the piano to the phone. */
+    val travelMs get() = 450
+    override val durationMs get() = signalAt(signals.size) + 500
+    override val cues get() = signals.mapIndexedNotNull { i, s -> s.note?.let { Cue(signalAt(i), listOf(it), 800, velocity = s.velocity.coerceIn(1, 127)) } }
+}

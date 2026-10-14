@@ -84,7 +84,7 @@ class TheoryContentTest {
                 is ChordVisual -> v.chords.flatMap { it.notes }.forEach { assertTrue("$id: chord note ${it.code} off the keys", it.midi in v.low..v.high) }
                 is RhythmVisual -> v.hits.forEach { assertTrue("$id: hit past the pattern", it.start + it.length <= v.beats + 0.001f) }
                 is CircleVisual -> v.stops.forEach { assertTrue(it in 0..11) }
-                is StaffVisual, is PopVisual, is ValueTreeVisual -> {}
+                else -> {}                                  // staff, words, the value tree; the course's visuals are checked in CourseScenesTest
             }
             if (v is RhythmVisual && v.counts.isNotEmpty()) assertEquals("$id: one count per subdivision", v.beats * v.sub, v.counts.size)
         }
@@ -128,6 +128,6 @@ class TheoryContentTest {
         is ChordVisual -> v.chords.flatMap { listOfNotNull(it.name, it.numeral) + it.tags }
         is RhythmVisual -> listOfNotNull(v.term) + v.counts
         is PopVisual -> v.items + listOfNotNull(v.small)
-        is CircleVisual, is ValueTreeVisual -> emptyList()
+        else -> emptyList()
     }
 }

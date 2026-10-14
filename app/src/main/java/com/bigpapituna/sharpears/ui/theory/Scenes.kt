@@ -21,7 +21,17 @@ import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.theory.CIRCLE_MAJORS
 import com.bigpapituna.sharpears.engine.theory.CIRCLE_MINORS
+import com.bigpapituna.sharpears.engine.theory.ArticulationVisual
 import com.bigpapituna.sharpears.engine.theory.ChordVisual
+import com.bigpapituna.sharpears.engine.theory.DynamicsVisual
+import com.bigpapituna.sharpears.engine.theory.FingerNumbersVisual
+import com.bigpapituna.sharpears.engine.theory.HandShapeVisual
+import com.bigpapituna.sharpears.engine.theory.LaneVisual
+import com.bigpapituna.sharpears.engine.theory.MidiVisual
+import com.bigpapituna.sharpears.engine.theory.PedalVisual
+import com.bigpapituna.sharpears.engine.theory.PhraseVisual
+import com.bigpapituna.sharpears.engine.theory.PostureVisual
+import com.bigpapituna.sharpears.engine.theory.SongMapVisual
 import com.bigpapituna.sharpears.engine.theory.CircleVisual
 import com.bigpapituna.sharpears.engine.theory.Clef
 import com.bigpapituna.sharpears.engine.theory.IntervalVisual
@@ -67,16 +77,26 @@ internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = M
             is ChordVisual -> chordScene(visual, t, ink)
             is ValueTreeVisual -> valueTreeScene(visual, t, ink)
             is PopVisual -> popScene(visual, t, ink)
+            is PostureVisual -> postureScene(visual, t, ink)
+            is HandShapeVisual -> handShapeScene(visual, t, ink)
+            is FingerNumbersVisual -> fingerNumbersScene(visual, t, ink)
+            is PedalVisual -> pedalScene(visual, t, ink)
+            is DynamicsVisual -> dynamicsScene(visual, t, ink)
+            is ArticulationVisual -> articulationScene(visual, t, ink)
+            is PhraseVisual -> phraseScene(visual, t, ink)
+            is LaneVisual -> laneScene(visual, t, ink)
+            is SongMapVisual -> songMapScene(visual, t, ink)
+            is MidiVisual -> midiScene(visual, t, ink)
         }
     }
 }
 
-private fun tint(t: Tint, ink: StageInk) = when (t) { Tint.ACCENT -> ink.accent; Tint.BLUE -> ink.blue; Tint.GREEN -> com.bigpapituna.sharpears.ui.Good; Tint.DIM -> Color(0xFF9A8F85) }
+internal fun tint(t: Tint, ink: StageInk) = when (t) { Tint.ACCENT -> ink.accent; Tint.BLUE -> ink.blue; Tint.GREEN -> com.bigpapituna.sharpears.ui.Good; Tint.DIM -> Color(0xFF9A8F85) }
 
 /** How far a struck key is pressed [u] ms after the strike: down fast, back up slowly. */
-private fun press(u: Int) = when { u < 0 || u > 380 -> 0f; u < 70 -> u / 70f; else -> 1f - (u - 70) / 310f }
+internal fun press(u: Int) = when { u < 0 || u > 380 -> 0f; u < 70 -> u / 70f; else -> 1f - (u - 70) / 310f }
 
-private fun centerX(l: KeyboardLayout, midi: Int) = l.rect(midi).centerX
+internal fun centerX(l: KeyboardLayout, midi: Int) = l.rect(midi).centerX
 
 // ---- Keys --------------------------------------------------------------------------------------------------------
 
@@ -147,7 +167,7 @@ private fun DrawScope.keysScene(v: KeysVisual, t: Int, ink: StageInk) {
 }
 
 /** The first [e] (0..1) of [path]. */
-private fun trim(path: Path, e: Float): Path {
+internal fun trim(path: Path, e: Float): Path {
     if (e >= 1f) return path
     val pm = PathMeasure(); pm.setPath(path, false)
     return Path().also { pm.getSegment(0f, pm.length * e.coerceIn(0f, 1f), it, true) }
@@ -156,7 +176,7 @@ private fun trim(path: Path, e: Float): Path {
 // ---- Staff -------------------------------------------------------------------------------------------------------
 
 /** One stave's geometry: [bottom] is the y of its bottom line; [s] one space. */
-private class Stave(val clef: Clef, val bottom: Float, val s: Float) {
+internal class Stave(val clef: Clef, val bottom: Float, val s: Float) {
     val top get() = bottom - 4 * s
     fun y(pos: Int) = bottom - pos * s / 2
     val mid get() = y(4)
@@ -295,7 +315,7 @@ private fun DrawScope.label(nt: StaffNote, i: Int, v: StaffVisual, x: Float, st:
 }
 
 /** The heads, ledger lines, accidentals and stem of a note or chord at [x] on [st]. */
-private fun DrawScope.drawChordNote(nt: StaffNote, x: Float, st: Stave, s: Float, col: Color, pulse: Float, sigAcc: Map<Int, Int>, ink: StageInk) {
+internal fun DrawScope.drawChordNote(nt: StaffNote, x: Float, st: Stave, s: Float, col: Color, pulse: Float, sigAcc: Map<Int, Int>, ink: StageInk) {
     val sorted = nt.pitches.sortedBy { it.diatonic }
     val pos = sorted.map { staffPosition(it, st.clef) }
     val rx = headRx(nt.value)
