@@ -1,45 +1,54 @@
 package com.bigpapituna.sharpears.ui.practice
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.audio.MicInput
@@ -52,22 +61,22 @@ import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.practice.Arpeggio
 import com.bigpapituna.sharpears.engine.practice.ArpeggioType
 import com.bigpapituna.sharpears.engine.practice.CORE_SCALES
-import com.bigpapituna.sharpears.engine.practice.RoutineItem
 import com.bigpapituna.sharpears.engine.practice.Scale
 import com.bigpapituna.sharpears.engine.practice.ScaleType
-import com.bigpapituna.sharpears.engine.practice.Warmup
-import com.bigpapituna.sharpears.engine.practice.buildRoutine
-import com.bigpapituna.sharpears.engine.practice.routineRoot
-import com.bigpapituna.sharpears.engine.practice.routineSeconds
+import com.bigpapituna.sharpears.engine.practice.arpeggioLine
+import com.bigpapituna.sharpears.engine.practice.scaleLine
 import com.bigpapituna.sharpears.engine.practice.scaleRootName
-import com.bigpapituna.sharpears.engine.practice.warmupCatalog
+import com.bigpapituna.sharpears.engine.practice.spokenTitle
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Keyboard
+import com.bigpapituna.sharpears.ui.Ink
+import com.bigpapituna.sharpears.ui.InkDim
 import com.bigpapituna.sharpears.ui.LeftHandColor
-import com.bigpapituna.sharpears.ui.Numeric
 import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.RightHandColor
+import com.bigpapituna.sharpears.ui.motion.ScreenMotion
+import com.bigpapituna.sharpears.ui.motion.pressScale
+import com.bigpapituna.sharpears.ui.motion.rememberHaptics
+import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -80,6 +89,10 @@ enum class PracticeKind { SCALE, ARPEGGIO, WARMUP }
 
 /** Reported through `onEvent` when the player is about to open a practice item, for XP, streaks and goals. */
 data class PracticeEvent(val kind: PracticeKind, val id: String, val title: String, val bpm: Int)
+
+/** The tab row: scales and arpeggios share the first tab (a toggle on the screen switches between them). */
+private val TOP_TABS = listOf("Scales", "Warm-ups", "Metronome", "Tuner")
+private fun topIndex(t: PracticeTab) = when (t) { PracticeTab.SCALES, PracticeTab.ARPEGGIOS -> 0; PracticeTab.WARMUPS -> 1; PracticeTab.METRONOME -> 2; PracticeTab.TUNER -> 3 }
 
 /**
  * The Practice tab. [onOpenExercise] opens an exercise in the player (wait mode, scored) with the given title.
@@ -98,296 +111,237 @@ fun PracticeScreen(
     onTab: (PracticeTab) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(startTab) }
+    // Which of scales and arpeggios the first tab shows (kept while another tab is open).
+    var lastPattern by rememberSaveable { mutableStateOf(if (startTab == PracticeTab.ARPEGGIOS) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }
+    fun pick(t: PracticeTab) {
+        tab = t
+        if (t == PracticeTab.SCALES || t == PracticeTab.ARPEGGIOS) lastPattern = t
+        onTab(t)
+    }
+    val still = reducedMotion()
     Column(modifier) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
-        PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background, divider = {}) {
-            PracticeTab.entries.forEach { t ->
-                Tab(tab == t, { tab = t; onTab(t) }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text(t.label) })
+            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
+        PrimaryTabRow(selectedTabIndex = topIndex(tab), containerColor = Color.Transparent, divider = {}) {
+            TOP_TABS.forEachIndexed { i, label ->
+                Tab(topIndex(tab) == i, {
+                    pick(when (i) { 0 -> lastPattern; 1 -> PracticeTab.WARMUPS; 2 -> PracticeTab.METRONOME; else -> PracticeTab.TUNER })
+                }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
+                    Text(label, maxLines = 1, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 13.dp))
+                }
             }
         }
-        when (tab) {
-            PracticeTab.SCALES -> ScalesTab(sampler, store, onOpenExercise, onEvent)
-            PracticeTab.ARPEGGIOS -> ArpeggiosTab(sampler, store, onOpenExercise, onEvent)
-            PracticeTab.WARMUPS -> WarmupsTab(store, onOpenExercise, onEvent)
-            PracticeTab.METRONOME -> MetronomeScreen(store)
-            PracticeTab.TUNER -> TunerScreen(mic, sampler)
+        AnimatedContent(topIndex(tab), Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { i ->
+            when (i) {
+                0 -> PatternScreen(lastPattern == PracticeTab.ARPEGGIOS,
+                    { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent)
+                1 -> WarmupsScreen(store, onOpenExercise, onEvent)
+                2 -> MetronomeScreen(store)
+                else -> TunerScreen(mic, sampler)
+            }
         }
     }
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Scales and arpeggios share one panel: choices on top, the keyboard with fingering, Play it and Practice it.
+// Scales and arpeggios: one screen with a toggle. Choices on top, then the keyboard (the hero), the pup's line,
+// Practice it and Play it, and the stats.
 
-/** What the panel shows for the current choices; built by each tab. */
-private class Pattern(
-    val title: (Practice) -> String,
+/** What the screen shows for the current choices; built for a scale or an arpeggio. */
+private class PatternModel(
+    val kind: PracticeKind,
+    val title: String,
     val notes: (Hand) -> List<Int>,
-    val sequence: (Hand) -> List<Int>,
-    val fingering: (Hand) -> List<Int>,
-    val exercise: (Practice, Double) -> Exercise,
-    val statId: String,
-    val onStart: (Practice, Int) -> Unit,
+    val upDown: (Hand) -> List<Int>,
+    val fingers: (Hand) -> List<Int>,
+    val fingersUpDown: (Hand) -> List<Int>,
+    val line: (Practice) -> String,
+    val exercise: (Practice, Int) -> Exercise,
+    val exerciseTitle: (Practice) -> String,
+    val byTheBook: Boolean,
 )
 
-@Composable
-private fun ScalesTab(sampler: Sampler, store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit) {
-    var root by remember { mutableIntStateOf(store.int("scale.root", 0).coerceIn(0, 11)) }
-    var type by remember { mutableStateOf(store.enum("scale.type", ScaleType.MAJOR)) }
-    var octaves by remember { mutableIntStateOf(store.int("scale.octaves", 1).coerceIn(1, 2)) }
-    var hand by remember { mutableStateOf(store.enum("scale.hand", Practice.RIGHT)) }
-    var bpm by remember { mutableIntStateOf(store.int("scale.bpm", 72)) }
-    val scale = remember(root, type, octaves) { Scale(root, type, octaves) }
-    val pattern = Pattern(
-        title = scale::title, notes = scale::ascending, sequence = scale::upAndDown, fingering = scale::fingering,
-        exercise = { p, b -> scale.toExercise(p, b) }, statId = "scale:${type.name}:$root",
-        onStart = { p, b ->
-            store.recordScale(type.name, root, b)
-            onEvent(PracticeEvent(PracticeKind.SCALE, "scale:${type.name}:$root", scale.title(p), b))
-        })
-    PatternPanel(sampler, store, pattern, hand, { hand = it; store.putEnum("scale.hand", it) }, octaves, { octaves = it; store.putInt("scale.octaves", it) },
-        bpm, { bpm = it; store.putInt("scale.bpm", it) }, onOpen, hasStandardFingering = scale.standardFingering) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0..11).forEach { r -> FilterChip(root == r, { root = r; store.putInt("scale.root", r) }, label = { Text(scaleRootName(r, type)) }) }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (CORE_SCALES + ScaleType.entries.filter { it !in CORE_SCALES }).forEach { t ->
-                FilterChip(type == t, { type = t; store.putEnum("scale.type", t) }, label = { Text(t.label) })
-            }
-        }
-    }
-}
+/** Scale types in the order the row offers them: the common ones first. */
+private val SCALE_ORDER = CORE_SCALES + listOf(ScaleType.MAJOR_PENTATONIC, ScaleType.MINOR_PENTATONIC, ScaleType.BLUES,
+    ScaleType.DORIAN, ScaleType.MIXOLYDIAN, ScaleType.CHROMATIC)
+
+private val HANDS = listOf(Practice.LEFT, Practice.RIGHT, Practice.BOTH)
 
 @Composable
-private fun ArpeggiosTab(sampler: Sampler, store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit) {
-    var root by remember { mutableIntStateOf(store.int("arp.root", 0).coerceIn(0, 11)) }
-    var type by remember { mutableStateOf(store.enum("arp.type", ArpeggioType.MAJOR)) }
-    var octaves by remember { mutableIntStateOf(store.int("arp.octaves", 1).coerceIn(1, 2)) }
-    var hand by remember { mutableStateOf(store.enum("arp.hand", Practice.RIGHT)) }
-    var bpm by remember { mutableIntStateOf(store.int("arp.bpm", 60)) }
-    val arp = remember(root, type, octaves) { Arpeggio(root, type, octaves) }
-    val pattern = Pattern(
-        title = arp::title, notes = arp::ascending, sequence = arp::upAndDown, fingering = arp::fingering,
-        exercise = { p, b -> arp.toExercise(p, b) }, statId = "arp:${type.name}:$root",
-        onStart = { p, b ->
-            store.recordArpeggio(type.name, root, b)
-            onEvent(PracticeEvent(PracticeKind.ARPEGGIO, "arp:${type.name}:$root", arp.title(p), b))
-        })
-    PatternPanel(sampler, store, pattern, hand, { hand = it; store.putEnum("arp.hand", it) }, octaves, { octaves = it; store.putInt("arp.octaves", it) },
-        bpm, { bpm = it; store.putInt("arp.bpm", it) }, onOpen, hasStandardFingering = false) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0..11).forEach { r -> FilterChip(root == r, { root = r; store.putInt("arp.root", r) }, label = { Text(scaleRootName(r, type.minorFamily)) }) }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ArpeggioType.entries.forEach { t -> FilterChip(type == t, { type = t; store.putEnum("arp.type", t) }, label = { Text(t.label) }) }
-        }
-    }
-}
-
-@Composable
-private fun PatternPanel(
-    sampler: Sampler, store: PracticeStore, pattern: Pattern,
-    hand: Practice, onHand: (Practice) -> Unit, octaves: Int, onOctaves: (Int) -> Unit,
-    bpm: Int, onBpm: (Int) -> Unit, onOpen: (Exercise, String) -> Unit, hasStandardFingering: Boolean,
-    choices: @Composable () -> Unit,
+private fun PatternScreen(
+    arps: Boolean, onMode: (Boolean) -> Unit, sampler: Sampler, store: PracticeStore,
+    onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit,
 ) {
+    val p = if (arps) "arp" else "scale"
+    var root by remember(arps) { mutableIntStateOf(store.int("$p.root", 0).coerceIn(0, 11)) }
+    var scaleType by remember { mutableStateOf(store.enum("scale.type", ScaleType.MAJOR)) }
+    var arpType by remember { mutableStateOf(store.enum("arp.type", ArpeggioType.MAJOR)) }
+    var octaves by remember(arps) { mutableIntStateOf(store.int("$p.octaves", 1).coerceIn(1, 2)) }
+    var hand by remember(arps) { mutableStateOf(store.enum("$p.hand", Practice.RIGHT)) }
+    var bpm by remember(arps) { mutableIntStateOf(store.int("$p.bpm", if (arps) 60 else 72).coerceIn(30, 200)) }
+    var loop by remember { mutableStateOf(store.bool("practice.loop", false)) }
+    val typeName = if (arps) arpType.name else scaleType.name
+    val minorFamily = if (arps) arpType.minorFamily else scaleType.minorFamily
+    fun statId(r: Int) = "$p:$typeName:$r"
+
+    val model = remember(arps, root, scaleType, arpType, octaves) {
+        if (arps) {
+            val a = Arpeggio(root, arpType, octaves)
+            PatternModel(PracticeKind.ARPEGGIO, spokenTitle(a.rootName, arpType.label) + " arpeggio", a::ascending, a::upAndDown, a::fingering,
+                a::fingeringUpAndDown, { arpeggioLine(a, it) }, { pr, b -> a.toExercise(pr, b.toDouble()) }, a::title, byTheBook = false)
+        } else {
+            val s = Scale(root, scaleType, octaves)
+            PatternModel(PracticeKind.SCALE, spokenTitle(s.rootName, scaleType.label), s::ascending, s::upAndDown, s::fingering,
+                s::fingeringUpAndDown, { scaleLine(s, it) }, { pr, b -> s.toExercise(pr, b.toDouble()) }, s::title, byTheBook = s.standardFingering)
+        }
+    }
+
+    // ---- the demo ("Play it") ----
     val scope = rememberCoroutineScope()
-    val right = remember(pattern.statId, octaves) { pattern.notes(Hand.RIGHT) }
-    val left = remember(pattern.statId, octaves) { pattern.notes(Hand.LEFT) }
-    val shown = when (hand) { Practice.LEFT -> left; Practice.RIGHT -> right; Practice.BOTH -> left + right }
-    val low = shown.min().let { if (isBlack(it)) it - 1 else it }
-    val high = shown.max().let { if (isBlack(it)) it + 1 else it }
-    val rightFingers = remember(pattern.statId, octaves) { pattern.fingering(Hand.RIGHT) }
-    val leftFingers = remember(pattern.statId, octaves) { pattern.fingering(Hand.LEFT) }
-    val sounding = remember { mutableStateMapOf<Int, Color>() }
-    val touched = remember { mutableStateMapOf<Int, Color>() }
+    val haptics = rememberHaptics()
+    val sounding = remember { mutableStateMapOf<Int, Hand>() }
+    val touched = remember { mutableStateMapOf<Int, Hand>() }
+    val dots = remember { mutableStateMapOf<Hand, FingerDot>() }
     var job by remember { mutableStateOf<Job?>(null) }
-    @Suppress("UNUSED_VARIABLE") val unusedVersion = store.version.intValue   // stats below follow the store
-    val stat = store.stat(pattern.statId)
-
+    var nudge by remember { mutableStateOf(false) }
+    val bpmNow by rememberUpdatedState(bpm)
+    val loopNow by rememberUpdatedState(loop)
     fun stop() { job?.cancel(); job = null }
-    // A different scale, hand or range: whatever was playing stops.
-    DisposableEffect(pattern.statId, hand, octaves) { onDispose { stop() } }
+    // A different scale, hand or range: whatever was playing stops, and the nudge goes.
+    DisposableEffect(arps, root, typeName, hand, octaves) { onDispose { stop(); nudge = false } }
 
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        choices()
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
-                listOf(1, 2).forEachIndexed { i, o ->
-                    SegmentedButton(octaves == o, { onOctaves(o) }, SegmentedButtonDefaults.itemShape(i, 2), icon = {}) { Text(if (o == 1) "1 octave" else "2 octaves") }
-                }
-            }
-        }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            val hands = listOf(Practice.RIGHT to "Right", Practice.LEFT to "Left", Practice.BOTH to "Both")
-            hands.forEachIndexed { i, (h, label) ->
-                SegmentedButton(hand == h, { onHand(h) }, SegmentedButtonDefaults.itemShape(i, hands.size), icon = {}) { Text(label) }
-            }
-        }
-
-        Text(pattern.title(hand), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
-        val lit = buildMap {
-            if (hand != Practice.RIGHT) left.forEach { put(it, LeftHandColor.copy(alpha = if (hand == Practice.BOTH) 0.4f else 0.6f)) }
-            if (hand != Practice.LEFT) right.forEach { put(it, RightHandColor.copy(alpha = 0.6f)) }
-            put(if (hand == Practice.LEFT) left.first() else right.first(), (if (hand == Practice.LEFT) LeftHandColor else RightHandColor))
-            putAll(sounding); putAll(touched)
-        }
-        val labels = (if (hand == Practice.LEFT) left.zip(leftFingers) else right.zip(rightFingers)).toMap().mapValues { it.value.toString() }
-        Keyboard(
-            low, high, lit = lit,
-            onNoteOn = { m, v -> touched[m] = if (hand == Practice.LEFT) LeftHandColor else RightHandColor; sampler.noteOn(m, v) },
-            onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-            modifier = Modifier.fillMaxWidth().height(170.dp),
-            labels = labels,
-        )
-        if (hand != Practice.LEFT) FingerLine("Right hand", rightFingers)
-        if (hand != Practice.RIGHT) FingerLine("Left hand", leftFingers)
-        if (!hasStandardFingering) Text("Fingering here is a suggestion from the app, not a textbook table.", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (hand == Practice.BOTH) Text("Both hands play together, the left an octave below the right. Numbers on the keys are the right hand.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-            Text("Tempo", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Text("$bpm bpm", style = Numeric.merge(MaterialTheme.typography.titleMedium))
-        }
-        Slider(bpm.coerceIn(40, 160).toFloat(), { onBpm(it.toInt()) }, valueRange = 40f..160f)
-        Text(if (stat.times == 0) "Not practised yet" else "Practised ${stat.times} ${if (stat.times == 1) "time" else "times"}, best tempo ${stat.bestBpm} bpm",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            FilledTonalButton(onClick = {
-                if (job != null) { stop(); return@FilledTonalButton }
-                val msPerNote = 60_000L / bpm
-                val rightSeq = pattern.sequence(Hand.RIGHT)
-                val leftSeq = pattern.sequence(Hand.LEFT)
-                val steps = when (hand) {
-                    Practice.RIGHT -> rightSeq.map { listOf(it to RightHandColor) }
-                    Practice.LEFT -> leftSeq.map { listOf(it to LeftHandColor) }
-                    Practice.BOTH -> rightSeq.indices.map { listOf(rightSeq[it] to RightHandColor, leftSeq[it] to LeftHandColor) }
-                }
-                job = scope.launch {
-                    val me = coroutineContext[Job]
-                    try {
-                        for (step in steps) {
-                            step.forEach { (m, c) -> sounding[m] = c; sampler.noteOn(m, 85) }
-                            delay(msPerNote * 9 / 10)
-                            step.forEach { (m, _) -> sampler.noteOff(m); sounding.remove(m) }
-                            delay(msPerNote / 10)
+    fun play() {
+        nudge = false
+        val hands = when (hand) { Practice.RIGHT -> listOf(Hand.RIGHT); Practice.LEFT -> listOf(Hand.LEFT); Practice.BOTH -> listOf(Hand.RIGHT, Hand.LEFT) }
+        val lines = hands.associateWith { model.upDown(it) zip model.fingersUpDown(it) }
+        val n = lines.values.minOf { it.size }
+        job = scope.launch {
+            val me = coroutineContext[Job]
+            var finished = false
+            try {
+                do {
+                    for (i in 0 until n) {
+                        val ms = 60_000L / bpmNow
+                        for ((h, line) in lines) {
+                            val (m, f) = line[i]
+                            sounding[m] = h; dots[h] = FingerDot(m, f); sampler.noteOn(m, 85)
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } finally {
-                        sounding.keys.toList().forEach { sampler.noteOff(it) }
-                        sounding.clear()
-                        if (job === me) job = null
+                        haptics.tick()
+                        delay(ms * 9 / 10)
+                        for ((_, line) in lines) { sampler.noteOff(line[i].first); sounding.remove(line[i].first) }
+                        delay(ms / 10)
                     }
+                    if (loopNow) delay(60_000L / bpmNow)
+                } while (loopNow)
+                finished = true
+            } catch (e: CancellationException) {
+                throw e
+            } finally {
+                sounding.keys.toList().forEach { sampler.noteOff(it) }
+                sounding.clear(); dots.clear()
+                if (job === me) job = null
+                if (finished) { nudge = true; haptics.success() }
+            }
+        }
+    }
+    fun practise() {
+        stop(); nudge = false
+        store.putInt("$p.bpm", bpm)
+        if (arps) store.recordArpeggio(typeName, root, bpm) else store.recordScale(typeName, root, bpm)
+        onEvent(PracticeEvent(model.kind, statId(root), model.exerciseTitle(hand), bpm))
+        onOpen(model.exercise(hand, bpm), model.exerciseTitle(hand))
+    }
+
+    @Suppress("UNUSED_VARIABLE") val unusedVersion = store.version.intValue    // stats below follow the store
+    val names = (0..11).map { scaleRootName(it, minorFamily) }
+    val counts = (0..11).map { store.stat(statId(it)).times }
+    val stat = store.stat(statId(root))
+
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SlidingSegments(listOf("Scales", "Arpeggios"), if (arps) 1 else 0, { onMode(it == 1) },
+                Modifier.padding(horizontal = 20.dp).fillMaxWidth())
+            KeyPicker(names, root, counts, { root = it; store.putInt("$p.root", it) })
+            if (arps) PillRow(ArpeggioType.entries.map { it.label }, arpType.ordinal, { arpType = ArpeggioType.entries[it]; store.putEnum("arp.type", arpType) })
+            else PillRow(SCALE_ORDER.map { it.label }, SCALE_ORDER.indexOf(scaleType), { scaleType = SCALE_ORDER[it]; store.putEnum("scale.type", scaleType) })
+
+            KeyboardPanel(model, hand, { hand = it; store.putEnum("$p.hand", it) }, octaves, { octaves = it; store.putInt("$p.octaves", it) },
+                bpm, { bpm = it; store.putInt("$p.bpm", it) }, loop, { loop = it; store.putBool("practice.loop", it) },
+                sounding + touched, dots, sampler, touched, Modifier.padding(horizontal = 12.dp))
+
+            PupLine(if (job != null) Pose.LISTENING else Pose.LEARNING, model.line(hand), Modifier.padding(horizontal = 16.dp))
+
+            Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { if (job != null) stop() else play() }, modifier = Modifier.height(52.dp).pressScale()) {
+                    Icon(painterResource(if (job != null) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp)); Text(if (job != null) "Stop" else "Play it")
                 }
-            }, modifier = Modifier.height(52.dp)) {
-                Icon(painterResource(if (job != null) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.size(6.dp)); Text(if (job != null) "Stop" else "Play it")
+                ChunkyButton(onClick = ::practise, modifier = Modifier.weight(1f)) { Text("Practice it") }
             }
-            ChunkyButton(onClick = {
-                stop()
-                pattern.onStart(hand, bpm)
-                onOpen(pattern.exercise(hand, bpm.toDouble()), pattern.title(hand))
-            }, modifier = Modifier.weight(1f)) { Text("Practice it") }
+
+            Text("Your ${typeWords(arps, if (arps) arpType.label else scaleType.label)}", style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 14.dp))
+            StatTiles(stat.times, stat.bestBpm, (0..11).filter { counts[it] > 0 }.toSet(), root, names, Modifier.padding(horizontal = 20.dp))
         }
-        Spacer(Modifier.height(12.dp))
+        AnimatedVisibility(nudge, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
+            NudgeBar("Now try it yourself", "You heard it. Play it back with the app listening.", "Practice it", ::practise, { nudge = false })
+        }
     }
 }
 
+private fun typeWords(arps: Boolean, label: String) = label.lowercase() + if (arps) " arpeggios" else " scales"
+
+/**
+ * The hero: a dark panel like the player's stage, with the key's name and the tempo on top, the keyboard, and
+ * the hand, octave and loop toggles under it.
+ */
 @Composable
-private fun FingerLine(label: String, fingers: List<Int>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 1.dp))
-        Text(fingers.joinToString(" "), style = Numeric.merge(MaterialTheme.typography.bodyMedium))
+private fun KeyboardPanel(
+    model: PatternModel, hand: Practice, onHand: (Practice) -> Unit, octaves: Int, onOctaves: (Int) -> Unit,
+    bpm: Int, onBpm: (Int) -> Unit, loop: Boolean, onLoop: (Boolean) -> Unit,
+    sounding: Map<Int, Hand>, dots: Map<Hand, FingerDot>, sampler: Sampler, touched: MutableMap<Int, Hand>, modifier: Modifier = Modifier,
+) {
+    val right = if (hand != Practice.LEFT) model.notes(Hand.RIGHT).zip(model.fingers(Hand.RIGHT)).toMap() else emptyMap()
+    val left = if (hand != Practice.RIGHT) model.notes(Hand.LEFT).zip(model.fingers(Hand.LEFT)).toMap() else emptyMap()
+    val shown = right.keys + left.keys
+    var low = shown.min().let { if (isBlack(it)) it - 1 else it }
+    var high = shown.max().let { if (isBlack(it)) it + 1 else it }
+    // A white key of room either side when it fits, so the scale sits on a piano and not on its own keys.
+    if ((low..high).count { !isBlack(it) } < 20) {
+        low -= if (isBlack(low - 1)) 2 else 1
+        high += if (isBlack(high + 1)) 2 else 1
     }
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// Warm-ups
-
-private fun minutesWords(seconds: Double): String {
-    val m = Math.round(seconds / 60.0).toInt()
-    return if (m < 1) "under a minute" else "about $m min"
-}
-
-@Composable
-private fun WarmupsTab(store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit) {
-    var minutes by remember { mutableIntStateOf(store.int("warmup.minutes", 10)) }
-    var level by remember { mutableIntStateOf(store.int("warmup.level", 1).coerceIn(1, 3)) }
-    var seed by rememberSaveable { mutableIntStateOf(store.int("warmup.seed", 0)) }
-    var browseRoot by remember { mutableIntStateOf(store.int("warmup.root", 0).coerceIn(0, 11)) }
-    var opened by rememberSaveable { mutableStateOf(setOf<String>()) }
-    @Suppress("UNUSED_VARIABLE") val unusedVersion = store.version.intValue
-    val routine = remember(minutes, level, seed) { buildRoutine(minutes, level, seed) }
-    val catalog = remember(browseRoot) { warmupCatalog(browseRoot) }
-
-    fun open(w: Warmup, bpm: Int) {
-        store.recordWarmup(w.id, bpm)
-        opened = opened + w.id
-        onEvent(PracticeEvent(PracticeKind.WARMUP, w.id, w.title, bpm))
-        onOpen(w.at(bpm), w.title)
-    }
-
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PupSays(Pose.GET_READY, "A few minutes of warm-up now saves your hands later.")
-        Text("Warm-up routine", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 6.dp))
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            val options = listOf(5, 10, 15)
-            options.forEachIndexed { i, m ->
-                SegmentedButton(minutes == m, { minutes = m; store.putInt("warmup.minutes", m) }, SegmentedButtonDefaults.itemShape(i, options.size), icon = {}) { Text("$m min") }
+    val whites = (low..high).count { !isBlack(it) }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(PanelColor).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(model.title, style = MaterialTheme.typography.titleLarge, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (model.byTheBook) "Fingering by the book" else "Suggested fingering", style = MaterialTheme.typography.labelMedium, color = InkDim)
+            }
+            DragNumber(bpm, onBpm, 30..200, "bpm", stage = true)
+        }
+        val keyH = (347f / whites * 4.4f).coerceIn(120f, 168f).dp
+        ScaleKeyboard(low, high, right, left, sounding, dots,
+            onNoteOn = { m -> touched[m] = if (m in left && m !in right) Hand.LEFT else Hand.RIGHT; sampler.noteOn(m, 90) },
+            onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
+            description = model.title + ", " + when (hand) { Practice.RIGHT -> "right hand"; Practice.LEFT -> "left hand"; Practice.BOTH -> "both hands" } +
+                ". Fingers " + (if (hand == Practice.LEFT) left else right).values.joinToString(" "),
+            modifier = Modifier.fillMaxWidth().height(keyH + 16.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SlidingSegments(listOf("Left", "Right", "Both"), HANDS.indexOf(hand), { onHand(HANDS[it]) }, Modifier.width(186.dp), stage = true, height = 34.dp,
+                dots = listOf(listOf(LeftHandColor), listOf(RightHandColor), listOf(LeftHandColor, RightHandColor)),
+                descriptions = listOf("Left hand", "Right hand", "Both hands"))
+            SlidingSegments(listOf("1 oct", "2 oct"), octaves - 1, { onOctaves(it + 1) }, Modifier.width(104.dp), stage = true, height = 34.dp,
+                descriptions = listOf("One octave", "Two octaves"))
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.pressScale(0.9f).size(34.dp).clip(CircleShape).background(if (loop) RightHandColor else PanelWell)
+                .clickable(role = Role.Switch) { onLoop(!loop) }
+                .semantics { contentDescription = "Loop the demo"; stateDescription = if (loop) "On" else "Off" },
+                contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, tint = if (loop) PanelColor else InkDim, modifier = Modifier.size(18.dp))
             }
         }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            val options = listOf(1 to "Easy", 2 to "Medium", 3 to "Hard")
-            options.forEachIndexed { i, (l, name) ->
-                SegmentedButton(level == l, { level = l; store.putInt("warmup.level", l) }, SegmentedButtonDefaults.itemShape(i, options.size), icon = {}) { Text(name) }
-            }
-        }
-        Text("${routine.size} exercises, ${minutesWords(routineSeconds(routine))}, in the key of ${scaleRootName(routineRoot(seed), false)}",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        routine.forEachIndexed { i, item -> RoutineRow(i + 1, item, done = item.warmup.id in opened) { open(item.warmup, item.bpm) } }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            ChunkyButton(onClick = {
-                val next = routine.firstOrNull { it.warmup.id !in opened } ?: routine.first()
-                open(next.warmup, next.bpm)
-            }, modifier = Modifier.weight(1f)) { Text(if (opened.isEmpty()) "Start routine" else "Next exercise") }
-            TextButton(onClick = { seed++; store.putInt("warmup.seed", seed); opened = emptySet() }) { Text("Another key") }
-        }
-
-        Text("All warm-ups", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 20.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0..11).forEach { r -> FilterChip(browseRoot == r, { browseRoot = r; store.putInt("warmup.root", r) }, label = { Text(scaleRootName(r, false)) }) }
-        }
-        catalog.forEachIndexed { i, w ->
-            if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            val stat = store.stat("warmup:${w.id}")
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(w.title, style = MaterialTheme.typography.titleMedium)
-                    Text(w.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Level ${w.level}, ${w.bpmMin} to ${w.bpmMax} bpm" + if (stat.times > 0) ", done ${stat.times}x" else "",
-                        style = Numeric.merge(MaterialTheme.typography.labelMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                TextButton(onClick = { open(w, w.defaultBpm) }) { Text("Practice") }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
-@Composable
-private fun RoutineRow(number: Int, item: RoutineItem, done: Boolean, onOpen: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (done) "Done" else "$number", style = Numeric.merge(MaterialTheme.typography.labelLarge),
-            color = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(width = 40.dp, height = 20.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item.warmup.title, style = MaterialTheme.typography.titleSmall)
-            Text("${item.reps} ${if (item.reps == 1) "time" else "times"} at ${item.bpm} bpm, ${minutesWords(item.seconds)}",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TextButton(onClick = onOpen) { Text("Open") }
     }
 }

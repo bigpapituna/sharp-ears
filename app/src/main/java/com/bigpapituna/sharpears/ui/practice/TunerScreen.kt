@@ -3,21 +3,34 @@ package com.bigpapituna.sharpears.ui.practice
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -29,25 +42,37 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.engine.practice.PitchSmoother
 import com.bigpapituna.sharpears.engine.practice.PitchTracker
 import com.bigpapituna.sharpears.engine.practice.TunerReading
+import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Numeric
+import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.onScreen
+import com.bigpapituna.sharpears.ui.reducedMotion
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -66,8 +91,9 @@ private const val IN_TUNE_CENTS = 5.0
 
 /**
  * The tuner: listens through the mic's raw tap, finds the pitch about 20 times a second off the main thread,
- * and swings a needle across -50..+50 cents. The mic is started here if nothing else is using it and stopped
- * again when the screen goes (or the app leaves the foreground).
+ * and swings a glowing needle across a large arc from -50 to +50 cents, with the note inside the arc. The arc
+ * turns green within 5 cents. The mic is started here if nothing else is using it and stopped again when the
+ * screen goes (or the app leaves the foreground).
  */
 @Composable
 fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) {
@@ -108,83 +134,147 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
 
     var tone by remember { mutableStateOf<Job?>(null) }
     DisposableEffect(Unit) { onDispose { tone?.cancel(); sampler.noteOff(69) } }
+    val c = MaterialTheme.colorScheme
 
-    Column(modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
         if (!allowed) {
-            Text("The tuner needs the microphone", style = MaterialTheme.typography.titleLarge)
-            Text("It listens to one note at a time and shows how far it is from the nearest pitch. Nothing is recorded.",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
+            Spacer(Modifier.height(12.dp))
+            PupLine(Pose.LISTENING, "Let me listen and I will tell you if a note is sharp or flat. I only listen, nothing is recorded.")
+            Gauge(null, Modifier.fillMaxWidth().height(200.dp), quiet = true)
+            ChunkyButton(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.fillMaxWidth()) {
+                Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.size(8.dp))
+                Text("Allow microphone")
+            }
         } else {
             val r = reading
-            CentsGauge(r?.cents, Modifier.fillMaxWidth().height(210.dp))
             val inTune = r != null && abs(r.cents) <= IN_TUNE_CENTS
-            val noteColor = if (inTune) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.Bottom) {
-                Text(r?.result?.noteLetter ?: "-", style = MaterialTheme.typography.displayLarge.copy(fontSize = 88.sp, lineHeight = 92.sp), color = noteColor)
-                if (r != null) Text(r.result.name.takeLast(1), style = Numeric.merge(MaterialTheme.typography.headlineSmall), color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
-            }
+            Gauge(r, Modifier.fillMaxWidth().height(260.dp))
             Text(when {
                 micFailed -> "The microphone could not start. Another app may be using it."
                 r == null -> "Play a single note and let it ring"
                 inTune -> "In tune"
-                r.cents < 0 -> "${abs(r.cents).roundToInt()} cents flat, tune up"
-                else -> "${r.cents.roundToInt()} cents sharp, tune down"
-            }, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-                .semantics { contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${r.cents.roundToInt()} cents" },
-                color = if (inTune) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(if (r == null) " " else String.format(Locale.US, "%.1f Hz", r.result.freq), style = Numeric.merge(MaterialTheme.typography.bodyMedium),
-                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                r.cents < 0 -> "A little flat, tune up"
+                else -> "A little sharp, tune down"
+            }, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
+                color = if (inTune) c.tertiary else c.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${r.cents.roundToInt()} cents"
+                })
         }
-        Text("Reference tone", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-        OutlinedButton(onClick = {
+        Spacer(Modifier.height(4.dp))
+        ReferenceTone(playing = tone?.isActive == true) {
             if (tone?.isActive == true) { tone?.cancel(); sampler.noteOff(69); tone = null }
-            else tone = scope.launch { try { sampler.noteOn(69, 100); delay(3000) } finally { sampler.noteOff(69) } }
-        }) { Text("Play A4, 440 Hz") }
-        Text("This is the piano sample of A4. If the microphone picks it up, the needle should sit in the middle.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else tone = scope.launch { try { sampler.noteOn(69, 100); delay(3000) } finally { sampler.noteOff(69); tone = null } }
+        }
     }
 }
 
-/** The arc and needle: -50 cents at the left end, 0 at the top, +50 at the right; the green zone is +-5 cents. */
+/** The reference A as a round button that glows and rings while it sounds. */
 @Composable
-private fun CentsGauge(cents: Double?, modifier: Modifier = Modifier) {
-    val target = (cents ?: 0.0).coerceIn(-50.0, 50.0).toFloat()
+private fun ReferenceTone(playing: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val still = reducedMotion()
+    val ring = if (playing && !still) rememberInfiniteTransition(label = "tone").animateFloat(0f, 1f,
+        infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "ring") else null
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(76.dp)) {
+                val t = ring?.value ?: return@Canvas
+                drawCircle(c.primary.copy(alpha = 0.45f * (1 - t)), size.minDimension / 2 * (0.8f + 0.2f * t), style = Stroke(2.dp.toPx()))
+            }
+            Box(Modifier.pressScale(0.9f).size(60.dp).clip(CircleShape).background(if (playing) c.primary else c.surfaceContainerHigh)
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = if (playing) "Stop the reference A" else "Play the reference A, 440 hertz" },
+                contentAlignment = Alignment.Center) {
+                Text("A", style = MaterialTheme.typography.headlineSmall, color = if (playing) c.onPrimary else c.onSurface)
+            }
+        }
+        Column {
+            Text("Reference A", style = MaterialTheme.typography.titleMedium)
+            Text("440 Hz, the piano's own A4", style = MaterialTheme.typography.labelMedium.merge(Numeric), color = c.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * The gauge: a wide arc from -50 cents (left) to +50 (right) with ticks, a needle with a soft glow, the note
+ * name large inside the arc and the cents under it. Within 5 cents the arc and needle turn green. [quiet]: no
+ * reading yet (the needle rests at the top, dimmed).
+ */
+@Composable
+private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolean = false) {
+    val target = (r?.cents ?: 0.0).coerceIn(-50.0, 50.0).toFloat()
     val shown by animateFloatAsState(target, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow), label = "needle")
-    val inTune = cents != null && abs(cents) <= IN_TUNE_CENTS
-    val track = MaterialTheme.colorScheme.outlineVariant
-    val zone = MaterialTheme.colorScheme.tertiary
-    val ink = MaterialTheme.colorScheme.onSurfaceVariant
-    val needle = if (cents == null) MaterialTheme.colorScheme.outline else if (inTune) zone else MaterialTheme.colorScheme.primary
+    val inTune = r != null && abs(r.cents) <= IN_TUNE_CENTS
+    val c = MaterialTheme.colorScheme
+    val good = c.tertiary
+    val tint by animateColorAsState(if (inTune) good else c.outlineVariant, label = "arc")
+    val needle by animateColorAsState(when { r == null -> c.outline; inTune -> good; else -> c.primary }, label = "needleColor")
+    val ink = c.onSurfaceVariant
     val text = rememberTextMeasurer()
-    val labelStyle = TextStyle(color = ink, fontSize = 12.sp)
-    Canvas(modifier) {
-        val stroke = 14.dp.toPx()
-        val radius = min(size.width * 0.44f, size.height - 40.dp.toPx())
+    val noteStyle = MaterialTheme.typography.displayLarge.copy(fontSize = 76.sp, lineHeight = 80.sp, fontWeight = FontWeight.ExtraBold)
+    val octaveStyle = MaterialTheme.typography.titleMedium.merge(Numeric)
+    val centsStyle = MaterialTheme.typography.titleMedium.merge(Numeric).copy(fontWeight = FontWeight.Medium)
+    val labelStyle = TextStyle(color = ink, fontSize = 11.sp)
+    val onSurface = c.onSurface
+    // A soft breathing glow on the needle while it is in tune.
+    val still = reducedMotion()
+    val glow = remember { Animatable(0f) }
+    LaunchedEffect(inTune) { if (inTune && !still) glow.animateTo(1f, tween(300)) else glow.snapTo(0f) }
+    Canvas(modifier.semantics { contentDescription = if (r == null) "Tuner gauge, no note" else "Needle at ${r.cents.roundToInt()} cents" }) {
+        val stroke = 16.dp.toPx()
+        val radius = min(size.width * 0.46f, size.height * 0.86f)
         val center = Offset(size.width / 2, radius + stroke)
-        val sweep = 70f                                                  // degrees either side of straight up
-        fun deg(c: Float) = 270f + c / 50f * sweep
-        fun point(c: Float, r: Float): Offset {
-            val a = Math.toRadians(deg(c).toDouble())
-            return Offset(center.x + r * cos(a).toFloat(), center.y + r * sin(a).toFloat())
+        val sweep = 62f                                                   // degrees either side of straight up
+        fun deg(cents: Float) = 270f + cents / 50f * sweep
+        fun point(cents: Float, rr: Float): Offset {
+            val a = Math.toRadians(deg(cents).toDouble())
+            return Offset(center.x + rr * cos(a).toFloat(), center.y + rr * sin(a).toFloat())
         }
         val topLeft = Offset(center.x - radius, center.y - radius)
         val box = Size(radius * 2, radius * 2)
-        drawArc(track, deg(-50f), 2 * sweep, false, topLeft, box, style = Stroke(stroke, cap = StrokeCap.Round))
-        drawArc(zone, deg(-IN_TUNE_CENTS.toFloat()), deg(IN_TUNE_CENTS.toFloat()) - deg(-IN_TUNE_CENTS.toFloat()), false, topLeft, box, style = Stroke(stroke))
-        for (c in -50..50 step 10) {
-            val major = c == 0 || c == -50 || c == 50
-            drawLine(ink.copy(alpha = if (major) 0.9f else 0.5f), point(c.toFloat(), radius - stroke * 0.9f), point(c.toFloat(), radius - stroke * (if (major) 1.9f else 1.5f)),
-                strokeWidth = if (major) 2.5.dp.toPx() else 1.5.dp.toPx())
+        drawArc(tint.copy(alpha = if (inTune) 0.35f else 1f), deg(-50f), 2 * sweep, false, topLeft, box, style = Stroke(stroke, cap = StrokeCap.Round))
+        drawArc(good, deg(-IN_TUNE_CENTS.toFloat()), deg(IN_TUNE_CENTS.toFloat()) - deg(-IN_TUNE_CENTS.toFloat()), false, topLeft, box, style = Stroke(stroke))
+        for (cents in -50..50 step 5) {
+            val major = cents % 25 == 0
+            val inner = radius - stroke * (if (major) 1.9f else 1.45f)
+            drawLine(ink.copy(alpha = if (major) 0.8f else 0.35f), point(cents.toFloat(), radius - stroke * 0.95f), point(cents.toFloat(), inner),
+                strokeWidth = if (major) 2.dp.toPx() else 1.2.dp.toPx(), cap = StrokeCap.Round)
         }
-        for ((c, label) in listOf(-50 to "-50", 0 to "0", 50 to "+50")) {
+        for ((cents, label) in listOf(-50 to "-50", 0 to "0", 50 to "+50")) {
             val m = text.measure(label, labelStyle)
-            val p = point(c.toFloat(), radius - stroke * 3.1f)
+            val p = point(cents.toFloat(), radius + stroke * 1.3f)
             drawText(m, topLeft = Offset(p.x - m.size.width / 2f, p.y - m.size.height / 2f))
         }
-        val tip = point(shown, radius - stroke * 0.5f)
-        drawLine(needle, center, tip, strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-        drawCircle(needle, 9.dp.toPx(), center)
+        // The needle: a wide soft stroke under a fine one, so it glows.
+        val tip = point(shown, radius + stroke * 0.2f)
+        val base = point(shown, radius * 0.62f)
+        val a = if (quiet) 0.35f else 1f
+        drawLine(Brush.linearGradient(listOf(needle.copy(alpha = 0f), needle.copy(alpha = 0.35f * a + 0.2f * glow.value)), base, tip), base, tip,
+            strokeWidth = 12.dp.toPx(), cap = StrokeCap.Round)
+        drawLine(needle.copy(alpha = a), base, tip, strokeWidth = 3.5.dp.toPx(), cap = StrokeCap.Round)
+        drawCircle(needle.copy(alpha = a), 6.dp.toPx(), tip)
+        drawCircle(needle.copy(alpha = 0.25f * a), 12.dp.toPx(), tip)
+
+        // The note inside the arc, the cents under it.
+        val letter = r?.result?.noteLetter ?: if (quiet) "" else "-"
+        val nm = text.measure(letter, noteStyle.copy(color = if (inTune) good else if (r == null) ink.copy(alpha = 0.5f) else onSurface))
+        val noteY = center.y - radius * 0.52f
+        val octave = r?.result?.name?.takeLast(1)
+        val om = octave?.let { text.measure(it, octaveStyle.copy(color = ink)) }
+        val totalW = nm.size.width + (om?.size?.width ?: 0)
+        val nx = size.width / 2 - totalW / 2f
+        drawText(nm, topLeft = Offset(nx, noteY - nm.size.height / 2f))
+        om?.let { drawText(it, topLeft = Offset(nx + nm.size.width + 2.dp.toPx(), noteY + nm.size.height * 0.12f)) }
+        val centsText = when {
+            r == null -> if (quiet) "Waiting for the microphone" else "Listening"
+            else -> (if (r.cents >= 0.5) "+" else "") + "${r.cents.roundToInt()} cents   " + String.format(Locale.US, "%.1f Hz", r.result.freq)
+        }
+        val cm = text.measure(centsText, (if (r == null) labelStyle.copy(fontSize = 13.sp) else centsStyle).copy(color = ink))
+        drawText(cm, topLeft = Offset(size.width / 2 - cm.size.width / 2f, noteY + nm.size.height / 2f + 2.dp.toPx()))
     }
 }
+
