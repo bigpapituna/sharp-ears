@@ -33,9 +33,10 @@ object SpokenCatalog {
         val lines = linkedSetOf<String>()
         fun add(s: String) { lines += normalize(s) }
 
-        // Lessons: each step as LessonScreen speaks it, the end of a lesson, and the fixed feedback lines.
+        // Lessons: each step as LessonScreen speaks it, the end of a lesson, and the fixed feedback lines. A reading step
+        // (2.0.1) is said scene by scene, each caption as the explainer reads it; its whole text stays listed too.
         for (lesson in COURSE.flatMap { it.lessons }) {
-            lesson.steps.forEach { add(it.text.replace("\n\n", " ")) }
+            lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
             add("Next: the lesson ${lesson.title}")
         }
         listOf("Lesson complete.", "Clean.", "Clean. On to the next step.", "Full speed. Lesson done.", "Full speed. On to the next step.",
