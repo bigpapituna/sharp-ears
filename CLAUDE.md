@@ -124,8 +124,7 @@ All six teams' work merged and wired (Theory last). Emulator only (emulator-5556
   them, engine/theory spokenTheory: "4/4" said "4 4", sharps and flats by name), the cheers (CHEER_TITLES) and the ear
   training lines with fixed words (prompts, note, step and progression answers, melody prompts per key and length).
   1789 lines; 844 recorded in Kokoro speaker 3 on 2026-10-13. After changing spoken copy: gradlew :app:testDebugUnitTest
-  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scripts
-ender_voice.py.
+  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scriptsender_voice.py.
 - Jank (emulator-5556, 10 s twinkle wait run with injected mic): 76 to 87% janky, p50 61 ms, but a still Learn screen and the
   motion demo measured the same that afternoon (two emulators on one host, the composer at 65% CPU), so it says nothing
   about the player. Measure on the Fold with the profile build before release.
