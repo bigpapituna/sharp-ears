@@ -141,7 +141,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
         if (!allowed) {
             Spacer(Modifier.height(12.dp))
             PupLine(Pose.LISTENING, "Let me listen and I will tell you if a note is sharp or flat. I only listen, nothing is recorded.")
-            Gauge(null, Modifier.fillMaxWidth().height(200.dp), quiet = true)
+            Gauge(null, Modifier.fillMaxWidth().height(230.dp), quiet = true)
             ChunkyButton(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.size(8.dp))
@@ -150,7 +150,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
         } else {
             val r = reading
             val inTune = r != null && abs(r.cents) <= IN_TUNE_CENTS
-            Gauge(r, Modifier.fillMaxWidth().height(260.dp))
+            Gauge(r, Modifier.fillMaxWidth().height(222.dp))
             Text(when {
                 micFailed -> "The microphone could not start. Another app may be using it."
                 r == null -> "Play a single note and let it ring"
@@ -194,7 +194,7 @@ private fun ReferenceTone(playing: Boolean, onClick: () -> Unit) {
         }
         Column {
             Text("Reference A", style = MaterialTheme.typography.titleMedium)
-            Text("440 Hz, the piano's own A4", style = MaterialTheme.typography.labelMedium.merge(Numeric), color = c.onSurfaceVariant)
+            Text("440 Hz, the piano's own A4", style = MaterialTheme.typography.labelMedium, color = c.onSurfaceVariant)
         }
     }
 }
@@ -217,7 +217,7 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
     val text = rememberTextMeasurer()
     val noteStyle = MaterialTheme.typography.displayLarge.copy(fontSize = 76.sp, lineHeight = 80.sp, fontWeight = FontWeight.ExtraBold)
     val octaveStyle = MaterialTheme.typography.titleMedium.merge(Numeric)
-    val centsStyle = MaterialTheme.typography.titleMedium.merge(Numeric).copy(fontWeight = FontWeight.Medium)
+    val centsStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")
     val labelStyle = TextStyle(color = ink, fontSize = 11.sp)
     val onSurface = c.onSurface
     // A soft breathing glow on the needle while it is in tune.
@@ -226,9 +226,10 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
     LaunchedEffect(inTune) { if (inTune && !still) glow.animateTo(1f, tween(300)) else glow.snapTo(0f) }
     Canvas(modifier.semantics { contentDescription = if (r == null) "Tuner gauge, no note" else "Needle at ${r.cents.roundToInt()} cents" }) {
         val stroke = 16.dp.toPx()
-        val radius = min(size.width * 0.46f, size.height * 0.86f)
-        val center = Offset(size.width / 2, radius + stroke)
-        val sweep = 62f                                                   // degrees either side of straight up
+        val top = 26.dp.toPx()
+        val radius = min(size.width * 0.44f, size.height - top - 30.dp.toPx())
+        val center = Offset(size.width / 2, top + radius)
+        val sweep = 72f                                                   // degrees either side of straight up
         fun deg(cents: Float) = 270f + cents / 50f * sweep
         fun point(cents: Float, rr: Float): Offset {
             val a = Math.toRadians(deg(cents).toDouble())
@@ -251,7 +252,7 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
         }
         // The needle: a wide soft stroke under a fine one, so it glows.
         val tip = point(shown, radius + stroke * 0.2f)
-        val base = point(shown, radius * 0.62f)
+        val base = point(shown, radius * 0.72f)
         val a = if (quiet) 0.35f else 1f
         drawLine(Brush.linearGradient(listOf(needle.copy(alpha = 0f), needle.copy(alpha = 0.35f * a + 0.2f * glow.value)), base, tip), base, tip,
             strokeWidth = 12.dp.toPx(), cap = StrokeCap.Round)
@@ -260,21 +261,22 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
         drawCircle(needle.copy(alpha = 0.25f * a), 12.dp.toPx(), tip)
 
         // The note inside the arc, the cents under it.
-        val letter = r?.result?.noteLetter ?: if (quiet) "" else "-"
+        val letter = r?.result?.noteLetter ?: ""
         val nm = text.measure(letter, noteStyle.copy(color = if (inTune) good else if (r == null) ink.copy(alpha = 0.5f) else onSurface))
-        val noteY = center.y - radius * 0.52f
+        val noteY = center.y - radius * 0.4f
         val octave = r?.result?.name?.takeLast(1)
         val om = octave?.let { text.measure(it, octaveStyle.copy(color = ink)) }
         val totalW = nm.size.width + (om?.size?.width ?: 0)
         val nx = size.width / 2 - totalW / 2f
-        drawText(nm, topLeft = Offset(nx, noteY - nm.size.height / 2f))
+        if (letter.isNotEmpty()) drawText(nm, topLeft = Offset(nx, noteY - nm.size.height / 2f))
         om?.let { drawText(it, topLeft = Offset(nx + nm.size.width + 2.dp.toPx(), noteY + nm.size.height * 0.12f)) }
         val centsText = when {
             r == null -> if (quiet) "Waiting for the microphone" else "Listening"
             else -> (if (r.cents >= 0.5) "+" else "") + "${r.cents.roundToInt()} cents   " + String.format(Locale.US, "%.1f Hz", r.result.freq)
         }
         val cm = text.measure(centsText, (if (r == null) labelStyle.copy(fontSize = 13.sp) else centsStyle).copy(color = ink))
-        drawText(cm, topLeft = Offset(size.width / 2 - cm.size.width / 2f, noteY + nm.size.height / 2f + 2.dp.toPx()))
+        val cy = if (letter.isEmpty()) noteY - cm.size.height / 2f else noteY + nm.size.height / 2f + 2.dp.toPx()
+        drawText(cm, topLeft = Offset(size.width / 2 - cm.size.width / 2f, cy))
     }
 }
 

@@ -132,7 +132,7 @@ internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> U
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("In ${spokenName(scaleRootName(routineRoot(seed), false))} major", style = MaterialTheme.typography.titleLarge)
-                    Text("${routine.size} exercises, ${minutesWords(routineSeconds(routine))}", style = MaterialTheme.typography.labelMedium.merge(Numeric),
+                    Text("${routine.size} exercises, ${minutesWords(routineSeconds(routine))}", style = MaterialTheme.typography.labelMedium,
                         color = c.onSurfaceVariant)
                 }
                 TextButton(onClick = { seed++; store.putInt("warmup.seed", seed); opened = emptySet() }) { Text("Another key") }
@@ -171,7 +171,7 @@ private fun WarmupCatalog(catalog: List<Warmup>, root: Int, onRoot: (Int) -> Uni
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(w.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                         Text("${LEVELS[w.level - 1]}, ${w.bpmMin} to ${w.bpmMax} bpm" + if (stat.times > 0) ", done ${stat.times}x" else "",
-                            style = MaterialTheme.typography.labelMedium.merge(Numeric), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = "Practice ${w.title}", tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp))
@@ -203,7 +203,7 @@ private fun RoutineStep(number: Int, item: RoutineItem, done: Boolean, last: Boo
         PatternPreview(remember(w.id) { warmupPreview(w) }, clock, Modifier.size(width = 84.dp, height = 44.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(w.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-            Text("${item.reps}x at ${item.bpm} bpm, range ${w.bpmMin} to ${w.bpmMax}", style = MaterialTheme.typography.labelSmall.merge(Numeric),
+            Text("${item.reps}x at ${item.bpm} bpm, range ${w.bpmMin} to ${w.bpmMax}", style = MaterialTheme.typography.labelMedium,
                 color = c.onSurfaceVariant)
         }
     }

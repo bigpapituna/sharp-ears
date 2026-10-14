@@ -124,10 +124,12 @@ All six teams' work merged and wired (Theory last). Emulator only (emulator-5556
   them, engine/theory spokenTheory: "4/4" said "4 4", sharps and flats by name), the cheers (CHEER_TITLES) and the ear
   training lines with fixed words (prompts, note, step and progression answers, melody prompts per key and length).
   1789 lines; 844 recorded in Kokoro speaker 3 on 2026-10-13. After changing spoken copy: gradlew :app:testDebugUnitTest
-  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scriptsender_voice.py.
+  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scripts
+ender_voice.py.
 - Jank (emulator-5556, 10 s twinkle wait run with injected mic): 76 to 87% janky, p50 61 ms, but a still Learn screen and the
   motion demo measured the same that afternoon (two emulators on one host, the composer at 65% CPU), so it says nothing
   about the player. Measure on the Fold with the profile build before release.
+- Practice redesign (2026-10-14, branch practice-redesign, emulator-5554 only): Scales and Arpeggios one screen (toggle), round key picker with practised counts, one row of type pills, a dark keyboard panel drawn for the screen (ui/practice/ScaleKeyboard.kt: flat keys, real black-key offsets, hand-colour wash, finger numbers on every lit key, left row above right, glow and a gliding finger dot during Play it, Loop), the pup's key line from engine/practice/KeyLines.kt, drag-to-change bpm, stat tiles with a 12-key ring, a nudge bar after the demo. Warm-ups: 5/10/15 pills, level segments, routine panel with animated mini keyboards (RoutinePreview.kt). Metronome: huge drag number in a ring of beat dots, round Tap, trainer and mute under More. Tuner: arc gauge with glowing needle, pup and Allow when the mic is off.
 - Open: skipped ear rounds still earn the 5 XP of a round (Team D reports every round); onboarding and the pup's tap lines
   are shown, not spoken, so they are not in the voice catalog.
 

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -122,6 +123,7 @@ internal fun Pill(
 @Composable
 internal fun PillRow(labels: List<String>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
     val state = rememberLazyListState(initialFirstVisibleItemIndex = (selected - 1).coerceAtLeast(0))
+    KeepInView(state, selected)
     LazyRow(modifier.fillMaxWidth(), state = state, contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(labels) { i, label -> Pill(label, i == selected, { onPick(i) }) }
     }
@@ -173,6 +175,7 @@ internal fun SlidingSegments(
 internal fun KeyPicker(names: List<String>, selected: Int, counts: List<Int>, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
     val state = rememberLazyListState(initialFirstVisibleItemIndex = (selected - 2).coerceAtLeast(0))
+    KeepInView(state, selected)
     LazyRow(modifier.fillMaxWidth(), state = state, contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(names) { i, name ->
             val on = i == selected
@@ -380,4 +383,15 @@ internal fun rememberSpringFloat(target: Float): Float {
     val a = remember { Animatable(target) }
     LaunchedEffect(target) { if (still) a.snapTo(target) else a.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 300f)) }
     return a.value
+}
+
+/** Scrolls a row so the chosen item is fully on screen when it changes (a tap near the edge, a new key). */
+@Composable
+private fun KeepInView(state: LazyListState, selected: Int) {
+    LaunchedEffect(selected) {
+        val info = state.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == selected }
+        val inside = item != null && item.offset >= 0 && item.offset + item.size <= info.viewportEndOffset - info.afterContentPadding
+        if (!inside) state.animateScrollToItem((selected - 1).coerceAtLeast(0))
+    }
 }

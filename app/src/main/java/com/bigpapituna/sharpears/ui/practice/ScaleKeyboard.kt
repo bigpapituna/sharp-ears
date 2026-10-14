@@ -222,7 +222,7 @@ internal fun ScaleKeyboard(
             val brush = when {
                 c == null -> Brush.verticalGradient(listOf(BlackTop, BlackBottom), startY = r.top, endY = r.bottom)
                 on -> Brush.verticalGradient(listOf(c, lerp(c, Color.White, 0.3f)), startY = r.top, endY = r.bottom)
-                else -> Brush.verticalGradient(listOf(lerp(BlackBottom, c, 0.55f), lerp(BlackBottom, c, 0.92f)), startY = r.top, endY = r.bottom)
+                else -> Brush.verticalGradient(listOf(lerp(BlackBottom, c, 0.72f), c), startY = r.top, endY = r.bottom)
             }
             drawPath(bottomRounded(r, br), brush)
             drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.0f), Color.White.copy(alpha = if (c == null) 0.09f else 0.16f)),

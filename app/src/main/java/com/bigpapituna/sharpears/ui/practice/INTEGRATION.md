@@ -9,7 +9,17 @@ Team C (branch `revamp/practice`). Everything is new files; no shared file was t
 - `engine/practice/MetronomeTool.kt`: `TickSchedule`, `TapTempo`, `TimeSig`, `Subdivision`, `Trainer`, `RandomMute`.
 - `engine/practice/Pitch.kt`: `PitchDetector` (YIN plus a spectral refinement), `PitchTracker`, `PitchSmoother`.
 - `data/PracticeStore.kt`: SharedPreferences file `practice`.
-- `ui/practice/PracticeScreen.kt`, `MetronomeScreen.kt`, `TunerScreen.kt`.
+- `engine/practice/KeyLines.kt`: the pup's line about a key (key signature, where the thumbs go), note spelling.
+- `engine/practice/RoutinePreview.kt`: `warmupPreview` (the pattern for the mini keyboards), `routineIntro` (the pup's routine line).
+- `ui/practice/PracticeScreen.kt` (tab row, scales and arpeggios), `ScaleKeyboard.kt` (the keyboard drawn for that screen),
+  `PracticeKit.kt` (pills, sliding segments, key picker, drag number, stat tiles, nudge bar), `WarmupsScreen.kt`,
+  `MetronomeScreen.kt`, `TunerScreen.kt`.
+
+## Practice redesign (2026-10-14, branch `practice-redesign`)
+
+The tab row has four tabs: Scales (scales and arpeggios on one screen with a toggle; `PracticeTab.SCALES` and
+`ARPEGGIOS` both land there and `onTab` still reports which), Warm-ups, Metronome, Tuner. `PracticeScreen`'s
+signature and the store keys are unchanged; one new key, `practice.loop` (the demo's Loop toggle).
 
 ## Entry composable
 
