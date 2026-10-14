@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -92,6 +94,31 @@ internal fun ProgressionSlots(game: ProgressionGame, active: Int, heard: Int, re
                         color = if (playing) c.onPrimary else c.onSurfaceVariant)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Melody memory: a dot per note of the melody. While it plays the dots fill in the accent one by one ([heard]);
+ * while the learner plays it back they fill in green ([played]), so the length and the place in it are always
+ * in view.
+ */
+@Composable
+internal fun MelodyDots(total: Int, heard: Int, played: Int, listening: Boolean, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Row(modifier.semantics(mergeDescendants = true) {
+        contentDescription = if (listening) "Melody of $total notes" else "$played of $total notes played back"
+    }, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (i in 0 until total) {
+            val on = if (listening) i < heard else i < played
+            val now = if (listening) i == heard - 1 else i == played
+            val fill by animateColorAsState(when {
+                on && listening -> c.primary
+                on -> c.tertiary
+                else -> c.surfaceContainerHighest
+            }, tween(140), label = "dot")
+            Box(Modifier.size(if (now) 22.dp else 18.dp).clip(CircleShape).background(fill)
+                .then(if (now && !listening) Modifier.border(2.dp, c.tertiary, CircleShape) else Modifier))
         }
     }
 }

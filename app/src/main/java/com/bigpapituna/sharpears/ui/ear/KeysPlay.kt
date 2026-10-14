@@ -245,6 +245,9 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             GameHeader(trainer, label, pose, if (finished) "" else trainer.prompt().text, onExit,
                 listening = phase == Phase.PROMPT, pings = pings)
+            val melody = trainer as? com.bigpapituna.sharpears.engine.ear.MelodyMemoryGame
+            if (melody != null && !finished) MelodyDots(melody.melody.size, stepsPlayed, if (phase == Phase.REVIEW && rev?.clean == true) melody.melody.size else melody.progress,
+                listening = phase == Phase.PROMPT, modifier = Modifier.padding(top = 4.dp))
             if (prog != null && !finished) ProgressionSlots(prog, activeBeat, beatsHeard, revealed = phase == Phase.REVIEW,
                 clean = rev?.clean == true, modifier = Modifier.padding(top = 6.dp))
             // What was wrong reads in the neutral colour: a hint, not a scolding.

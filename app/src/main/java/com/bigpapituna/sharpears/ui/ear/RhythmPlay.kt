@@ -227,7 +227,8 @@ internal fun RhythmPlay(trainer: RhythmTapGame, env: EarEnv, label: String?, onE
         if (rev != null) CheerBar(
             if (rev.clean) Cheer.GOOD else Cheer.MISS,
             if (rev.clean) cheerTitle(round + trainer.score) else missTitle(round + trainer.score),
-            rev.line?.text,
+            // The engine line can open with "Not quite:"; the title already says it.
+            rev.line?.text?.let { t -> if (rev.clean) t else t.removePrefix("Not quite: ").replaceFirstChar { it.uppercase() } },
             if (round + 1 >= trainer.rounds) "See results" else "Continue",
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {

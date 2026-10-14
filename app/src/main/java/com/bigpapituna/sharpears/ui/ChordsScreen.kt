@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,9 +52,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Card
@@ -98,6 +94,11 @@ import com.bigpapituna.sharpears.ui.practice.Pill
 import com.bigpapituna.sharpears.ui.practice.PupLine
 import com.bigpapituna.sharpears.ui.practice.ScaleKeyboard
 import com.bigpapituna.sharpears.ui.practice.SlidingSegments
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.font.FontWeight
+import com.bigpapituna.sharpears.engine.voiceLead
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlin.coroutines.coroutineContext
@@ -132,7 +133,7 @@ fun ChordsScreen(
             ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression)
             ChordsTab.DICTIONARY -> Dictionary(sampler)
             ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject)
-            ChordsTab.PROGRESSIONS -> Progressions(onPlayProgression)
+            ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression)
         }
     }
 }
@@ -276,13 +277,14 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
     val drill = remember(pool) { ChordDrill(pool.ifEmpty { listOf(Chord(0, ChordType.MAJOR)) }, seed = if (inject != null) 1 else System.nanoTime()) }
     ChordTrainer(drill, sampler, midi, mic, micStart = inject != null, inject = inject,
         header = {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // One row of pills (several can be on), never a wrapping cloud.
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FAMILIES.forEach { (name, _) ->
-                    FilterChip(name in families, { families = if (name in families && families.size > 1) families - name else families + name }, label = { Text(name) })
+                    Pill(name, name in families, { families = if (name in families && families.size > 1) families - name else families + name })
                 }
             }
         },
-        skip = { drill.next() })
+        skip = { drill.next() }, pup = true)
 }
 
 /**
@@ -293,11 +295,14 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
 private fun ChordTrainer(
     drill: ChordDrill, sampler: Sampler, midi: MidiDevices, mic: MicInput, micStart: Boolean, inject: String?,
     header: @Composable () -> Unit, skip: () -> Unit, onDone: (Chord, Boolean) -> Unit = { _, _ -> },
+    /** The pup beside the chord, reacting to each one (the Practice tab; a session shows him in its own header). */
+    pup: Boolean = false,
 ) {
     var version by remember { mutableIntStateOf(0) }
     var showNotes by remember { mutableStateOf(false) }
     var micOn by remember { mutableStateOf(micStart && mic.hasPermission() || inject != null) }
     var flash by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+    val keyFlash = remember { mutableStateMapOf<Int, Color>() }               // a burst on the keys: green when a chord lands, warm on a slip
     val scope = rememberCoroutineScope()
     val touched = remember { mutableStateMapOf<Int, Color>() }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
@@ -317,8 +322,13 @@ private fun ChordTrainer(
         val r = drill.input(m)
         Log.d(TAG, "chords: practice ${before.name} heard ${noteName(m)} src=$src -> $r correct=${drill.correct} streak=${drill.streak}")
         when (r) {
-            ChordDrill.Result.DONE -> { onDone(before, drill.lastClean); scope.launch { flash = "${before.name}, all notes heard" to true; delay(700); flash = null } }
-            ChordDrill.Result.MISS -> scope.launch { flash = "${noteName(m)} is not in ${before.name}" to false; delay(700); flash = null }
+            ChordDrill.Result.DONE -> {
+                onDone(before, drill.lastClean)
+                val keys = before.voicing(0)
+                keys.forEach { keyFlash[it] = Good }
+                scope.launch { flash = "${before.name}, all notes heard" to true; delay(700); flash = null; keys.forEach { if (keyFlash[it] == Good) keyFlash.remove(it) } }
+            }
+            ChordDrill.Result.MISS -> { keyFlash[m] = WrongGlow; scope.launch { flash = "${noteName(m)} is not in ${before.name}" to false; delay(700); flash = null; if (keyFlash[m] == WrongGlow) keyFlash.remove(m) } }
             ChordDrill.Result.PART -> {}
         }
         version++
@@ -353,6 +363,12 @@ private fun ChordTrainer(
     Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         header()
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            if (pup) Pup(when {
+                flash?.second == true -> Pose.GREAT_JOB
+                flash?.second == false -> Pose.MISTAKE
+                drill.streak >= 3 -> Pose.STREAK
+                else -> Pose.GET_READY
+            }, size = 72.dp, onTap = {})
             Column(Modifier.weight(1f)) {
                 Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(current.name, style = MaterialTheme.typography.displayMedium)
@@ -361,7 +377,7 @@ private fun ChordTrainer(
             Stat("Streak", drill.streak)
         }
         // Feedback line: fixed height so the keyboard does not jump when it appears.
-        Text(flash?.first ?: "", color = if (flash?.second == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+        Text(flash?.first ?: "", color = if (flash?.second == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.titleMedium, modifier = Modifier.height(24.dp))
         FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(micOn, {
@@ -385,7 +401,8 @@ private fun ChordTrainer(
             LOW, HIGH, lit = lit,
             onNoteOn = { m, v -> touched[m] = Good; if (!micOn || mic.headphonesOn()) sampler.noteOn(m, v); strike(m, "touch") },
             onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-            modifier = Modifier.fillMaxWidth().height(220.dp).then(if (flash?.second == false) Modifier.border(3.dp, Bad, RoundedCornerShape(6.dp)) else Modifier),
+            modifier = Modifier.fillMaxWidth().height(220.dp),
+            flash = keyFlash,
             labels = if (showNotes) voicing.zip(current.fingering(0)).associate { (n, f) -> n to f.toString() } else emptyMap(),
         )
     }
@@ -398,24 +415,67 @@ private fun Stat(label: String, value: Int) = Column(horizontalAlignment = Align
 }
 
 @Composable
-private fun Progressions(onPlay: (Progression, Int) -> Unit) {
+private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit) {
     var key by remember { mutableIntStateOf(0) }
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Key", style = MaterialTheme.typography.titleSmall)
-        SingleChoiceSegmentedButtonRow {
-            PROGRESSION_KEYS.forEachIndexed { i, k ->
-                SegmentedButton(key == k, { key = k }, SegmentedButtonDefaults.itemShape(i, PROGRESSION_KEYS.size), icon = {}) { Text(rootName(k)) }
+    var playing by remember { mutableStateOf<Pair<Int, Int>?>(null) }      // progression, chord sounding
+    var job by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+    DisposableEffect(key) { onDispose { job?.cancel() } }
+    val c = MaterialTheme.colorScheme
+    fun hear(pi: Int) {
+        job?.cancel()
+        val p = PROGRESSIONS[pi]
+        val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
+        val voicings = voiceLead(chords)
+        job = scope.launch {
+            val me = coroutineContext[Job]
+            var sounding = emptyList<Int>()
+            try {
+                // A blues runs twelve bars: each chord a little quicker so the whole form fits in a breath.
+                val ms = if (chords.size > 4) 520L else 760L
+                chords.forEachIndexed { i, ch ->
+                    sounding = listOf(48 + ch.root % 12) + voicings[i]
+                    playing = pi to i
+                    sounding.forEach { sampler.noteOn(it, 80) }
+                    delay(ms)
+                    sounding.forEach(sampler::noteOff)
+                }
+            } finally {
+                sounding.forEach(sampler::noteOff)
+                if (job === me) { playing = null; job = null }
             }
         }
-        Text("Each opens in the player in wait mode: the right hand plays the chord, the left hand the root.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-        PROGRESSIONS.forEach { p ->
-            val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type).name }
-            ActionRow(
-                title = p.name,
-                detail = if (p.degrees.size > 4) "${chords.distinct().joinToString(", ")} over ${p.degrees.size} bars" else chords.joinToString("  "),
-                action = "Practice", onAction = { onPlay(p, key) },
-            )
+    }
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SlidingSegments(PROGRESSION_KEYS.map { rootName(it) }, PROGRESSION_KEYS.indexOf(key), { key = PROGRESSION_KEYS[it] },
+            Modifier.padding(horizontal = 20.dp).widthIn(max = 520.dp).fillMaxWidth(), height = 40.dp,
+            descriptions = PROGRESSION_KEYS.map { "Key of ${rootName(it)}" })
+        PupLine(if (playing != null) Pose.LISTENING else Pose.LEARNING,
+            "Tap a row to hear it. Practice opens it in the player: chords in the right hand, roots in the left.",
+            Modifier.padding(horizontal = 16.dp))
+        PROGRESSIONS.forEachIndexed { pi, p ->
+            val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
+            Column(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .clickable(onClickLabel = "Hear it") { if (playing?.first == pi) job?.cancel() else hear(pi) }.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(p.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { job?.cancel(); onPlay(p, key) }) { Text("Practice") }
+                }
+                // The chords as tiles that light one after another while it plays.
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    chords.forEachIndexed { i, ch ->
+                        val lit = playing == pi to i
+                        val bg by animateColorAsState(if (lit) c.primary else c.surfaceContainerHigh, tween(120), label = "tile")
+                        Column(Modifier.size(width = if (chords.size > 4) 56.dp else 72.dp, height = 64.dp).clip(RoundedCornerShape(12.dp)).background(bg),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(ch.name, style = MaterialTheme.typography.titleMedium.copy(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold),
+                                color = if (lit) c.onPrimary else c.onSurface, maxLines = 1)
+                            Text(p.degrees[i].numeral, style = MaterialTheme.typography.labelSmall, color = if (lit) c.onPrimary else c.onSurfaceVariant, maxLines = 1)
+                        }
+                    }
+                }
+            }
         }
     }
 }
