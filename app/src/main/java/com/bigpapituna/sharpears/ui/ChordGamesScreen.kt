@@ -60,6 +60,11 @@ import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.NoteEvent
 import com.bigpapituna.sharpears.engine.chordTitle
 import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.ui.ear.CardGrid
+import com.bigpapituna.sharpears.ui.ear.GameCard
+import com.bigpapituna.sharpears.ui.ear.GameSheet
+import com.bigpapituna.sharpears.ui.ear.MiniKeys
+import com.bigpapituna.sharpears.ui.ear.STAR_AT
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -85,24 +90,42 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
         return
     }
     val v = prefs.version.intValue
-    Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 24.dp)) {
-        GameKind.entries.forEach { g ->
-            val level = levels[g] ?: 0
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(g.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                Text(g.howToFor(level), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    g.levels.forEachIndexed { i, name -> FilterChip(level == i, { levels[g] = i }, label = { Text(name) }) }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val best = if (v >= 0) prefs.gameBest(g.id, level) else -1
-                    Text(if (best < 0) "Not played yet" else "Best $best of 10", style = Numeric.merge(MaterialTheme.typography.labelLarge),
-                        color = if (best >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    FilledTonalButton(onClick = { playing = g to level }) { Text("Play") }
-                }
+    var sheet by remember { mutableStateOf<GameKind?>(null) }
+    fun bests(g: GameKind) = g.levels.indices.map { if (v >= 0) prefs.gameBest(g.id, it) else -1 }
+    // Each game opens on its first level not yet mastered, until another is picked in its sheet.
+    fun levelOf(g: GameKind) = levels[g] ?: bests(g).indexOfFirst { it < STAR_AT }.let { if (it < 0) g.levels.lastIndex else it }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            PupSays(Pose.GET_READY, "Pick a game. Each one is ten quick rounds on the keys.", size = 64.dp)
+            CardGrid(GameKind.entries.size) { i, m ->
+                val g = GameKind.entries[i]
+                val level = levelOf(g)
+                val b = bests(g)
+                GameCard(g.title, level, b.map { it >= STAR_AT }, b[level], onOpen = { sheet = g }, onPlay = { playing = g to level },
+                    modifier = m, artOnPanel = true) { ChordArt(g) }
             }
         }
     }
+    sheet?.let { g ->
+        GameSheet(g.title, g::howToFor, g.levels, bests(g), levelOf(g), onPlay = { l -> levels[g] = l; sheet = null; playing = g to l },
+            onDismiss = { sheet = null }, artOnPanel = true) { ChordArt(g) }
+    }
+}
+
+/** Each chord game's picture: a mini keyboard showing the game's idea. */
+@Composable
+private fun ChordArt(g: GameKind) = when (g) {
+    // A chord building up from its root: C, then E, then G.
+    GameKind.BUILD -> MiniKeys { t -> mapOf(60 to 1f, 64 to ((t - 0.25f) * 6).coerceIn(0f, 1f), 67 to ((t - 0.55f) * 6).coerceIn(0f, 1f)) }
+    // A chord ringing: all three keys pulse together.
+    GameKind.HEAR -> MiniKeys(periodMs = 1600) { t -> val a = 0.45f + 0.55f * kotlin.math.sin(t * Math.PI).toFloat(); mapOf(60 to a, 64 to a, 67 to a) }
+    // The third flips between E (major) and E flat (minor).
+    GameKind.MAJOR_MINOR -> MiniKeys(periodMs = 2600) { t -> mapOf(60 to 1f, 67 to 1f, (if (t < 0.5f) 64 else 63) to 1f) }
+    // Two notes a fifth apart, joined by an arc.
+    GameKind.INTERVALS -> MiniKeys(arc = 60 to 67) { t -> mapOf(60 to 1f, 67 to ((t - 0.35f) * 5).coerceIn(0f, 1f)) }
+    // A short tune: one key after another.
+    GameKind.PLAYBACK -> MiniKeys(periodMs = 3000) { t -> val notes = listOf(60, 62, 64, 65, 67, 64); mapOf(notes[(t * notes.size).toInt().coerceAtMost(notes.lastIndex)] to 1f) }
 }
 
 private enum class Phase { PROMPT, ANSWER, BETWEEN }
