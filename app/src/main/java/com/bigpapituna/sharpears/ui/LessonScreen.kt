@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -55,21 +56,31 @@ import com.bigpapituna.sharpears.engine.feedbackLine
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.toSong
+import com.bigpapituna.sharpears.ui.theory.SceneBar
+import com.bigpapituna.sharpears.ui.theory.SceneControls
+import com.bigpapituna.sharpears.ui.theory.ScenePreview
+import com.bigpapituna.sharpears.ui.theory.SceneStage
+import com.bigpapituna.sharpears.ui.theory.pose
+import com.bigpapituna.sharpears.ui.theory.rememberScenePlayback
 
 /** Everything a lesson needs from the activity. */
 class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput, val voice: Voice, val prefs: Prefs, val ready: Boolean)
 
 /**
- * One lesson, a step at a time: the step's text at the top (and read aloud), its exercise in the embedded
- * player, a row of progress dots, Back and Next. An exercise step completes itself when its run ends (a Perform
- * step at its pass mark); then the feedback line and the next step's text are spoken and the next step opens.
- * The lesson is done when its last step completes. [inject] (debug) feeds the mic for the step opened first.
+ * One lesson, a step at a time, under a row of progress dots, with Back and Next. A reading step is a short
+ * explainer (2.0.1): the pup says each scene's caption (aloud too) over its animated picture on the stage, the
+ * scenes playing one after another; Pause and Watch again work as in Theory, and Next moves through the scenes and
+ * then on. An exercise step shows the pup with its instruction (read aloud) over the embedded player and completes
+ * itself when its run ends (a Perform step at its pass mark); then the feedback line is spoken and the next step
+ * opens. The lesson is done when its last step completes. [inject] (debug) feeds the mic for the step opened first.
  */
 @Composable
 fun LessonScreen(
     lesson: CourseLesson, startStep: Int, deps: LessonDeps, inject: String?,
     /** Debug: MIDI input played into the first step (see MidiDevices.debugPlay). */
     midiScript: String? = null,
+    /** Debug (--ei scene n): the scene a reading step opened first starts on. */
+    startScene: Int = 0,
     onStep: (Int) -> Unit, onSong: (() -> Unit)?, onDone: () -> Unit, onNext: (() -> Unit)?, onBack: () -> Unit,
 ) {
     val (level, _) = ALL.first { it.second == lesson }
@@ -94,12 +105,22 @@ fun LessonScreen(
     val step = lesson.steps[index]
     val last = index == lesson.steps.lastIndex
     val voice = deps.voice
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clicks = remember { runCatching { com.bigpapituna.sharpears.audio.Clicks(context) }.getOrNull() }
+    DisposableEffect(Unit) { onDispose { clicks?.release() } }
+    // A reading step plays its scenes; the pup says each caption as it comes (queued behind a feedback line after
+    // an automatic advance).
+    val reading = step.kind == StepKind.READ && step.scenes.isNotEmpty() && !finished
+    val scenes = if (reading) key(index) {
+        rememberScenePlayback(step.scenes, deps.sampler, clicks, voice, start = if (index == startStep) startScene else 0,
+            tag = "lesson ${lesson.id} step ${index + 1}", interruptFirst = !advancedByItself)
+    } else null
 
-    // Read each step out as it opens. After an automatic advance the feedback line is already queued, so no interrupt.
+    // Read each exercise step out as it opens. After an automatic advance the feedback line is already queued, so no interrupt.
     LaunchedEffect(index) {
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1}/${lesson.steps.size} ${step.kind}")
         onStep(index)
-        voice.speak(step.text.replace("\n\n", " "), interrupt = !advancedByItself)
+        if (step.scenes.isEmpty()) voice.speak(step.text.replace("\n\n", " "), interrupt = !advancedByItself)
         advancedByItself = false
     }
 
@@ -113,7 +134,7 @@ fun LessonScreen(
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak("Lesson complete.")
-        } else { advancedByItself = true; index++ }
+        } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
         val passed = s.passed(report)
@@ -152,25 +173,35 @@ fun LessonScreen(
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
-                if (!finished && feedback == null && step.exercise != null) Pup(reaction ?: when {
-                    step.kind == StepKind.LISTEN -> Pose.LISTENING
-                    else -> Pose.PRACTICING
-                }, size = 64.dp)
             }
-            StepDots(lesson.steps.size, index, finished, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 14.dp))
-            feedback?.takeIf { !finished && bar == null }?.let {
-                PupSays(reaction ?: Pose.PRACTICING, it, Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 64.dp)
-            }
+            StepDots(lesson.steps.size, index, finished, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 10.dp))
             if (finished) {
                 // The celebration covers the screen (below).
             } else if (step.kind.needsMidi && deps.midi.connected.value == null) {
-                // No keyboard: say why, and let the step be skipped.
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(step.text, style = MaterialTheme.typography.bodyLarge)
-                    Text(if (deps.prefs.micDefault) "This step needs a MIDI keyboard. The microphone hears which notes you play, not the pedal or how hard you strike."
+                // No keyboard: the pup says why over a keyboard being plugged in; the step starts once one is, or is skipped.
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PupSays(Pose.LEARNING, if (deps.prefs.micDefault) "This step needs a MIDI keyboard. The microphone hears which notes you play, not the pedal or how hard you strike."
                         else "This step needs a MIDI keyboard connected by USB: only MIDI reports the pedal and how hard each key is struck.",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Modifier.padding(horizontal = 4.dp), size = 64.dp, style = MaterialTheme.typography.bodyLarge)
+                    Box(Modifier.weight(1f, fill = false).fillMaxWidth().heightIn(max = 300.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                        ScenePreview(MIDI_NEEDED, Modifier.fillMaxSize().padding(6.dp), loop = true,
+                            description = "A digital piano plugged into the phone by a USB cable, sending the pedal and how hard each key is struck")
+                    }
+                    Text("Plug one in by USB and this step starts by itself.", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
                     OutlinedButton(onClick = { Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skipped (needs MIDI)"); complete() }) { Text("Skip (needs MIDI)") }
+                }
+            } else if (scenes != null) {
+                // The explainer: the scene bar, the pup with the scene's caption, the stage.
+                Column(Modifier.weight(1f).semantics { contentDescription = step.text }) {
+                    if (step.scenes.size > 1) SceneBar(step.scenes.size, scenes.index, scenes::fraction)
+                    PupSays(scenes.scene.mood.pose(), scenes.scene.caption, Modifier.padding(top = 12.dp, bottom = 12.dp).heightIn(min = 72.dp), size = 72.dp)
+                    SceneStage(scenes, Modifier.weight(1f), roomier = true)
+                    if (last && onSong != null) ChunkyButton(onClick = { voice.stop(); onSong() }, Modifier.padding(top = 12.dp)) {
+                        Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.size(6.dp)); Text("Open the song")
+                    }
                 }
             } else if (step.exercise == null) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -184,7 +215,9 @@ fun LessonScreen(
                     }
                 }
             } else {
-                Text(step.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp))
+                // The pup gives the instruction (his face answers each try for a few seconds).
+                PupSays(reaction ?: if (step.kind == StepKind.LISTEN) Pose.LISTENING else Pose.PRACTICING, step.text,
+                    Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge)
                 val ex = step.exercise
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     // The stage is always dark, like the full player: the one raised panel on this screen.
@@ -211,10 +244,16 @@ fun LessonScreen(
         Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (finished && onNext != null) OutlinedButton(onClick = onBack) { Text("All lessons") }
-            if (index > 0 && !finished) OutlinedButton(onClick = { go(index - 1); run++ }) { Text("Back") }
+            // Back steps through the scenes of a reading step first, then to the step before.
+            if (!finished && (index > 0 || (scenes?.index ?: 0) > 0)) OutlinedButton(onClick = {
+                val sc = scenes
+                if (sc != null && sc.index > 0) sc.go(sc.index - 1) else { go(index - 1); run++ }
+            }) { Text("Back") }
+            if (scenes != null) SceneControls(scenes, voice, "lesson ${lesson.id}:")
             Spacer(Modifier.weight(1f))
             when {
                 finished -> onNext?.let { ChunkyButton(onClick = it) { Text("Next lesson") } } ?: ChunkyButton(onClick = onBack) { Text("Done") }
+                scenes != null && !scenes.last -> ChunkyButton(onClick = { scenes.go(scenes.index + 1) }) { Text("Next") }
                 last && step.exercise == null -> ChunkyButton(onClick = { complete() }) { Text("Finish") }
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
                 else -> ChunkyButton(onClick = { go(index + 1); run++ }) { Text("Next") }
@@ -239,6 +278,12 @@ fun LessonScreen(
     )
     }
 }
+
+/** What the MIDI-needed state shows: a keyboard plugged in, sending the pedal and how hard each key is struck. */
+private val MIDI_NEEDED = com.bigpapituna.sharpears.engine.theory.MidiVisual(listOf(
+    com.bigpapituna.sharpears.engine.theory.MidiSignal(null, 0, "Pedal down"),
+    com.bigpapituna.sharpears.engine.theory.MidiSignal(60, 40, "Soft, 40"),
+    com.bigpapituna.sharpears.engine.theory.MidiSignal(60, 112, "Loud, 112")))
 
 /** The step's fixed hand and mode, shown in the embedded player's bar. */
 private fun stateLabel(step: Step): String {
