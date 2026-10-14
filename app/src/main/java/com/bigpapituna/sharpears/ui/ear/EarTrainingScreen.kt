@@ -3,18 +3,20 @@ package com.bigpapituna.sharpears.ui.ear
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,10 +31,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.audio.Clicks
@@ -51,7 +55,7 @@ import com.bigpapituna.sharpears.ui.Celebration
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Numeric
 import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.PupSays
+import com.bigpapituna.sharpears.ui.Pup
 import com.bigpapituna.sharpears.ui.Stat
 
 /** Where the hub opens: straight into a game (or the workout), for debugging and for deep links from the course. */
@@ -137,56 +141,93 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
     )
 }
 
+/**
+ * The hub: today's workout as the hero panel (the pup, the streak, the three games as little tiles, one big
+ * button), then the five games as a grid of cards. A card opens its sheet (how to play, level, Play); its round
+ * button plays the level it shows straight away.
+ */
 @Composable
 private fun Hub(store: EarStore, onBack: () -> Unit, onGame: (EarKind, Int) -> Unit, onWorkout: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val v = store.version.intValue
     val today = EarStore.today()
-    // Each game opens on the first level not yet mastered, the one the workout would pick.
+    // Each game opens on the first level not yet mastered, the one the workout would pick, until another is chosen.
     val levels = remember { mutableStateMapOf<EarKind, Int>() }
+    var sheet by remember { mutableStateOf<EarKind?>(null) }
     val plan = remember(v) { Workout.plan(store, today) }
     val doneToday = remember(v) { store.workoutDoneToday(today) }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 28.dp),
+    val streak = remember(v) { store.workoutStreak(today) }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
+        Column(Modifier.widthIn(max = 960.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
                 Text("Ear training", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 4.dp).semantics { heading() })
             }
-            // The one raised panel: today's workout.
-            Column(Modifier.padding(top = 8.dp).fillMaxWidth().background(c.surfaceContainerHigh, RoundedCornerShape(20.dp)).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Daily workout", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                PupSays(if (doneToday) Pose.RESTING else Pose.GET_READY,
-                    if (doneToday) "Done for today. Go again if you like." else "Three games, about five minutes, picked for you.")
-                Text(plan.items.joinToString(", ") { it.kind.title }, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
-                val streak = store.workoutStreak(today)
-                val last = store.lastWorkout()
-                if (streak > 0 || last != null) Text(
-                    listOfNotNull(if (streak > 0) "$streak ${if (streak == 1) "day" else "days"} in a row" else null, last?.let { "Last score $it" }).joinToString(". ") + ".",
-                    style = Numeric.merge(MaterialTheme.typography.labelLarge), color = c.primary)
-                ChunkyButton(onClick = onWorkout, modifier = Modifier.fillMaxWidth()) { Text(if (doneToday) "Do it again" else "Start workout") }
-            }
-            EarKind.entries.forEach { kind ->
+            WorkoutHero(plan, doneToday, streak, store.lastWorkout(), onWorkout, Modifier.padding(top = 8.dp))
+            Text("Games", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp, top = 24.dp, bottom = 10.dp).semantics { heading() })
+            CardGrid(EarKind.entries.size) { i, m ->
+                val kind = EarKind.entries[i]
                 val level = levels[kind] ?: Workout.levelFor(store, kind)
-                Column(Modifier.padding(top = 26.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(kind.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                    Text(kind.howToFor(level), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        kind.levels.forEachIndexed { i, name ->
-                            val mastered = store.best(kind, i) >= Workout.MASTERED
-                            FilterChip(level == i, { levels[kind] = i }, label = { Text("${i + 1}: $name") },
-                                leadingIcon = if (mastered) ({ Icon(painterResource(R.drawable.ic_check), contentDescription = "Mastered", modifier = Modifier.size(18.dp)) }) else null)
-                        }
+                GameCard(kind.title, level, kind.levels.indices.map { store.best(kind, it) >= STAR_AT }, store.best(kind, level),
+                    onOpen = { sheet = kind }, onPlay = { onGame(kind, level) }, modifier = m) { EarArt(kind) }
+            }
+        }
+    }
+    sheet?.let { kind ->
+        val level = levels[kind] ?: Workout.levelFor(store, kind)
+        GameSheet(kind.title, kind::howToFor, kind.levels, kind.levels.indices.map { store.best(kind, it) }, level,
+            onPlay = { l -> levels[kind] = l; sheet = null; onGame(kind, l) }, onDismiss = { sheet = null }) { EarArt(kind, big = true) }
+    }
+}
+
+/** The daily workout: the one raised panel, in the pup's colours, with the streak and the three games of the plan. */
+@Composable
+private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last: String?, onStart: () -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val minutes = (plan.estimatedSeconds + 30) / 60
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.primaryContainer).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Pup(if (doneToday) Pose.RESTING else Pose.GET_READY, size = 92.dp, onTap = {})
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Daily workout", style = MaterialTheme.typography.headlineSmall, color = c.onPrimaryContainer,
+                    modifier = Modifier.semantics { heading() })
+                Text(if (doneToday) "Done for today. Fancy another round?" else "Three games, about $minutes minutes, picked for you.",
+                    style = MaterialTheme.typography.bodyMedium, color = c.onPrimaryContainer)
+                if (last != null && doneToday) Text("Today's score $last", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = c.primary)
+            }
+            if (streak > 0) StreakBadge(streak)
+        }
+        Text(if (doneToday) "Next workout" else "Today", style = MaterialTheme.typography.labelLarge, color = c.onPrimaryContainer.copy(alpha = 0.75f))
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            plan.items.forEach { item ->
+                Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerLowest.copy(alpha = 0.7f)).padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                        EarArt(item.kind)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val best = store.best(kind, level)
-                        Text(if (best < 0) "Not played yet" else "Best $best of 10", style = Numeric.merge(MaterialTheme.typography.labelLarge),
-                            color = if (best >= 0) c.primary else c.onSurfaceVariant, modifier = Modifier.weight(1f))
-                        FilledTonalButton(onClick = { onGame(kind, level) }) { Text("Play") }
-                    }
+                    Text(item.kind.title, style = MaterialTheme.typography.labelLarge, color = c.onSurface, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
+                    Text("${item.rounds} rounds", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 2.dp))
                 }
             }
         }
+        ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text(if (doneToday) "Do it again" else "Start workout") }
+    }
+}
+
+/** Days in a row with a workout: a big number in a ring, or a nudge to start one. */
+@Composable
+private fun StreakBadge(streak: Int) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(if (streak > 0) c.primary else c.surfaceContainerLowest.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center) {
+            Text("$streak", style = Numeric.merge(MaterialTheme.typography.headlineSmall).copy(fontWeight = FontWeight.SemiBold),
+                color = if (streak > 0) c.onPrimary else c.onSurfaceVariant)
+        }
+        Text(if (streak == 1) "day" else "days", style = MaterialTheme.typography.labelSmall, color = c.onPrimaryContainer)
     }
 }

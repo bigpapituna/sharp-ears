@@ -261,7 +261,8 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
                     }
                 }
             }
-            Text(trainer.kind.howToFor(trainer.level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // The how-to shows in the first round only; the hub sheet has it too.
+            if (round == 0) Text(trainer.kind.howToFor(trainer.level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (usesKeys) Keyboard(
                 LOW, HIGH, lit = lit,
                 onNoteOn = { m, vel -> touched[m] = RightHandColor; if (touchSound()) env.sampler.noteOn(m, vel); strike(m, "touch") },
