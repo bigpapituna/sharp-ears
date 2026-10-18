@@ -119,11 +119,11 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
     lesson(1, "High and low", "Make the pup fly with high keys, and land him with low ones.",
         read(
             scene("Keys on the left sound low, like a big bear. Keys on the right sound high, like a little bird.",
-                keys("C2", "C7", listOf(frame("C2", "Low"), frame("C3"), frame("C4"), frame("C5"), frame("C6"), frame("C7", "High", Tint.BLUE)),
-                    stepMs = 650, names = KeyNames.NONE), Mood.LISTEN),
+                keys("C3", "C6", listOf(frame("C3", "Low"), frame("G3", "Low"), frame("C4"), frame("G4"), frame("C5", "High", Tint.BLUE),
+                    frame("C6", "High", Tint.BLUE)), stepMs = 650, names = KeyNames.NONE), Mood.LISTEN),
             scene("Play a high key and I fly up. Play a low key and I land.",
-                keys("C2", "C7", listOf(frame("C6", "Fly up", Tint.BLUE), frame("C3", "Land", clear = true), frame("A6", "Fly up", Tint.BLUE, clear = true),
-                    frame("E2", "Land", clear = true)), stepMs = 1000, names = KeyNames.NONE), Mood.POINT)),
+                keys("C3", "C6", listOf(frame("C6", "Fly up", Tint.BLUE), frame("C3", "Land", clear = true), frame("A5", "Fly up", Tint.BLUE, clear = true),
+                    frame("E3", "Land", clear = true)), stepMs = 1000, names = KeyNames.NONE), Mood.POINT)),
         play("Fly me up! Play any key on the high side, three times.",
             Exercise(right = rounds(high("C6"), high("G6"), high("C7")), bpm = 60.0, practice = Practice.RIGHT), Game.HIGH_LOW),
         play("Now bring me down to the grass. Play any key on the low side, three times.",
@@ -155,7 +155,7 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
             scene("Find a dog house. The white key just to its left is C.",
                 keys("C3", "B5", listOf(frame("C#4 D#4", "Dog house", Tint.BLUE), frame("C4", "C")), stepMs = 1300, names = KeyNames.NONE), Mood.POINT),
             scene("Every dog house has a C beside it, from low to high.",
-                keys("C2", "C7", walk("C2 C3 C4 C5 C6", mapOf(0 to "C", 4 to "C")), stepMs = 700, finale = "C3 C4 C5"), Mood.LISTEN),
+                keys("C2", "C6", walk("C2 C3 C4 C5 C6", mapOf(0 to "C", 4 to "C")), stepMs = 700, finale = "C3 C4 C5"), Mood.LISTEN),
             scene("The C nearest the middle is middle C. It is your home key.",
                 keys("C3", "B5", listOf(frame("C4", "Middle C")), stepMs = 1500, names = KeyNames.NONE), Mood.CHEER)),
         play("Find a C. Any C will do!",
@@ -254,7 +254,7 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
 
     lesson(12, "Pup's concert", "Play a song for everyone, with the band.",
         read(
-            scene("Tonight is my concert, and you are the star!", pop("Lights", "band", "you!", notes = listOf("C4+E4+G4", "F4+A4+C5", "G4+B4+D5"), stepMs = 800),
+            scene("Tonight is my concert, and you are the star!", pop("The lights", "The band", "And you!", notes = listOf("C4+E4+G4", "F4+A4+C5", "G4+B4+D5"), stepMs = 800),
                 Mood.CHEER),
             scene("Pick a song. The notes keep moving, so if you slip, just keep going.", lane(BUNS_X.bite().right, "C3:4 C3:4", bpm = 72), Mood.POINT)),
         perform("Play your song for everyone, right to the end!", CONCERT_SONGS.first().exercise, Game.CONCERT),
