@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -137,6 +138,20 @@ fun Modifier.centerAt(x: Float, y: Float): Modifier = this.layout { m, c ->
     layout(c.maxWidth, c.maxHeight) { p.place((x * c.maxWidth - p.width / 2f).roundToInt(), (y * c.maxHeight - p.height / 2f).roundToInt()) }
 }
 
+/** A scene's still parts, painted once into a bitmap per size (the holder is remembered per place, stage, theme and egg). */
+private class SceneFront {
+    private var image: ImageBitmap? = null
+    private var size = Size.Zero
+
+    fun image(scope: DrawScope, paint: DrawScope.() -> Unit): ImageBitmap {
+        image?.let { if (size == scope.size) return it }
+        val bitmap = ImageBitmap(scope.size.width.roundToInt().coerceAtLeast(1), scope.size.height.roundToInt().coerceAtLeast(1))
+        CanvasDrawScope().draw(scope, scope.layoutDirection, Canvas(bitmap), scope.size) { paint() }
+        image = bitmap; size = scope.size
+        return bitmap
+    }
+}
+
 /**
  * One place of the pup's world as a flat scene drawn in code in the pup's style (thin brown outlines, pastel colour,
  * day in light theme and dusk in dark): the garden with the dog house at [WorldState.house]'s stage, the pond, the
@@ -162,9 +177,13 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
         // Everything that stands still is drawn once into a bitmap (per size, theme, stage and egg); each tick of the
         // scene clock only paints the sky, that bitmap, and the few things that move. Its own layer keeps the
         // stickers' and the pup's animation from redrawing it.
-        Spacer(Modifier.fillMaxSize().graphicsLayer().drawWithCache {
-            val front = ImageBitmap(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1))
-            CanvasDrawScope().draw(this, layoutDirection, Canvas(front), size) {
+        // The bitmap lives in a remembered holder, not in drawWithCache: a recomposition of the screen around the scene
+        // (the pup next to it hops, the jar fills) hands drawWithCache a new lambda, which threw the cache away and
+        // painted the whole garden again into a fresh bitmap on every frame.
+        val front = remember(place, stage, night, egg) { SceneFront() }
+        val p = remember(night) { Palette(night) }
+        Spacer(Modifier.fillMaxSize().graphicsLayer().drawBehind {
+            val still = front.image(this) {
                 when (place) {
                     Place.GARDEN -> drawGarden(stage, night, egg)
                     Place.POND -> drawPond(night)
@@ -172,15 +191,14 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
                 }
                 drawTrail(trailPath(place, size), place, night)
             }
-            val p = Palette(night)
-            onDrawBehind {
+            run {
                 val tick = t.value
                 when (place) {
                     Place.GARDEN -> { skyBase(p, night, 0.45f); skyLife(p, night, tick, 0.45f) }
                     Place.POND -> { skyBase(p, night, 0.38f); skyLife(p, night, tick, 0.38f) }
                     Place.CONCERT -> {}
                 }
-                drawImage(front)
+                drawImage(still)
                 when (place) {
                     Place.GARDEN -> drawHouseLife(stage, HOUSE_BASE.toOffset(size), size.width * HOUSE_W, tick)
                     Place.POND -> ripples(tick)
@@ -209,7 +227,12 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
             val (a, k) = if (setting) WorldAnchors.SUNSET else WorldAnchors.item(s)
             val tap = if (onSticker == null) Modifier else Modifier.clickable(role = Role.Button) { onSticker(s) }
             val sunset = if (!setting) Modifier else Modifier.drawWithContent { clipRect(bottom = size.height * 0.6f) { this@drawWithContent.drawContent() } }
-            StickerImage(s, Modifier.centerAt(a.x, a.y).size(w * k).then(sunset).then(tap).semantics { contentDescription = s.name },
+            // Kept whole inside the scene (a few anchors sit so near an edge that a tilted sticker was cut off there).
+            val halfX = k / 2f + 0.015f
+            val halfY = k * SCENE_RATIO / 2f + 0.015f
+            val cx = if (setting) a.x else a.x.coerceIn(halfX, 1f - halfX)
+            val cy = if (setting) a.y else a.y.coerceIn(halfY, 1f - halfY)
+            StickerImage(s, Modifier.centerAt(cx, cy).size(w * k).then(sunset).then(tap).semantics { contentDescription = s.name },
                 tilt = if (setting) 0f else s.tilt(), shadow = !setting)
         }
         if (place == Place.CONCERT) Scenery.audience(owned).forEachIndexed { i, s ->
