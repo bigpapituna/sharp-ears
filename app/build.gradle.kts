@@ -11,8 +11,8 @@ android {
         applicationId = "com.bigpapituna.sharpears"
         minSdk = 28   // Android 9: microphone addresses (bottom/back) need API 28
         targetSdk = 37
-        versionCode = 4
-        versionName = "2.0.2"
+        versionCode = 5
+        versionName = "2.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }   // the Fold and the emulator; keeps the speech library small
     }
