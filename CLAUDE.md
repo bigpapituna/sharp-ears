@@ -302,7 +302,6 @@ ui/kid/INTEGRATION.md.
   app/build/screens/kid-*.png (not committed).
 - Not proven: no kid has seen it; the pond and the hall exist only as layouts until the pages branch lands; frame time of
   the map on the Fold (emulator only, swiftshader).
->>>>>>> kidhome
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

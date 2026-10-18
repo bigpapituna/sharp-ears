@@ -40,7 +40,6 @@ Not yet:
   CLAUDE.md, 2.2 pages.)
 - A second Playground page, by design (section 9). 2.2: the pond and the concert hall pages are being written on the
   `pages` branch; the kid home draws whatever PLAYGROUND_PAGES holds.
->>>>>>> kidhome
 
 Written 2026-10-18. Status at writing: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
 phone and one piano, in a room with talking, on visits (so short sessions, new kids set up in seconds).
