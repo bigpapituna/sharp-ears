@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -141,11 +143,16 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: In
                 }
                 Column(Modifier.weight(0.58f).verticalScroll(rememberScrollState()).graphicsLayer { alpha = rise.value; translationY = (1 - rise.value) * 80f },
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp), content = prize)
-            } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                head()
-                Column(Modifier.graphicsLayer { alpha = rise.value; translationY = (1 - rise.value) * 80f }, horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp), content = prize)
+            } else Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // The album page and the certificate scroll; "Keep going" stays in view under them (on a phone it sat
+                // below the certificate, out of sight, and a kid who cannot read had nothing to tap).
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    head()
+                    Column(Modifier.graphicsLayer { alpha = rise.value; translationY = (1 - rise.value) * 80f }, horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp), content = prize)
+                }
+                Spacer(Modifier.height(12.dp))
                 go()
             }
         }
