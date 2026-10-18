@@ -65,6 +65,16 @@ What each team delivers (details and copy in docs/KIDS-PLAN.md):
   with the accuracy number hidden for kids, kid RunWords, bigger keys for kids, the session goodbye and the paw
   calendar, no red flashes for kids (head tilt instead: expose `onWrong` for the World team's pup). Tests: colour
   mapping, star thresholds, kid words, bite cutting. Screenshots on 5558.
+- **detector and skin, together (Roy, 2026-10-18 evening)**: a wrong key lights up on the keyboard and the lane,
+  ON BY DEFAULT for every profile (the old default, flashes off because of room noise, flips; the toggle stays).
+  Yellow when the wrong key is within two semitones of an expected note (a slip to a neighbour), red when it is
+  further. The detector team makes `MicEvent.Wrong` carry the nearest expected midi and the semitone distance,
+  and only raises it on a confident strike (fresh attack, clear rise) so talking and TV in the room do not paint
+  keys; measure the false-wrong rate on the session recordings (FixtureTest prints "would-be wrong flashes";
+  session-155837 must stay low) and tune before flipping the default. The skin team draws it: the key and its
+  falling-note column glow yellow or red for about 600 ms with a short shake, kids get the same colours but the
+  pup's head tilt instead of any wording like "wrong". Test: distance classification, and a fixture replay
+  asserting the wrong count on 155837 does not rise above the current number.
 - **detector**: hint escalation (glow, painted hand points, app plays it) with per-profile timings; the octave
   hint from the 2026-10-17 clips (when the strongest rejected candidate is an octave from an expected note for
   two seconds: pup line + arrow overlay in ui/hints); per-profile mic sensitivity offset; a raw-frame tap on

@@ -52,6 +52,9 @@ skin is only the presentation layer on top (section 3). So, for adults and kids 
   (a recording plus a card) for anyone, not only Grandma.
 - **Family wall, duet, take turns, crown of the day**: for every profile.
 - **Octave hint and hint escalation**: for everyone, with adult timings (6, 12, 18 s) and kid timings (4, 8, 12 s).
+- **Wrong key shown, by default.** The key you hit lights yellow when it is within two semitones of the right one
+  and red when it is further away, for every profile (toggle stays in Settings). Only on confident strikes, so
+  room talk does not paint keys.
 - **Stars** are shown for everyone; adults also see the accuracy number. Colour notes are a toggle adults can turn
   on (many adult beginners use colour books too).
 
