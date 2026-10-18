@@ -134,6 +134,12 @@ ender_voice.py.
 - Songs, recap, path, between parts (2026-10-14, branch fix-songs-player, emulator-5554 only): song rows lead with a falling-notes tile drawn from the file's opening (engine/SongArt, parsed once off the main thread in ui/SongTiles.kt), stars, length and a best-score ring; a song run ends on ui/RunRecap.kt (pup by result, accuracy ring, stat chips, +XP and level bar, coaching line from engine/RunWords, Loop bar and Hear my run as secondary); Learn stops show their title and a kind icon (engine/LessonKind); the Practice today interstitial is centred with the pup's quoted line (engine/SessionWords), part chips and a Go ring that still auto-advances. Open: MainActivity's Interstitial call needs parts = s.plan.parts, index = s.index, done = s.done for the chips.
 - Open: skipped ear rounds still earn the 5 XP of a round (Team D reports every round); onboarding and the pup's tap lines
   are shown, not spoken, so they are not in the voice catalog.
+- Painted hand (2026-10-17, branch painted-hand, emulator-5556 only): the owner's Gemini hand frames (art/hand, README there)
+  cut by scripts/cut_hand.py to res/drawable-nodpi/hand_*.webp plus ui/motion/HandAnchors.kt (hand-measured nail centres);
+  presses for fingers 2 and 4 are made from the resting frame; the left hand rests on right 3 mirrored. ui/motion/PaintedHand.kt
+  (HandPose, drawPaintedHand, handTip, PaintedHand with spring and cross-fade) draws it in the HandShape and FingerNumbers
+  scenes and the player's ghost hand (60%, drawn hand as fallback); Posture and Pedal use the soft realistic figure and foot
+  (ui/theory/SoftFigure.kt, from art-styles). Practice tab keeps its dot only (the hand muddied the lit keys).
 
 ## 2.0.1 engaging lessons (2026-10-14, branch `engaging-lessons`)
 Roy: "I don't like areas that have just text." Every Learn reading step is now a short animated explainer, like Theory.
