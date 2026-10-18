@@ -800,10 +800,10 @@ class MainActivity : ComponentActivity() {
                                 // The garden's jar and egg, as on the world screen: a full jar is tipped for the pup; the pup says
                                 // what the egg and an unfilled jar are about.
                                 onJar = {
-                                    if (world.tip()) { WorldSounds.munch(); voice.speak("Yum! Thank you!", interrupt = true) }
+                                    if (world.tip()) { WorldSounds.munch(); voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.YUM, interrupt = true) }
                                     else voice.speak(com.bigpapituna.sharpears.ui.world.jarLine(world.state.jar, kid = true, world.state.treats), interrupt = true)
                                 },
-                                onEgg = { voice.speak("A mystery egg! It hatches when you finish your next game.", interrupt = true) },
+                                onEgg = { voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.EGG, interrupt = true) },
                                 grownUps = if (!corner) null else com.bigpapituna.sharpears.ui.kid.GrownUpCorner(roster.profiles, current.id,
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },

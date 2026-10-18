@@ -17,6 +17,10 @@ object KidLines {
     const val ROAD = "You're ready for the big kids' road!"
     /** The bubble while lessons sleep after today's goodbye (songs and play stay open). */
     const val ASLEEP = "Shh, the pup is asleep. Play and songs are open!"
+    /** Tapping the full treat jar in the garden: the pup eats. */
+    const val YUM = "Yum! Thank you!"
+    /** Tapping the mystery egg in the garden. */
+    const val EGG = "A mystery egg! It hatches when you finish your next game."
     /** The bubble over the sleeping pup (the voice says [ASLEEP]). */
     const val ASLEEP_SHORT = "Zzz. New games tomorrow!"
 
@@ -48,7 +52,7 @@ object KidLines {
 
     /** Every line here without a name, for the voice catalog. */
     fun fixed(pages: List<PlaygroundPage> = PLAYGROUND_PAGES): List<String> = buildList {
-        add(LETS_GO); add(THIS_ONE_FIRST); add(ROAD); add(ASLEEP); add(ASLEEP_SHORT)
+        add(LETS_GO); add(THIS_ONE_FIRST); add(ROAD); add(ASLEEP); add(ASLEEP_SHORT); add(YUM); add(EGG)
         (0..3).forEach { add(signpost(it)); add(signpostShort(it)) }
         pages.forEach { p -> add(finished(null, p)); add(onward(Finale.after(p, pages))) }
     }.distinct()
