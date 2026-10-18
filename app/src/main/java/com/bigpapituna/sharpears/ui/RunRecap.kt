@@ -166,7 +166,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             // Side by side on a landscape screen and on a big square one (the Fold's inner screen), stacked on a phone.
             val wide = maxWidth > maxHeight * 1.2f || (maxWidth >= 720.dp && maxHeight < maxWidth * 1.3f)
-            val pupSize = if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
+            // A short landscape screen (the Fold's cover screen turned sideways): the stars move under the pup's words, so
+            // the right-hand side has room for the sticker above the way on.
+            val short = wide && maxHeight < 480.dp
+            val pupSize = if (short) min(maxHeight * 0.34f, 150.dp) else if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     Pup(pose, size = pupSize, onTap = {}, modifier = Modifier.graphicsLayer {
@@ -190,18 +193,18 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val drop: @Composable ColumnScope.() -> Unit = {
                 e.reward?.let { rw ->
                     Column(Modifier.fillMaxWidth().slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (kid) 132.dp else 116.dp)
+                        com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (short) 84.dp else if (kid) 132.dp else 116.dp)
                         com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle })
                     }
                 }
             }
             // The stars lead; they start landing as the headline pops (kids get them bigger, and nothing else).
             val starRow: @Composable ColumnScope.() -> Unit = {
-                StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) 72.dp else 48.dp,
+                StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) (if (short) 56.dp else 72.dp) else 48.dp,
                     sampler = sampler, startDelayMs = if (still) 0L else 420L)
             }
-            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { starRow(); drop() } } else { {
-                starRow()
+            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); drop() } } else { {
+                if (!short) starRow()
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.slideIn(m.rest, 0)) {
                     if (r != null) AccuracyRing(r.accuracy, m.count, if (wide) 104.dp else 116.dp)
@@ -227,11 +230,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             // Play again, always in view (with a peek at its drop: "one more"); the run played back, sent, and Close.
             val actions: @Composable () -> Unit = {
                 Column(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (nextDrop != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = onAgain, title = songTitle, label = "Play it again",
+                    // No room on a short screen for the peek at the next drop: Play it again is a plain button there.
+                    val peek = nextDrop.takeIf { !short }
+                    if (peek != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(peek, onClick = onAgain, title = songTitle, label = "Play it again",
                         delayMs = if (still) 0L else 1400L)
                     FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                        if (nextDrop == null) ChunkyButton(onClick = onAgain, modifier = Modifier.widthIn(min = 180.dp)) {
+                        if (peek == null) ChunkyButton(onClick = onAgain, modifier = Modifier.widthIn(min = 180.dp)) {
                             Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.size(8.dp))
                             Text("Play again")
@@ -245,7 +250,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             }
             if (wide) Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                Column(Modifier.weight(0.42f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), content = head)
+                Column(Modifier.weight(0.42f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    head()
+                    if (short) starRow()
+                }
                 Column(Modifier.weight(0.58f).fillMaxHeight().padding(vertical = 8.dp)) {
                     // The numbers scroll inside the space left over, so Play again never leaves the screen.
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
