@@ -2,27 +2,24 @@ package com.bigpapituna.sharpears.ui.world
 
 import android.os.SystemClock
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -53,14 +50,16 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.bigpapituna.sharpears.engine.kid.KidPages
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
+import com.bigpapituna.sharpears.engine.playground.PlaygroundPage
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.engine.world.Scenery
 import com.bigpapituna.sharpears.engine.world.Sticker
 import com.bigpapituna.sharpears.engine.world.Stickers
+import com.bigpapituna.sharpears.engine.world.Trail
 import com.bigpapituna.sharpears.engine.world.WorldState
-import com.bigpapituna.sharpears.ui.Numeric
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.Pup
 import com.bigpapituna.sharpears.ui.motion.BounceSize
@@ -77,27 +76,35 @@ const val SCENE_RATIO = 1f / 0.95f
 data class Anchor(val place: Place, val x: Float, val y: Float)
 
 /**
- * The points the integrator lays things on: the twelve Playground lesson stops along each place's trail (garden 1 to 4,
- * pond 5 to 8, concert hall 9 to 12, left to right), the dog house, the treat jar and the egg's nest in the garden,
- * the stage in the concert hall. [item] is where each collected sticker sits.
+ * The points the integrator lays things on: the Playground's lesson stops along each scene's trail (2.2: one scene per
+ * Playground page, engine/playground/Pages.kt, twelve stops each in three winding rows, engine/world/Trail.kt), the
+ * dog house, the treat jar and the egg's nest in the garden, the stage in the concert hall, the gate to the big kids'
+ * road. [item] is where each collected sticker sits.
  */
 object WorldAnchors {
-    private val stops = mapOf(
-        Place.GARDEN to listOf(0.15f to 0.63f, 0.38f to 0.83f, 0.62f to 0.64f, 0.85f to 0.82f),
-        Place.POND to listOf(0.15f to 0.80f, 0.38f to 0.91f, 0.62f to 0.79f, 0.85f to 0.90f),
-        Place.CONCERT to listOf(0.15f to 0.62f, 0.38f to 0.73f, 0.62f to 0.61f, 0.85f to 0.72f),
-    )
+    /** The scene a Playground page is drawn as. */
+    fun scene(page: PlaygroundPage): Place = KidPages.worldPlace(page)
 
-    /** Playground lesson [n] (1..12). */
-    fun lesson(n: Int): Anchor {
-        require(n in 1..12) { "Playground lessons are 1 to 12" }
-        val place = Place.entries[(n - 1) / 4]
-        val (x, y) = stops.getValue(place)[(n - 1) % 4]
-        return Anchor(place, x, y)
-    }
+    /**
+     * Playground lesson [n], 1-based along every page in order ([PLAYGROUND_PAGES]): its page's scene, its stop there
+     * (the lesson's place on the page). Null past the last page's last lesson.
+     */
+    fun lesson(n: Int, pages: List<PlaygroundPage> = PLAYGROUND_PAGES): Anchor? =
+        KidPages.locate(n, pages)?.let { (p, i) -> stop(scene(pages[p]), i, pages[p].lessonIds.size) }
 
-    /** The stops of [place], in order. */
-    fun stops(place: Place): List<Anchor> = stops.getValue(place).map { (x, y) -> Anchor(place, x, y) }
+    /** The Playground lesson [lessonId]'s stop, or null outside the Playground. */
+    fun lesson(lessonId: String, pages: List<PlaygroundPage> = PLAYGROUND_PAGES): Anchor? =
+        KidPages.locate(lessonId, pages)?.let { (p, i) -> stop(scene(pages[p]), i, pages[p].lessonIds.size) }
+
+    /** The stops of [place], in order: [count] of them (a page's lessons; twelve by default). */
+    fun stops(place: Place, count: Int = Trail.STOPS): List<Anchor> = Trail.stops(place, count).map { Anchor(place, it.x, it.y) }
+
+    /** Stop [i] (0-based) of a trail of [count] stops through [place]. */
+    fun stop(place: Place, i: Int, count: Int = Trail.STOPS): Anchor? =
+        Trail.stops(place, maxOf(count, i + 1)).getOrNull(i)?.let { Anchor(place, it.x, it.y) }
+
+    /** Where the gate to the big kids' road stands in [place]'s scene, when it is the last page's. */
+    fun gate(place: Place): Anchor = Trail.gate(place).let { Anchor(place, it.x, it.y) }
 
     /** The smiling sun sticker, and where it sits at dusk: setting behind the far hills, its size a share of the width. */
     const val SUN = "garden-2"
@@ -156,15 +163,21 @@ private class SceneFront {
  * One place of the pup's world as a flat scene drawn in code in the pup's style (thin brown outlines, pastel colour,
  * day in light theme and dusk in dark): the garden with the dog house at [WorldState.house]'s stage, the pond, the
  * concert hall with its audience. Every sticker collected in the place sits at its spot; the hall seats every animal
- * collected anywhere. The trail winds through four stops ([WorldAnchors.stops]); [stop] draws what goes on each
- * (the integrator's Playground lesson buttons), centred on it; without it each stop shows a numbered marker.
- * [onSticker] makes the stuck stickers tappable.
+ * collected anywhere. The trail winds through twelve stops in three rows ([WorldAnchors.stops], 2.2: one stop per
+ * lesson of the Playground page drawn here); [stop] draws what goes on stop i (0-based, the kid map's stones), centred
+ * on it, for the first [stops] of them; without it the trail is bare. [overlay] is drawn last, over everything, in the
+ * scene's own box (the kid map's pup, signpost and gate, placed with [centerAt]). [onSticker] makes the stuck stickers
+ * tappable.
  */
 @Composable
-fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, stop: (@Composable (n: Int) -> Unit)? = null,
+fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
+               /** Stones on the trail: a page's lessons (twelve fill it; a page still being written has fewer). */
+               stops: Int = Trail.STOPS,
+               stop: (@Composable (i: Int) -> Unit)? = null,
                onSticker: ((Sticker) -> Unit)? = null, pupOnStage: Boolean = true,
                /** The garden's treat jar and egg: tapping them (null: they are only shown). */
-               onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null) {
+               onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null,
+               overlay: (@Composable BoxWithConstraintsScope.() -> Unit)? = null) {
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val t = rememberSceneClock()
     val owned = state.history.owned
@@ -239,27 +252,21 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
             val a = WorldAnchors.seat(i)
             StickerImage(s, Modifier.centerAt(a.x, a.y - 0.05f).size(w * 0.105f), tilt = 0f, shine = false)
         }
-        WorldAnchors.stops(place).forEachIndexed { i, a ->
-            val n = Place.entries.indexOf(place) * 4 + i + 1
-            Box(Modifier.centerAt(a.x, a.y)) { if (stop != null) stop(n) else StopMarker(n) }
+        if (stop != null) WorldAnchors.stops(place, stops).forEachIndexed { i, a ->
+            Box(Modifier.centerAt(a.x, a.y)) { stop(i) }
         }
-    }
-}
-
-/** A stop on the trail when nothing else is put there: a round marker with the lesson's number. */
-@Composable
-fun StopMarker(n: Int, size: Dp = 34.dp) {
-    Box(Modifier.size(size).background(Color(0xFFFFF7E8), CircleShape).border(2.dp, WorldInk.copy(alpha = 0.7f), CircleShape)
-        .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-        Text("$n", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = WorldInk)
+        overlay?.invoke(this)
     }
 }
 
 /** The three places one under the other, garden first: the Playground's whole map. */
 @Composable
-fun WorldMap(state: WorldState, modifier: Modifier = Modifier, stop: (@Composable (n: Int) -> Unit)? = null, onSticker: ((Sticker) -> Unit)? = null) {
+fun WorldMap(state: WorldState, modifier: Modifier = Modifier, stop: (@Composable (place: Place, i: Int) -> Unit)? = null,
+             onSticker: ((Sticker) -> Unit)? = null) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Place.entries.forEach { PlaceScene(it, state, Modifier.fillMaxWidth(), stop = stop, onSticker = onSticker) }
+        Place.entries.forEach { place ->
+            PlaceScene(place, state, Modifier.fillMaxWidth(), stop = stop?.let { s -> { i -> s(place, i) } }, onSticker = onSticker)
+        }
     }
 }
 
@@ -281,11 +288,9 @@ private class Palette(night: Boolean) {
     val line = Ink.copy(alpha = if (night) 0.55f else 0.38f)
 }
 
-/** The trail through a place's four stops, entering on the left and leaving on the right. */
+/** The trail through a place's twelve stops ([Trail.path]): in on the left, three rows winding, out past the last row's end. */
 private fun trailPath(place: Place, size: Size): Path {
-    val stops = WorldAnchors.stops(place).map { Offset(it.x * size.width, it.y * size.height) }
-    val first = stops.first(); val last = stops.last()
-    val pts = listOf(Offset(-0.06f * size.width, first.y + 0.08f * size.height)) + stops + Offset(1.06f * size.width, last.y - 0.06f * size.height)
+    val pts = Trail.path(place).map { Offset(it.x * size.width, it.y * size.height) }
     // Catmull-Rom through the points, as cubic Beziers.
     return Path().apply {
         moveTo(pts[0].x, pts[0].y)
@@ -298,7 +303,16 @@ private fun trailPath(place: Place, size: Size): Path {
 
 private fun DrawScope.drawTrail(trail: Path, place: Place, night: Boolean) {
     val p = Palette(night)
-    val w = size.width * 0.075f
+    val w = size.width * 0.062f
+    if (place == Place.POND) {
+        // A boardwalk of planks across the water and the lawn: dark wood under, the planks over it with a seam between each.
+        val under = if (night) Color(0xFF5E4630) else Color(0xFF9A6A44)
+        val plank = if (night) Color(0xFF8E7052) else Color(0xFFD9B07A)
+        drawPath(trail, under, style = Stroke(w + size.width * 0.014f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(trail, plank, style = Stroke(w, join = StrokeJoin.Round,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(size.width * 0.024f, size.width * 0.006f))))
+        return
+    }
     if (place == Place.CONCERT) {
         // A red carpet with gold edges.
         drawPath(trail, Color(0xFFE2B85A), style = Stroke(w + size.width * 0.018f, cap = StrokeCap.Round, join = StrokeJoin.Round))
