@@ -808,7 +808,18 @@ class MainActivity : ComponentActivity() {
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) }),
-                                onGrownUpsClosed = { corner = false })
+                                onGrownUpsClosed = { corner = false },
+                                // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
+                                grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
+                                    fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
+                                    com.bigpapituna.sharpears.ui.family.GrownUpOffer(current.name,
+                                        onSwitch = { gate.guard {
+                                            answered()
+                                            Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
+                                            profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
+                                        } },
+                                        onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                } })
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
                             val lv = lessons.version.intValue

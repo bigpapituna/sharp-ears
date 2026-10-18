@@ -119,6 +119,8 @@ fun KidHome(
     modifier: Modifier = Modifier, from: String? = null, roadLine: Boolean = false, onRoadSaid: () -> Unit = {},
     onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null,
     grownUps: GrownUpCorner? = null, onGrownUpsClosed: () -> Unit = {},
+    /** A kid who finished Beginner: the offer of grown-up mode (2.1, through the gate), at the top of the map; null: none. */
+    grownUpOffer: (@Composable () -> Unit)? = null,
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
@@ -175,6 +177,7 @@ fun KidHome(
             LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top + 8.dp, bottom = bottom + 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 item(key = "hello") { Hello(name, avatar) }
+                grownUpOffer?.let { offer -> item(key = "grown-up") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp)) { offer() } } }
                 model.pages.forEachIndexed { i, page ->
                     item(key = "page-${page.page.id}") {
                         PageScene(page, world, onStone = { s -> if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) },
@@ -248,13 +251,16 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     // The bubble goes the way the trail does, unless the scene ends too soon on that side.
     val right = if ((if (forward) w - x else x) - reach >= 150.dp) forward else !forward
     var pointing by remember { mutableStateOf(false) }
+    // At bedtime he yawns on his stone first, then curls up to sleep.
+    var yawned by remember { mutableStateOf(false) }
+    LaunchedEffect(asleep) { yawned = false; if (asleep) { delay(2800); yawned = true } }
     LaunchedEffect(pointable, found) {
         pointing = false
         if (!pointable || found >= 3) return@LaunchedEffect
         while (true) { delay(7000); pointing = true; delay(3400); pointing = false }
     }
     val shown = if (pointing) KidLines.signpostShort(found) else line
-    val pose = when { asleep -> Pose.SLEEPING; pointing -> Pose.POINTING; else -> Pose.GET_READY }
+    val pose = when { asleep && yawned -> Pose.SLEEPING; asleep -> Pose.GOODNIGHT; pointing -> Pose.POINTING; else -> Pose.GET_READY }
     // GET_READY points to the right of the screen, POINTING to the left: mirrored when the bubble is on the left.
     val mirror = !asleep && !right
     val pup = rememberPupController(idle = !pointing && !asleep)
