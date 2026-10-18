@@ -301,8 +301,9 @@ fun LessonScreen(
                 }
             } else {
                 // The pup gives the instruction; his face answers each try for a few seconds, and that face is the
-                // message, so no idle acts over it. He tilts his head at a wrong key.
-                val pup = rememberPupController(idle = reaction == null)
+                // message, so no idle acts over it. He tilts his head at a wrong key. While he plays a listening step
+                // ("My turn. Listen.") he keeps listening: nothing is pressed meanwhile, and he used to scratch or sneeze.
+                val pup = rememberPupController(idle = reaction == null && step.kind != StepKind.LISTEN)
                 val pupNow by androidx.compose.runtime.rememberUpdatedState(pup)
                 PupSays(reaction ?: if (step.kind == StepKind.LISTEN) Pose.LISTENING else Pose.PRACTICING, step.text,
                     Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
