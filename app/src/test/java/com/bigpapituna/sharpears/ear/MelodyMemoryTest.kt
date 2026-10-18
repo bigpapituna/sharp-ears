@@ -120,4 +120,42 @@ class MelodyMemoryTest {
         assertEquals("Play it back: 2 notes in C major", g.prompt().text)
         assertTrue(g.toPlay().size == 2 && g.toPlay().all { it.notes.size == 1 })
     }
+
+    /** The melody as drawn before the walk moved into MelodyWalk (2.1), step for step: every seeded game is unchanged. */
+    @Test fun theWalkDrawsTheSameMelodiesAsBefore() {
+        for (level in 0..2) for (seed in 1L..60L) {
+            val g = MelodyMemoryGame(level, seed)
+            val rnd = java.util.Random(seed)
+            // Replays the constructor's draws: the key, then the old walk.
+            val keys = when (level) { 0 -> 1; 1 -> 4; else -> 8 }
+            rnd.nextInt(keys)
+            val steps = when (level) { 0 -> listOf(-2, -1, -1, -1, 1, 1, 1, 2); 1 -> listOf(-3, -2, -1, -1, -1, 1, 1, 1, 2, 3); else -> listOf(-4, -3, -2, -2, -1, -1, -1, 1, 1, 1, 2, 2, 3, 4) }
+            val pool = g.pool
+            var i = if (level < 2) 0 else rnd.nextInt(pool.size)
+            val old = buildList {
+                add(pool[i])
+                repeat(g.rounds + g.startLength - 2) {
+                    var next: Int
+                    do {
+                        val s = steps[rnd.nextInt(steps.size)]
+                        next = i + s
+                        if (next !in pool.indices) next = i - s
+                    } while (next !in pool.indices || next == i)
+                    i = next
+                    add(pool[i])
+                }
+            }
+            assertEquals("level $level seed $seed", old, g.full)
+        }
+    }
+
+    @Test fun aWalkNeverRepeatsANoteAndStaysInThePool() {
+        val pool = listOf(60, 62, 64, 65, 67)
+        val walk = com.bigpapituna.sharpears.engine.ear.MelodyWalk(pool, com.bigpapituna.sharpears.engine.ear.MelodyWalk.stepsFor(0), java.util.Random(4))
+        val notes = List(200) { walk.next() }
+        assertEquals(60, notes[0])
+        assertTrue(notes.all { it in pool })
+        assertTrue(notes.zipWithNext().none { (a, b) -> a == b })
+        assertTrue(notes.zipWithNext().all { (a, b) -> kotlin.math.abs(pool.indexOf(a) - pool.indexOf(b)) <= 2 })
+    }
 }
