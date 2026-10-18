@@ -29,7 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,7 +59,12 @@ import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
+import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.engine.playground.Answer
+import com.bigpapituna.sharpears.engine.playground.HeardBy
 import com.bigpapituna.sharpears.engine.playground.Loudness
+import com.bigpapituna.sharpears.engine.playground.MissWhy
+import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.engine.playground.SoftLoud
 import com.bigpapituna.sharpears.engine.playground.SoftLoudGame
 import com.bigpapituna.sharpears.engine.playground.Verdict
@@ -86,18 +94,17 @@ private enum class Nap { ASLEEP, STIR, AWAKE, YAWN }
 /**
  * Lesson 11, "Soft and loud": the pup naps on his cushion under the moon. The first middle C sets the level ("the way
  * you always play"); then each round wants soft (he sleeps on, the Zs drift) or loud (he jumps awake, then yawns back to
- * sleep). The verdict is the microphone's rough guess from the strike's rise ([SoftLoudGame]), shown on a meter from
- * soft to loud; a round not matched in two tries is let go. Without a microphone, two pads stand in: soft and loud.
+ * sleep), and is shown first: the app plays middle C softly or loudly. The note matcher listens for the keys around
+ * middle C (any of them will do, StageKeys.SOFT_LOUD; a key it does not listen for is named and counts too); the
+ * verdict is its rough guess from the strike's rise ([SoftLoudGame]), shown on a meter from soft to loud. A round not
+ * matched in two tries is let go by the game, a round with nothing heard by the stage after three quiet stretches.
+ * Without a microphone, two pads stand in: soft and loud.
  */
 @Composable
 internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
     val offset = LocalProfile.current.micOffsetDb
-    val run = rememberPlaygroundRun(ex, "$lessonId-softloud", deps, sound = { false }, onEnded = { r ->
-        onEnded(r)
-    })
-    val game = remember(run) { SoftLoudGame(offsetDb = offset) }
-    var verdict by remember { mutableStateOf<Verdict?>(null) }
+    val game = remember(ex) { SoftLoudGame(offsetDb = offset) }
     var seq by remember { mutableIntStateOf(0) }
     var lastRise by remember { mutableStateOf<Double?>(null) }
     var nap by remember { mutableStateOf(Nap.ASLEEP) }
@@ -105,12 +112,7 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
     val scope = rememberCoroutineScope()
     val still = reducedMotion()
 
-    fun heard(rise: Double, how: String) {
-        if (game.done || !run.started || run.ended) return
-        val v = game.heard(rise)
-        verdict = v; lastRise = rise; seq++
-        Log.d(TAG, "playground: soft-loud $how rise ${"%.1f".format(rise)} dB -> ${v.heard}, wanted ${v.target}, match=${v.match} advance=${v.advance}")
-        if (v.advance) run.key(60) else run.version++
+    fun react(v: Verdict) {
         scope.launch {
             when {
                 v.woke -> {
@@ -125,24 +127,36 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
             }
         }
     }
-    val listening = rememberListening(deps.mic, deps.voice, run.started && !run.ended, inject, keys = setOf(60),
-        onStrike = { s -> if (s.midi == 60) heard(s.riseDb, "heard") })
-
-    // The game is a plain object: the line follows the notes heard (seq) and the run, read here as keys.
-    val line = remember(seq, run.version, run.ended) { when {
-        game.done || run.ended -> "Goodnight. That was lovely."
+    /** The prompt for the round the game is on now. */
+    fun prompt(): String = when {
+        game.done -> "Goodnight. That was lovely."
         game.round < 0 -> "First, play middle C your usual way."
-        else -> {
-            val v = verdict
-            val target = game.target
-            when {
-                v != null && seq > 0 && !v.advance && v.woke -> "Oops, you woke me! Softer, please."
-                v != null && seq > 0 && !v.advance -> "A little louder!"
-                target == Loudness.SOFT -> "Soft, so I keep sleeping."
-                else -> "Now loud. Wake me up!"
+        game.target == Loudness.SOFT -> "Soft, so I keep sleeping."
+        else -> "Now loud. Wake me up!"
+    }
+    val st = rememberStage(ex, "$lessonId-softloud", lessonId, "soft_loud", deps, inject, onEnded,
+        keys = { StageKeys.SOFT_LOUD },
+        demoKeys = { listOf(60) },
+        // The demo plays middle C the way the round wants it: medium for the first note, then soft or loud.
+        velocity = { when { game.done || game.round < 0 -> 72; game.target == Loudness.SOFT -> 26; else -> 120 } },
+        judge = { s, _ ->
+            val rise = s.riseDb
+            if ((s.by != HeardBy.MATCHER && s.by != HeardBy.NAMED) || rise == null || game.done) Answer.Heard
+            else {
+                val v = game.heard(rise)
+                lastRise = rise; seq++
+                Log.d(TAG, "playground: soft-loud ${s.by.name.lowercase()} ${s.midi?.let(::noteName)} rise ${"%.1f".format(rise)} dB -> ${v.heard}, " +
+                    "wanted ${v.target}, match=${v.match} advance=${v.advance}")
+                react(v)
+                if (v.advance) Answer.Found(60) else Answer.Miss(if (v.target == Loudness.LOUD) MissWhy.TOO_SOFT else MissWhy.TOO_LOUD, s.midi)
             }
-        }
-    } }
+        },
+        foundLine = { _, _ -> prompt() },
+        missLine = { a, _ -> if (a.why == MissWhy.TOO_LOUD) "Oops, you woke me! Softer, please." else "A little louder!" },
+        onLetGo = { if (!game.done) { game.skip(); Log.d(TAG, "playground: soft-loud round let go, now ${game.round}") } },
+    )
+    val run = st.run
+    val line = stageLine(st, remember(run.version, seq, st.demoKeys) { if (st.demoKeys.isNotEmpty()) "Listen!" else prompt() })
 
     val clock = rememberInfiniteTransition(label = "nap")
     val breathe by clock.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(3600, easing = LinearEasing)), label = "breathe")
@@ -154,7 +168,7 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
         val pupSize = (maxHeight * 0.42f).coerceIn(110.dp, 210.dp)
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                RoundIcons(game.rounds, game.round, Modifier.weight(1f, fill = false))
+                key(run.version, seq) { RoundIcons(game.rounds, game.round, Modifier.weight(1f, fill = false)) }
             }
             StageLine(line, Modifier.padding(top = 10.dp))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
@@ -167,20 +181,44 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
                 PaintedPup(when (nap) { Nap.ASLEEP, Nap.STIR -> Painted.SLEEPING; Nap.AWAKE -> Painted.SURPRISED; Nap.YAWN -> Painted.GOODNIGHT },
                     Modifier.offset { IntOffset(if (nap == Nap.STIR && !still) (sin(breathe * 6) * 4).roundToInt() else 0,
                         -(lift * pupSize.toPx() * 0.35f).roundToInt() - (pupSize.toPx() * 0.12f).roundToInt()) },
-                    size = pupSize, lift = { lift }, squash = { if (nap == Nap.ASLEEP && !still) 0.25f + 0.25f * sin(breathe) else 0f })
+                    size = pupSize, lift = { lift }, squash = { if (nap == Nap.ASLEEP && !still) 0.25f + 0.25f * sin(breathe) else 0f }, poke = st.fx.poke)
                 if (nap == Nap.ASLEEP || nap == Nap.STIR) Canvas(Modifier.fillMaxSize()) { zs(if (still) 0.5f else (breathe / (2 * Math.PI)).toFloat(), nap == Nap.STIR, measurer) }
+                // A ring rises from the cushion for every sound heard.
+                Ripples(st.fx, Modifier.fillMaxWidth().height(pupSize * 0.6f))
             }
             Meter(lastRise, game.anchorDb, offset, Modifier.fillMaxWidth().padding(top = 8.dp))
-            if (!listening && !game.done && run.started) {
+            if (!st.listening && !game.done && run.started) {
                 // No microphone: two pads stand in for soft and loud.
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
                     val base = game.anchorDb ?: -32.0
-                    Pad("Soft", LeftHandColor) { heard(base - 8, "tap") }
-                    Pad("Loud", Accent) { heard(base + 8, "tap") }
+                    Pad("Soft", LeftHandColor) { st.tap(60, riseDb = base - 8) }
+                    Pad("Loud", Accent) { st.tap(60, riseDb = base + 8) }
                 }
             }
         }
         if (game.done && game.matched > 0) Confetti(game.matched, Modifier.fillMaxSize())
+    }
+}
+
+/** The stage's rings for every sound, rising from the cushion (a stage with no keyboard to show them on). */
+@Composable
+private fun Ripples(fx: StageFx, modifier: Modifier) {
+    var clock by remember { mutableLongStateOf(0L) }
+    val newest = fx.ripples.lastOrNull()?.id
+    LaunchedEffect(newest) {
+        while (fx.ripples.any { System.nanoTime() - it.startNanos < StageFx.RIPPLE_MS * 1_000_000 }) withFrameNanos { clock = System.nanoTime() }
+        clock = System.nanoTime()
+    }
+    Canvas(modifier) {
+        val now = maxOf(clock, 1L)
+        for (r in fx.ripples) {
+            val p = ((now - r.startNanos) / 1e6f / StageFx.RIPPLE_MS).coerceIn(0f, 1f)
+            if (p >= 1f) continue
+            val c = Offset(size.width / 2, size.height * 0.75f)
+            val radius = size.height * (0.15f + 0.6f * (1f - (1f - p) * (1f - p)))
+            drawCircle(r.colour.copy(alpha = 0.18f * (1f - p)), radius, c)
+            drawCircle(r.colour.copy(alpha = 0.85f * (1f - p)), radius, c, style = Stroke((4f * (1f - p) + 1f) * density))
+        }
     }
 }
 

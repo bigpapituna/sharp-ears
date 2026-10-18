@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
@@ -60,6 +61,8 @@ import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.Wav
 import com.bigpapituna.sharpears.engine.parseTokens
 import com.bigpapituna.sharpears.engine.playground.ClapCounter
+import com.bigpapituna.sharpears.engine.playground.ClapTries
+import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
 import com.bigpapituna.sharpears.engine.playground.drumSamples
 import com.bigpapituna.sharpears.ui.Accent
 import com.bigpapituna.sharpears.ui.ChunkyButton
@@ -87,7 +90,7 @@ internal class DrumSound(context: Context) {
     fun release() = pool.release()
 }
 
-private enum class ClapPhase { READY, COUNT_IN, PLAYING, DONE, NOTHING_HEARD }
+private enum class ClapPhase { DEMO, READY, COUNT_IN, PLAYING, DONE, NOTHING_HEARD }
 
 /** A clap is on the beat this close to it. */
 private const val ON_BEAT_MS = 220.0
@@ -98,8 +101,12 @@ private const val CONFIRM_MS = 110.0
  * Lesson 7, "The steady drum": the pup drums; the child claps along. A bar of drum beats counts in (1, 2, 3, 4), then
  * the exercise's beats at its tempo, each one a paw print that fills when a clap lands within a fifth of a second of
  * it. Claps are heard by the clap counter on the raw microphone (the drum, the voice and the piano never count), or a
- * tap on the big round pad. Nothing heard at all: the pup asks to clap again, or to skip. Never a fail: the report's
- * groups are the claps on the beat (its extra score the share of beats with one).
+ * tap on the big round pad. Never a fail: the report's groups are the claps on the beat (its extra score the share of
+ * beats with one).
+ *
+ * 2.1.1, no dead ends: the pup shows it first ("Let me show you": a bar of the drum with the pad lighting on every
+ * boom, then "Your turn!"). Nothing heard at all: he asks to clap again by himself, and after three silent tries says
+ * "Good try, let's keep going" and the step ends ([ClapTries]); Skip and Clap again stay there for a grown-up.
  */
 @Composable
 internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
@@ -115,6 +122,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
 
     var attempt by remember { mutableIntStateOf(0) }
     var phase by remember { mutableStateOf(ClapPhase.READY) }
+    var demoDone by remember { mutableStateOf(false) }
+    var demoBeat by remember { mutableIntStateOf(-1) }
     var startNanos by remember { mutableStateOf(0L) }
     var beatNow by remember { mutableIntStateOf(-1) }          // -4..-1 count-in, 0.. the beats
     val credited = remember { mutableStateListOf<Int>() }      // beats with a clap on them
@@ -152,8 +161,35 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
     // short); then the count-in and the beats, then the verdict.
     val speaking = deps.voice.speaking.value
     var go by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(attempt, speaking, deps.ready) {
-        if (go == attempt || phase != ClapPhase.READY || speaking || !deps.ready) return@LaunchedEffect
+    // The demo, once: the pup says what he will do, drums a bar with the pad lighting on each boom, then "Your turn!".
+    var demoGo by remember { mutableStateOf(false) }
+    LaunchedEffect(speaking, deps.ready) {
+        if (demoGo || demoDone || phase != ClapPhase.READY || speaking || !deps.ready) return@LaunchedEffect
+        delay(500)
+        demoGo = true
+    }
+    // Its own effect: the voice speaking inside it must not restart it.
+    LaunchedEffect(demoGo) {
+        if (!demoGo || demoDone) return@LaunchedEffect
+        phase = ClapPhase.DEMO
+        Log.d(TAG, "playground: drum demo")
+        deps.voice.speak(PlaygroundLines.LET_ME_SHOW)
+        delay(400)
+        while (deps.voice.speaking.value) delay(50)
+        for (k in 0 until 4) {
+            demoBeat = k
+            drum?.play(accent = k == 0)
+            if (!still) scope.launch { beatPulse.snapTo(1f); beatPulse.animateTo(0f, tween((beatMs * 0.8).toInt())) }
+            delay(beatMs.toLong())
+        }
+        demoBeat = -1
+        deps.voice.speak(PlaygroundLines.YOUR_TURN)
+        delay(300)
+        demoDone = true
+        phase = ClapPhase.READY
+    }
+    LaunchedEffect(attempt, speaking, deps.ready, demoDone) {
+        if (!demoDone || go == attempt || phase != ClapPhase.READY || speaking || !deps.ready) return@LaunchedEffect
         delay(700)
         go = attempt
     }
@@ -181,9 +217,23 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         val heardAny = claps > 0
         phase = if (heardAny) ClapPhase.DONE else ClapPhase.NOTHING_HEARD
         Log.d(TAG, "playground: drum done, ${credited.size} of $beats beats with a clap, $claps claps")
-        if (heardAny) {
-            delay(1400)
-            ended(Report(emptyList(), 0, 0, null, groups = credited.size, extraScore = credited.size * 100 / beats))
+        when (ClapTries.after(attempt, heardAny)) {
+            ClapTries.Next.DONE -> {
+                delay(1400)
+                ended(Report(emptyList(), 0, 0, null, groups = credited.size, extraScore = credited.size * 100 / beats))
+            }
+            ClapTries.Next.AGAIN -> {
+                // Nothing heard: the pup asks again by himself (the buttons stay for a grown-up).
+                deps.voice.speak(PlaygroundLines.CLAP_AGAIN)
+                delay(2200)
+                if (phase == ClapPhase.NOTHING_HEARD) { attempt++; phase = ClapPhase.READY }
+            }
+            ClapTries.Next.LET_GO -> {
+                Log.d(TAG, "playground: drum let go after ${attempt + 1} silent tries")
+                deps.voice.speak(PlaygroundLines.LET_GO)
+                delay(2200)
+                if (phase == ClapPhase.NOTHING_HEARD) ended(Report(emptyList(), 0, 0, null, groups = 0, extraScore = 0))
+            }
         }
     }
 
@@ -196,6 +246,7 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 BeatDots(if (phase == ClapPhase.COUNT_IN || phase == ClapPhase.PLAYING) Math.floorMod(beatNow, 4) else -1)
                 StageLine(when (phase) {
+                    ClapPhase.DEMO -> if (demoBeat >= 0) "Clap, clap!" else PlaygroundLines.LET_ME_SHOW
                     ClapPhase.READY -> "Get ready to clap!"
                     ClapPhase.COUNT_IN -> listOf("One", "Two", "Three", "Four")[Math.floorMod(beatNow, 4)]
                     ClapPhase.PLAYING -> if (bursts.lastOrNull()?.second == true) "On the boom!" else "Clap, clap!"
@@ -209,6 +260,7 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                     ClapPhase.DONE -> Painted.CLAPPING
                     ClapPhase.NOTHING_HEARD -> Painted.HEAD_TILT
                     ClapPhase.READY -> Painted.LISTENING
+                    ClapPhase.DEMO -> Painted.DRUMMING
                     else -> Painted.DRUMMING
                 }, size = pupSize, squash = { beatPulse.value })
             }
@@ -220,7 +272,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                 }
             } else {
                 // The pad: a tap is a clap, for a phone without its microphone or a child who likes tapping.
-                Box(Modifier.size(84.dp).background(Accent.copy(alpha = if (phase == ClapPhase.PLAYING || phase == ClapPhase.COUNT_IN) 0.9f else 0.35f), CircleShape)
+                Box(Modifier.size(84.dp).graphicsLayer { if (phase == ClapPhase.DEMO) { val q = 1f + 0.18f * beatPulse.value; scaleX = q; scaleY = q } }
+                    .background(Accent.copy(alpha = if (phase == ClapPhase.PLAYING || phase == ClapPhase.COUNT_IN || (phase == ClapPhase.DEMO && demoBeat >= 0)) 0.9f else 0.35f), CircleShape)
                     .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button) { clap(System.nanoTime(), heardIt = false) }
                     .semantics { contentDescription = if (listening) "Clap here, or clap your hands" else "Tap to clap" },
                     contentAlignment = Alignment.Center) {

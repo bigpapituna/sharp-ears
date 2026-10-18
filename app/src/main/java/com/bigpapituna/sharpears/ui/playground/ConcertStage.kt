@@ -57,6 +57,8 @@ import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.playground.CONCERT_SONGS
+import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
+import com.bigpapituna.sharpears.engine.skin.Bites
 import com.bigpapituna.sharpears.engine.playground.ConcertSong
 import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.ui.Accent
@@ -79,13 +81,16 @@ private val Curtain = Color(0xFF8E2F2A)
 private val CurtainDeep = Color(0xFF5C1C19)
 
 /**
- * Lesson 12, "Pup's concert": the child picks one of the three songs ([CONCERT_SONGS]), the curtains open, and they
- * play it in time in the embedded player (Perform, right hand, the band on the left). A run at the pass mark brings
- * fireworks and the pup dancing before the lesson moves on; one under it goes back to the lesson's "Try again".
+ * Lesson 12, "Pup's concert": the child picks one of the three songs ([CONCERT_SONGS]), the curtains open, the pup
+ * plays its start first ("Let me show you", the embedded player in Listen mode, 2.1.1: every round shows itself), and
+ * then they play it in time (Perform, right hand, the band on the left). A run at the pass mark brings fireworks and the
+ * pup dancing before the lesson moves on; one under it goes back to the lesson's "Try again", which after three tries
+ * lets the lesson go on ("Good try, let's keep going", StepRetry).
  */
 @Composable
 internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     var chosen by remember { mutableStateOf<ConcertSong?>(null) }
+    var shown by remember { mutableStateOf(false) }                // the pup has played the song's start
     var bravo by remember { mutableStateOf<Report?>(null) }
     val ended by rememberUpdatedState(onEnded)
     val still = reducedMotion()
@@ -102,17 +107,33 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val ex = song.exercise
-                PlayerScreen(ex.toSong("$lessonId-concert-${song.picture}", song.title), null, deps.sampler, deps.midi, deps.mic, deps.voice, deps.prefs, deps.ready,
-                    0.0, false,
-                    PlayerStart(Mode.PERFORM, Practice.RIGHT, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
-                    onBack = {},
-                    onFinished = { r ->
-                        val passed = step.copy(exercise = ex).passed(r)
-                        Log.d(TAG, "playground: concert ${song.title} ${r.recap?.accuracy ?: 0} of ${ex.pass} needed, passed=$passed")
-                        if (passed) bravo = r else ended(r)
-                    },
-                    embedded = Embedded("With the band"),
-                    modifier = Modifier.fillMaxSize())
+                if (!shown) {
+                    // The demo: the song's first two bars, played by the app with the names showing.
+                    LaunchedEffect(song) { deps.voice.speak(PlaygroundLines.LET_ME_SHOW) }
+                    PlayerScreen(Bites.cut(ex, 2.0 * ex.beats).toSong("$lessonId-concert-demo-${song.picture}", song.title), null, deps.sampler, deps.midi,
+                        deps.mic, deps.voice, deps.prefs, deps.ready, 0.0, false,
+                        PlayerStart(Mode.LISTEN, Practice.BOTH, mic = false),
+                        onBack = {},
+                        onFinished = {
+                            Log.d(TAG, "playground: concert demo of ${song.title} done")
+                            deps.voice.speak(PlaygroundLines.YOUR_TURN)
+                            shown = true
+                        },
+                        embedded = Embedded("Listen first"),
+                        modifier = Modifier.fillMaxSize())
+                } else {
+                    PlayerScreen(ex.toSong("$lessonId-concert-${song.picture}", song.title), null, deps.sampler, deps.midi, deps.mic, deps.voice, deps.prefs, deps.ready,
+                        0.0, false,
+                        PlayerStart(Mode.PERFORM, Practice.RIGHT, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
+                        onBack = {},
+                        onFinished = { r ->
+                            val passed = step.copy(exercise = ex).passed(r)
+                            Log.d(TAG, "playground: concert ${song.title} ${r.recap?.accuracy ?: 0} of ${ex.pass} needed, passed=$passed")
+                            if (passed) bravo = r else ended(r)
+                        },
+                        embedded = Embedded("With the band"),
+                        modifier = Modifier.fillMaxSize())
+                }
                 // The curtains part as the song begins.
                 if (open.value < 1f) Canvas(Modifier.fillMaxSize()) { curtains(open.value) }
             }

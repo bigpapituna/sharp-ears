@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.playground
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -19,11 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,13 +45,15 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.TAG
-import com.bigpapituna.sharpears.engine.InputResult
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.noteName
-import com.bigpapituna.sharpears.engine.playground.Heard
+import com.bigpapituna.sharpears.engine.playground.Answer
 import com.bigpapituna.sharpears.engine.playground.Hunt
-import com.bigpapituna.sharpears.engine.playground.PitchHeight
+import com.bigpapituna.sharpears.engine.playground.HuntJudge
+import com.bigpapituna.sharpears.engine.playground.MissWhy
+import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
+import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.engine.playground.huntPlaceOf
 import com.bigpapituna.sharpears.engine.playground.huntPlaces
 import com.bigpapituna.sharpears.ui.Accent
@@ -56,10 +61,10 @@ import com.bigpapituna.sharpears.ui.Confetti
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
+import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -67,89 +72,110 @@ private val Cream = Color(0xFFF6EBDD)
 private val HouseRoof = Color(0xFFC8693A)
 
 /**
- * Lessons 2 and 3, the key hunts: a big keyboard (two octaves on a phone, three when there is room) where the pup points
+ * Lessons 2 and 3, the key hunts: a big keyboard (the two octaves from middle C) where the pup points
  * at a dog house (two black keys), a fence (three) or a C, and each one found lights up and stays lit: a little house
- * over the dog house, a picket fence over the fence, a badge over the C. Any octave counts on the piano; the one found
- * on screen is the one played if it is shown, else the one pointed at. The pitch tracker names the key struck, so a
- * key's overtones never pass for another key; the keys can be tapped as well.
+ * over the dog house, a picket fence over the fence, a badge over the C. Each round is shown first: the app plays the
+ * place the pup points at while it glows. The note matcher listens for that kind of place in the two octaves around
+ * middle C (StageKeys); one in another octave is named by its wrong-key search and counts too, a white key makes the pup
+ * say "That one's white" while the place glows hard (HuntJudge), and any other sound gets a ring on the keys and a
+ * twitch of the pup's ears. Three tries and the round goes by with one star. The keys can be tapped as well.
  */
 @Composable
 internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
-    var listening by remember { mutableStateOf(false) }
-    val run = rememberPlaygroundRun(ex, "$lessonId-hunt", deps, sound = { deps.prefs.sound && (!listening || deps.mic.headphonesOn()) }, onEnded)
-    val pitch = remember(run) { PitchHeight() }
-    val heard = remember(run) { MutableSharedFlow<Heard>(extraBufferCapacity = 16) }
-    listening = rememberListening(deps.mic, deps.voice, run.started && !run.ended, inject,
-        raw = { s, n -> pitch.process(s, n).forEach { heard.tryEmit(it) } })
     val scope = rememberCoroutineScope()
     val still = reducedMotion()
-    val found = remember(run) { mutableStateListOf<List<Int>>() }
-    var burst by remember { mutableStateOf(0) }
+    val found = remember { mutableStateListOf<List<Int>>() }
+    var burst by remember { mutableIntStateOf(0) }
+    var tiltSeq by remember { mutableIntStateOf(0) }
+    var nudge by remember { mutableLongStateOf(0L) }
+    val runRef = remember { arrayOfNulls<StageRun>(1) }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
-        val low = 48
-        val high = if (maxWidth >= 560.dp) 83 else 71
-        val next = remember(run.version) { run.transport.nextGroup }
-        val hunt = next?.let { g -> Hunt.of(g.notes.map { it.midi }) }
-        val places = hunt?.let { huntPlaces(it, low, high) }.orEmpty()
-        // The pup points at the one nearest the middle that is not found yet.
-        val target = places.filter { it !in found }.minByOrNull { abs(it.first() - 61) } ?: places.minByOrNull { abs(it.first() - 61) }
-
-        fun play(midi: Int) {
-            val h = hunt; val t = target
-            val r = run.key(midi)
-            if (r == InputResult.GROUP_DONE && h != null) {
-                val place = huntPlaceOf(h, midi)?.takeIf { it.all { k -> k in low..high } && it !in found } ?: t
+        // Two octaves from middle C: the places the note matcher listens for (StageKeys), big enough to find on any screen.
+        val low = 60
+        val high = 83
+        // Read live: the stage's callbacks run between frames, on the round being played.
+        fun huntOf(run: StageRun) = run.rounds.current?.let { g -> Hunt.of(g.notes.map { it.midi }) }
+        fun targetOf(run: StageRun): List<Int>? {
+            val places = huntOf(run)?.let { huntPlaces(it, low, high) }.orEmpty()
+            // The pup points at the one nearest the middle that is not found yet.
+            return places.filter { it !in found }.minByOrNull { abs(it.first() - 61) } ?: places.minByOrNull { abs(it.first() - 61) }
+        }
+        val st = rememberStage(ex, "$lessonId-hunt", lessonId, "key_hunt", deps, inject, onEnded,
+            keys = { run -> huntOf(run)?.let(StageKeys::forHunt) ?: StageKeys.CS },
+            demoKeys = { run -> targetOf(run).orEmpty() },
+            judge = { s, run -> huntOf(run)?.let { HuntJudge.judge(s, it) } ?: Answer.Heard },
+            foundLine = { run, _ -> if (run.finished) "You found them all!" else listOf("You found it!", "That's it!", "Yes!")[(run.done - 1).coerceAtLeast(0) % 3] },
+            missLine = { a, run -> when (a.why) {
+                MissWhy.WHITE_KEY -> PlaygroundLines.WHITE_KEY
+                MissWhy.OTHER_GROUP -> if (huntOf(run) == Hunt.DOG_HOUSE) "Look for two black keys." else "Look for three black keys."
+                MissWhy.NOT_C -> "C is just left of the dog house."
+                else -> null
+            } },
+            onFound = { key ->
+                val r = runRef[0]
+                val h = r?.let(::huntOf)
+                val t = r?.let(::targetOf)
+                val place = h?.let { huntPlaceOf(it, key) }?.takeIf { it.all { k -> k in low..high } && it !in found } ?: t
                 if (place != null && place !in found) found += place
                 burst++
-                Log.d(TAG, "playground: found ${h.name.lowercase()} with ${noteName(midi)}")
-            }
-        }
-        // The collector outlives this composition: it must call the newest play, which knows the round now.
-        val onHeard by rememberUpdatedState { h: Heard -> play(h.key) }
-        LaunchedEffect(heard) { heard.collect { h -> onHeard(h) } }
-
-        val last = run.last
-        val line = rememberFleeting(last?.seq, when (last?.result) {
-            InputResult.GROUP_DONE -> listOf("You found it!", "That's it!", "Yes!")[last.seq % 3]
-            InputResult.WRONG -> when (hunt) {
-                Hunt.DOG_HOUSE -> "Look for two black keys."
-                Hunt.FENCE -> "Look for three black keys."
-                Hunt.C -> "C is just left of the dog house."
+                Log.d(TAG, "playground: found ${h?.name?.lowercase()} with ${noteName(key)}")
+            },
+            onMiss = { a ->
+                tiltSeq++
+                if (a.why == MissWhy.WHITE_KEY || a.why == MissWhy.NOT_C || a.why == MissWhy.OTHER_GROUP) nudge = SystemClock.uptimeMillis() + 2600
+            },
+        )
+        runRef[0] = st.run
+        val run = st.run
+        val hunt = remember(run.version) { huntOf(run) }
+        val target = remember(run.version, found.size) { targetOf(run) }
+        val now by produceState(SystemClock.uptimeMillis(), nudge) { while (SystemClock.uptimeMillis() < nudge) { value = SystemClock.uptimeMillis(); delay(100) }; value = SystemClock.uptimeMillis() }
+        val nudging = now < nudge
+        var tiltNow by remember { mutableStateOf(false) }
+        LaunchedEffect(tiltSeq) { if (tiltSeq > 0) { tiltNow = true; delay(1300); tiltNow = false } }
+        val finished = run.finished
+        val line = stageLine(st, when {
+            finished -> "You found them all!"
+            st.demoKeys.isNotEmpty() -> "Listen!"
+            else -> when (hunt) {
+                Hunt.DOG_HOUSE -> "Find a dog house!"
+                Hunt.FENCE -> "Find a fence!"
+                Hunt.C -> "Find a C!"
                 null -> null
             }
-            else -> null
-        }, ms = 2000) ?: when (hunt) {
-            Hunt.DOG_HOUSE -> "Find a dog house!"
-            Hunt.FENCE -> "Find a fence!"
-            Hunt.C -> "Find a C!"
-            null -> if (run.ended || run.done == run.rounds) "You found them all!" else null
-        }
+        })
         val clock = rememberInfiniteTransition(label = "hunt")
         val pulse by clock.animateFloat(0f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
         val p = if (still) 0.5f else pulse
         val measurer = rememberTextMeasurer()
-        val finished = run.ended || (run.rounds > 0 && run.done == run.rounds)
 
         Column(Modifier.fillMaxSize().padding(12.dp)) {
-            StageTop(run.rounds, run.done)
+            StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(if (finished) Painted.GREAT_JOB else if (last?.result == InputResult.WRONG) Painted.HEAD_TILT else Painted.POINTING,
-                    size = (roomH * 0.3f).coerceIn(72.dp, 150.dp))
+                PaintedPup(if (finished) Painted.GREAT_JOB else if (tiltNow) Painted.HEAD_TILT else Painted.POINTING,
+                    size = (roomH * 0.3f).coerceIn(72.dp, 150.dp), poke = st.fx.poke)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }
             val allFound = { m: Int -> found.any { m in it } }
-            BigKeys(low, high, "Piano keys from C3 to ${noteName(high)}. " + when (hunt) {
+            val demo = st.demoKeys
+            BigKeys(low, high, "Piano keys from ${noteName(low)} to ${noteName(high)}. " + when (hunt) {
                     Hunt.DOG_HOUSE -> "Find a group of two black keys"; Hunt.FENCE -> "Find a group of three black keys"; Hunt.C -> "Find a C"; null -> "Every one is found"
                 }, Modifier.fillMaxWidth().height((roomH * 0.52f).coerceIn(150.dp, 300.dp)),
-                fill = { m -> when { allFound(m) -> Accent; target != null && m in target -> Color.White.copy(alpha = 0.12f + 0.3f * p); else -> null } },
-                last = last, topRoom = 64.dp,
+                fill = { m -> when {
+                    m in demo -> PupGold
+                    allFound(m) -> Accent
+                    // The place the pup points at glows gold, hard while he nudges ("try the black ones here").
+                    target != null && m in target -> PupGold.copy(alpha = if (nudging) 0.6f + 0.4f * p else 0.15f + 0.3f * p)
+                    else -> null
+                } },
+                last = run.last, topRoom = 64.dp, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(700); deps.sampler.noteOff(m) } }
-                    play(m)
+                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(700); deps.sampler.noteOff(m) } }
+                    st.tap(m)
                 },
                 overlay = { g ->
                     for (place in found) decoration(g, place, measurer)

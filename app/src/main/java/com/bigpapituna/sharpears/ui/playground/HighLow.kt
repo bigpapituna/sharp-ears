@@ -1,6 +1,5 @@
 package com.bigpapituna.sharpears.ui.playground
 
-import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -21,10 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,12 +39,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.bigpapituna.sharpears.TAG
-import com.bigpapituna.sharpears.engine.InputResult
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
-import com.bigpapituna.sharpears.engine.playground.Heard
-import com.bigpapituna.sharpears.engine.playground.PitchHeight
+import com.bigpapituna.sharpears.engine.playground.Answer
+import com.bigpapituna.sharpears.engine.playground.HighLowJudge
+import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.engine.playground.flightHeight
 import com.bigpapituna.sharpears.engine.playground.wantsHigh
 import com.bigpapituna.sharpears.ui.Accent
@@ -55,7 +53,6 @@ import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -67,50 +64,49 @@ private val GrassTop = Color(0xFF4A7A3F)
 private val GrassBottom = Color(0xFF2B4A26)
 
 /**
- * Lesson 1, "High and low": the pup flies. Every note heard (the pitch tracker, any key) sends him to its height:
- * left of middle C he stays near the grass, right of it he is up in the sky, higher keys higher still. Each round
- * asks for one side, shown by a glowing star at the top or a cushion on the grass and the matching half of the
- * keyboard; a key on the other side makes him tilt his head and say which way. The keys can be tapped as well.
+ * Lesson 1, "High and low": the pup flies. Each round asks for one side, shown by a glowing star at the top or a
+ * cushion on the grass and the matching half of the keyboard, and shown first: the app plays a key on that side
+ * ("Let me show you"). The note matcher listens for six keys on each side (StageKeys.HIGH_LOW), so a key on either side
+ * is heard as itself; a key it does not listen for is named by its wrong-key search, and the pitch tracker's guess
+ * counts when it is clearly on one side (HighLowJudge). Every key heard sends the pup to its height; the other side
+ * makes him tilt his head and say which way; a sound with no key makes his ears twitch and a ring spread on the keys.
+ * Three tries and the round goes by with one star. The keys can be tapped as well.
  */
 @Composable
 internal fun HighLowStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
-    var listening by remember { mutableStateOf(false) }
-    val run = rememberPlaygroundRun(ex, "$lessonId-highlow", deps, sound = { deps.prefs.sound && (!listening || deps.mic.headphonesOn()) }, onEnded)
-    val pitch = remember(run) { PitchHeight() }
-    val heard = remember(run) { MutableSharedFlow<Heard>(extraBufferCapacity = 16) }
-    listening = rememberListening(deps.mic, deps.voice, run.started && !run.ended, inject,
-        raw = { s, n -> pitch.process(s, n).forEach { heard.tryEmit(it) } })
-
     val still = reducedMotion()
     val scope = rememberCoroutineScope()
     val height = remember { Animatable(0f) }
-    val next = remember(run.version) { run.transport.nextGroup }
-    val wantHigh = next?.let(::wantsHigh)
-    var askedHigh by remember { mutableStateOf<Boolean?>(null) }        // the side the last key answered
+    var tiltSeq by remember { mutableIntStateOf(0) }
     fun fly(midi: Double) = scope.launch {
         val t = flightHeight(midi)
         if (still) height.snapTo(t) else height.animateTo(t, spring(dampingRatio = 0.55f, stiffness = 70f))
     }
-    fun play(midi: Int, exact: Double = midi.toDouble()) {
-        askedHigh = wantHigh
-        fly(exact)
-        run.key(midi)
-    }
-    // The collector outlives this composition: it must call the newest play, which knows the round now.
-    val onHeard by rememberUpdatedState { h: Heard -> Log.d(TAG, "playground: high-low heard ${"%.2f".format(h.midi)}"); play(h.key, h.midi) }
-    LaunchedEffect(heard) { heard.collect { h -> onHeard(h) } }
-
-    val last = run.last
-    val tilt = last?.result == InputResult.WRONG
-    val line = rememberFleeting(last?.seq, when (last?.result) {
-        InputResult.GROUP_DONE -> if (askedHigh == true) "Up I go!" else "Landed!"
-        InputResult.WRONG -> if (askedHigh == true) "Higher!" else "Lower!"
+    fun wantHigh(run: StageRun) = run.rounds.current?.let(::wantsHigh) ?: true
+    val st = rememberStage(ex, "$lessonId-highlow", lessonId, "high_low", deps, inject, onEnded,
+        keys = { StageKeys.HIGH_LOW },
+        // The round's demonstration key, moved by octaves onto the keyboard on screen (C3 to C6), on the same side.
+        demoKeys = { run -> run.rounds.demoKeys().map { k -> var m = k; while (m > 84) m -= 12; while (m < 48) m += 12; m } },
+        judge = { s, run -> HighLowJudge.judge(s, wantHigh(run)).also { a -> if (a !is Answer.Heard) s.near?.let { fly(s.guess ?: it.toDouble()) } } },
+        foundLine = { _, key -> if (key > 60) "Up I go!" else "Landed!" },
+        missLine = { _, run -> if (wantHigh(run)) "Higher!" else "Lower!" },
+        onMiss = { tiltSeq++ },
+    )
+    val run = st.run
+    val next = remember(run.version) { run.rounds.current }
+    val wantHigh = next?.let(::wantsHigh)
+    var tiltNow by remember { mutableStateOf(false) }
+    LaunchedEffect(tiltSeq) { if (tiltSeq > 0) { tiltNow = true; delay(1300); tiltNow = false } }
+    // The demo's key glows; the pup lifts a little toward it while it plays.
+    val demo = st.demoKeys
+    LaunchedEffect(demo) { demo.firstOrNull()?.let { if (!still) height.animateTo(flightHeight(it.toDouble()) * 0.35f, tween(500)) } }
+    val finished = run.finished
+    val line = stageLine(st, when {
+        finished -> null
+        demo.isNotEmpty() -> "Listen!"
         else -> null
     })
-    var tiltNow by remember { mutableStateOf(false) }
-    LaunchedEffect(last?.seq) { tiltNow = tilt; if (tilt) { delay(1300); tiltNow = false } }
-    val finished = run.ended || (run.rounds > 0 && run.done == run.rounds)
 
     // Clouds drift and the target breathes; all still with animations off.
     val clock = rememberInfiniteTransition(label = "sky")
@@ -133,22 +129,23 @@ internal fun HighLowStage(step: Step, lessonId: String, deps: LessonDeps, inject
             PaintedPup(
                 when { tiltNow -> Painted.HEAD_TILT; finished -> Painted.GREAT_JOB; height.value > 0.22f -> Painted.FLYING; else -> Painted.STANDING },
                 Modifier.align(Alignment.TopCenter).offset { IntOffset(0, (y.toPx() + bobPx).roundToInt()) }, size = pupSize,
-                lift = { height.value }, shadow = false)
-            StageTop(run.rounds, run.done, Modifier.align(Alignment.TopStart).padding(12.dp))
+                lift = { height.value }, shadow = false, poke = st.fx.poke)
+            StageTop(run.count, run.done, Modifier.align(Alignment.TopStart).padding(12.dp), letGo = run.letGo)
             StageLine(line, Modifier.align(Alignment.TopCenter).offset { IntOffset((pupSize * 0.62f).roundToPx(), (y - 8.dp).toPx().roundToInt().coerceAtLeast(40)) })
-            if (finished) Confetti(run.rounds, Modifier.fillMaxSize())
+            if (finished) Confetti(run.count, Modifier.fillMaxSize())
         }
         BigKeys(48, 84, "Piano keys from C3 to C6. The ${if (wantHigh == false) "low keys, left of middle C," else "high keys, right of middle C,"} glow",
             Modifier.fillMaxWidth().height(96.dp).padding(horizontal = 8.dp, vertical = 8.dp),
             fill = { m -> when {
+                m in demo -> PupGold
                 wantHigh == true && m > 60 -> Accent.copy(alpha = 0.55f + 0.25f * (if (still) 0.5f else pulse))
                 wantHigh == false && m < 60 -> LeftHandColor.copy(alpha = 0.55f + 0.25f * (if (still) 0.5f else pulse))
                 else -> null
             } },
-            last = last, topRoom = 0.dp,
+            last = run.last, topRoom = 0.dp, fx = st.fx,
             onKey = { m ->
-                if (deps.prefs.sound && (!listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(700); deps.sampler.noteOff(m) } }
-                play(m)
+                if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(700); deps.sampler.noteOff(m) } }
+                st.tap(m)
             },
             overlay = { g ->
                 // Middle C, the pup's home key: a small gold dot at the front of the key.
