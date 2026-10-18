@@ -305,7 +305,10 @@ fun LessonScreen(
                 // ("My turn. Listen.") he keeps listening: nothing is pressed meanwhile, and he used to scratch or sneeze.
                 val pup = rememberPupController(idle = reaction == null && step.kind != StepKind.LISTEN)
                 val pupNow by androidx.compose.runtime.rememberUpdatedState(pup)
-                PupSays(reaction ?: if (step.kind == StepKind.LISTEN) Pose.LISTENING else Pose.PRACTICING, step.text,
+                // A clapping step shows him clapping, not at the piano ("Clap with my drum!").
+                val asks = when { step.game == com.bigpapituna.sharpears.engine.playground.Game.CLAP -> Pose.CLAPPING
+                    step.kind == StepKind.LISTEN -> Pose.LISTENING; else -> Pose.PRACTICING }
+                PupSays(reaction ?: asks, step.text,
                     Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
                     controller = pup)
                 val ex = step.exercise
