@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.ui.theory
 
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.lerp as lerpOffset
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -10,8 +11,11 @@ import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,8 +45,13 @@ import com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow
 import com.bigpapituna.sharpears.ui.LeftHandColor
 import com.bigpapituna.sharpears.ui.RightHandColor
+import com.bigpapituna.sharpears.ui.motion.DarkStageHand
+import com.bigpapituna.sharpears.ui.motion.HandFrames
+import com.bigpapituna.sharpears.ui.motion.HandPose
+import com.bigpapituna.sharpears.ui.motion.drawPaintedHand
+import com.bigpapituna.sharpears.ui.motion.handTip
+import com.bigpapituna.sharpears.ui.motion.handWrist
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.sin
 
 /*
@@ -52,23 +61,12 @@ import kotlin.math.sin
  * function of the clock, so a still (animations off) is simply the end state.
  */
 
-private val Skin = Color(0xFFD9A47C)          // the ghost hand's warm skin
-private val SkinEdge = Color(0xFF8E5F3E)
-private val SkinShade = Color(0xFFC48E66)
-private val Nail = Color(0xFFF0D2BC)
-private val Trousers = Color(0xFF5B6B7F)
-private val Shoe = Color(0xFF3A302A)
-private val Hair = Color(0xFF4A3426)
-private val Wood = Color(0xFFA0704A)
-private val WoodDark = Color(0xFF6E4A2F)
 private val PianoCase = Color(0xFF2B2421)
-private val PianoEdge = Color(0xFF5A4C42)
 private val Brass = Color(0xFFB8955A)
 private val Blur = Color(0xFFE5675F)
 private val HandInk = Color(0xFF5A3A24)
 
 private fun mix(a: Float, b: Float, f: Float) = a + (b - a) * f
-private fun rad(deg: Float) = Math.toRadians(deg.toDouble()).toFloat()
 
 /** A short label in a soft pill, popping in as [p] goes 0 to 1; the newest one outlined in the accent. */
 private fun DrawScope.pill(ink: StageInk, label: String, at: Offset, newest: Boolean, p: Float, size: TextUnit = 13.sp, alpha: Float = 1f, left: Boolean = false) {
@@ -85,20 +83,6 @@ private fun DrawScope.pill(ink: StageInk, label: String, at: Offset, newest: Boo
     text(ink, label, Offset(cx, at.y), TextKind.LABEL, size, if (newest) ink.ink else ink.dim, alpha = a, scale = sc)
 }
 
-/** A palm from [left] to [right] below [top], [h] tall, with the wrist and forearm running down out of the picture. */
-private fun DrawScope.palm(left: Float, right: Float, top: Float, h: Float, r: Float) {
-    val w = right - left
-    val wristL = left + w * 0.2f; val wristW = w * 0.62f
-    if (size.height > top + h * 0.6f) {
-        drawRect(Skin, Offset(wristL, top + h * 0.6f), Size(wristW, size.height - top - h * 0.6f))
-        drawLine(SkinEdge, Offset(wristL, top + h * 0.8f), Offset(wristL, size.height), 1.5.dp.toPx())
-        drawLine(SkinEdge, Offset(wristL + wristW, top + h * 0.8f), Offset(wristL + wristW, size.height), 1.5.dp.toPx())
-    }
-    drawRoundRect(Skin, Offset(left, top), Size(w, h), CornerRadius(r))
-    drawRoundRect(SkinEdge, Offset(left, top), Size(w, h), CornerRadius(r), style = Stroke(1.5.dp.toPx()))
-    if (size.height > top + h * 0.6f) drawRect(Skin, Offset(wristL + 1.dp.toPx(), top + h * 0.7f), Size(wristW - 2.dp.toPx(), h * 0.32f))
-}
-
 /** A small tick drawn as a path (no glyphs as icons). */
 private fun DrawScope.tick(c: Offset, r: Float, color: Color, alpha: Float) {
     val p = Path().apply { moveTo(c.x - r, c.y); lineTo(c.x - r * 0.3f, c.y + r * 0.7f); lineTo(c.x + r, c.y - r * 0.7f) }
@@ -109,75 +93,11 @@ private fun DrawScope.tick(c: Offset, r: Float, color: Color, alpha: Float) {
 
 internal fun DrawScope.postureScene(v: PostureVisual, t: Int, ink: StageInk) {
     val pad = 12.dp.toPx()
-    val u = minOf((size.width - 2 * pad) / 10.4f, (size.height - pad) / 8.6f)
-    val floor = size.height - pad
-    val x0 = (size.width - 10.4f * u) / 2
     fun e(c: PostureCue) = smooth(v.settled(c, t))
-    val bench = e(PostureCue.BENCH); val edge = e(PostureCue.EDGE); val back = e(PostureCue.BACK)
-    val elbows = e(PostureCue.ELBOWS); val level = e(PostureCue.LEVEL); val hands = e(PostureCue.HANDS)
-    val seatY = floor - 2.15f * u
-    val benchGood = x0 + 3.2f * u
-    val torsoLen = 2.55f * u
-    // The good pose places the piano: the hands rest on the keys at the height of level forearms.
-    fun pose(bench: Float, edge: Float, back: Float, elbows: Float, level: Float, hands: Float, breathe: Float): List<Offset> {
-        val benchX = benchGood + (1 - bench) * 1.25f * u
-        val hip = Offset(benchX + mix(-0.75f, 0.35f, edge) * u, seatY - 0.3f * u)
-        val lean = rad(mix(24f, 4f, back))
-        val shoulder = hip + Offset(sin(lean) * torsoLen, -cos(lean) * torsoLen + breathe)
-        val arm = rad(mix(-22f, 16f, elbows))
-        val elbow = shoulder + Offset(sin(arm) * 1.2f * u, cos(arm) * 1.2f * u)
-        val fore = rad(mix(-22f, 0f, level) + (1 - hands) * 58f)
-        val wrist = elbow + Offset(cos(fore) * 1.35f * u, sin(fore) * 1.35f * u)
-        return listOf(Offset(benchX, seatY), hip, shoulder, elbow, wrist)
-    }
-    val good = pose(1f, 1f, 1f, 1f, 1f, 1f, 0f)
-    val keysX = good[4].x + 0.2f * u
-    val keyY = good[4].y + 0.14f * u
-    // The piano: case, keybed with the keys on top, a leg, and a sheet on the stand.
-    drawLine(ink.faint, Offset(0f, floor), Offset(size.width, floor), 2.dp.toPx())
-    drawRoundRect(PianoCase, Offset(keysX + 0.75f * u, floor - 5.6f * u), Size(2.4f * u, 5.6f * u), CornerRadius(0.18f * u))
-    drawRoundRect(PianoEdge, Offset(keysX + 0.75f * u, floor - 5.6f * u), Size(2.4f * u, 5.6f * u), CornerRadius(0.18f * u), style = Stroke(1.5.dp.toPx()))
-    drawRect(Color(0xFFF2EBDD), Offset(keysX + 0.45f * u, keyY - 1.55f * u), Size(0.32f * u, 1.1f * u))
-    drawRect(PianoCase, Offset(keysX - 0.05f * u, keyY + 0.28f * u), Size(1.0f * u, 0.5f * u))
-    drawRect(PianoCase, Offset(keysX + 0.1f * u, keyY + 0.7f * u), Size(0.22f * u, floor - keyY - 0.7f * u))
-    drawRoundRect(Color(0xFFF5F1EA), Offset(keysX - 0.1f * u, keyY), Size(1.0f * u, 0.3f * u), CornerRadius(0.06f * u))
-    for (k in 0..2) drawRect(Color(0xFF141110), Offset(keysX + (0.15f + k * 0.28f) * u, keyY - 0.1f * u), Size(0.16f * u, 0.12f * u))
-    // The level line under the forearms.
-    if (v.steps.any { it.cue == PostureCue.LEVEL }) {
-        val y = good[3].y + 0.32f * u
-        drawLine(ink.accent, Offset(good[3].x - 0.7f * u, y), Offset(keysX + 1.3f * u, y), 2.5.dp.toPx(), cap = StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(9.dp.toPx(), 6.dp.toPx())), alpha = level)
-        drawLine(ink.accent, Offset(keysX + 1.3f * u, y - 0.18f * u), Offset(keysX + 1.3f * u, y + 0.18f * u), 2.5.dp.toPx(), cap = StrokeCap.Round, alpha = level)
-    }
-    // The figure, in front of the piano.
-    val now = pose(bench, edge, back, elbows, level, hands, sin(t / 650f) * 0.03f * u)
-    val (benchAt, hip, shoulder, elbow, wrist) = now
-    drawRoundRect(Wood, Offset(benchAt.x - 1.25f * u, seatY), Size(2.5f * u, 0.32f * u), CornerRadius(0.1f * u))
-    for (sx in listOf(-1.05f, 0.9f)) drawRect(WoodDark, Offset(benchAt.x + sx * u, seatY + 0.32f * u), Size(0.17f * u, floor - seatY - 0.32f * u))
-    val knee = hip + Offset(1.95f * u, 0.12f * u)
-    val ankle = Offset(knee.x + 0.08f * u, floor - 0.2f * u)
-    drawLine(Trousers, hip, knee, 0.52f * u, cap = StrokeCap.Round)
-    drawLine(Trousers, knee, ankle, 0.42f * u, cap = StrokeCap.Round)
-    drawLine(Shoe, ankle, ankle + Offset(0.55f * u, 0.06f * u), 0.3f * u, cap = StrokeCap.Round)
-    // The back: a slouch bows it backward; upright it is straight.
-    val mid = Offset((hip.x + shoulder.x) / 2, (hip.y + shoulder.y) / 2)
-    val dir = Offset(shoulder.x - hip.x, shoulder.y - hip.y)
-    val len = kotlin.math.hypot(dir.x, dir.y)
-    val perp = Offset(-dir.y / len, dir.x / len)
-    val bow = (1 - back) * 0.6f * u
-    val torso = Path().apply { moveTo(hip.x, hip.y); quadraticTo(mid.x - perp.x * bow, mid.y - perp.y * bow, shoulder.x, shoulder.y) }
-    drawPath(torso, ink.accent, style = Stroke(0.8f * u, cap = StrokeCap.Round))
-    val head = shoulder + Offset(dir.x / len * 0.75f * u + 0.14f * u + (1 - back) * 0.3f * u, dir.y / len * 0.75f * u + (1 - back) * 0.2f * u)
-    drawCircle(Skin, 0.48f * u, head)
-    drawArc(Hair, 170f, 200f, true, head - Offset(0.5f * u, 0.52f * u), Size(1.0f * u, 0.9f * u))
-    drawCircle(Shoe, 0.05f * u, head + Offset(0.26f * u, -0.04f * u))
-    drawLine(ink.accent.darken(0.82f), shoulder, elbow, 0.36f * u, cap = StrokeCap.Round)
-    drawLine(Skin, elbow, wrist, 0.28f * u, cap = StrokeCap.Round)
-    val handAng = kotlin.math.atan2(wrist.y - elbow.y, wrist.x - elbow.x) + rad(14f)
-    drawLine(Skin, wrist, wrist + Offset(cos(handAng) * 0.42f * u, sin(handAng) * 0.42f * u), 0.25f * u, cap = StrokeCap.Round)
+    // The figure (soft realistic, ui/theory/SoftFigure.kt) in front of the piano; each cue moves from the poor habit to right.
+    val (anchors, u) = softFigure(e(PostureCue.BENCH), e(PostureCue.EDGE), e(PostureCue.BACK), e(PostureCue.ELBOWS), e(PostureCue.LEVEL),
+        e(PostureCue.HANDS), sin(t / 650f) * 0.03f, v.steps.any { it.cue == PostureCue.LEVEL }, ink, v.steps.size * 16.dp.toPx())
     // The part being put right glows; the cues stack up as labels, top left.
-    val anchors = mapOf(PostureCue.BENCH to Offset(benchAt.x, seatY + 0.16f * u), PostureCue.EDGE to hip, PostureCue.BACK to mid,
-        PostureCue.ELBOWS to elbow, PostureCue.LEVEL to Offset((elbow.x + wrist.x) / 2, (elbow.y + wrist.y) / 2), PostureCue.HANDS to wrist)
     val newest = v.steps.indices.lastOrNull { t >= v.stepAt(it) } ?: -1
     v.steps.forEachIndexed { i, s ->
         val at = v.stepAt(i)
@@ -185,7 +105,7 @@ internal fun DrawScope.postureScene(v: PostureVisual, t: Int, ink: StageInk) {
         val glow = if (t < at + v.moveMs + 500) 1f - progress(t, at + v.moveMs, 500) else 0f
         if (glow > 0f) {
             val k = (t - at) % 700 / 700f
-            drawCircle(ink.accent, (0.55f + 0.35f * k) * u, anchors.getValue(s.cue), style = Stroke(2.dp.toPx()), alpha = glow * (1 - k))
+            drawCircle(ink.accent, (0.8f + 0.5f * k) * u, anchors.getValue(s.cue), style = Stroke(2.dp.toPx()), alpha = glow * (1 - k))
         }
         val p = progress(t, at + v.moveMs / 2, 380)
         val y = pad + 14.dp.toPx() + i * 30.dp.toPx()
@@ -196,7 +116,10 @@ internal fun DrawScope.postureScene(v: PostureVisual, t: Int, ink: StageInk) {
 
 // ---- Hand shape --------------------------------------------------------------------------------------------------
 
-internal fun DrawScope.handShapeScene(v: HandShapeVisual, t: Int, ink: StageInk) {
+/** The painted hand's colour filter on this stage: a touch darker on a dark one, where its baked-in light would glow. */
+private fun handFilter(ink: StageInk) = if (ink.paper.luminance() < 0.3f) DarkStageHand else null
+
+internal fun DrawScope.handShapeScene(v: HandShapeVisual, t: Int, ink: StageInk, hands: HandFrames?) {
     val pad = 14.dp.toPx()
     val low = whiteAtOrBelow(v.keys.min() - 3); val high = whiteAtOrAbove(v.keys.max() + 3)
     val l = pianoFor(low, high, size.width - 2 * pad, size.height * 0.46f)
@@ -220,46 +143,34 @@ internal fun DrawScope.handShapeScene(v: HandShapeVisual, t: Int, ink: StageInk)
     }
     drawPiano(l, o, ink, lit = { lit[it] }, sink = { sinks[it] ?: 0f })
     val w = l.whiteWidth
-    val fw = minOf(w * 0.64f, 30.dp.toPx())
+    // The painted hand: hanging loose (lowered off the keys, swinging), curling round the ball, then resting on its
+    // fingertips with the thumb on its side; the thumb's press is its own frame. Placed by the middle finger's key.
     val lift = (1 - hang) * keyH * 0.55f
     val swing = (1 - hang) * 7f * sin(t / 260f)
-    val palmTop = o.y + keyH * 0.88f + lift
-    val xs = v.keys.map { o.x + centerX(l, it) }
-    val cx = xs.average().toFloat()
-    // The ball under the hand: in while the hand finds its shape, out once the fingers have curled round it.
+    val thumbPress = if (v.has(HandMove.THUMB)) press(t - thumbAt) else 0f
+    val (from, to, mix) = when {
+        curl < 1f -> Triple(HandPose.LOOSE, HandPose.BALL, curl)
+        tips < 1f -> Triple(HandPose.BALL, HandPose.REST, tips)
+        else -> Triple(HandPose.REST, HandPose.PRESS_1, thumbPress)
+    }
+    val ax = o.x + centerX(l, v.keys[2])
+    val ay = o.y + keyH * 0.94f - handTip(true, HandPose.REST, 1, 3, 0f, 0f, w).y + lift + (1 - tips) * keyH * 0.06f
+    val wrist = handWrist(true, 3, ax, ay, w)
+    // The hand hovers (a little larger, its shadow further off) until the fingertips land.
+    val hover = maxOf(1 - hang, (1 - tips) * 0.6f)
     val ballA = 0.45f * (if (v.has(HandMove.BALL)) ballIn else 1f) * (if (v.has(HandMove.CURL)) 1 - curl else if (v.has(HandMove.BALL)) 1f else 0f)
-    val ballC = Offset(cx, palmTop - keyH * 0.18f)
-    rotate(swing, Offset(cx, palmTop + keyH * 0.3f)) {
-        val pl = xs.first() - 0.7f * w; val pr = xs.last() + 0.6f * w
-        palm(pl, pr, palmTop, keyH * 0.5f, w * 0.8f)
-        val base = listOf(0.46f, 0.52f, 0.48f, 0.38f)
-        for (f in 2..5) {
-            val x = xs[f - 1]
-            val black = isBlack(v.keys[f - 1])
-            val len = keyH * base[f - 2] * mix(1.3f, 0.95f, curl) + (if (black) keyH * 0.12f * curl else 0f) + (1 - hang) * keyH * 0.08f
-            val dip = tips * 0.6f + 0.4f * press(t - (tipsAt + (f - 2) * 80))
-            val topY = palmTop + keyH * 0.04f - len + keyH * 0.05f * dip
-            drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(x - fw / 2 + 3f, topY + 4f), Size(fw, palmTop + keyH * 0.05f - topY), CornerRadius(fw / 2))
-            drawRoundRect(lerp(Skin, SkinShade, curl * 0.4f), Offset(x - fw / 2, topY), Size(fw, palmTop + keyH * 0.05f - topY), CornerRadius(fw / 2))
-            drawRoundRect(SkinEdge, Offset(x - fw / 2, topY), Size(fw, palmTop + keyH * 0.05f - topY), CornerRadius(fw / 2), style = Stroke(1.5.dp.toPx()))
-            // Curled: a knuckle crease and the nail at the tip, seen from above.
-            if (curl > 0.05f) {
-                val crease = topY + (palmTop - topY) * 0.45f
-                drawLine(SkinEdge, Offset(x - fw * 0.3f, crease), Offset(x + fw * 0.3f, crease), 1.2.dp.toPx(), alpha = curl)
-                drawOval(Nail, Offset(x - fw * 0.24f, topY + fw * 0.12f), Size(fw * 0.48f, fw * 0.36f), alpha = curl)
+    val tip3 = handTip(true, from, to, mix, 3, 3, ax, ay, w)
+    val ballC = lerpOffset(tip3, wrist, 0.32f)
+    if (hands != null) clipRect {
+        rotate(swing, wrist) {
+            scale(1f + 0.05f * hover, wrist) {
+                drawPaintedHand(hands, true, from, to, mix, 3, ax, ay, w, lift = hover, filter = handFilter(ink))
+                // A soft glow where a fingertip presses its key.
+                for (f in 1..5) {
+                    val p = if (f == 1) (if (v.has(HandMove.THUMB)) thumbPress else press(t - tipsAt)) else press(t - (tipsAt + (f - 2) * 80))
+                    if (p > 0.05f) drawCircle(ink.accent, w * 0.32f, handTip(true, from, to, mix, f, 3, ax, ay, w), alpha = 0.35f * p)
+                }
             }
-            if (dip > 0.05f) drawCircle(ink.accent, fw * 0.55f, Offset(x, topY + fw * 0.45f), alpha = 0.45f * dip)
-        }
-        // The thumb: flat and splayed, then turned onto its side, playing on its corner.
-        val tx = xs[0]
-        val tlen = keyH * 0.32f + (1 - hang) * keyH * 0.05f
-        val tw = fw * mix(1.2f, 0.82f, thumb)
-        val ttop = palmTop + keyH * 0.1f - tlen + keyH * 0.05f * thumbDown
-        rotate(mix(-38f, -14f, thumb), Offset(tx, palmTop + keyH * 0.14f)) {
-            drawRoundRect(Skin, Offset(tx - tw / 2, ttop), Size(tw, palmTop + keyH * 0.16f - ttop), CornerRadius(tw / 2))
-            drawRoundRect(SkinEdge, Offset(tx - tw / 2, ttop), Size(tw, palmTop + keyH * 0.16f - ttop), CornerRadius(tw / 2), style = Stroke(1.5.dp.toPx()))
-            if (thumb > 0.05f) drawLine(SkinEdge, Offset(tx + tw * 0.28f, ttop + tw * 0.4f), Offset(tx + tw * 0.28f, palmTop), 1.2.dp.toPx(), alpha = thumb)
-            if (thumbDown > 0.05f) drawCircle(ink.accent, tw * 0.5f, Offset(tx, ttop + tw * 0.4f), alpha = 0.45f * thumbDown)
         }
     }
     if (ballA > 0.01f) {
@@ -280,7 +191,7 @@ internal fun DrawScope.handShapeScene(v: HandShapeVisual, t: Int, ink: StageInk)
 
 // ---- Finger numbers ----------------------------------------------------------------------------------------------
 
-internal fun DrawScope.fingerNumbersScene(v: FingerNumbersVisual, t: Int, ink: StageInk) {
+internal fun DrawScope.fingerNumbersScene(v: FingerNumbersVisual, t: Int, ink: StageInk, hands: HandFrames?) {
     val pad = 12.dp.toPx()
     val labelRoom = 44.dp.toPx()
     val l = pianoFor(v.low, v.high, size.width - 2 * pad, size.height * 0.5f)
@@ -335,41 +246,43 @@ internal fun DrawScope.fingerNumbersScene(v: FingerNumbersVisual, t: Int, ink: S
     }
     v.steps.forEachIndexed { i, s -> s.presses.forEach { down(it.right, it.finger, it.key, v.stepAt(i), (v.stepMs * 0.7f).toInt()) } }
     drawPiano(l, o, ink, lit = { lit[it] }, sink = { sinks[it] ?: 0f })
-    val fw = minOf(w * 0.62f, 28.dp.toPx())
-    val palmTop = o.y + keyH * 0.9f
+    // The fingertips sit up the keys so the thumb, which lies lower, still reaches the front of its key.
+    val tipY = o.y + keyH * 0.94f - handTip(true, HandPose.REST, 1, 3, 0f, 0f, w).y
     for ((h, right) in listOf(0 to true, 1 to false)) {
         val ps = poses(right, if (right) v.rightKeys else v.leftKeys) ?: continue
         val xs = poseAt(ps)
-        val dir = if (right) 1f else -1f
         val color = if (right) RightHandColor else LeftHandColor
-        val pl = xs.min() - 0.62f * w; val pr = xs.max() + 0.62f * w
-        palm(pl, pr, palmTop, keyH * 0.5f, w * 0.8f)
-        val room = size.height - palmTop
-        if (room > keyH * 0.3f) text(ink, if (right) "Right hand" else "Left hand", Offset((pl + pr) / 2, palmTop + minOf(keyH * 0.3f, room * 0.55f)),
-            TextKind.LABEL, 11.sp, HandInk)
-        val base = listOf(0.30f, 0.46f, 0.52f, 0.48f, 0.38f)
+        // The painted hand that best fits the five finger places: where its middle finger goes, and how far it opens
+        // (a stretch widens it, within what a hand can do). The pressing finger then lands right on its key.
+        val rest = FloatArray(5) { handTip(right, HandPose.REST, it + 1, 3, 0f, 0f, w).x }
+        val mo = rest.average().toFloat(); val mx = xs.average().toFloat()
+        var cov = 0f; var vr = 0f
+        for (f in 0..4) { cov += (rest[f] - mo) * (xs[f] - mx); vr += (rest[f] - mo) * (rest[f] - mo) }
+        val stretch = (cov / vr).coerceIn(0.9f, 1.6f)
+        var ax = mx - stretch * mo
+        var finger = 0; var d = 0f
+        for (f in 1..5) if (dips[h][f] > d) { d = dips[h][f]; finger = f }
+        val pose = if (finger > 0) HandPose.press(finger) else HandPose.REST
+        var ay = tipY
+        if (finger > 0) {
+            ax += (xs[finger - 1] - handTip(right, pose, finger, 3, ax, ay, w, stretch).x) * smooth(d)
+            if (blackTip[h][finger]) ay -= keyH * 0.3f * smooth(d)
+        }
+        if (hands != null) clipRect { drawPaintedHand(hands, right, HandPose.REST, pose, d, 3, ax, ay, w, stretch, filter = handFilter(ink)) }
+        // "Right hand" on the back of the hand, if it shows.
+        val back = handWrist(right, 3, ax, ay, w, stretch).let { Offset(it.x, mix(ay, it.y, 0.55f)) }
+        if (back.y < size.height - 10.dp.toPx()) text(ink, if (right) "Right hand" else "Left hand", back, TextKind.LABEL, 11.sp, HandInk)
+        // The numbers pop onto the painted fingertips in the intro; the pressing finger's is lit.
         for (f in 1..5) {
-            val x = xs[f - 1]
-            val d = dips[h][f]
-            val len = keyH * base[f - 1] + (if (blackTip[h][f] && d > 0f) keyH * 0.14f else 0f)
-            val baseY = palmTop + keyH * (if (f == 1) 0.16f else 0.05f)
-            val topY = baseY - len + keyH * 0.05f * d
-            val ww = fw * (if (f == 1) 1.08f else 1f) * (1f + 0.1f * d)
-            val pivot = Offset(x, baseY)
-            rotate(if (f == 1) -16f * dir * (1f - 0.5f * d) else 0f, pivot) {
-                drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(x - ww / 2 + 3f, topY + 4f), Size(ww, baseY - topY), CornerRadius(ww / 2))
-                drawRoundRect(lerp(Skin, color, 0.35f * d), Offset(x - ww / 2, topY), Size(ww, baseY - topY), CornerRadius(ww / 2))
-                drawRoundRect(if (d > 0.3f) color else SkinEdge, Offset(x - ww / 2, topY), Size(ww, baseY - topY), CornerRadius(ww / 2),
-                    style = Stroke((if (d > 0.3f) 2.5f else 1.5f).dp.toPx()))
-                // The finger's number: popping on in the intro, lit while the finger plays.
-                val shown = if (v.intro) progress(t, v.popAt(f) - 60, 320) else 1f
-                if (shown > 0f) {
-                    val r = minOf(ww * 0.42f, 11.dp.toPx()) * (0.6f + 0.4f * backOut(shown)) * (1f + 0.25f * d)
-                    val c = Offset(x, topY + ww * 0.55f)
-                    drawCircle(if (d > 0.3f) color else Color.White, r, c, alpha = smooth(shown * 2))
-                    text(ink, "$f", c, TextKind.NUMBER, pxSp(r * 1.25f), if (d > 0.3f) Color.White else HandInk, alpha = smooth(shown * 2))
-                }
-            }
+            val shown = if (v.intro) progress(t, v.popAt(f) - 60, 320) else 1f
+            if (shown <= 0f) continue
+            val df = dips[h][f]
+            val c = handTip(right, HandPose.REST, pose, d, f, 3, ax, ay, w, stretch)
+            val r = minOf(w * 0.27f, 11.dp.toPx()) * (0.6f + 0.4f * backOut(shown)) * (1f + 0.25f * df)
+            val a = smooth(shown * 2)
+            drawCircle(Color.Black, r * 1.08f, c + Offset(0f, 1.dp.toPx()), alpha = 0.18f * a)
+            drawCircle(if (df > 0.3f) color else Color.White, r, c, alpha = a)
+            text(ink, "$f", c, TextKind.NUMBER, pxSp(r * 1.25f), if (df > 0.3f) Color.White else HandInk, alpha = a)
         }
     }
     // Step labels over the keys: the newest pops, the one before fades.
@@ -471,49 +384,15 @@ internal fun DrawScope.pedalScene(v: PedalVisual, t: Int, ink: StageInk) {
     }
 }
 
-/** A foot on the sustain pedal, side view, in [box]: heel on the floor, the ball of the foot pressing [pedal] 0..1. */
+/** A foot on the sustain pedal, side view, in [box] (soft realistic, ui/theory/SoftFigure.kt): heel on the floor, the ball of the foot pressing [pedal] 0..1. */
 private fun DrawScope.drawFoot(ink: StageInk, origin: Offset, box: Size, pedal: Float, labels: Boolean, t: Int, leadMs: Int) {
-    val fu = minOf(box.width / 5.6f, box.height / 2.6f)
-    val floor = origin.y + box.height - 4.dp.toPx()
-    val cx = origin.x + box.width / 2
-    drawLine(ink.faint, Offset(origin.x, floor), Offset(origin.x + box.width, floor), 2.dp.toPx())
-    // The pedal box under the piano, and the brass pedal pivoting at its back.
-    val pivot = Offset(cx + 1.6f * fu, floor - 0.42f * fu)
-    drawRoundRect(PianoCase, Offset(pivot.x - 0.15f * fu, floor - 1.25f * fu), Size(box.width + origin.x - pivot.x, 1.25f * fu), CornerRadius(0.12f * fu))
-    drawLine(PianoEdge, Offset(pivot.x - 0.15f * fu, floor - 1.25f * fu), Offset(origin.x + box.width, floor - 1.25f * fu), 2.dp.toPx())
-    val ang = rad(mix(13f, 2f, pedal))
-    val len = 2.1f * fu
-    val tip = pivot + Offset(-cos(ang) * len, -sin(ang) * len)
-    drawLine(Brass, pivot, tip, 0.24f * fu, cap = StrokeCap.Round)
-    // The foot: heel fixed on the floor, the ball on the pedal near its tip, the shin rising out of the picture.
-    val ball = pivot + Offset(-cos(ang) * len * 0.72f, -sin(ang) * len * 0.72f - 0.12f * fu)
-    val heel = Offset(ball.x - 1.6f * fu, floor - 0.1f * fu)
-    val along = Offset(ball.x - heel.x, ball.y - heel.y).let { val d = kotlin.math.hypot(it.x, it.y); Offset(it.x / d, it.y / d) }
-    val up = Offset(along.y, -along.x)
-    val toe = ball + along * (0.55f * fu)
-    val ankle = heel + along * (0.35f * fu) + up * (0.75f * fu)
-    val knee = Offset(ankle.x - 0.5f * fu, maxOf(origin.y, ankle.y - 1.6f * fu))
-    drawLine(Trousers, ankle, knee, 0.55f * fu, cap = StrokeCap.Round)
-    val shoe = Path().apply {
-        moveTo(heel.x, heel.y); lineTo(toe.x, toe.y)
-        val toeTop = toe + up * (0.32f * fu)
-        quadraticTo(toe.x + along.x * 0.18f * fu, toe.y + along.y * 0.18f * fu, toeTop.x, toeTop.y)
-        val instep = ball + up * (0.5f * fu) - along * (0.2f * fu)
-        lineTo(instep.x, instep.y)
-        val front = ankle + along * (0.25f * fu)
-        lineTo(front.x, front.y)
-        val back = heel + up * (0.62f * fu)
-        lineTo(back.x, back.y)
-        quadraticTo(heel.x - along.x * 0.2f * fu, heel.y - along.y * 0.2f * fu, heel.x, heel.y)
-        close()
-    }
-    drawPath(shoe, Color(0xFF7A5C48))
-    drawPath(shoe, ink.line, style = Stroke(1.5.dp.toPx()), alpha = 0.6f)
-    if (pedal > 0.05f) drawCircle(ink.accent, 0.32f * fu, ball, alpha = 0.35f * pedal)
+    val (heel, ball) = softFoot(ink, origin, box.width, box.height, pedal)
     if (labels) {
-        pill(ink, "Heel on the floor", Offset(heel.x - 1.3f * fu, floor - 0.45f * fu), false, progress(t, leadMs + 300, 380))
-        pill(ink, "Ball of the foot", Offset(ball.x + 0.4f * fu, ball.y - 1.7f * fu), true, progress(t, leadMs + 1000, 380))
-        drawLine(ink.faint, Offset(ball.x + 0.3f * fu, ball.y - 1.45f * fu), Offset(ball.x + 0.05f * fu, ball.y - 0.6f * fu), 1.5.dp.toPx(), alpha = progress(t, leadMs + 1000, 380))
+        val fu = minOf(box.width / 7.6f, box.height / 3.4f)
+        val floor = origin.y + box.height - 4.dp.toPx()
+        pill(ink, "Heel on the floor", Offset(heel.x - 0.4f * fu, floor - 2.9f * fu), false, progress(t, leadMs + 300, 380))
+        pill(ink, "Ball of the foot", Offset(ball.x + 1.6f * fu, ball.y - 1.9f * fu), true, progress(t, leadMs + 1000, 380))
+        drawLine(ink.faint, Offset(ball.x + 1.3f * fu, ball.y - 1.65f * fu), Offset(ball.x + 0.2f * fu, ball.y - 0.45f * fu), 1.5.dp.toPx(), alpha = progress(t, leadMs + 1000, 380))
     }
 }
 

@@ -66,6 +66,7 @@ import kotlin.math.sin
 @Composable
 internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = Modifier, description: String = "") {
     val ink = rememberStageInk()
+    val hands = com.bigpapituna.sharpears.ui.motion.rememberHandFrames()
     Canvas(modifier.semantics { if (description.isNotEmpty()) contentDescription = description }) {
         val t = time()
         when (visual) {
@@ -78,8 +79,8 @@ internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = M
             is ValueTreeVisual -> valueTreeScene(visual, t, ink)
             is PopVisual -> popScene(visual, t, ink)
             is PostureVisual -> postureScene(visual, t, ink)
-            is HandShapeVisual -> handShapeScene(visual, t, ink)
-            is FingerNumbersVisual -> fingerNumbersScene(visual, t, ink)
+            is HandShapeVisual -> handShapeScene(visual, t, ink, hands.value)
+            is FingerNumbersVisual -> fingerNumbersScene(visual, t, ink, hands.value)
             is PedalVisual -> pedalScene(visual, t, ink)
             is DynamicsVisual -> dynamicsScene(visual, t, ink)
             is ArticulationVisual -> articulationScene(visual, t, ink)
