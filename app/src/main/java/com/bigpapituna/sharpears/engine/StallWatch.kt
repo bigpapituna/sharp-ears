@@ -6,6 +6,8 @@ package com.bigpapituna.sharpears.engine
  * feeds it, the mic saves what it returns.
  */
 class StallWatch(private val thresholdMs: Long = 5_000) {
+    /** Who is playing, as a kind only ("kid" or "adult", never a name), for the report header; null leaves it out. */
+    var profile: String? = null
     private var startMs = 0L
     private var context = ""
     private var expected = emptyList<String>()
@@ -22,6 +24,9 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
         if (active && heard.size < 100) heard += "+%.2f s  %s".format((nowMs - startMs) / 1000.0, what)
     }
 
+    /** How long the current wait has lasted at [nowMs] (0 when not waiting). */
+    fun waitedMs(nowMs: Long): Long = if (active) nowMs - startMs else 0L
+
     /**
      * The wait ended at [nowMs] ([outcome]: "played", "left", ...). Returns the report when it was a stuck moment,
      * with how long ago the wait began, so the caller can cut the audio from there.
@@ -33,6 +38,7 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
         if (waited < thresholdMs) return null
         val text = buildString {
             append("# sharp ears stuck moment\n")
+            profile?.let { append("profile=").append(it).append('\n') }
             append(context).append('\n')
             append("expected=").append(expected.joinToString(",")).append('\n')
             append("waited_ms=").append(waited).append('\n')
@@ -44,4 +50,21 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
     }
 
     data class Stall(val waitedMs: Long, val report: String)
+
+    companion object {
+        /** The profile kind as reports carry it: "kid" or "adult". Never the name. */
+        fun profileKind(kid: Boolean) = if (kid) "kid" else "adult"
+
+        /**
+         * [report] with a "profile=kid|adult" line under its "# sharp ears ..." header (or first, with no header),
+         * unless it has one already. Every report the mic saves goes through this (stuck moments, flags, answer keys).
+         */
+        fun tagProfile(report: String, kind: String): String {
+            if (Regex("(?m)^profile=").containsMatchIn(report)) return report
+            val lines = report.lines()
+            val at = lines.indexOfFirst { it.startsWith("# sharp ears") }
+            return if (at < 0) "profile=$kind\n$report"
+            else (lines.take(at + 1) + "profile=$kind" + lines.drop(at + 1)).joinToString("\n")
+        }
+    }
 }

@@ -22,6 +22,34 @@ class StallWatchTest {
         assertNull("reported once", w.end(30_000, "left"))
     }
 
+    @Test fun reportsCarryTheProfileKindNeverTheName() {
+        val w = StallWatch()
+        w.profile = StallWatch.profileKind(kid = true)
+        w.start(0, listOf("E4"), "song=lesson-together-3")
+        val r = w.end(6_000, "left")!!.report
+        assertEquals("# sharp ears stuck moment", r.lines()[0])
+        assertEquals("profile=kid", r.lines()[1])
+        assertEquals("adult", StallWatch.profileKind(kid = false))
+    }
+
+    @Test fun anyReportGetsTheProfileTagOnce() {
+        val flag = "title=Flag: Twinkle at 0:07: It missed a note I played\n# sharp ears flag (\"that wasn't right\")\nsong=twinkle\n"
+        val tagged = StallWatch.tagProfile(flag, "adult")
+        assertEquals(listOf("title=Flag: Twinkle at 0:07: It missed a note I played", "# sharp ears flag (\"that wasn't right\")",
+            "profile=adult", "song=twinkle", ""), tagged.lines())
+        assertEquals("already tagged", tagged, StallWatch.tagProfile(tagged, "kid"))
+        assertEquals("profile=kid\nno header\n", StallWatch.tagProfile("no header\n", "kid"))
+    }
+
+    @Test fun waitedMsCountsOnlyDuringAWait() {
+        val w = StallWatch()
+        assertEquals(0L, w.waitedMs(5_000))
+        w.start(1_000, listOf("C4"), "")
+        assertEquals(4_000L, w.waitedMs(5_000))
+        w.end(5_000, "played")
+        assertEquals(0L, w.waitedMs(6_000))
+    }
+
     @Test fun heardOutsideAWaitIsIgnored() {
         val w = StallWatch()
         w.heard(0, "C3")
