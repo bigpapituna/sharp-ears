@@ -210,7 +210,8 @@ fun Keyboard(
     ) {
         Canvas(Modifier.matchParentSize().clipToBounds()) {
             val l = layout ?: return@Canvas
-            val a = if (pulsing.isEmpty()) 1f else pulse.value
+            // The waiting keys pulse; with the phone's animations off they hold a steady glow (they kept pulsing).
+            val a = if (pulsing.isEmpty() || still) 1f else pulse.value
             val now = motion.tick.longValue                   // ticks only while a key or ripple moves
             val sinkPx = 3.dp.toPx()
             drawRect(KeyEdge)                                  // shows through the gaps between keys
