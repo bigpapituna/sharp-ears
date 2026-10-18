@@ -1085,7 +1085,8 @@ fun PlayerScreen(
                 val hint = remember(expected) { transport.hintKeys.toSet() }
                 val pool = expected.filter { it.midi in hint }
                 val n = pool.filter { it.hand == Hand.RIGHT }.minByOrNull { it.midi } ?: pool.minByOrNull { it.midi }
-                if (n != null) PointingHand(n.midi, n.hand == Hand.RIGHT, range.first, range.last, Modifier.matchParentSize())
+                // The hand presses with the note's own finger (the number on the falling note), not always the index.
+                if (n != null) PointingHand(n.midi, n.hand == Hand.RIGHT, range.first, range.last, Modifier.matchParentSize(), finger = fingers[n] ?: 2)
             }
             octaveShown?.let { OctaveArrow(it.expected, it.playedOctaveOffset, range.first, range.last, Modifier.matchParentSize()) }
         }
