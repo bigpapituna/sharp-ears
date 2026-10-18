@@ -267,8 +267,8 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
             Mood.CHEER))),
 ))
 
-/** Where each Playground lesson sits in the pup's world: four in the garden, four at the pond, four in the concert hall. */
-val PLAYGROUND_PLACES: Map<String, Place> = PLAYGROUND.lessons.mapIndexed { i, l -> l.id to Place.entries[i / 4] }.toMap()
+/** Where each Playground lesson sits in the pup's world, from its page (engine/playground/Pages.kt). */
+val PLAYGROUND_PLACES: Map<String, Place> by lazy { PLAYGROUND_PAGES.flatMap { p -> p.lessonIds.map { it to p.place } }.toMap() }
 
 /** The plan's short path for big kids (section 4): these five, then Basics. */
 val BIG_KID_LESSONS: List<String> = listOf(2, 3, 6, 7, 12).map { "playground-$it" }
