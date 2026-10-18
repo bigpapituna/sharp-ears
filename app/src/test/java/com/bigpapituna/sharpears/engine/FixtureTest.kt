@@ -16,7 +16,7 @@ class FixtureTest {
     data class Result(val name: String, val notes: Int, val heard: Int, val early: Int, val falseWrongs: Int,
                       val seconds: Double, val medianLatencyMs: Int?, val noise: Int = 0, val slips: Int = 0)
 
-    fun evaluate(wav: File, cfg: MatcherConfig = MatcherConfig()): Result {
+    fun evaluate(wav: File, cfg: MatcherConfig = MatcherConfig(), strict: Boolean = false): Result {
         val audio = Wav.read(wav)
         require(audio.sampleRate == 48_000) { "${wav.name}: expected 48 kHz" }
         val fs = audio.sampleRate
@@ -31,6 +31,7 @@ class FixtureTest {
         for (t in truth) if (groups.isEmpty() || t.first - groups.last().first().first > fs * 60 / 1000) groups += mutableListOf(t) else groups.last() += t
 
         val m = NoteMatcher(fs, cfg)
+        m.strictKeys = strict
         var gi = 0
         val pending = groups.firstOrNull()?.map { it.second }?.toMutableSet() ?: mutableSetOf()
         var heard = 0; var early = 0; var wrongs = 0; var noise = 0; var slips = 0
@@ -112,6 +113,27 @@ class FixtureTest {
             WRONG_FLASH_CEILING[r.name]?.let { max -> if (r.falseWrongs > max) failures += "${r.name} (${r.falseWrongs} wrong flashes, at most $max)" }
         }
         assertTrue("fixtures below the plan's bar (90% heard, <= 1 false strike per 30 s, wrong flashes): $failures", failures.isEmpty())
+    }
+
+    /**
+     * The Playground's stages and the Jam listen with strict keys (NoteMatcher.strictKeys: a key outside the set must
+     * not pass for one inside it). On Roy's recordings with MIDI truth it must hear what the plain matcher hears: every
+     * recording still meets the plan, and session-155837 stays 33/33 with no false strikes.
+     */
+    @Test fun strictKeysHearRoysPianoAsWell() {
+        val wavs = dir.listFiles { f -> f.extension == "wav" && File(f.path.removeSuffix(".wav") + ".notes").readLines().any { it.isNotBlank() && !it.startsWith("#") } }
+            .orEmpty().sortedBy { it.name }
+        if (wavs.isEmpty()) { println("no fixtures with MIDI truth in $dir"); return }
+        val failures = mutableListOf<String>()
+        for (w in wavs) {
+            val plain = evaluate(w)
+            val r = evaluate(w, strict = true)
+            println("%-24s strict %3d/%3d heard (plain %d), %d false strikes (plain %d), %d wrong flashes (plain %d)"
+                .format(r.name, r.heard, r.notes, plain.heard, r.early, plain.early, r.falseWrongs, plain.falseWrongs))
+            if (r.heard < plain.heard - maxOf(1, plain.notes / 50) || r.early > plain.early || r.heard < 0.9 * r.notes) failures += r.name
+            if (r.name == "session-155837" && (r.heard != r.notes || r.early != 0 || r.falseWrongs > 2)) failures += "${r.name} (${r.heard}/${r.notes}, ${r.early} false)"
+        }
+        assertTrue("strict keys lost real notes: $failures", failures.isEmpty())
     }
 
     private companion object {

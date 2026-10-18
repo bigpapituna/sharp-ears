@@ -93,6 +93,17 @@ internal val WRONG_LOOKS = mapOf(1 to (2 to 4), 2 to (4 to 8), 4 to (8 to 13))
 /** How many keys per band and look are judged in full after the quick look at their lowest partials. */
 internal const val WRONG_FULL_LOOKS = 3
 
+/** [NoteMatcher.strictKeys]: the share of a strike's rise its two lowest partials must carry. */
+internal const val STRICT_LOW_SHARE = 0.1
+/** [NoteMatcher.strictKeys]: a lower note's first partials rising this many times the strike's own rise explain it. */
+internal const val STRICT_LOWER_RATIO = 0.25
+/**
+ * [NoteMatcher.strictKeys]: a strike must carry the sound, not a sliver of it: its rise at most this many dB under the
+ * loudest moment of its window (a key's partials hold most of its power; on Roy's piano a faint 131 Hz bump under A4
+ * and A3 passed for C2 and C3 at 12 to 16 dB under the note that made it).
+ */
+internal const val STRICT_LEVEL_DB = 12.0
+
 sealed interface MicEvent {
     /** Sample index (since the matcher started) where the event was decided. */
     val sample: Long
@@ -134,6 +145,11 @@ enum class Reject {
      */
     NO_FUNDAMENTAL,
     NOT_SHARP, TOO_FAINT,
+    /**
+     * [NoteMatcher.strictKeys] only: the note's two lowest partials carried almost none of the rise, so another key's
+     * upper partials landed on its overtones (on PianoSynth: C#4 credited as E3, G4 as E5, D6 as E6).
+     */
+    NO_LOW_PARTIALS,
 }
 
 /** An expected note that rose above the sensitivity floor at [sample] but was turned down for [reason]. */
@@ -183,6 +199,22 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
      * [MatcherConfig.roomMarginDb]) are this many dB easier. Applied on top of [config], which stays the stored setting.
      */
     @Volatile var offsetDb: Double = 0.0
+    /**
+     * Strict keys (2.1.1, the Playground's stages and the Jam): listening for a set of keys of which the player strikes
+     * any one, or none (a hunt, high and low, free play), where a key outside the set must not pass for one inside it.
+     * In wait mode the expected note is the one the player is reaching for; here the struck key may be anywhere, and
+     * one of its upper partials can land on an expected key's overtones. So an accepted strike must also show (1) its
+     * own lowest partials: the two lowest carry at least [STRICT_LOW_SHARE] of the rise; (2) no lower note under it:
+     * no fresh fundamental at p/h of the note's 1st, 2nd or 3rd partial (h up to 9, beyond the octave and twelfth below
+     * that every strike is checked for) with its own first partials at [STRICT_LOWER_RATIO] of the rise. Measured on
+     * PianoSynth: A1 credited as C#4 (its 5th partial), A2 as G5 (7th), C4 as A#5 (its 7th on A#5's 2nd), G1 as E2
+     * (its 5th on E2's 3rd). The lower
+     * notes are probed only when a strike is about to be accepted, so it costs next to nothing. (3) No single-partial
+     * slack (that is for chords, whose shared overtones are set aside; a stage hears one key), and (4) the strike
+     * carries the sound: its rise within [STRICT_LEVEL_DB] of the loudest moment of its window. The wrong-key search
+     * (MicEvent.Wrong) is held to the same checks, since a stage acts on the key it names. Off for the player.
+     */
+    @Volatile var strictKeys: Boolean = false
     /** Loudness of the latest hop in dBFS, for the level meter. */
     @Volatile var levelDb: Double = -120.0
         private set
@@ -476,7 +508,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         // wobbling fundamental is not a strike: in Roy's scale recording a "C4" rose 6 dB at the fundamental while
         // its other partials fell 10-20 dB).
         val beforeTotal = f.note.sumOf { beforeV(it) }
-        val singleOk = !wrongScan && freshPartials == 1 && (f.note.size <= 2 ||
+        val singleOk = !wrongScan && !strictKeys && freshPartials == 1 && (f.note.size <= 2 ||
             (f.noteH[freshIdx[0]] == 1 && nowOf(f.note) >= beforeTotal &&
                 samplesProcessed - lastAttack <= (cfg.attackWindowMs * sampleRate / 1000).toLong()))
         val subRatio = if (wrongScan) minOf(cfg.subRatio, cfg.oddRatio) else cfg.subRatio
@@ -491,12 +523,16 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             subRise > subRatio * noteFresh -> if (riseOf(f.sub.subList(0, f.subOctave)) >= 0.5 * subRise) Reject.LOWER_OCTAVE else Reject.LOWER_NOTE
             fresh(f.odd) < cfg.oddRatio * noteFresh -> Reject.HIGHER_OCTAVE
             // A key heard through a struck key's overtones (2.1, the Playground's findings): only for expected notes, the
-            // wrong-key search keeps the detector's tuning (the room-noise watchdog counts its painted keys). The twelfth
+            // wrong-key search keeps the detector's tuning (the room-noise watchdog counts its painted keys), except with
+            // strict keys (2.1.1), where a stage acts on the key it names (G#7 was named C#6, its twelfth below). The twelfth
             // is checked only while the note's own 1st or 2nd partial is probed (in a chord they can be set aside as shared).
-            !wrongScan && f.noteH.any { it <= 2 } && fresh(f.notThird) < cfg.oddRatio * noteFresh -> Reject.HIGHER_TWELFTH
-            !wrongScan && factor == 1 && f.noteH.firstOrNull() == 1 && fresh(f.note.subList(0, 1)) < cfg.oddRatio * noteFresh -> Reject.NO_FUNDAMENTAL
+            (!wrongScan || strictKeys) && f.noteH.any { it <= 2 } && fresh(f.notThird) < cfg.oddRatio * noteFresh -> Reject.HIGHER_TWELFTH
+            (!wrongScan || strictKeys) && factor == 1 && f.noteH.firstOrNull() == 1 && fresh(f.note.subList(0, 1)) < cfg.oddRatio * noteFresh -> Reject.NO_FUNDAMENTAL
             !sharpEnough(f, nowP, beforeP, cfg) -> Reject.NOT_SHARP
             !strongEnough(f, nowP, beforeP, riseDb, cfg) -> Reject.TOO_FAINT
+            strictKeys && fresh(f.note.take(2)) < STRICT_LOW_SHARE * noteFresh -> Reject.NO_LOW_PARTIALS
+            strictKeys && riseDb < loudestDb(windowFor(midi)) + 3.0 - STRICT_LEVEL_DB -> Reject.TOO_FAINT
+            strictKeys && lowerNoteUnder(midi, f, buf, rate, factor, noteFresh, cfg) -> Reject.LOWER_NOTE
             else -> null
         }
         val tr = trace
@@ -524,6 +560,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
                 Reject.HIGHER_TWELFTH -> "only every third partial rose (others ${db(fresh(f.notThird))}), a twelfth above?"
                 Reject.NO_FUNDAMENTAL -> "a high note whose fundamental did not rise (a lower note's overtones?)"
                 Reject.NOT_SHARP -> "not a sharp peak (gliding sound: voice, whistle?)"
+                Reject.NO_LOW_PARTIALS -> "its two lowest partials barely rose (another key's overtones?)"
                 Reject.TOO_FAINT -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
                     "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
             }
@@ -537,6 +574,65 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         val p = f.note.firstOrNull() ?: return 0.0
         val now = p.maxOf { nowP[it] }; val before = p.maxOf { beforeP[it] }
         return 10 * log10((now + 1e-20) / (before + 1e-20))
+    }
+
+    /**
+     * [strictKeys]: whether a lower note was struck whose upper partial is this note's 1st, 2nd or 3rd (see [strictKeys]).
+     * Its candidates are the fundamentals p/h of those partials (p = 1, 2, 3; h = p + 1 .. 9, less the octave and twelfth
+     * below, which every strike is checked for); each is probed at its own first three partials where they are not
+     * this note's partials. All of them rising, with fresh power of [STRICT_LOWER_RATIO] times this note's fresh rise,
+     * means the lower note was struck and this one is only its overtone.
+     */
+    private fun lowerNoteUnder(midi: Int, f: Probe, buf: FloatArray, rate: Int, factor: Int, noteFresh: Double, cfg: MatcherConfig): Boolean {
+        val (freqs, ranges) = lowerProbes.getOrPut(midi to factor) { buildLowerProbes(midi, factor) }
+        if (freqs.isEmpty()) return false
+        val now = DoubleArray(freqs.size); val before = DoubleArray(freqs.size)
+        powers(freqs, buf, rate, buf.size, now)
+        powers(freqs, buf, rate, buf.size - window, before)
+        for (r in ranges) {
+            // Every probe of the lower note must rise: a real lower note lifts all of its first partials, while notes of
+            // a chord can land on some of a phantom's (C4 and G4 are the 2nd and 3rd partials of a C3 nobody played).
+            if (r.any { i -> now[i] < cfg.riseRatio * before[i] }) continue
+            var fresh = 0.0
+            for (i in r) fresh += now[i] - before[i]
+            if (fresh >= STRICT_LOWER_RATIO * noteFresh) {
+                trace?.invoke("strict ${noteName(midi)}: a lower note at %.0f Hz rose %s against the note's %s".format(freqs[r.first], db(fresh), db(noteFresh)))
+                return true
+            }
+        }
+        return false
+    }
+
+    /** Per key and band: the lower-note probes (frequencies) and, per candidate fundamental, its slice of them. */
+    private val lowerProbes = HashMap<Pair<Int, Int>, Pair<DoubleArray, List<IntRange>>>()
+    private fun buildLowerProbes(midi: Int, factor: Int): Pair<DoubleArray, List<IntRange>> {
+        val nyq = 0.45 * sampleRate / factor
+        val tolerance = 1.5 * sampleRate / windowFor(midi)
+        val own = (1..16).map { partialFreq(midi, it) }
+        fun mine(fr: Double) = own.any { kotlin.math.abs(it - fr) < maxOf(fr * 0.012, tolerance) }
+        val roots = ArrayList<Double>()
+        for (p in 1..3) for (h in p + 1..9) {
+            if (p == 1 && h <= 3) continue
+            val g = partialFreq(midi, p) / h
+            if (roots.none { kotlin.math.abs(it - g) < g * 0.01 }) roots += g
+        }
+        val freqs = ArrayList<Double>(); val ranges = ArrayList<IntRange>()
+        for (g in roots) {
+            val probes = (1..3).map { g * it }.filter { it in 70.0..nyq && !mine(it) }
+            if (probes.size < 2) continue
+            ranges += freqs.size until freqs.size + probes.size
+            freqs += probes
+        }
+        return freqs.toDoubleArray() to ranges
+    }
+
+    /** The loudest hop (dBFS, mean square) of the last [span] samples, at most the hop ring's length (about 340 ms). */
+    private fun loudestDb(span: Int): Double {
+        val hops = (span / hop).coerceIn(1, hopDb.size)
+        val slot = ((samplesProcessed / hop) % hopDb.size).toInt()
+        var best = -120.0
+        for (k in 0 until hops) best = maxOf(best, hopDb[(slot - k + hopDb.size) % hopDb.size])
+        return best
     }
 
     /** A fresh note out of quiet (big jump) or a firm strike well above the room's background. */
