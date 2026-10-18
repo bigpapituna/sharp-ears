@@ -179,7 +179,8 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
                onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null,
                overlay: (@Composable BoxWithConstraintsScope.() -> Unit)? = null) {
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val t = rememberSceneClock()
+    // The concert hall has nothing that drifts: no clock, so its scene is painted once and never again until it changes.
+    val t = rememberSceneClock(running = place != Place.CONCERT)
     val owned = state.history.owned
     val items = Scenery.items(place, owned)
     BoxWithConstraints(modifier.fillMaxWidth().aspectRatio(SCENE_RATIO).clip(RoundedCornerShape(20.dp))
@@ -205,7 +206,7 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
                 drawTrail(trailPath(place, size), place, night)
             }
             run {
-                val tick = t.value
+                val tick = if (place == Place.CONCERT) 0f else t.value      // read only where something moves
                 when (place) {
                     Place.GARDEN -> { skyBase(p, night, 0.45f); skyLife(p, night, tick, 0.45f) }
                     Place.POND -> { skyBase(p, night, 0.38f); skyLife(p, night, tick, 0.38f) }
@@ -612,13 +613,14 @@ fun Place.sceneLabel(state: WorldState): String = "${Scenery.items(this, state.h
 
 /**
  * A slow clock for the scenes (clouds, smoke, ripples, the flag), 0..1 over [periodMs]. It ticks 20 times a second,
- * not every frame: the drift is slow, and a scene redrawn at 20 fps costs a third of one at 60. Still with animations off.
+ * not every frame: the drift is slow, and a scene redrawn at 20 fps costs a third of one at 60. Still with animations off
+ * or when not [running] (a scene with nothing that moves).
  */
 @Composable
-fun rememberSceneClock(periodMs: Long = 24_000L): State<Float> {
+fun rememberSceneClock(periodMs: Long = 24_000L, running: Boolean = true): State<Float> {
     val still = reducedMotion()
     val s = remember { mutableFloatStateOf(0.3f) }
-    if (!still) LaunchedEffect(periodMs) {
+    if (!still && running) LaunchedEffect(periodMs) {
         val t0 = SystemClock.uptimeMillis() - (0.3f * periodMs).toLong()
         while (true) {
             s.floatValue = ((SystemClock.uptimeMillis() - t0) % periodMs) / periodMs.toFloat()

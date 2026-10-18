@@ -146,8 +146,9 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     val d = if (next) sizes.next else sizes.stone
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val still = reducedMotion()
+    // The next stone's ripple, read only where it is drawn: a frame of it repaints the pebble, never recomposes the stone.
     val ring = if (next && !still && !asleep) rememberInfiniteTransition(label = "stone")
-        .animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing), RepeatMode.Restart), label = "ring").value else 0f
+        .animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing), RepeatMode.Restart), label = "ring") else null
     val label = stone.title + ", " + when (stone.state) {
         StoneState.DONE -> "done, " + com.bigpapituna.sharpears.engine.skin.Stars.spoken(stone.stars).lowercase()
         StoneState.NEXT -> "next, tap to play"
@@ -157,7 +158,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     Layout(content = {
         Box(Modifier.size(d * 1.1f, d).clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }) {
-            Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring, asleep) }
+            Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring?.value ?: 0f, asleep) }
         }
         if (stone.state == StoneState.DONE && stone.stars > 0) StarsUnder(stone.stars, sizes.stone * 0.36f)
     }) { ms, c ->

@@ -86,7 +86,6 @@ import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.Pup
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.motion.BounceSize
-import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.play.QuestCardContent
 import com.bigpapituna.sharpears.ui.play.Toy
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -148,7 +147,9 @@ fun KidHome(
     val density = LocalDensity.current
     val still = reducedMotion()
     val bottomBar = 104.dp
-    Box(modifier.fillMaxSize().paper()) {
+    // The page under the map is the app's own (MainActivity's root draws the paper): a second full-screen paper here
+    // painted the grain and the paws twice on every frame of the map.
+    Box(modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewport = maxHeight
             val sceneW = minOf(maxWidth - 32.dp, 720.dp)
