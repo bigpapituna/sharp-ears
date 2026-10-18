@@ -202,7 +202,9 @@ private fun DrawScope.drawPebble(state: StoneState, night: Boolean, ring: Float,
         StoneState.OPEN -> if (night) Color(0xFFC9BEAE) else Color(0xFFEFE6D8)
         StoneState.LATER -> if (night) Color(0xFF8F877C) else Color(0xFFD9D1C5)
     }
-    val alpha = if (state == StoneState.LATER) 0.82f else 1f
+    // Solid even when asleep: a see-through pebble showed the pond's planks and the hall's carpet through it. A sleeping
+    // stone is told apart by its paler face, softer outline and lighter shadow, and by having no mark.
+    val alpha = if (state == StoneState.LATER) 0.7f else 1f
     val body = Rect(w * 0.06f, h * 0.12f, w * 0.94f, h * 0.86f)
     // The ripple ring of the next stone.
     if (ring > 0f) {
@@ -212,7 +214,7 @@ private fun DrawScope.drawPebble(state: StoneState, night: Boolean, ring: Float,
     }
     // Shadow, then the pebble with its outline and a light catch on top.
     drawOval(Color.Black, Offset(body.left + w * 0.02f, body.top + h * 0.09f), body.size, alpha = 0.16f * alpha)
-    drawOval(face, body.topLeft, body.size, alpha = alpha)
+    drawOval(face, body.topLeft, body.size)
     drawOval(WorldInk, body.topLeft, body.size, alpha = 0.75f * alpha, style = Stroke(line))
     drawOval(Color.White, Offset(body.left + body.width * 0.2f, body.top + body.height * 0.12f), Size(body.width * 0.38f, body.height * 0.2f), alpha = 0.35f * alpha)
     val c = Offset(body.center.x, body.center.y + h * 0.02f)

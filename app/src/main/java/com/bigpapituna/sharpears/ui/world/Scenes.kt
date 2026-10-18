@@ -121,17 +121,17 @@ object WorldAnchors {
     }
 
     private val ITEMS = mapOf(
-        "garden-1" to Triple(0.07f, 0.90f, 0.15f), "garden-2" to Triple(0.86f, 0.12f, 0.20f), "garden-3" to Triple(0.87f, 0.28f, 0.14f),
-        "garden-4" to Triple(0.27f, 0.95f, 0.10f), "garden-5" to Triple(0.95f, 0.57f, 0.11f), "garden-6" to Triple(0.65f, 0.94f, 0.12f),
+        "garden-1" to Triple(0.235f, 0.93f, 0.11f), "garden-2" to Triple(0.86f, 0.12f, 0.20f), "garden-3" to Triple(0.87f, 0.28f, 0.14f),
+        "garden-4" to Triple(0.465f, 0.93f, 0.10f), "garden-5" to Triple(0.95f, 0.57f, 0.11f), "garden-6" to Triple(0.695f, 0.93f, 0.11f),
         "garden-7" to Triple(0.66f, 0.37f, 0.11f), "garden-8" to Triple(0.07f, 0.46f, 0.17f), "garden-9" to Triple(0.13f, 0.17f, 0.13f),
         "garden-10" to Triple(0.585f, 0.14f, 0.27f),
-        "pond-1" to Triple(0.62f, 0.55f, 0.14f), "pond-2" to Triple(0.81f, 0.60f, 0.12f), "pond-3" to Triple(0.43f, 0.66f, 0.11f),
-        "pond-4" to Triple(0.76f, 0.20f, 0.14f), "pond-5" to Triple(0.24f, 0.55f, 0.12f), "pond-6" to Triple(0.94f, 0.45f, 0.12f),
-        "pond-7" to Triple(0.36f, 0.53f, 0.11f), "pond-8" to Triple(0.06f, 0.62f, 0.15f), "pond-9" to Triple(0.50f, 0.36f, 0.24f),
+        "pond-1" to Triple(0.185f, 0.49f, 0.10f), "pond-2" to Triple(0.69f, 0.485f, 0.10f), "pond-3" to Triple(0.47f, 0.52f, 0.08f),
+        "pond-4" to Triple(0.76f, 0.20f, 0.14f), "pond-5" to Triple(0.31f, 0.485f, 0.10f), "pond-6" to Triple(0.94f, 0.45f, 0.12f),
+        "pond-7" to Triple(0.82f, 0.49f, 0.10f), "pond-8" to Triple(0.235f, 0.93f, 0.11f), "pond-9" to Triple(0.50f, 0.36f, 0.24f),
         "pond-10" to Triple(0.20f, 0.12f, 0.20f),
-        "concert-1" to Triple(0.50f, 0.07f, 0.13f), "concert-2" to Triple(0.90f, 0.43f, 0.11f), "concert-3" to Triple(0.07f, 0.40f, 0.12f),
-        "concert-4" to Triple(0.69f, 0.40f, 0.11f), "concert-5" to Triple(0.81f, 0.43f, 0.12f), "concert-6" to Triple(0.27f, 0.39f, 0.21f),
-        "concert-7" to Triple(0.86f, 0.10f, 0.14f), "concert-8" to Triple(0.10f, 0.52f, 0.11f), "concert-9" to Triple(0.93f, 0.55f, 0.09f),
+        "concert-1" to Triple(0.50f, 0.07f, 0.13f), "concert-2" to Triple(0.91f, 0.285f, 0.11f), "concert-3" to Triple(0.07f, 0.36f, 0.12f),
+        "concert-4" to Triple(0.63f, 0.36f, 0.10f), "concert-5" to Triple(0.76f, 0.375f, 0.12f), "concert-6" to Triple(0.26f, 0.325f, 0.21f),
+        "concert-7" to Triple(0.86f, 0.10f, 0.14f), "concert-8" to Triple(0.925f, 0.41f, 0.11f), "concert-9" to Triple(0.93f, 0.55f, 0.09f),
         "concert-10" to Triple(0.15f, 0.09f, 0.16f),
     )
 
