@@ -13,8 +13,8 @@ internal class HandAnchors(val x: FloatArray, val y: FloatArray)
 /** A frame's width over its height. */
 internal const val HAND_FRAME_ASPECT = 0.67578f
 
-/** The frames: right 1..6, right press 2, right press 4, then the same for the left hand. */
-internal val HAND_FRAMES = intArrayOf(R.drawable.hand_r_1, R.drawable.hand_r_2, R.drawable.hand_r_3, R.drawable.hand_r_4, R.drawable.hand_r_5, R.drawable.hand_r_6, R.drawable.hand_r_press2, R.drawable.hand_r_press4, R.drawable.hand_l_1, R.drawable.hand_l_2, R.drawable.hand_l_3, R.drawable.hand_l_4, R.drawable.hand_l_5, R.drawable.hand_l_6, R.drawable.hand_l_press2, R.drawable.hand_l_press4)
+/** The frames: right 1..6, right press 2, right press 4, the same for the left hand, then left rest (right 3 mirrored). */
+internal val HAND_FRAMES = intArrayOf(R.drawable.hand_r_1, R.drawable.hand_r_2, R.drawable.hand_r_3, R.drawable.hand_r_4, R.drawable.hand_r_5, R.drawable.hand_r_6, R.drawable.hand_r_press2, R.drawable.hand_r_press4, R.drawable.hand_l_1, R.drawable.hand_l_2, R.drawable.hand_l_3, R.drawable.hand_l_4, R.drawable.hand_l_5, R.drawable.hand_l_6, R.drawable.hand_l_press2, R.drawable.hand_l_press4, R.drawable.hand_l_rest)
 
 /** Anchors for [HAND_FRAMES], in the same order. */
 internal val HAND_ANCHORS = arrayOf(
@@ -34,4 +34,5 @@ internal val HAND_ANCHORS = arrayOf(
     /* hand_l_6 */ HandAnchors(floatArrayOf(0.8770f, 0.7177f, 0.5647f, 0.4180f, 0.2587f, 0.4984f), floatArrayOf(0.3248f, 0.1321f, 0.1012f, 0.1342f, 0.2545f, 0.7583f)),
     /* hand_l_press2 */ HandAnchors(floatArrayOf(0.8770f, 0.7177f, 0.5647f, 0.4148f, 0.2492f, 0.4984f), floatArrayOf(0.3248f, 0.1791f, 0.1012f, 0.1331f, 0.2204f, 0.7583f)),
     /* hand_l_press4 */ HandAnchors(floatArrayOf(0.8770f, 0.7177f, 0.5647f, 0.4148f, 0.2492f, 0.4984f), floatArrayOf(0.3248f, 0.1321f, 0.1012f, 0.1800f, 0.2204f, 0.7583f)),
+    /* hand_l_rest */ HandAnchors(floatArrayOf(0.8770f, 0.7177f, 0.5647f, 0.4148f, 0.2492f, 0.4984f), floatArrayOf(0.3248f, 0.1321f, 0.1012f, 0.1331f, 0.2204f, 0.7583f)),
 )

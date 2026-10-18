@@ -6,7 +6,8 @@ same camera.
 
 - hand-right-1: hanging loose. 2: fingers curled as if round a small ball. 3: curved, resting on the fingertips,
   thumb on its side. 4: as 3 with the middle finger pressed. 5: thumb pressed. 6: little finger pressed.
-- hand-left-1..3: the left hand in poses 1 to 3. Left 4 to 6 are right 4 to 6 mirrored.
+- hand-left-1..3: the left hand in poses 1 to 3. Left 4 to 6 are right 4 to 6 mirrored. The app rests the left hand
+  on right 3 mirrored (hand_l_rest), since painted left 3 splays its thumb wider than the mirrored presses.
 - No frame presses finger 2 or 4; scripts/cut_hand.py makes them from right 3 (the finger squashed toward its knuckle).
 
 `python -I scripts/cut_hand.py [--debug]` cuts them to transparent WebPs in app/src/main/res/drawable-nodpi

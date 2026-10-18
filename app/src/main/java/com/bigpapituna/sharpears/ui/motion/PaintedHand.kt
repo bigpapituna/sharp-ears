@@ -50,8 +50,8 @@ enum class HandPose { LOOSE, BALL, REST, PRESS_1, PRESS_2, PRESS_3, PRESS_4, PRE
     }
 }
 
-/** Index into [HAND_FRAMES] / [HAND_ANCHORS]. */
-private fun frameOf(pose: HandPose, right: Boolean) = (if (right) 0 else 8) + when (pose) {
+/** Index into [HAND_FRAMES] / [HAND_ANCHORS]. The left hand rests on the mirrored right frame, which its presses match. */
+private fun frameOf(pose: HandPose, right: Boolean) = if (!right && pose == HandPose.REST) 16 else (if (right) 0 else 8) + when (pose) {
     HandPose.LOOSE -> 0; HandPose.BALL -> 1; HandPose.REST -> 2; HandPose.PRESS_3 -> 3
     HandPose.PRESS_1 -> 4; HandPose.PRESS_5 -> 5; HandPose.PRESS_2 -> 6; HandPose.PRESS_4 -> 7
 }

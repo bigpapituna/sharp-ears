@@ -204,6 +204,9 @@ def main():
             frames.append((f"hand_l_{k}", img, pts + [WRIST[f"left-{k}"]], dx))
         else:
             frames.append((f"hand_l_{k}", mirror(right[k]), flip(r_pts[k] + [WRIST["right"]]), dx_m))
+    # The left presses are mirrored right frames, and the painted left 3 splays its thumb wider and sits its cuff
+    # elsewhere, so a cross-fade between them shows two hands. The left hand rests on mirrored right 3 instead.
+    frames.append(("hand_l_rest", mirror(right[3]), flip(r_pts[3] + [WRIST["right"]]), dx_m))
     shifted = [(n, shift(img, dx), [(x + dx, y) for x, y in pts]) for n, img, pts, dx in frames]
     # One crop box for all: the union of every frame's shape, a little margin, centred on x 512.
     ys, xs = np.nonzero(np.max([img[..., 3] for _, img, _ in shifted], axis=0) > 0.02)
@@ -279,7 +282,7 @@ internal class HandAnchors(val x: FloatArray, val y: FloatArray)
 /** A frame's width over its height. */
 internal const val HAND_FRAME_ASPECT = {w / MAX_H:.5f}f
 
-/** The frames: right 1..6, right press 2, right press 4, then the same for the left hand. */
+/** The frames: right 1..6, right press 2, right press 4, the same for the left hand, then left rest (right 3 mirrored). */
 internal val HAND_FRAMES = intArrayOf({ids})
 
 /** Anchors for [HAND_FRAMES], in the same order. */
