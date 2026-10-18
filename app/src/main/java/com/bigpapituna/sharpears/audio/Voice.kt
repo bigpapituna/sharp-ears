@@ -87,6 +87,8 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     fun speakOverMic(text: String) {
         if (!enabled) { Log.d(TAG, "voice: (off) $text"); return }
         if (!mic.listening || mic.headphonesOn()) { speak(text); return }
+        // Only a line that can start now: a call-out said seconds later, once the platform voice has started, is stale.
+        if (!(prefs.naturalVoice && natural.canSay(text)) && !ready) { engine(); Log.d(TAG, "voice: over the mic, not ready yet, dropped: $text"); return }
         overMic = true
         mic.deafWhileSpeaking(true)
         Log.d(TAG, "voice: over the mic, deaf meanwhile: $text")
