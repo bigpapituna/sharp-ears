@@ -91,7 +91,8 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: In
     var pose by remember { mutableStateOf(BOW.first()) }
     val sayNow by rememberUpdatedState(say)
     LaunchedEffect(Unit) {
-        Log.d(TAG, "finale: ${page.id} for $name, $stars stars, album ${album.collected}/${album.size}, then $after")
+        Log.d(TAG, "finale: ${page.id} for $name, $stars stars, album ${album.collected}/${album.size}, then " +
+            when (after) { is Finale.After.NextPage -> after.page.id; Finale.After.Road -> "the big kids' road" })
         if (sound) WorldSounds.jingle(Rarity.SHINY)
         sayNow(headline)
         if (!still) rise.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
