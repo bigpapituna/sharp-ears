@@ -46,7 +46,6 @@ import com.bigpapituna.sharpears.engine.world.RecordUp
 import com.bigpapituna.sharpears.engine.world.Reward
 import com.bigpapituna.sharpears.engine.world.Stickers
 import com.bigpapituna.sharpears.engine.world.WearItem
-import com.bigpapituna.sharpears.engine.world.World
 import com.bigpapituna.sharpears.engine.world.WorldState
 import com.bigpapituna.sharpears.ui.Celebration
 import com.bigpapituna.sharpears.ui.Pose
@@ -117,7 +116,8 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                             Rarity.entries.firstOrNull { it.name.equals(intent.getStringExtra("rarity"), true) } ?: Rarity.COMMON,
                             egg = intent.getBooleanExtra("eggdrop", false), double = intent.getBooleanExtra("double", false)), onDone = onClose)
                         "onemore" -> {
-                            val reward = remember { World.lessonComplete(world.state).reward }
+                            // As the app will: the lesson's reward applied first, then the preview of the lesson after it.
+                            val reward = remember { world.lessonComplete("demo") }
                             Celebration("Lesson done!", "Steps up and down with the pup.", listOf(Stat("3", "Steps"), Stat("2:10", "Time")),
                                 primary = "Back to the path", onPrimary = onClose, pose = Pose.LEVEL_UP, xpGained = 100,
                                 reward = { DropReveal(reward, cardWidth = 120.dp) },
