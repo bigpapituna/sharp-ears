@@ -123,6 +123,9 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     /** Saves notes not saved yet (call when the player closes). */
     fun flush() { if (unsavedNotes > 0) set(state) }
 
+    /** Debug screens and tests only: replaces the whole world (the debug route seeds a demo world this way). */
+    fun debugSet(s: WorldState) { set(s); log("world: debug state, ${s.unique} stickers") }
+
     private fun describe(r: Reward) = r.drops.joinToString { "${it.sticker.id} ${it.rarity.label.lowercase()} ${it.source.name.lowercase()}${if (it.isNew) " new" else " double"}" } +
         (if (r.eggLaid) ", egg laid" else "") + (if (r.houseUp) ", house ${r.houseAfter}" else "") +
         (if (r.unlocked.isNotEmpty()) ", unlocked ${r.unlocked.joinToString { it.id }}" else "")
