@@ -295,6 +295,8 @@ class MainActivity : ComponentActivity() {
             })
             debuggable && intent.getStringExtra("screen") == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
             debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
+            debuggable && intent.getStringExtra("screen") == "playground" -> Screen.Home(HomeTab.LEARN).also {
+                com.bigpapituna.sharpears.ui.playground.showPlaygroundDebug(this, intent, LessonDeps(sampler, midi, mic, voice, prefs, true), profile) }
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
                     Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"), intent.getIntExtra("scene", 0))
