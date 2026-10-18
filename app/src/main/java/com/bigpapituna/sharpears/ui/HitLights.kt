@@ -41,7 +41,7 @@ class HitLights(
     /** Debug: stretches every light (e.g. 8 for screenshots). */
     val slow: Float = 1f,
 ) {
-    enum class Kind { HIT, WRONG }
+    enum class Kind { HIT, WRONG, TOUCH }
     class Light(val midi: Int, val startNanos: Long, val kind: Kind, val color: Color)
 
     val items = ArrayList<Light>(8)
@@ -56,6 +56,7 @@ class HitLights(
     var measurer: TextMeasurer? = null
 
     val hitNanos get() = (HIT_MS * slow * 1_000_000).toLong()
+    private val touchNanos get() = (TOUCH_MS * slow * 1_000_000).toLong()
     val wrongNanos get() = (WRONG_MS * slow * 1_000_000).toLong()
     private val sparkNanos get() = (SPARK_MS * slow * 1_000_000).toLong()
     private val wordNanos get() = (WORD_MS * slow * 1_000_000).toLong()
@@ -69,6 +70,12 @@ class HitLights(
         if (grade != null && !still) word(midi, grade, now)
         setCombo(combo + 1, now)
     }
+
+    /**
+     * A note that is neither right nor wrong (Listen mode, the Jam, free play): a short soft glow up its column in
+     * [color], no sparks, the combo untouched. Juice on every note (ui/motion/Juice.kt).
+     */
+    fun touch(midi: Int, color: Color, now: Long = System.nanoTime()) = add(Light(midi, now, Kind.TOUCH, color))
 
     /** A wrong key: the glow along the line; it breaks the combo unless [breaksCombo] is false (Perform). */
     fun wrong(now: Long = System.nanoTime(), breaksCombo: Boolean = true) {
@@ -146,7 +153,7 @@ class HitLights(
 
     /** Drops finished lights; true while anything is still moving. */
     fun prune(now: Long): Boolean {
-        items.removeAll { now - it.startNanos > if (it.kind == Kind.HIT) hitNanos else wrongNanos }
+        items.removeAll { now - it.startNanos > life(it.kind) }
         var alive = items.isNotEmpty()
         for (j in 0 until SPARKS) if (pStart[j] != 0L) { if (now - pStart[j] > sparkNanos) pStart[j] = 0L else alive = true }
         for (j in 0 until WORDS) if (wStart[j] != 0L) { if (now - wStart[j] > wordNanos) wStart[j] = 0L else alive = true }
@@ -154,6 +161,8 @@ class HitLights(
         if (shatterAt != 0L) { if (now - shatterAt > shatterNanos) shatterAt = 0L else alive = true }
         return alive
     }
+
+    private fun life(k: Kind) = when (k) { Kind.HIT -> hitNanos; Kind.WRONG -> wrongNanos; Kind.TOUCH -> touchNanos }
 
     // ---- Drawing ---------------------------------------------------------------------------------------------
 
@@ -182,8 +191,20 @@ class HitLights(
         added.intValue                                       // redraw when the combo changes with no clock running
         if (now == 0L) return
         for (l in items) {
-            val t = ((now - l.startNanos).toFloat() / (if (l.kind == Kind.HIT) hitNanos else wrongNanos)).coerceIn(0f, 1f)
-            if (l.kind == Kind.WRONG) {
+            val t = ((now - l.startNanos).toFloat() / life(l.kind)).coerceIn(0f, 1f)
+            if (l.kind == Kind.TOUCH) {
+                if (l.midi !in low..high) continue
+                // A soft column of the key's colour, rising a little and fading: seen, not graded.
+                val k = keys.rect(l.midi)
+                val cx = (k.left + k.right) / 2f
+                val w = keys.whiteWidth * 0.9f
+                val fade = (1f - t) * (1f - t)
+                val rise = size.height * (0.12f + 0.16f * t)
+                drawRect(Brush.verticalGradient(0f to Color.Transparent, 1f to l.color.copy(alpha = 0.55f * fade), startY = hitY - rise, endY = hitY),
+                    Offset(cx - w / 2f, hitY - rise), Size(w, rise))
+                drawCircle(Brush.radialGradient(listOf(l.color.copy(alpha = 0.5f * fade), Color.Transparent), center = Offset(cx, hitY), radius = w),
+                    radius = w, center = Offset(cx, hitY))
+            } else if (l.kind == Kind.WRONG) {
                 // A soft band that swells and fades along the whole line.
                 val a = sin(PI * t).toFloat() * 0.55f
                 val h = size.height * 0.16f
@@ -298,6 +319,7 @@ class HitLights(
 
     companion object {
         const val HIT_MS = 260f
+        const val TOUCH_MS = 220f
         const val WRONG_MS = 380f
         const val SPARK_MS = 620f
         const val WORD_MS = 700f
