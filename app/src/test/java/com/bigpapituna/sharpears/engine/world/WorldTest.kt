@@ -75,6 +75,13 @@ class WorldTest {
         }
         val pond = World.preview(s, Place.POND)
         assertEquals(Place.POND, pond.sticker.place)
+        repeat(5) {
+            val p = World.previewSong(s)
+            val o = World.songComplete(s, "twinkle", null)
+            assertEquals(p.sticker, o.reward.drops.single().sticker)
+            assertFalse(p.eggHatches || p.eggLays)
+            s = o.state
+        }
     }
 
     @Test fun rewardSaysWhenTheHouseGrowsAndItemsUnlock() {

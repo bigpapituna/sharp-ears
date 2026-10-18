@@ -162,6 +162,10 @@ object World {
         return NextDrop(drop.sticker, Drops.floorDue(s.history), s.egg, hatch, eggLays = (s.lessons + 1) % EGG_EVERY == 0)
     }
 
+    /** What playing a song to its end would give (songs never hatch or lay eggs), the roll [songComplete] makes. */
+    fun previewSong(s: WorldState): NextDrop =
+        NextDrop(Drops.roll(s.seed, s.history, DropSource.SONG).sticker, Drops.floorDue(s.history), eggHatches = false, hatch = null, eggLays = false)
+
     /** [n] notes played: into the jar. */
     fun addNotes(s: WorldState, n: Int): WorldState = if (n <= 0 || TreatJar.full(s.jar)) s else s.copy(jar = TreatJar.add(s.jar, n))
 

@@ -72,6 +72,9 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     /** What the next lesson (of [place]) gives, for the "one more" button. */
     fun preview(place: Place? = null): NextDrop = World.preview(state, place)
 
+    /** What the next song played to its end gives, for "one more" on a song's recap. */
+    fun previewSong(): NextDrop = World.previewSong(state)
+
     /** [n] notes played: into the treat jar. */
     fun addNotes(n: Int = 1) {
         val before = state.jar

@@ -119,6 +119,19 @@ class DropsTest {
         assertEquals(drops, h.rolls)
     }
 
+    /** How long a whole album takes, on average over many profiles (the pace the INTEGRATION notes give). */
+    @Test fun aFullAlbumTakesAboutFiftyDrops() {
+        val runs = (1L..60L).map { seed ->
+            var h = DropHistory(); var n = 0
+            while (h.unique < 30) { h = h.after(Drops.roll(seed, h)); n++ }
+            n
+        }
+        val mean = runs.average()
+        println("drops to a full album: mean ${"%.1f".format(mean)}, min ${runs.min()}, max ${runs.max()}")
+        // About 53 (31 to 123): the three shinies are the long pole (6.6% of drops each time).
+        assertTrue("mean $mean", mean in 40.0..80.0)
+    }
+
     @Test fun rngIsStableAcrossRuns() {
         // Pinned values: a change here changes every profile's future drops (and breaks previews already shown).
         val r = Rng.of(1L, 0L)
