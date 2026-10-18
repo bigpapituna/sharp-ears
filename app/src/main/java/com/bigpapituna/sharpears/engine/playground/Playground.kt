@@ -268,3 +268,7 @@ val PLAYGROUND_PLACES: Map<String, Place> = PLAYGROUND.lessons.mapIndexed { i, l
 
 /** The plan's short path for big kids (section 4): these five, then Basics. */
 val BIG_KID_LESSONS: List<String> = listOf(2, 3, 6, 7, 12).map { "playground-$it" }
+
+/** Lessons with any-of ranges ("any key above C4", "a dog house"): the player's octave hint stays off there, the octave is the point. */
+val ANY_OF_LESSONS: Set<String> = PLAYGROUND.lessons
+    .filter { l -> l.steps.any { s -> s.exercise?.let { '|' in it.right || '|' in it.left } == true } }.map { it.id }.toSet()
