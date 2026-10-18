@@ -92,7 +92,7 @@ internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = M
     }
 }
 
-internal fun tint(t: Tint, ink: StageInk) = when (t) { Tint.ACCENT -> ink.accent; Tint.BLUE -> ink.blue; Tint.GREEN -> com.bigpapituna.sharpears.ui.Good; Tint.DIM -> Color(0xFF9A8F85) }
+internal fun tint(t: Tint, ink: StageInk) = when (t) { Tint.ACCENT -> ink.accent; Tint.BLUE -> ink.blue; Tint.GREEN -> com.bigpapituna.sharpears.ui.Good; Tint.DIM -> DimKey }
 
 /** How far a struck key is pressed [u] ms after the strike: down fast, back up slowly. */
 internal fun press(u: Int) = when { u < 0 || u > 380 -> 0f; u < 70 -> u / 70f; else -> 1f - (u - 70) / 310f }

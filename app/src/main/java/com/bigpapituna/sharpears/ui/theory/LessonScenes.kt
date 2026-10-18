@@ -643,14 +643,17 @@ internal fun DrawScope.laneScene(v: LaneVisual, time: Int, ink: StageInk) {
             val w = (r.right - r.left) * (if (isBlack(p.midi)) 0.95f else 0.78f)
             val cx = o.x + r.centerX
             val top = maxOf(a, laneTop); val bot = minOf(b, kTop)
+            // With colour notes on, each note wears its key's colour, as on the player's lane, with ink that reads on it.
+            val face = sceneNoteColour(p.midi, col, ink.colourNotes)
+            val letter = if (ink.colourNotes) Color(com.bigpapituna.sharpears.engine.skin.NoteColours.let { it.inkFor(it.colour(p.midi)) }) else Color.White
             if (bot > top) {
-                drawRoundRect(col.copy(alpha = if (sounding) 1f else 0.85f), Offset(cx - w / 2, top), Size(w, bot - top), CornerRadius(minOf(w / 2, 8.dp.toPx())))
-                if (b - a > 26.dp.toPx() && b <= kTop) text(ink, p.letterName, Offset(cx, bot - 10.dp.toPx()), TextKind.LABEL, 11.sp, Color.White)
+                drawRoundRect(face.copy(alpha = if (sounding) 1f else 0.85f), Offset(cx - w / 2, top), Size(w, bot - top), CornerRadius(minOf(w / 2, 8.dp.toPx())))
+                if (b - a > 26.dp.toPx() && b <= kTop) text(ink, p.letterName, Offset(cx, bot - 10.dp.toPx()), TextKind.LABEL, 11.sp, letter)
             }
             if (sounding) {
                 lit[p.midi] = col
                 sinks[p.midi] = maxOf(press(((now - n.start) * v.beatMs).toInt()), 0.5f)
-                drawCircle(col, w * 0.7f, Offset(cx, kTop), alpha = 0.35f)
+                drawCircle(face, w * 0.7f, Offset(cx, kTop), alpha = 0.35f)
             }
         }
     }

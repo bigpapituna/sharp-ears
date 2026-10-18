@@ -45,6 +45,8 @@ import kotlin.math.sin
 internal class StageInk(
     val ink: Color, val dim: Color, val faint: Color, val line: Color, val accent: Color, val onAccent: Color,
     val accentSoft: Color, val blue: Color, val paper: Color, private val measurer: TextMeasurer, val density: Density,
+    /** Colour notes are on (kids, or the grown-ups' setting): lit keys and falling notes take their key's colour. */
+    val colourNotes: Boolean = false,
 ) {
     private val cache = HashMap<String, TextLayoutResult>()
 
@@ -65,14 +67,27 @@ internal fun rememberStageInk(): StageInk {
     val c = MaterialTheme.colorScheme
     val m = rememberTextMeasurer(cacheSize = 64)
     val density = androidx.compose.ui.platform.LocalDensity.current
-    return remember(c, m, density) {
+    val colourNotes = com.bigpapituna.sharpears.ui.skin.colourNotesOn()
+    return remember(c, m, density, colourNotes) {
         StageInk(
             ink = c.onSurface, dim = c.onSurfaceVariant, faint = c.outlineVariant, line = c.onSurface.copy(alpha = 0.78f),
             accent = c.primary, onAccent = c.onPrimary, accentSoft = c.primaryContainer, blue = LeftHandColor,
-            paper = c.surfaceContainerHigh, measurer = m, density = density,
+            paper = c.surfaceContainerHigh, measurer = m, density = density, colourNotes = colourNotes,
         )
     }
 }
+
+/** The grey of a context key (Tint.DIM): it stays grey with colour notes on. */
+internal val DimKey = Color(0xFF9A8F85)
+
+/**
+ * The colour a scene paints [midi] that it lights in [lit]: with colour notes on, the key's own colour (engine/skin
+ * NoteColours, a black key the blend of its neighbours), as on the player's lane and keys, at [lit]'s alpha; else [lit].
+ * (2.2.1: the concert hall said "C is a red cat and D an orange dog" over keys all lit in the accent.)
+ */
+internal fun sceneNoteColour(midi: Int, lit: Color, colourNotes: Boolean): Color =
+    if (!colourNotes || lit.copy(alpha = 1f) == DimKey) lit
+    else Color(com.bigpapituna.sharpears.engine.skin.NoteColours.colour(midi)).copy(alpha = lit.alpha)
 
 /** Draws [text] centred on [at] (or with its top-left there when [centred] is false), optionally scaled about its centre. */
 internal fun DrawScope.text(
@@ -127,7 +142,7 @@ internal fun DrawScope.drawPiano(
     val body = Brush.verticalGradient(listOf(WhiteTop, WhiteKey, WhiteLow), startY = origin.y, endY = origin.y + keyH)
     val labelSize = pxSp((l.whiteWidth * 0.36f).coerceIn(9f * density, 15f * density))
     for (k in l.whiteKeys) {
-        val c = lit(k.midi)
+        val c = lit(k.midi)?.let { sceneNoteColour(k.midi, it, ink.colourNotes) }
         val press = sink(k.midi).coerceIn(0f, 1f)
         val x = origin.x + k.left + 1.2f; val w = k.right - k.left - 2.4f
         val lip = keyH * (0.065f - 0.035f * press)
@@ -144,7 +159,7 @@ internal fun DrawScope.drawPiano(
     drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent), startY = origin.y, endY = origin.y + keyH * 0.07f),
         origin, Size(l.width, keyH * 0.07f))
     for (k in l.blackKeys) {
-        val c = lit(k.midi)
+        val c = lit(k.midi)?.let { sceneNoteColour(k.midi, it, ink.colourNotes) }
         val press = sink(k.midi).coerceIn(0f, 1f)
         val x = origin.x + k.left; val w = k.right - k.left; val h = k.bottom - k.top
         val br = CornerRadius(w * 0.16f)
