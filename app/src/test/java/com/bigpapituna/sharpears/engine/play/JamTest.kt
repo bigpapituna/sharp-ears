@@ -119,6 +119,9 @@ class JamTest {
         ear2.feed(FloatArray(48_000 * 3))                                           // three seconds later: gone
         assertNull(ear2.notesAt(500L * 48))
         assertTrue(ChordEar.freshNotes(FloatArray(4096), FloatArray(4096), 48_000).isEmpty())   // silence
+        // The mic restarted: the matcher counts from 0 again, and so does the ring.
+        ear2.feed(b, b.size, at = 0)
+        assertEquals(setOf(64), ear2.notesAt(500L * 48))
     }
 
     @Test fun aChordOnTheMicThrowsConfettiWithTheChordEar() {

@@ -19,8 +19,12 @@ class ChordEar(val rate: Int = 48_000, val low: Int = LOW, val high: Int = HIGH)
     /** Absolute index (in samples since the mic started) one past the newest sample in [ring]. */
     private var end = 0L
 
-    /** Stores [count] samples that start at absolute sample [at] (the matcher's sample clock). A gap is left silent. */
+    /**
+     * Stores [count] samples that start at absolute sample [at] (the matcher's sample clock). A gap is left silent; a
+     * clock that went back (the mic restarted and the matcher counts from 0 again) starts the ring over.
+     */
     @Synchronized fun feed(chunk: FloatArray, count: Int = chunk.size, at: Long = end) {
+        if (at < end) { ring.fill(0f); end = at }
         if (at > end) for (k in end until minOf(at, end + ring.size)) ring[(k % ring.size).toInt()] = 0f
         for (i in 0 until count) ring[((at + i) % ring.size).toInt()] = chunk[i]
         end = maxOf(end, at + count)
