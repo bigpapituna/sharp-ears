@@ -10,8 +10,8 @@ import com.bigpapituna.sharpears.engine.StepKind
  * and offers "More?" for the rest; an exercise is cut at its phrase end (the first phrase marker, bar 4 or 8) and one
  * run through passes. Grown-ups never see any of this.
  *
- * Where the phrase ends is the playground team's (`Exercise.phraseEnd`); until it is merged [phraseEndBeats] answers
- * null and a kid plays the whole exercise. The cut itself works on the token notation, so it needs nothing else.
+ * Where the phrase ends is the playground team's `Exercise.phraseEnd` (beats); an exercise without one is a bite
+ * already and plays whole. The cut itself works on the token notation, so it needs nothing else.
  */
 object Bites {
     /** A Perform step passes for a kid at this many stars ("heard it in time"): the Playground concert's two stars. */
@@ -19,12 +19,8 @@ object Bites {
     /** A tempo-ramp step is one Perform run for a kid, at this share of the target tempo. */
     const val KID_RAMP_SPEED = 0.75
 
-    /**
-     * Where a kid's bite of [ex] ends, in beats from its start; null plays the whole exercise.
-     * INTEGRATION: return the playground team's `ex.phraseEnd` here (times [Exercise.beats] if it is counted in bars,
-     * see [barsToBeats]). The one place to change.
-     */
-    fun phraseEndBeats(@Suppress("UNUSED_PARAMETER") ex: Exercise): Double? = null
+    /** Where a kid's bite of [ex] ends, in beats from its start ([Exercise.phraseEnd]); null plays the whole exercise. */
+    fun phraseEndBeats(ex: Exercise): Double? = ex.phraseEnd
 
     fun barsToBeats(bars: Int, ex: Exercise): Double = bars.toDouble() * ex.beats
 

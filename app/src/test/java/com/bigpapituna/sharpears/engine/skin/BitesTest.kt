@@ -76,8 +76,10 @@ class BitesTest {
         assertEquals(twinkle.bpm * Bites.KID_RAMP_SPEED, ramp.exercise!!.bpm, 1e-9)
         val pedal = Step(StepKind.PEDAL, "Pedal", twinkle)
         assertSame(pedal, Bites.kidStep(pedal, 4.0))                          // MIDI steps keep their whole exercise
-        // The hook answers null until the playground team's phraseEnd lands: the whole exercise.
+        // The phrase end is the exercise's own (Exercise.phraseEnd); none: the whole exercise.
         assertEquals(null, Bites.phraseEndBeats(twinkle))
+        assertEquals(8.0, Bites.phraseEndBeats(twinkle.copy(phraseEnd = 8.0))!!, 1e-9)
+        assertEquals("C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2", Bites.kidStep(Step(StepKind.PLAY, "Play", twinkle.copy(phraseEnd = 8.0))).exercise!!.right)
     }
 
     @Test fun oneRunPassesForAKid() {
