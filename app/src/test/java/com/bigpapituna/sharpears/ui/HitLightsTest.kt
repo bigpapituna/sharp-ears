@@ -37,6 +37,18 @@ class HitLightsTest {
         assertTrue(l.items.isEmpty())
     }
 
+    @Test fun aTouchGlowsWithoutTouchingTheCombo() {
+        val l = HitLights()
+        val t0 = 1_000_000_000L
+        repeat(5) { l.hit(60, Color.Red, now = t0) }
+        l.touch(64, Color.Blue, now = t0)
+        assertEquals(5, l.combo)
+        assertEquals(HitLights.Kind.TOUCH, l.items.last().kind)
+        assertTrue(l.prune(t0 + (HitLights.TOUCH_MS * 1_000_000 / 2).toLong()))
+        l.prune(t0 + (HitLights.TOUCH_MS * 1_000_000).toLong() + 1)
+        assertTrue(l.items.none { it.kind == HitLights.Kind.TOUCH })
+    }
+
     @Test fun manySparksStayInTheirPool() {
         val l = HitLights()
         repeat(200) { l.hit(60 + it % 12, Color.Red, now = 1_000L + it) }   // far past the pool size, no growth

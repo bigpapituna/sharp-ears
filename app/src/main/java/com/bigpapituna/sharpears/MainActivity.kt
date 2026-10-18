@@ -283,6 +283,7 @@ class MainActivity : ComponentActivity() {
                 // --es pack <id>: start a Chords session on that pack, locked or not (to see its items).
                 intent.getStringExtra("pack")?.let { id -> lessons.curriculum().packs.firstOrNull { p -> p.id == id }?.let { p -> lessons.startSession(p.items) } }
             }
+            debuggable && intent.getStringExtra("screen") == "world" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }   // world team: --es part album|world|jar|egg|dress|reveal|shelf|idle|onemore
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
             debuggable && intent.getStringExtra("screen") == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }

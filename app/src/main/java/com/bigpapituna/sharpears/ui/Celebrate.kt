@@ -16,6 +16,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -28,6 +29,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -95,6 +98,10 @@ data class XpBar(val from: Float, val to: Float, val caption: String? = null)
  * [newBest]: a slow sunburst and a burst of stars behind the pup. [xpGained]: "+120 XP" rolls up under the stats
  * with a bar filling ([xpBar] for real level progress; without it the bar simply fills). The pup wiggles when
  * tapped. Covers the screen until [onPrimary] or [onSecondary]. With animations off everything is in place at once.
+ *
+ * World slots (ui/world/INTEGRATION.md): [reward] sits under the stats (the drop reveal), [oneMore] at the bottom (the
+ * next lesson with a preview of its drop, and its own big button; [primary] then becomes a plain text button under
+ * it). With either the pup is a little smaller and the middle scrolls above the buttons.
  */
 /**
  * How many Celebrations are on screen now (integration): the level-up overlay waits while this is above zero, so a
@@ -108,8 +115,12 @@ fun Celebration(
     secondary: String? = null, onSecondary: (() -> Unit)? = null,
     pose: Pose = Pose.LEVEL_UP, sampler: Sampler? = null,
     newBest: Boolean = false, xpGained: Int? = null, xpBar: XpBar? = null,
+    reward: (@Composable () -> Unit)? = null,
+    oneMore: (@Composable () -> Unit)? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
+    val compact = reward != null || oneMore != null
+    val pupSize = if (compact) 120.dp else 200.dp
     androidx.compose.runtime.DisposableEffect(Unit) { celebrationsShowing.intValue++; onDispose { celebrationsShowing.intValue-- } }
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
@@ -142,49 +153,64 @@ fun Celebration(
     val spin = if (newBest && !still) rememberInfiniteTransition(label = "spin")
         .animateFloat(0f, 360f, infiniteRepeatable(tween(45_000, easing = LinearEasing), RepeatMode.Restart), label = "spin") else null
     val px = with(LocalDensity.current) { 320.dp.toPx() }
+    val middle: @Composable ColumnScope.() -> Unit = {
+        Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
+            Pup(pose, size = pupSize, onTap = {}, modifier = Modifier.graphicsLayer {
+                translationY = (1 - rise.value) * px
+                val s = 0.4f + 0.6f * rise.value
+                scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)
+                transformOrigin = TransformOrigin(0.5f, 1f)
+            })
+        }
+        Text(title, style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite }.graphicsLayer {
+                val s = 0.6f + 0.4f * pop.value; scaleX = s; scaleY = s; alpha = pop.value.coerceIn(0f, 1f)
+            })
+        Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+            modifier = Modifier.graphicsLayer { alpha = pop.value.coerceIn(0f, 1f) })
+        if (stats.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            stats.forEachIndexed { i, st ->
+                // Each one in turn, sliding up, its number counting as it lands.
+                Column(Modifier.graphicsLayer {
+                    val k = (rest.value * (stats.size + 1) - i).coerceIn(0f, 1f)
+                    alpha = k; translationY = (1 - k) * 40f
+                }
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 18.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CountUpText(st.value, count, Numeric.merge(MaterialTheme.typography.titleLarge), MaterialTheme.colorScheme.onSurface,
+                        delay = i * 0.12f)
+                    Text(st.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        if (xpGained != null) XpRow(xpGained, xpBar, xp, Modifier.graphicsLayer {
+            val k = ((rest.value - 0.4f) / 0.6f).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 30f
+        })
+        if (reward != null && rest.value > 0.3f) Box(Modifier.padding(top = 4.dp)) { reward() }
+    }
+    val bottom: @Composable ColumnScope.() -> Unit = {
+        // "One more" brings its own big button; then the way out is the quieter one.
+        if (oneMore != null) {
+            oneMore()
+            TextButton(onClick = onPrimary, modifier = Modifier.padding(top = 6.dp)) { Text(primary) }
+        } else ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
+        if (secondary != null && onSecondary != null) TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
+    }
+    val bottomMotion = Modifier.graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f }
     Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         Confetti(title, Modifier.fillMaxSize())
-        Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(200.dp).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
-                Pup(pose, size = 200.dp, onTap = {}, modifier = Modifier.graphicsLayer {
-                    translationY = (1 - rise.value) * px
-                    val s = 0.4f + 0.6f * rise.value
-                    scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                })
-            }
-            Text(title, style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center,
-                modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite }.graphicsLayer {
-                    val s = 0.6f + 0.4f * pop.value; scaleX = s; scaleY = s; alpha = pop.value.coerceIn(0f, 1f)
-                })
-            Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-                modifier = Modifier.graphicsLayer { alpha = pop.value.coerceIn(0f, 1f) })
-            if (stats.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                stats.forEachIndexed { i, st ->
-                    // Each one in turn, sliding up, its number counting as it lands.
-                    Column(Modifier.graphicsLayer {
-                        val k = (rest.value * (stats.size + 1) - i).coerceIn(0f, 1f)
-                        alpha = k; translationY = (1 - k) * 40f
-                    }
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 18.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CountUpText(st.value, count, Numeric.merge(MaterialTheme.typography.titleLarge), MaterialTheme.colorScheme.onSurface,
-                            delay = i * 0.12f)
-                        Text(st.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            if (xpGained != null) XpRow(xpGained, xpBar, xp, Modifier.graphicsLayer {
-                val k = ((rest.value - 0.4f) / 0.6f).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 30f
-            })
-        }
-        Column(Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp)
-            .graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f },
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
-            if (secondary != null && onSecondary != null) TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
+        if (compact) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // With a reward or "one more" there is more to show: the middle scrolls above the buttons, never under them.
+            Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), content = middle)
+            Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 16.dp).then(bottomMotion),
+                horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
+        } else {
+            Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp), content = middle)
+            Column(Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp).then(bottomMotion),
+                horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
         }
     }
 }
