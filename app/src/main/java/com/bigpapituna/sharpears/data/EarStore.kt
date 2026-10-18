@@ -12,10 +12,10 @@ import java.time.LocalDate
  * (best:<game>:<level>, clean rounds of 10), when each game was last played (last:<game>, epoch day), how often
  * (plays:<game>), and the daily workout (workoutDays: the last 60 days with one, as comma separated epoch days;
  * workoutCount; workoutScore: "score/rounds" of the latest one). [version] bumps on every write so screens that read
- * it recompose.
+ * it recompose. Per profile ("ear.<id>", [ProgressFiles.fileFor]).
  */
-class EarStore(context: Context) : EarProgress {
-    private val p = context.getSharedPreferences("ear", Context.MODE_PRIVATE)
+class EarStore(context: Context, profileId: String) : EarProgress {
+    private val p = context.getSharedPreferences(ProgressFiles.fileFor("ear", profileId), Context.MODE_PRIVATE)
     val version = mutableIntStateOf(0)
 
     override fun best(kind: EarKind, level: Int) = p.getInt("best:${kind.id}:$level", -1)

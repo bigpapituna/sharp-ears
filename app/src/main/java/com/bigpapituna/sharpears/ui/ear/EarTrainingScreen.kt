@@ -79,7 +79,8 @@ fun EarTrainingScreen(
     sound: () -> Boolean = { true }, start: EarStart? = null,
 ) {
     val context = LocalContext.current
-    val store = remember { EarStore(context) }
+    val profileId = com.bigpapituna.sharpears.ui.family.LocalProfile.current.id
+    val store = remember(profileId) { EarStore(context, profileId) }
     val clicks = remember { Clicks(context) }
     DisposableEffect(Unit) { onDispose { clicks.release() } }
     val soundNow by rememberUpdatedState(sound)

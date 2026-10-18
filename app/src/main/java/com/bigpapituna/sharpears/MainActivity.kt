@@ -104,6 +104,21 @@ import com.bigpapituna.sharpears.engine.progress.ProgressEvent
 import com.bigpapituna.sharpears.ui.practice.PracticeKind
 import com.bigpapituna.sharpears.ui.profile.LocalProgress
 import com.bigpapituna.sharpears.ui.profile.ProgressOverlays
+import com.bigpapituna.sharpears.data.Profiles
+import com.bigpapituna.sharpears.engine.family.Profile
+import com.bigpapituna.sharpears.ui.family.FamilySettings
+import com.bigpapituna.sharpears.ui.family.FamilyWall
+import com.bigpapituna.sharpears.ui.family.LocalParentGate
+import com.bigpapituna.sharpears.ui.family.LocalProfile
+import com.bigpapituna.sharpears.ui.family.LocalProfiles
+import com.bigpapituna.sharpears.ui.family.ParentGateController
+import com.bigpapituna.sharpears.ui.family.ParentGateHost
+import com.bigpapituna.sharpears.ui.family.ProfilePicker
+import com.bigpapituna.sharpears.ui.family.familyWallEntries
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -152,8 +167,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
     private lateinit var midi: MidiDevices
     private lateinit var mic: MicInput
-    private lateinit var voice: Voice
+    private var openVoice: Voice? = null
     private val samplerReady = mutableStateOf(false)
+    private lateinit var repo: SongRepository
+    private lateinit var profiles: Profiles
+    private lateinit var gate: ParentGateController
+    /** The profile the app is open as (null while the picker shows). */
+    private var openId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -161,24 +181,65 @@ class MainActivity : ComponentActivity() {
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
-        val repo = SongRepository(this)
-        val prefs = Prefs(this).also { it.logRestored() }
+        repo = SongRepository(this)
+        profiles = Profiles(this)
+        gate = ParentGateController(profiles)
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        // --es profile <id> (debug): open as that profile, no picker.
+        val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
         // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
         if (mic.keepRecordings) {
             mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
-            mic.reporter.weeklySummary(prefs.practice())
+            mic.reporter.weeklySummary(Prefs(this, Profile.OWNER_ID).practice())
             mic.reporter.flush()
         }
-        com.bigpapituna.sharpears.reminder.Reminder.schedule(this, prefs)        // alarms do not survive an update or restart
-        voice = Voice(this, prefs, mic)                // the speech engine itself starts on the first line
-        val lessons = LessonStore(this)
+        com.bigpapituna.sharpears.reminder.Reminder.schedule(this)        // alarms do not survive an update or restart
+        // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them.
+        lifecycleScope.launch {
+            profiles.currentFlow.map { it.id }.distinctUntilChanged().collect { id -> if (openId != null && openId != id) openApp(fromLaunch = false) }
+        }
+        // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
+        val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
+        if (profiles.roster.needsPicker && savedInstanceState == null && !debugRoute && debugProfile == null) showPicker()
+        else openApp(fromLaunch = true)
+    }
+
+    /** The launch picker; picking (or adding someone) opens the app as them. */
+    private fun showPicker() = setContent {
+        SharpEarsTheme {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                val roster by profiles.rosterFlow.collectAsState()
+                ProfilePicker(roster,
+                    onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
+                    onAdd = { p -> if (profiles.create(p) != null) openApp(fromLaunch = true) })
+            }
+        }
+    }
+
+    /**
+     * Builds the current profile's stores and shows the app as them. [fromLaunch] honours the launch intent's debug
+     * extras; a later switch opens at home. Everything per profile lives here, so a switch starts it fresh.
+     */
+    private fun openApp(fromLaunch: Boolean) {
+        val profile = profiles.current
+        // The phone handed to a kid: a gate a grown-up passed a minute ago does not stay open for them.
+        if (profile.isKid && openId != profile.id) gate.close()
+        openId = profile.id
+        Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
+        val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
+        val prefs = Prefs(this, profile.id).also { it.logRestored() }
+        openVoice?.release()
+        val voice = Voice(this, prefs, mic).also { openVoice = it }   // the speech engine itself starts on the first line
+        val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
         // Someone who already played (XP from catchUp or since) skips the first-run questions.
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
-        val practiceStore = PracticeStore(this)
-        val earStore = EarStore(this)                  // read for the Learn row and reset from Settings; the hub keeps its own
-        val theory = TheoryStore(this)                 // one store for the Learn card and the academy, so the card updates
+        // A kid goes straight in: no questions, the goal the profile was made with.
+        if (profile.isKid && !progress.onboardingDone) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
+        val practiceStore = PracticeStore(this, profile.id)
+        val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
+        val theory = TheoryStore(this, profile.id)     // one store for the Learn card and the academy, so the card updates
         val micCheck = micCheckExercise()
 
         // Debug builds accept extras to open a screen directly:
@@ -196,6 +257,7 @@ class MainActivity : ComponentActivity() {
         //   --ez daily true   (starts "Practice today" straight away)
         //   --es screen sight [--ei level 1|2] [--es inject ...]   (sight-reading; seeded when injecting)
         //   --es lesson <id> --es midi "800:p1 4790:p0 1000:60/40"   (a pretend MIDI keyboard: pedal and key/velocity at ms after Play)
+        //   --es profile <id>   (open as that profile, skipping the picker; combine with any route above)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -254,10 +316,13 @@ class MainActivity : ComponentActivity() {
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
 
-        setContent {
+        setContent { androidx.compose.runtime.key(profile.id) {
             var screen by remember { mutableStateOf(opening) }
-            // Every screen can report XP events through LocalProgress without a new parameter.
-            androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress) {
+            val current by profiles.currentFlow.collectAsState()
+            val roster by profiles.rosterFlow.collectAsState()
+            // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile.
+            androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
+                LocalProfiles provides profiles, LocalParentGate provides gate) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 Surface(Modifier.fillMaxSize().paper(), color = androidx.compose.ui.graphics.Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onBackground) {   // textured page (ui/Backdrop.kt)
@@ -455,7 +520,8 @@ class MainActivity : ComponentActivity() {
                                 onReport = ::earEvent, sound = { prefs.sound }, start = s.start)
                         }
                         Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                            OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) }) { lessonId ->
+                            OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
+                                askReminder = profile.isOwner) { lessonId ->
                                 // The suggested first lesson opens straight away; Back from it lands on Learn.
                                 screen = lessonId?.let { id -> COURSE.flatMap { it.lessons }.firstOrNull { it.id == id } }
                                     ?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
@@ -464,15 +530,16 @@ class MainActivity : ComponentActivity() {
                         is Screen.Settings -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "", voice = voice,
-                                onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity, prefs) },
-                                onMicSetup = { screen = Screen.MicSetup(s) },
+                                onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
+                                onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
                                 onBack = { screen = s.back },
-                                onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory; XP kept)") })
+                                onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory; XP kept)") },
+                                family = { FamilySettings(profiles) }, showReminder = current.isOwner)
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
-                            PrivacyScreen(mic.canRecord, onMicSetup = { screen = Screen.MicSetup(s) }, onBack = { screen = s.back })
+                            PrivacyScreen(mic.canRecord, onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } }, onBack = { screen = s.back })
                         }
                         is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back },
@@ -492,7 +559,7 @@ class MainActivity : ComponentActivity() {
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
-                                onBack = { screen = s.back })
+                                onBack = { screen = s.back }, guardToken = gate::guard)
                         }
                         is Screen.Home -> {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
@@ -513,7 +580,7 @@ class MainActivity : ComponentActivity() {
                                             LibraryActions(
                                                 onOpen = ::openSong,
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
-                                                onMic = { screen = Screen.MicSetup(s) },
+                                                onMic = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                                 onToday = ::startDaily,
                                             ),
                                             practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
@@ -526,6 +593,13 @@ class MainActivity : ComponentActivity() {
                                             goal = remember(pv, progress.version.intValue) {
                                                 val st = progress.streak()
                                                 GoalState(progress.goalLine(), DailyGoal.met(progress.secondsToday(), progress.goalMinutes), st.streak, st.atRisk)
+                                            },
+                                            // Everyone's week, when there is more than one of us; tapping someone opens the app as them.
+                                            family = if (!roster.needsPicker) null else {
+                                                {
+                                                    val wall = remember(roster, pv, progress.version.intValue) { familyWallEntries(this@MainActivity, roster) }
+                                                    FamilyWall(wall, onSwitch = profiles::switchTo)
+                                                }
                                             })
                                     }
                                     HomeTab.LEARN -> {
@@ -557,7 +631,7 @@ class MainActivity : ComponentActivity() {
                                             screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
                                                 0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                         })
-                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { screen = Screen.Settings(s) })
+                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { screen = Screen.Settings(s) } })
                                 }
                             }
                         }
@@ -587,14 +661,16 @@ class MainActivity : ComponentActivity() {
                     if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
+                    // The parent gate, over everything while an action waits for a grown-up.
+                    SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }
                 }
             }
             }
-        }
+        } }
     }
 
     override fun onDestroy() {
-        voice.release()
+        openVoice?.release()
         mic.stop()
         midi.stop()
         sampler.release()

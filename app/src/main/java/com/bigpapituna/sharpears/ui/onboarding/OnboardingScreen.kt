@@ -80,16 +80,18 @@ private const val STEPS = 4
  * how you will play. It ends with a celebration. Answers go to [store] (experience, goal, input choice, onboardingDone);
  * the reminder and microphone choices are set on [prefs] through its setters, and [onReminderChanged] lets the app set
  * the alarm. [onDone] gets the lesson to open first (null to just look around). Skip leaves everything at its default.
+ * [askReminder] is false for profiles other than the phone owner's: the reminder is one alarm per phone, the owner's.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -> Unit = {}, onDone: (startLessonId: String?) -> Unit) {
+fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -> Unit = {}, askReminder: Boolean = true,
+                     onDone: (startLessonId: String?) -> Unit) {
     val context = LocalContext.current
     val still = reducedMotion()
     var step by rememberSaveable { mutableIntStateOf(0) }
     var experience by rememberSaveable { mutableIntStateOf(-1) }
     var goal by rememberSaveable { mutableIntStateOf(store.goalMinutes.takeIf { it in DailyGoal.OPTIONS } ?: DailyGoal.DEFAULT) }
-    var reminderOn by rememberSaveable { mutableStateOf(true) }
+    var reminderOn by rememberSaveable { mutableStateOf(askReminder) }
     var reminderMinutes by rememberSaveable { mutableIntStateOf(prefs.reminderMinutes) }
     var useMic by rememberSaveable { mutableStateOf(false) }
     var finished by rememberSaveable { mutableStateOf(false) }
@@ -100,9 +102,11 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
         store.goalMinutes = goal
         store.useMic = useMic
         prefs.micDefault = useMic
-        prefs.reminderMinutes = reminderMinutes
-        prefs.reminderOn = reminderOn && notifyOk
-        onReminderChanged()
+        if (askReminder) {
+            prefs.reminderMinutes = reminderMinutes
+            prefs.reminderOn = reminderOn && notifyOk
+            onReminderChanged()
+        }
         store.onboardingDone = true
         finished = true
     }
@@ -156,7 +160,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                         1 -> ExperienceStep(experience) { experience = it }
                         2 -> GoalStep(goal) { goal = it }
                         else -> HabitStep(
-                            reminderOn, reminderMinutes, useMic,
+                            askReminder, reminderOn, reminderMinutes, useMic,
                             onReminder = { reminderOn = it }, onPickTime = { pickTime = true }, onMic = { useMic = it },
                         )
                     }
@@ -243,15 +247,16 @@ private fun GoalStep(goal: Int, onPick: (Int) -> Unit) {
 
 @Composable
 private fun HabitStep(
-    reminderOn: Boolean, reminderMinutes: Int, useMic: Boolean,
+    askReminder: Boolean, reminderOn: Boolean, reminderMinutes: Int, useMic: Boolean,
     onReminder: (Boolean) -> Unit, onPickTime: () -> Unit, onMic: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
     val timeLabel = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
         .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)).replace(' ', ' ')
-    PupSays(Pose.LISTENING, "Nearly there. Two quick choices and we can start.", Modifier.fillMaxWidth(), size = 96.dp)
-    StepTitle("A reminder, and how you play")
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(reminderOn, role = Role.Switch, onValueChange = onReminder),
+    PupSays(Pose.LISTENING, if (askReminder) "Nearly there. Two quick choices and we can start." else "Nearly there. One quick choice and we can start.",
+        Modifier.fillMaxWidth(), size = 96.dp)
+    StepTitle(if (askReminder) "A reminder, and how you play" else "How you play")
+    if (askReminder) Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(reminderOn, role = Role.Switch, onValueChange = onReminder),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(1f)) {
             Text("Daily reminder", style = MaterialTheme.typography.titleSmall)
@@ -259,13 +264,13 @@ private fun HabitStep(
         }
         Switch(reminderOn, onCheckedChange = null)
     }
-    if (reminderOn) TextButton(onClick = onPickTime, modifier = Modifier.semantics { contentDescription = "Reminder time, $timeLabel, tap to change" }) {
+    if (askReminder && reminderOn) TextButton(onClick = onPickTime, modifier = Modifier.semantics { contentDescription = "Reminder time, $timeLabel, tap to change" }) {
         Text("Remind me at $timeLabel")
     }
     Text("How will you play?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
     Choice(!useMic, "Keys on screen or MIDI", "I'll tap the keys on the screen, or plug in a MIDI keyboard.") { onMic(false) }
     Choice(useMic, "Microphone", "I play a real piano or keyboard and the app listens.") { onMic(true) }
-    Text("You can change both in Settings.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, textAlign = TextAlign.Start)
+    Text(if (askReminder) "You can change both in Settings." else "You can change it in Settings.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, textAlign = TextAlign.Start)
 }
 
 /** One answer: an outlined row that fills with the accent tint when picked. */

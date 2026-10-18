@@ -54,7 +54,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** Settings is a pushed screen (from the gear on You): a back arrow beside the heading. */
                    onBack: (() -> Unit)? = null,
                    /** After Prefs.resetProgress(): the other stores that keep scores (ear training, practice tools). */
-                   onResetProgress: () -> Unit = {}) {
+                   onResetProgress: () -> Unit = {},
+                   /** The Family section (ui/family/FamilySettings.kt), first on the screen; null hides it. */
+                   family: (@Composable () -> Unit)? = null,
+                   /** The daily reminder is the phone owner's (one alarm per phone); other profiles do not see it. */
+                   showReminder: Boolean = true) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30).
     val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
@@ -95,6 +99,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 onBack?.let { IconButton(onClick = it) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") } }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = if (onBack != null) 4.dp else 0.dp).semantics { heading() })
             }
+
+            family?.let { Section("Family"); it() }
 
             Section("Keyboard")
             Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -138,19 +144,20 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 Spacer(Modifier.size(8.dp)); Text("Microphone setup")
             }
 
-            Section("Reminder")
-            Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
+            if (showReminder) Section("Reminder")
+            if (showReminder) Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
                 prefs.reminderOn && v >= 0) { on ->
                 if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context))
                     askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 else { prefs.reminderOn = on; onReminder() }
             }
-            TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
+            if (showReminder) TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
                 contentDescription = "Reminder time, $timeLabel, tap to change"
             }) { Text("Time: $timeLabel") }
 
             Section("Progress")
-            Text("Save everything the app remembers (progress, chord mastery, microphone setup, game bests) to a file, or bring it back from one.",
+            Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
+                "to a file, or bring it back from one.",
                 style = MaterialTheme.typography.bodyMedium, color = dim)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { exportTo.launch("sharp-ears-progress-${java.time.LocalDate.now()}.json") }) { Text("Export progress") }
@@ -190,7 +197,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         AlertDialog(
             onDismissRequest = { importing = null },
             title = { Text("Replace your progress?") },
-            text = { Text("The file holds ${files.values.sumOf { it.size }} saved settings. They replace everything the app remembers now, and this cannot be undone.") },
+            text = { Text("The file holds ${files.values.sumOf { it.size }} saved settings. They replace everything the app remembers now" +
+                (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile,") + " and this cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     com.bigpapituna.sharpears.data.ProgressFiles.replace(context, files)

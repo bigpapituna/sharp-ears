@@ -79,7 +79,9 @@ private val FIXTURES = listOf(
 )
 
 @Composable
-fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicCheck: () -> Unit, onBack: () -> Unit) {
+fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicCheck: () -> Unit, onBack: () -> Unit,
+                   /** Wraps changes to the report token: the parent gate (ParentGateController.guard), even for grown-ups. */
+                   guardToken: (() -> Unit) -> Unit = { it() }) {
     BackHandler(onBack = onBack)
     var granted by remember { mutableStateOf(mic.hasPermission()) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
@@ -252,8 +254,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                     modifier = Modifier.semantics { contentDescription = "Send stuck moments for review" })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { editToken = true }) { Text(if (hasToken) "Set up (change)" else "Set up") }
-                if (hasToken) TextButton(onClick = { rep.clearToken(); hasToken = false; send = rep.enabled }) {
+                TextButton(onClick = { guardToken { editToken = true } }) { Text(if (hasToken) "Set up (change)" else "Set up") }
+                if (hasToken) TextButton(onClick = { guardToken { rep.clearToken(); hasToken = false; send = rep.enabled } }) {
                     Text("Remove", color = MaterialTheme.colorScheme.error)
                 }
             }

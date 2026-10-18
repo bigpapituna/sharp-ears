@@ -19,10 +19,10 @@ data class TheoryFinish(val percent: Int, val newBest: Boolean, val unitComplete
 /**
  * The Theory Academy's progress, in its own SharedPreferences file "theory": per lesson whether it is done
  * (`done:<id>`), the best quiz score in percent (`best:<id>`) and seconds spent (`secs:<id>`). [version] bumps on
- * every change so screens reading it recompose.
+ * every change so screens reading it recompose. Per profile ("theory.<id>", [ProgressFiles.fileFor]).
  */
-class TheoryStore(context: Context) {
-    private val p = context.getSharedPreferences("theory", Context.MODE_PRIVATE)
+class TheoryStore(context: Context, profileId: String) {
+    private val p = context.getSharedPreferences(ProgressFiles.fileFor("theory", profileId), Context.MODE_PRIVATE)
     val version = mutableIntStateOf(0)
 
     fun done(lessonId: String) = p.getBoolean("done:$lessonId", false)
@@ -53,9 +53,10 @@ class TheoryStore(context: Context) {
     fun reset() { p.edit { clear() }; version.intValue++; Log.d(TAG, "theory: progress reset") }
 }
 
-/** The app's theory store, one per composition (the preferences file is shared anyway). */
+/** The current profile's theory store, one per composition (the preferences file is shared anyway). */
 @Composable
 fun rememberTheoryStore(): TheoryStore {
     val ctx = LocalContext.current.applicationContext
-    return remember(ctx) { TheoryStore(ctx) }
+    val id = com.bigpapituna.sharpears.ui.family.LocalProfile.current.id
+    return remember(ctx, id) { TheoryStore(ctx, id) }
 }

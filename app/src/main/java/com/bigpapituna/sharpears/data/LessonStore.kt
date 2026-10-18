@@ -19,10 +19,10 @@ import org.json.JSONObject
 /**
  * Lesson packs from assets/lessons plus the song-derived packs, and mastery per item in SharedPreferences
  * (key = item id, value = "box,dueAt"). The current practice session lives here so it survives a trip
- * to the player for a progression item.
+ * to the player for a progression item. Mastery is per profile ("mastery.<id>", [ProgressFiles.fileFor]).
  */
-class LessonStore(private val context: Context) {
-    private val prefs = context.getSharedPreferences("mastery", Context.MODE_PRIVATE)
+class LessonStore(private val context: Context, profileId: String) {
+    private val prefs = context.getSharedPreferences(ProgressFiles.fileFor("mastery", profileId), Context.MODE_PRIVATE)
     val version = mutableIntStateOf(0)
     /** Pack descriptions by id, shown on the Lessons tab. */
     val about = mutableMapOf<String, String>()
