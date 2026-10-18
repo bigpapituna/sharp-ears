@@ -365,6 +365,37 @@ internal fun BigKidsRoad(units: List<RoadUnit>, onStone: (Stone) -> Unit, modifi
     }
 }
 
+/**
+ * The big kids' road before it opens: the start of the grey road out of the gate, fading out, with a striped barrier
+ * across it. It says what is ahead without a word a pre-reader needs.
+ */
+@Composable
+internal fun RoadAhead(modifier: Modifier = Modifier) {
+    val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Box(modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp).height(150.dp)
+        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+        .background(Brush.verticalGradient(listOf(if (night) Color(0xFF3D5A3F) else Color(0xFFB9DDA4), Color.Transparent)))
+        .semantics(mergeDescendants = true) { contentDescription = "The big kids' road, after the playground" }) {
+        Canvas(Modifier.matchParentSize()) {
+            val rw = size.width * 0.1f
+            val x = size.width / 2
+            drawLine(Color(0xFF8A8D94).copy(alpha = 0.8f), Offset(x, 0f), Offset(x, size.height * 0.9f), rw, StrokeCap.Round)
+            drawLine(Color(0xFFF5E6A8).copy(alpha = 0.8f), Offset(x, 0f), Offset(x, size.height * 0.85f), rw * 0.08f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(rw * 0.35f, rw * 0.3f)))
+            // The barrier: a striped bar on two posts.
+            val top = size.height * 0.42f; val bar = size.height * 0.12f
+            val left = x - rw * 1.3f; val right = x + rw * 1.3f
+            listOf(left + rw * 0.2f, right - rw * 0.2f).forEach { px -> drawLine(WorldInk, Offset(px, top), Offset(px, top + bar * 2.6f), rw * 0.12f, StrokeCap.Round) }
+            drawRoundRect(Color.White, Offset(left, top), Size(right - left, bar), CornerRadius(bar * 0.3f))
+            val stripe = (right - left) / 6f
+            for (k in 0 until 6 step 2) drawRect(Color(0xFFE5484D), Offset(left + k * stripe, top), Size(stripe, bar))
+            drawRoundRect(WorldInk, Offset(left, top), Size(right - left, bar), CornerRadius(bar * 0.3f), style = Stroke(rw * 0.06f))
+        }
+        Text("The big kids' road", style = MaterialTheme.typography.titleLarge, color = if (night) Color(0xFFF3EEE9) else WorldInk,
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 14.dp))
+    }
+}
+
 /** A unit's name on a little green road sign. */
 @Composable
 private fun UnitSign(title: String, modifier: Modifier) {

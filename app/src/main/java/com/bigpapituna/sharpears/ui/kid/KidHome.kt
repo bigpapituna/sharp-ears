@@ -194,6 +194,7 @@ fun KidHome(
                         }
                     }
                 }
+                if (!model.roadOpen) item(key = "road-ahead") { RoadAhead() }
                 if (model.roadOpen && model.road.isNotEmpty()) item(key = "road") {
                     BigKidsRoad(model.road, asleep = asleep, onStone = { s -> if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) }) { sizes ->
                         val i = model.road.flatMap { it.stones }.indexOfFirst { it.lessonId == model.next }
@@ -352,13 +353,20 @@ internal fun KidButton(label: String, pose: Pose, onClick: () -> Unit, modifier:
     val lip = 5.dp
     val face = c.surfaceContainerHigh
     val edge = lerp(c.surfaceContainerHighest, Color.Black, 0.22f)
-    Box(modifier.fillMaxSize().clickable(source, indication = null, role = Role.Button, onClick = onClick).semantics { contentDescription = label }) {
+    BoxWithConstraints(modifier.fillMaxSize().clickable(source, indication = null, role = Role.Button, onClick = onClick).semantics { contentDescription = label }) {
         Box(Modifier.fillMaxSize().padding(top = lip).background(edge, RoundedCornerShape(22.dp)))
-        Row(Modifier.fillMaxSize().offset { IntOffset(0, if (pressed) lip.roundToPx() else 0) }.padding(bottom = lip)
-            .background(face, RoundedCornerShape(22.dp)).padding(horizontal = 10.dp),
+        val face0 = Modifier.fillMaxSize().offset { IntOffset(0, if (pressed) lip.roundToPx() else 0) }.padding(bottom = lip)
+            .background(face, RoundedCornerShape(22.dp))
+        // Side by side where there is room (the unfolded Fold); the pup over the word on a phone.
+        if (maxWidth >= 190.dp) Row(face0.padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
             Image(painterResource(pose.res), contentDescription = null, modifier = Modifier.size(52.dp))
             Text(label, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 19.sp), maxLines = 1,
+                color = c.onSurface)
+        } else Column(face0.padding(horizontal = 4.dp, vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center) {
+            Image(painterResource(pose.res), contentDescription = null, modifier = Modifier.size(40.dp))
+            Text(label, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 15.sp), maxLines = 1,
                 color = c.onSurface)
         }
     }

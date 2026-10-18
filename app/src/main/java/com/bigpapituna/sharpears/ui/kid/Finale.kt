@@ -94,8 +94,10 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: In
         Log.d(TAG, "finale: ${page.id} for $name, $stars stars, album ${album.collected}/${album.size}, then $after")
         if (sound) WorldSounds.jingle(Rarity.SHINY)
         sayNow(headline)
-        sayNow(onward)
         if (!still) rise.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
+        // The name line is made on the phone, the next one is recorded: a breath between them so they never overlap.
+        delay(if (still) 2600 else 1700)
+        sayNow(onward)
     }
     LaunchedEffect(Unit) { var i = 0; while (true) { delay(1900); i++; pose = BOW[i % BOW.size] } }
     // Night: light status bar icons while the finale shows, the phone's own after.

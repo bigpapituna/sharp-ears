@@ -84,9 +84,11 @@ fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMet
                     (f to opening).also { factsCache[m.id] = it }
                 }.onFailure { Log.d(TAG, "kid songs: ${m.id} unreadable: $it") }.getOrNull()
             }
-            val picked = KidSongs.pick(facts.map { it.first }).map { it.id }.toSet()
+            // In the kid order (simplest first), not the library's.
+            val picked = KidSongs.pick(facts.map { it.first }).map { it.id }
             Log.d(TAG, "kid songs: ${picked.size} of ${songs.size} play by colour: ${picked.joinToString()}")
-            facts.filter { it.first.id in picked }.mapNotNull { (f, opening) -> songs.firstOrNull { it.id == f.id }?.let { KidSong(it, opening) } }
+            val byId = facts.associateBy { it.first.id }
+            picked.mapNotNull { id -> songs.firstOrNull { it.id == id }?.let { m -> KidSong(m, byId.getValue(id).second) } }
         }
     }
     val c = MaterialTheme.colorScheme
