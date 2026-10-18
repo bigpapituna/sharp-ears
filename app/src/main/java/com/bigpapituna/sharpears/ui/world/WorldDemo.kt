@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -135,6 +137,13 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                                     if (place == null || place == Place.GARDEN) Text(houseLine(world.state.unique), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 "map" -> WorldMap(world.state)
+                                // 2.2: the twelve stops of every scene's trail, numbered, and the last scene's gate (the kid map's layout).
+                                "trail" -> WorldMap(world.state, stop = { _, i ->
+                                    Box(Modifier.size(34.dp).background(androidx.compose.ui.graphics.Color(0xFFFFF7E8), androidx.compose.foundation.shape.CircleShape)
+                                        .border(2.dp, WorldInk, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                                        Text("${i + 1}", style = MaterialTheme.typography.labelLarge, color = WorldInk)
+                                    }
+                                })
                                 "jar" -> TreatJarPanel(world)
                                 "egg" -> Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                                     EggView(EggLook.CLOSED, Modifier.size(90.dp, 116.dp))

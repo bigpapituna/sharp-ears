@@ -22,7 +22,7 @@ object Trail {
     /** The rows' heights in each scene (three rows hold the twelve stops). */
     private fun rows(place: Place): FloatArray = when (place) {
         Place.GARDEN -> floatArrayOf(0.615f, 0.755f, 0.895f)
-        Place.POND -> floatArrayOf(0.53f, 0.69f, 0.85f)
+        Place.POND -> floatArrayOf(0.585f, 0.725f, 0.865f)
         Place.CONCERT -> floatArrayOf(0.48f, 0.615f, 0.75f)
     }
 
