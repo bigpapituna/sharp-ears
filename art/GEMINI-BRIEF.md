@@ -103,3 +103,43 @@ pads, reeds and a little bridge. concert: a concert hall stage with a red curtai
 ## Order if quota runs out again
 
 A (the ten poses) first, then B, then C garden, then D, then the rest of C, then E.
+
+## Received 2026-10-18 (batch A)
+
+Nine of ten poses plus a clean sitting base, saved as art/mascot/pup-*.jpg: listening, crown, pointing (sideways,
+not down), flying, goodnight, dancing, wear-base, sticker, drumming, head-tilt. Missing: clapping.
+
+## A2. Alive and reacting (next batch, same character line)
+
+Idle moments (the pup does these on its own when the child does nothing for ten seconds) and reactions:
+
+| File | Pose sentence |
+|---|---|
+| pup-clapping | sitting up on its hind legs, front paws together mid-clap, big grin |
+| pup-pointing-down | standing, pointing straight down with one front paw, looking at the viewer, encouraging smile |
+| pup-sneeze | sitting, mid-sneeze, eyes shut, nose scrunched, ears flying up |
+| pup-tail-chase | curled round chasing its own tail, tongue out, seen from the side |
+| pup-scratch | sitting, scratching behind one ear with a hind leg, eyes half closed |
+| pup-butterfly | sitting, looking up at a small blue butterfly just above its nose, eyes wide |
+| pup-surprised | sitting, eyes huge, mouth a round O, ears straight up, both front paws raised (a rare sticker just dropped) |
+| pup-thinking | sitting, one paw on its chin, eyes looking up and to the side, mouth small |
+| pup-shh | sitting, one paw held in front of its mouth, eyes closed, calm (a listening moment) |
+| pup-peek | peeking in from the left edge of the frame, only the head and one paw visible, mischievous smile |
+| pup-treat | sitting, holding a cartoon bone-shaped biscuit in both paws, about to bite it, eyes shining |
+| pup-sleeping | curled up asleep on the floor, no pillow, a small "z" shape not needed, peaceful |
+
+## A3. Profile avatars (eight)
+
+> The same character's head and shoulders only, facing the camera, happy, centred, plain white background, square.
+> Make eight versions that differ only in the colour of the striped sweatband: red, blue, green, purple, yellow,
+> pink, orange, teal.
+
+Files: art/mascot/avatar-<colour>.png.
+
+## A4. World pieces, folder art/world/ (flat vector, same outline and shading style as the pup, white background)
+
+dog-house-1 (small plain wooden dog house), dog-house-2 (the same with a red roof and a flower box),
+dog-house-3 (the same with a chimney, a flag and a porch light), treat-jar-empty, treat-jar-half, treat-jar-full
+(a glass jar of bone biscuits), egg-closed (a pastel spotted egg), egg-cracking (the same egg with a crack and light
+inside), egg-hatched (the shell halves open, empty), stage-empty (a small wooden stage with a red curtain),
+audience (five small cartoon animals sitting in a row watching: a bird, a frog, a duckling, a turtle, a ladybird).
