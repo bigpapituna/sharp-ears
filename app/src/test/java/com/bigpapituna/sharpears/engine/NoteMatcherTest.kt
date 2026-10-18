@@ -60,6 +60,37 @@ class NoteMatcherTest {
         }
     }
 
+    /**
+     * Pup's Playground's finding (RangeAudioTest, 2.1): asked about several keys at once, each its own group (an any-of
+     * round), PianoSynth's G4 was credited as C3 (G4 is C3's third partial), D4 as C6 and C#4 as A#5. Each case here once
+     * with the one key expected and once with the round's whole set. Every key [played] must be heard as nothing.
+     */
+    private fun creditedAmong(played: Int, expected: Set<Int>): List<Int> {
+        val audio = PianoSynth.render(listOf(SynthNote(played, 500.0)), 2000.0)
+        val m = NoteMatcher(fs)
+        val out = ArrayList<Int>()
+        var i = 0
+        while (i < audio.size) {
+            m.expected = expected; m.groups = expected.map { setOf(it) }
+            val n = minOf(480, audio.size - i)
+            m.process(audio.copyOfRange(i, i + n)).forEach { if (it is MicEvent.Strike) out += it.midi }
+            i += n
+        }
+        return out
+    }
+
+    @Test fun aKeyIsNotCreditedAsAnotherWhoseOvertoneItShares() {
+        val anyC = setOf(60, 36, 48, 72, 84)                          // "any C" (playground-3)
+        val fences = setOf(66, 68, 70, 54, 56, 58, 78, 80, 82)       // the three-black-key groups (playground-2)
+        val wrongly = listOf(67 to setOf(48), 67 to anyC, 62 to setOf(84), 62 to anyC, 61 to setOf(82), 61 to fences).mapNotNull { (played, expected) ->
+            creditedAmong(played, expected).takeIf { it.isNotEmpty() }?.let { "${noteName(played)} heard as ${it.map(::noteName)} among ${expected.sorted().map(::noteName)}" }
+        }
+        assertEquals(emptyList<String>(), wrongly)
+        // And the keys themselves are still heard when they are among the expected.
+        assertEquals(listOf(48), creditedAmong(48, anyC))
+        assertEquals(listOf(82), creditedAmong(82, fences))
+    }
+
     @Test fun higherOctaveIsRejected() {
         for ((played, expected) in listOf(76 to 64, 69 to 57, 72 to 60)) {
             val audio = PianoSynth.render(listOf(SynthNote(played, 500.0)), 2000.0)

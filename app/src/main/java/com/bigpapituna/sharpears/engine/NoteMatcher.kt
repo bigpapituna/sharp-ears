@@ -123,6 +123,16 @@ enum class Reject {
     LOWER_NOTE, LOWER_OCTAVE,
     /** Its odd partials stayed quiet: only its octave above's partials rose ("higher octave?"). */
     HIGHER_OCTAVE,
+    /**
+     * Only its 3rd and 6th partials rose: the note a twelfth above was struck (G4 read as C3, its 3rd partial; found by
+     * the Playground's range tests on PianoSynth, 2.1). Its 1st, 2nd, 4th and 5th partials stayed quiet.
+     */
+    HIGHER_TWELFTH,
+    /**
+     * A high note (analysed at the full rate, about C6 and up, where the fundamental is the strongest partial on any
+     * piano) whose fundamental did not rise: a lower note's upper partials landed on its overtones (D4 read as C6).
+     */
+    NO_FUNDAMENTAL,
     NOT_SHARP, TOO_FAINT,
 }
 
@@ -480,6 +490,11 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> Reject.SPILL
             subRise > subRatio * noteFresh -> if (riseOf(f.sub.subList(0, f.subOctave)) >= 0.5 * subRise) Reject.LOWER_OCTAVE else Reject.LOWER_NOTE
             fresh(f.odd) < cfg.oddRatio * noteFresh -> Reject.HIGHER_OCTAVE
+            // A key heard through a struck key's overtones (2.1, the Playground's findings): only for expected notes, the
+            // wrong-key search keeps the detector's tuning (the room-noise watchdog counts its painted keys). The twelfth
+            // is checked only while the note's own 1st or 2nd partial is probed (in a chord they can be set aside as shared).
+            !wrongScan && f.noteH.any { it <= 2 } && fresh(f.notThird) < cfg.oddRatio * noteFresh -> Reject.HIGHER_TWELFTH
+            !wrongScan && factor == 1 && f.noteH.firstOrNull() == 1 && fresh(f.note.subList(0, 1)) < cfg.oddRatio * noteFresh -> Reject.NO_FUNDAMENTAL
             !sharpEnough(f, nowP, beforeP, cfg) -> Reject.NOT_SHARP
             !strongEnough(f, nowP, beforeP, riseDb, cfg) -> Reject.TOO_FAINT
             else -> null
@@ -506,6 +521,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
                 Reject.LOWER_NOTE -> "lower note (sub ${db(subRise)})"
                 Reject.LOWER_OCTAVE -> "lower note (sub ${db(subRise)}), octave below?"
                 Reject.HIGHER_OCTAVE -> "no odd partials (odd ${db(fresh(f.odd))}), higher octave?"
+                Reject.HIGHER_TWELFTH -> "only every third partial rose (others ${db(fresh(f.notThird))}), a twelfth above?"
+                Reject.NO_FUNDAMENTAL -> "a high note whose fundamental did not rise (a lower note's overtones?)"
                 Reject.NOT_SHARP -> "not a sharp peak (gliding sound: voice, whistle?)"
                 Reject.TOO_FAINT -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
                     "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
@@ -549,6 +566,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     private class Probe(
         val all: DoubleArray,
         val note: List<IntArray>, val noteH: IntArray, val odd: List<IntArray>,
+        /** The note's partials that are not a multiple of 3 (1st, 2nd, 4th, 5th): a twelfth above has none there. */
+        val notThird: List<IntArray>,
         val up: List<IntArray>, val down: List<IntArray>,
         /** Lower-note probes: the first [subOctave] are the octave below's odd partials, the rest a twelfth below. */
         val sub: List<IntArray>, val subOctave: Int,
@@ -604,6 +623,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             note = note.map { it.second },
             noteH = note.map { it.first }.toIntArray(),
             odd = note.filter { it.first % 2 == 1 }.map { it.second },
+            notThird = note.filter { it.first % 3 != 0 }.map { it.second },
             up = up, down = down, sub = sub, subOctave = subOct.size, sharp = sharp,
         )
     }
