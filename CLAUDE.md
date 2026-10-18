@@ -185,6 +185,56 @@ Roy: "I don't like areas that have just text." Every Learn reading step is now a
 - Pup's Playground (stage 2 playground team, branch family-playground, emulator-5554 only): engine/playground/Playground.kt is the unit "playground", first in COURSE (now lazy), 12 game lessons in the Scene/Exercise model, places, CONCERT_SONGS, CONCERT_PASS 60. Exercise notation has any-of groups ("C#4|D#4:2", "C6|C#4..C8:2"; OnsetGroup.anyOf, Transport.listenGroups/hintKeys, mic set capped at 12 keys) and Exercise.phraseEnd + bite() for kid bites. Android-free ClapCounter, PitchHeight (onset + YIN, no expected keys) and SoftLoud, all on PianoSynth/synthetic audio in JVM tests (489 tests, 444 before).
 - Playground stages (ui/playground: the pup flying with pitch, the dog-house and fence hunt, the drum and claps, the sleeping pup, the concert) hook in through Step.game and PlaygroundStage; LessonScreen wiring, mic notes and matcher findings for the detector team: ui/playground/INTEGRATION.md. Debug: --es lesson playground-N [--ei step n] [--ei scene n] [--es inject synth:...|claps:400,1150|dyn:60/-20,60/-8@1600~1500].
 
+### 2.1.1 fixes (2026-10-18, branch `fixes-2.1.1`, versionCode 8; emulator-5558 Fold only, not on Roy's phone yet)
+From Roy's first go with the kids: in Pup's Playground level 2 "sometimes playing the notes doesn't lead to anything",
+and the Jam's chord confetti came with no sound and no words.
+- Stages hear through the note matcher (ui/playground rememberStage, engine/playground StageEar.kt): StageKeys per
+  stage (high and low: C2 E2 G2 C3 E3 G3 + C5 E5 G5 C6 E6 G6; dog houses C#4 D#4 C#5 D#5; fences F#4 G#4 A#4 F#5 G#5
+  A#5; Cs C2 to C6; soft and loud A3 to G4 with C#4 D#4), each its own group, `NoteMatcher.strictKeys` on. A key
+  outside the set is named by the wrong-key search (a dog house in another octave counts; a white key gets "That one's
+  white. Try the black ones here." with the place glowing); the pitch tracker only adds a sure guess. The hunts show
+  the two octaves from middle C. The exercise any-of groups name the same keys.
+- Strict keys (NoteMatcher, off for the player): an accepted strike must show its two lowest partials (10% of the
+  rise), have no fresh lower note whose 4th to 9th partial it is (all of that note's first partials rising, 25%,
+  probed only at accept time), take no single-partial slack, and carry the sound (within 12 dB of its window's
+  loudest hop); the wrong-key search gets the same checks. PianoSynth, every key at two levels against each stage set
+  and the Jam (1056 cases): 104 credited a key that was not struck before, 0 now; Roy's scale through each stage: every C, D#4 and soft-loud key heard,
+  0 keys found that were not it, 0 wrong-side highs and lows; FixtureTest strict: 33/33, 0 false strikes.
+- I heard you: every sound shows within a frame (StageFx: a ring at the key heard or guessed, sky blue for a sound
+  with no key, gold for a find, yellow or red for a wrong piano key against the round's keys; the pup's ears flick;
+  "I heard you!" for a sound with no key). The player and lessons make every pup hop for a sound with no key
+  (Juice.onHeard).
+- No dead ends: RoundCoach (demo, listen, three tries or 7 s quiet stretches, then "Good try, let's keep going" and a
+  small star); the drum shows a bar first and asks again by itself (ClapTries); the concert plays the song's start
+  first; a Playground lesson's wait mode lets a group go after three tries (PlayerScreen letGo, 9 s stretches: about
+  27 s per note with nothing played) and a Perform step after its third failed try (StepRetry). PlaygroundFlowTest walks
+  all twelve lessons to the end with a silent kid and with one who plays only wrong keys (1 to 10 min of simulated
+  time each).
+- Voice: Voice.speakOverMic says call-outs between rounds and over a demo while the mic is deaf (MicInput
+  deafWhileSpeaking, 300 ms tail, 8 s cut-off), without stopping the mic; a line that cannot start now is dropped.
+  23 new kid lines (2338 recorded).
+- Sounds: stage_pop, stage_ding, jam_whoosh (scripts/gen_jingles.py, shaped noise, bands wider than a semitone);
+  StageSoundsTest: no strike and no wrong key at 0, -12 and -24 dB with every key expected (strict) and with each
+  stage's and the Jam's set.
+- Jam: captions for every event (JamWords: "C!", "the red cat key" before reading, "Two notes together!", "Three notes!
+  A chord!", "Up the rainbow!") big over the pup for about a second, said to a kid when they pause; two notes pop, a
+  chord and a rainbow whoosh; only confirmed notes (matcher strikes, touch, MIDI) make two-together, a chord or a run,
+  the chord ear and named keys only burst; strict keys; the pup's ear pulses by "Listening"; "Play any key" for the
+  first ten seconds.
+- Clips for tuning: a stage with 3+ sounds and no key for 8 s saves its stretch (StageClipWatch), the Jam one 20 s clip
+  a session at 10+ sounds (JamClipWatch); both via MicInput.saveStall (files/stalls, 250 MB cap, the Reporter), reports
+  carry stage/lesson and profile=kid|adult, never a name.
+- Debug: `--ef fxSlow n` (stretch rings, call-outs, captions), `--es screen jam --es midi "6000:60/90,6000:67/90"` (a
+  pretend keyboard into the Jam). Screenshots: app/build/screens/fix-*.png (not committed).
+- Tests: 702 JVM (672 before), lint 0 errors (25 warnings, all older).
+- Still unproven on real audio: strict keys on more than Roy's one scale recording with MIDI truth (no black keys or
+  bass in it, no kid, no room with several kids); the deaf windows (a line said over the mic costs the kid about 1 to
+  1.5 s of listening, measured on the emulator); the 7 s and 9 s quiet stretches; the noise-onset threshold for "I
+  heard you" in a loud room (talking makes the pup's ears twitch); the pitch tracker's 0.9 clarity gate; the drum and
+  soft-and-loud thresholds (still synthetic only); the Jam's chords from the mic (on PianoSynth the matcher confirms 1
+  of a C-E-G chord, so mic chords will mostly show as keys bursting, not confetti); the sounds' pitchlessness through
+  the Fold's speaker and mic. The clips Roy's next session saves are meant for exactly this.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

@@ -86,26 +86,29 @@ the chosen song (`recap`), graded against `CONCERT_PASS`.
   "pup bounce scaled to pitch" can use it.
 - **SoftLoud** (engine/playground/SoftLoud.kt): `SoftLoud.grade(riseDb, anchorDb?, offsetDb)` and `SoftLoudGame`.
 
-## The microphone: wiring and notes for the detector team
+## The microphone (rewritten in 2.1.1)
 
-- The stages read raw audio through `MicInput.tap` (it exists today and is what the tuner uses) and set it back to
-  null when they stop. When the detector team's `MicInput.rawFrames` lands, switch `rememberListening` in
-  `PlaygroundKit.kt` to it (one line): `mic.rawFrames = raw` instead of `mic.tap = raw`.
-- Who hears what: `HIGH_LOW` and `KEY_HUNT` listen through `PitchHeight` only (the matcher's expected set stays empty);
-  `CLAP` through `ClapCounter` only; `SOFT_LOUD` through the note matcher, expecting middle C (it needs `riseDb`);
-  `CONCERT` through the embedded player as usual. All of them wait for `voice.holdsMic`, like the player.
-- **PlayerScreen** (detector team): where any-of steps run in the plain player, set
-  `mic.matcher.groups = transport.listenGroups` instead of `mic.matcher.group = transport.listenGroup` (line ~542).
-  As one group, the alternatives' shared overtones are set aside and octave inference credits the wrong ones.
-- **Octave hint**: ignore it for any-of groups (`transport.nextGroup?.anyOf == true`); they span octaves on purpose.
-  Lessons with any-of ranges: playground-1 (steps 2 to 4, half the piano each side of middle C), playground-2
-  (steps 2 to 4, the dog houses and fences in octaves 3 to 5), playground-3 (step 2, C2 to C6).
-- **Hint escalation**: "the app plays it" should play `transport.hintKeys` (one key for an any-of group).
-- Findings on the matcher, from RangeAudioTest's PianoSynth runs (not changed here, NoteMatcher is the detector
-  team's): asked about several keys at once (each its own group) it credits C3 when G4 is struck (G4 is C3's third
-  partial: the "higher octave" check covers the second partial only), C6 for a D4, and A#5 for a C#4. That is why the
-  hunts listen through the pitch tracker. The same may hit single expected notes (expecting C3, a G4 counts): worth a
-  test in NoteMatcherTest. Its cost grows with every expected key: 36 keys took half a desktop core on the JVM.
+- Who hears what: `HIGH_LOW`, `KEY_HUNT` and `SOFT_LOUD` run through `rememberStage` (PlaygroundKit.kt): the note
+  matcher listens for the stage's keys (`engine/playground/StageEar.kt` StageKeys, each its own group, at most 12)
+  with `NoteMatcher.strictKeys` on, its wrong-key search names keys outside the set, and `PitchHeight` (on
+  `MicInput.rawFrames`) only adds a guess when it is sure (clarity 0.9; for high and low only 2.5 semitones or more
+  from middle C). A `StageEar` fuses them into one sound per moment; `HighLowJudge`/`HuntJudge` (or the soft-loud
+  game) say what the round makes of it. `CLAP` reads the raw audio through `ClapCounter`; `CONCERT` runs the
+  embedded player.
+- The mic starts once the voice has read the step's instruction and then stays on: call-outs and demos are said over
+  it (`Voice.speakOverMic`, the mic deaf while the line plays and 300 ms after), the phone's demo keys are played
+  with `MicInput.deafFor`. The stages' own sounds (`WorldSounds.stagePop`, `ding`) have no pitch.
+- Every round: a demo first (`RoundCoach`: "Let me show you" and "Your turn!" the first time, the keys ringing gold),
+  then listening; a miss or a 7 s quiet stretch is a try, three let the round go with a small star. The plain player
+  does the same for Playground lessons (`PlayerScreen(letGo = true)`, 9 s quiet stretches, no demo: the hints show
+  the key) and LessonScreen lets a Perform step go after its third failed try (`StepRetry`).
+- **Octave hint**: off for any-of groups, as before. **Hint escalation** plays `transport.hintKeys`.
+- The matcher findings that sent the hunts to the pitch tracker in 2.1 (C3 credited for a G4, C6 for a D4, A#5 for a
+  C#4, A1 as C#4 and more) are what strict keys fix: on PianoSynth, all 88 keys at two levels against every stage set
+  and the Jam's keys, 104 cases credited a key that was not struck before and none now, and Roy's scale (session-155837) stays 33/33 with no false strikes.
+- Stuck moments: a stage with sounds and no key recognised for 8 s keeps a clip (`StageClipWatch`,
+  `MicInput.saveStall`, report `stage=` / `lesson=` / `profile=kid|adult`).
+- Debug: `--ef fxSlow n` stretches the rings and call-outs n times for screenshots.
 
 ## Voice, art and copy
 

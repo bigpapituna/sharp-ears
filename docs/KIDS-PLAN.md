@@ -20,7 +20,10 @@ Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phon
 Not yet:
 
 - Tested with real kids in a real room. The clap counter, the high-and-low and key-hunt pitch tracker, soft and loud,
-  the Jam's chord ear and the kid mic offset are tuned on synthetic audio only.
+  the Jam's chord ear and the kid mic offset are tuned on synthetic audio only. (2.1.1: the stages and the Jam now hear
+  through the note matcher with strict keys, checked on Roy's scale recording; the pitch tracker is only a fallback
+  guess; every round is shown first and lets go after three tries; stuck stage moments and one Jam stretch a session
+  are saved as clips for tuning. See CLAUDE.md, 2.1.1 fixes.)
 - Real art: stickers, accessories, the dog house, jar and egg are placeholders (scripts/gen_stickers.py, code-drawn);
   Gemini art drops in under the same names.
 - The per-kid report in the parent corner (minutes, lessons, where they got stuck) and take-turns in the ear games
