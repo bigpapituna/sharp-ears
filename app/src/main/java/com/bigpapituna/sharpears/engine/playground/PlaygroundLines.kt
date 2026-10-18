@@ -68,7 +68,7 @@ object PageLines {
 
     // The copy games.
     const val NEXT_NOTE = "Which note comes next?"
-    val POND_COPIED = listOf("Ribbit! You sang it back!", "The frogs love it!", "Just like the frogs!")
+    val POND_COPIED = listOf("Ribbit! You played it back!", "The frogs love it!", "Just like the frogs!")
     val HALL_COPIED = listOf("Just like me!", "You copied it!", "Bravo!")
     const val ALL_COPIED = "You copied them all!"
 

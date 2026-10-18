@@ -31,6 +31,10 @@ class SpokenCatalogTest {
         assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.skin.SkinLines.fixed()))
         assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.CALL_OUTS))
         assertTrue("Find a fence!" in kid && "You did it!" in kid)
+        // 2.2: the pond's and the concert hall's steps, scenes and call-outs, at kid speed too.
+        assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.playground.PageLines.ALL))
+        assertTrue("Your turn: row, row, row your boat." in kid && "Find every D. D is the orange dog, inside the dog house." in kid)
+        assertTrue(com.bigpapituna.sharpears.engine.playground.HALL.lessons.flatMap { it.steps }.flatMap { s -> s.scenes.map { it.say } }.all { it in kid })
         assertTrue("no names", kid.none { "Mia" in it || "{name}" in it })
     }
 }

@@ -129,3 +129,98 @@ the chosen song (`recap`), graded against `CONCERT_PASS`.
 opens `PlaygroundLessonPreview` over the app (MainActivity's one debug line). Injections: MicInput's own
 (`synth:84,36@1500~2000`, a WAV path), plus `claps:400,1150,1900` and `dyn:60/-20,60/-30,60/-8@1600~1500`
 (note/gain dB, step ms, first ms), rendered to a WAV in the cache. Log lines start with `playground:` (tag SharpEars).
+Since 2.1.1 the preview route is gone: `--es lesson <id> [--ei step n] [--es profile id]` opens LessonScreen itself
+(MainActivity), for every page (`--es lesson pond-3 --ei step 1 --es profile p1`).
+
+## 2.2: the pond and the concert hall (branch `pages`)
+
+Two more pages of twelve lessons after the garden, then the big kids' road (Basics). Same model, same stage kit, same
+rules (demo first, three tries and it goes by, every sound answered, strict keys, at most 12 keys a stage).
+
+### The contract (engine/playground/Pages.kt)
+
+- `PLAYGROUND_PAGES` = garden (`PLAYGROUND_ID` "playground", `playground-1..12`), pond (`POND_ID` "playground-pond",
+  `Place.POND`, "The pond", `pond-1..12`), concert hall (`HALL_ID` "playground-hall", `Place.CONCERT_HALL`, "The concert
+  hall", `hall-1..12`). Also `PLAYGROUND_LEVELS`, `pageOf(lessonId)`, `isPlaygroundLesson(id)`, `isPlaygroundLevel(levelId)`.
+- `COURSE` = garden, pond, hall, Basics, ... `PLAYGROUND_PLACES` has 36 entries. The last Playground lesson is `hall-12`
+  (`PLAYGROUND_PAGES.last().lastLessonId`).
+- `CoursePath`: a kid walks the garden, the pond, the hall, then Basics (`after(hall-12)` is "sit"); a big kid (reader)
+  still gets the garden's short list (`BIG_KID_LESSONS`), then walks the pond and the hall whole (they are written for
+  readers too: letters, songs with words); a grown-up has all three pages as extra units after Technique 2, never
+  suggested (`isExtra` is `isPlaygroundLevel`).
+- `StepRetry.isPlayground` is `isPlaygroundLesson` (three tries let a Perform step go on every page);
+  `ANY_OF_LESSONS` = playground-1, 2, 3 and hall-1 (the octave hint stays off there).
+
+### The lessons and their games
+
+| Lesson | Game | What it shows |
+|---|---|---|
+| pond-1 Twinkle | player | the first phrase (the bite), then the A line |
+| pond-2 Row, Row, Row Your Boat | player | rep-row's phrase cut after "row your boat", then "gently down the stream" |
+| pond-3 Copy the frogs | `ECHO` x2 | frogs on lily pads sing four notes, each in its colour; you play them back; then two you know |
+| pond-4 Drum on a lily pad | `CLAP` at 60 and 90, Perform | the pup drums on a lily pad |
+| pond-5 Ta and ti-ti | `CLAP` rhythm, Perform | ta and ti words under the paw prints (the Rhythm unit's eighths bar) |
+| pond-6 Old MacDonald | player | rep-macdonald's phrase, then E, I, E, I, O |
+| pond-7 Left paw walks | player | the garden's steps an octave down in the left hand, then fingers-left |
+| pond-8 Both paws | player | low C held under C D E, then the "together" Twinkle cut to two bars |
+| pond-9 Your first chord | `CHORD` | C, E and G glow with their badges; all three together and the pup settles on them |
+| pond-10 London Bridge | player | rep-london's phrase, then the whole line |
+| pond-11 Twinkle all the way | player, Perform | A B A at 70 with the band |
+| pond-12 Pond concert | `CONCERT` x2 | pick Twinkle, Row or Old MacDonald; frogs and ducks watch and cheer |
+| hall-1 Letters on the keys | `KEY_HUNT` x3 | every D, then E and F, then the one called; badges with the letter or the animal |
+| hall-2, 3, 4 Ode to Joy, Lightly Row, Yankee Doodle | player | first phrase, then the whole line |
+| hall-5 Both hands, five fingers | player | Technique's five-c at 60, up and home once |
+| hall-6 Soft song, loud song | `SOFT_LOUD_TUNE` | Ode's phrase the usual way, softly, loudly, softly; graded per phrase, the pup naps or wakes |
+| hall-7 With the band | player, Perform | Ode with the band at 80, two stars |
+| hall-8 Ta-a and the rest | `CLAP` rhythm, Perform x2 | ta-a and shh (the Rhythm unit's halves bar), then as a tune |
+| hall-9 Five notes to copy | `ECHO` x2 | spotlights on the stage, five notes, two rounds, then two you know |
+| hall-10 Hands together | player | Ode's phrase over C3, then G3 |
+| hall-11 Pick your three | `SET_LIST` | the shelf of nine songs; pick three, warm up on each one's start (wait mode) |
+| hall-12 The recital | `CONCERT` x3 | the three picked songs, one a step, the collected animals in the audience |
+
+New in the registry (`PlaygroundStage`): `ECHO` (EchoStage.kt), `CHORD` (ChordStage.kt), `SOFT_LOUD_TUNE`
+(TuneStage.kt), `SET_LIST` (SetListStage.kt). Grown: `CLAP` reads a rhythm (a clap counts on the nearest note, words under
+the paws; pond and hall backdrops), `KEY_HUNT` hunts letters (on the 2.2 pages each round's letter is said first,
+`PageLines.find`), `CONCERT` follows `concertPlan(lessonId, step, recital)`. Backdrops and the audience are in Scenery.kt
+(the audience uses the world's `StickerImage` and `Scenery.audience(owned)` from `LocalWorld`, read only). The recital's
+three songs are kept per profile in the "play" file under "recital" (`data/RecitalStore.kt`); with none picked,
+`Recital.DEFAULT` (Twinkle, Old MacDonald, Ode to Joy).
+
+### How they hear (engine)
+
+- `StageRounds(phrases = true)`: a round is a phrase (the notes between two rests); the pup shows it whole, each note
+  heard is progress, three tries let the rest of it go. A found chord plays all its keys in.
+- `StageKeys.FIVE` (C4 to G4) for the copy games and the tune, `StageKeys.letter(pc)` (octaves 2 to 6) for the letter
+  hunts, `StageKeys.C_CHORD` as ONE matcher group for the chord, with `StageEar(chords = true)` so each key of it comes
+  through. `NoteMatcher.strictKeys` no longer rejects a key for a lower note of its own group (G4's 2nd partial is C4's
+  3rd): without that, a C E G struck within 5 ms gave only C and E on PianoSynth. Single-key groups (every stage before,
+  the Jam) are unchanged.
+- Judges: `NoteJudge` (the next note, any octave), `ChordJudge` (all three within 1.2 s; a key outside the chord on its
+  own is a try), `TuneLoudness` (each phrase's middle rise graded with `SoftLoud.grade` against the first phrase),
+  `HuntJudge` (letters: `MissWhy.NOT_LETTER`, `PageLines.where`).
+- Tests: StageHearingTest (every key at two levels against the C position; the chord rolled 0, 40 and 150 ms at two
+  levels found, no single key and no other chord ever found; the letter hunts in the hunts' loop; Roy's scale through all
+  of it), StageSoundsTest (the new sets, the chord as one group), PlaygroundFlowTest (all 36 lessons, a silent kid and a
+  wrong-keys kid), PagesTest (contract, copy, songs reused note for note, games, concerts, time model), PhraseGamesTest.
+
+### Octave hint: any-of ranges used by the stages
+
+The garden's ranges (high and low, dog houses, fences, Cs) and, 2.2, the letter hunts' `D4|D2|D3|D5|D6`,
+`E4|E2|E3|E5|E6`, `F4|F2|F3|F5|F6`, `G4|G2|G3|G5|G6` and `C4|C2|C3|C5|C6` (hall-1). The copy games, the tune and the
+chord use plain notes (no any-of); `ANY_OF_LESSONS` lists hall-1.
+
+### What the integrator checks after merging with the kid-home branch
+
+1. The map's anchors per page: a stone for every id of `PLAYGROUND_PAGES[1].lessonIds` (pond) and `[2]` (hall), in
+   order, with their stars. The world's `Place.ofPlaygroundLesson(n)` still splits the garden's twelve into three places
+   (4 each), which is wrong now: each page is its own place (`pageOf(id).place`: GARDEN, POND, CONCERT_HALL; the world's
+   `Place` is GARDEN, POND, CONCERT).
+2. The finale after `hall-12` (`PLAYGROUND_PAGES.last().lastLessonId`) sends the kid to Basics ("sit").
+3. MainActivity's `lessonDone` and LessonScreen's "one more" preview map a lesson to the world's place by its
+   "playground-N" number: pond and hall lessons get null. Map them by `pageOf(id)?.place` instead.
+4. Learn for grown-ups: the three pages are "Extra" units after Technique 2; LearnScreen's mapped kid view checks
+   `level.id == PLAYGROUND_ID` for the drawn world and splits the garden over `Place.entries`: with three pages it should
+   draw one scene per page.
+5. Voice: this branch records 239 new lines (2577 in the catalog). After the merge, run SpokenCatalogTest and
+   scripts/render_voice.py on the merged tree (it deletes recordings that are not in the list, so never on one branch).
+6. A kid who finished the garden before 2.2 should land on pond-1 through `CoursePath.next`, not on Basics.

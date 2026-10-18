@@ -38,12 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
@@ -57,12 +53,8 @@ import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
 import com.bigpapituna.sharpears.engine.playground.RoundCoach
 import com.bigpapituna.sharpears.engine.playground.pageOf
-import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.skin.colourNotesOn
-import com.bigpapituna.sharpears.ui.skin.drawAnimal
-import com.bigpapituna.sharpears.ui.skin.inkOn
-import com.bigpapituna.sharpears.ui.skin.noteColour
 import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.engine.playground.huntPlaceOf
 import com.bigpapituna.sharpears.engine.playground.huntPlaces
@@ -70,7 +62,6 @@ import com.bigpapituna.sharpears.ui.Accent
 import com.bigpapituna.sharpears.ui.Confetti
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.LessonDeps
-import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -146,7 +137,7 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
                     nudge = SystemClock.uptimeMillis() + 2600
             },
             // The letter is called before the round's demo, so the demo waits a little longer for it.
-            coach = { if (calls) RoundCoach(demoMs = 2_800) else RoundCoach() },
+            coach = { if (calls) RoundCoach(firstDemoMs = 4_300, demoMs = 2_800) else RoundCoach() },
             prompt = { run -> if (calls) huntOf(run)?.letter?.let { PageLines.find(it, reader) } else null },
         )
         runRef[0] = st.run
@@ -173,6 +164,8 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
         val p = if (still) 0.5f else pulse
         val measurer = rememberTextMeasurer()
 
+        // 2.2: the concert hall's letters are found on its stage.
+        if (pageOf(lessonId)?.place == Place.CONCERT_HALL) androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { hallStage(0.5f) }
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
@@ -241,20 +234,7 @@ private fun DrawScope.decoration(g: PianoGeometry, keys: List<Int>, measurer: an
             for (y in listOf(base - 8.dp.toPx(), base - 19.dp.toPx())) drawRoundRect(Color(0xFFD9C7B0), Offset(l - 4.dp.toPx(), y - 2.dp.toPx()),
                 Size(r - l + 8.dp.toPx(), 4.dp.toPx()), CornerRadius(2.dp.toPx()))
         }
-        else -> {                                                      // a letter: a badge with its letter or animal
-            val m = keys.first()
-            val c = Offset(cx, base - 16.dp.toPx())
-            val face = if (colours) noteColour(m) else Cream
-            val ink = if (colours) inkOn(m) else Color(0xFF3A2A20)
-            drawCircle(face, 14.dp.toPx(), c)
-            drawCircle(if (colours) Color.Black.copy(alpha = 0.35f) else Accent, 14.dp.toPx(), c, style = Stroke(2.5.dp.toPx()))
-            val animal = NoteColours.animal(m)
-            if (!reader && colours && animal != null) drawAnimal(animal, c, 20.dp.toPx(), ink, face)
-            else {
-                val t = measurer.measure(NoteColours.letter(m), TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = ink))
-                drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
-            }
-        }
+        else -> keyBadge(keys.first(), Offset(cx, base - 16.dp.toPx()), 14.dp.toPx(), reader, colours, measurer)   // a letter
     }
 }
 

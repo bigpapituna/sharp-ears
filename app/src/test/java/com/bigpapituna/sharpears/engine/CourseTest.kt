@@ -19,12 +19,12 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(82, ids.size)
-        assertEquals(listOf("playground", "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
+        assertEquals(106, ids.size)
+        assertEquals(listOf("playground", "playground-pond", "playground-hall", "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
             COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             // Playground lessons are games for small children: as short as a read and one game.
-            val steps = if (lesson.id.startsWith("playground-")) 2..7 else 3..6
+            val steps = if (com.bigpapituna.sharpears.engine.playground.isPlaygroundLesson(lesson.id)) 2..7 else 3..6
             assertTrue("${lesson.id} has $steps steps", lesson.steps.size in steps)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)
             assertTrue("${lesson.id} has something to play", lesson.steps.any { it.exercise != null })

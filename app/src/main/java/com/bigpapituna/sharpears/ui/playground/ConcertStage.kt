@@ -35,15 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,8 +52,11 @@ import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
-import com.bigpapituna.sharpears.engine.playground.CONCERT_SONGS
+import com.bigpapituna.sharpears.engine.playground.ConcertPlan
+import com.bigpapituna.sharpears.engine.playground.PageLines
+import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
+import com.bigpapituna.sharpears.engine.playground.concertPlan
 import com.bigpapituna.sharpears.engine.skin.Bites
 import com.bigpapituna.sharpears.engine.playground.ConcertSong
 import com.bigpapituna.sharpears.engine.toSong
@@ -65,7 +64,6 @@ import com.bigpapituna.sharpears.ui.Accent
 import com.bigpapituna.sharpears.ui.Embedded
 import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.Ink
-import com.bigpapituna.sharpears.ui.InkDim
 import com.bigpapituna.sharpears.ui.LeftHandColor
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
@@ -81,15 +79,23 @@ private val Curtain = Color(0xFF8E2F2A)
 private val CurtainDeep = Color(0xFF5C1C19)
 
 /**
- * Lesson 12, "Pup's concert": the child picks one of the three songs ([CONCERT_SONGS]), the curtains open, the pup
- * plays its start first ("Let me show you", the embedded player in Listen mode, 2.1.1: every round shows itself), and
- * then they play it in time (Perform, right hand, the band on the left). A run at the pass mark brings fireworks and the
- * pup dancing before the lesson moves on; one under it goes back to the lesson's "Try again", which after three tries
- * lets the lesson go on ("Good try, let's keep going", StepRetry).
+ * The concerts: the garden's lesson 12, "Pup's concert", the pond's lesson 12 and the concert hall's recital (2.2, the
+ * lesson's [concertPlan]). At the garden and the pond the child picks one of three songs; the recital plays the songs
+ * the kid picked in "Pick your three", one per step. The curtains open, the pup plays the song's start first ("Let me
+ * show you", the embedded player in Listen mode, 2.1.1: every round shows itself), and then they play it in time
+ * (Perform, right hand, the band on the left), the pond's frogs and ducks or the animals the kid collected watching. A run
+ * at the pass mark brings fireworks, the pup dancing and the audience cheering before the lesson moves on; one under it
+ * goes back to the lesson's "Try again", which after three tries lets the lesson go on ("Good try, let's keep going",
+ * StepRetry).
  */
 @Composable
 internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
-    var chosen by remember { mutableStateOf<ConcertSong?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val profileId = com.bigpapituna.sharpears.ui.family.LocalProfile.current.id
+    val plan = remember(step, lessonId, profileId) {
+        concertPlan(lessonId, step, com.bigpapituna.sharpears.data.RecitalStore(context, profileId).load())
+    }
+    var chosen by remember { mutableStateOf<ConcertSong?>(if (plan.pick) null else plan.songs.first()) }
     var shown by remember { mutableStateOf(false) }                // the pup has played the song's start
     var bravo by remember { mutableStateOf<Report?>(null) }
     val ended by rememberUpdatedState(onEnded)
@@ -97,13 +103,19 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
         val song = chosen
-        if (song == null) SongPicker(Modifier.fillMaxSize()) { chosen = it; Log.d(TAG, "playground: concert song ${it.title}") }
+        if (song == null) SongPicker(plan, Modifier.fillMaxSize()) { chosen = it; Log.d(TAG, "playground: concert song ${it.title}") }
         else Column(Modifier.fillMaxSize()) {
             val open = remember(song) { Animatable(if (still) 1f else 0f) }
             LaunchedEffect(song) { if (!still) open.animateTo(1f, tween(1400, easing = FastOutSlowInEasing)) }
-            Box(Modifier.fillMaxWidth().height(44.dp)) {
-                Canvas(Modifier.fillMaxSize()) { lights() }
-                Text(song.title, Modifier.align(Alignment.Center), color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            Box(Modifier.fillMaxWidth().height(if (plan.place == Place.GARDEN) 44.dp else 60.dp)) {
+                Canvas(Modifier.fillMaxSize()) { if (plan.place == Place.POND) pondWater(0.3f) else lights() }
+                if (plan.place == Place.GARDEN)
+                    Text(song.title, Modifier.align(Alignment.Center), color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                else Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(song.title, Modifier.weight(1f), color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Audience(plan.place, size = 34.dp, max = 5)
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val ex = song.exercise
@@ -145,25 +157,29 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     PaintedPup(Painted.DANCING, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp))
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
+                    if (plan.place != Place.GARDEN) Audience(plan.place, Modifier.padding(top = 10.dp), size = 44.dp, cheer = true, max = 7)
                 }
             }
         }
     }
 }
 
-/** The three songs as big cards, each with its picture. */
+/** The plan's songs as big cards, each with its picture; at the pond, the frogs and ducks wait on the water. */
 @Composable
-private fun SongPicker(modifier: Modifier, onPick: (ConcertSong) -> Unit) {
+private fun SongPicker(plan: ConcertPlan, modifier: Modifier, onPick: (ConcertSong) -> Unit) {
+    if (plan.place == Place.POND) Canvas(modifier) { pondWater(0.3f) }
     BoxWithConstraints(modifier.padding(12.dp)) {
         val wide = maxWidth > maxHeight
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PaintedPup(Painted.CROWN, size = 72.dp)
                 Spacer(Modifier.width(8.dp))
-                StageLine("Which song tonight?")
+                StageLine(if (plan.place == Place.POND) PageLines.POND_WHICH else "Which song tonight?")
             }
+            // The pond's frogs and ducks wait for the song on the water.
+            if (plan.place == Place.POND) Audience(plan.place, Modifier.fillMaxWidth().padding(top = 6.dp), size = 40.dp, max = 6)
             Spacer(Modifier.height(10.dp))
-            val cards: @Composable (Modifier) -> Unit = { m -> CONCERT_SONGS.forEach { s -> SongCard(s, m, stacked = wide) { onPick(s) } } }
+            val cards: @Composable (Modifier) -> Unit = { m -> plan.songs.forEach { s -> SongCard(s, m, stacked = wide) { onPick(s) } } }
             if (wide) Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) { cards(Modifier.weight(1f).fillMaxHeight()) }
             else Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) { cards(Modifier.weight(1f).fillMaxWidth()) }
         }
@@ -174,7 +190,7 @@ private fun SongPicker(modifier: Modifier, onPick: (ConcertSong) -> Unit) {
 private fun SongCard(song: ConcertSong, modifier: Modifier, stacked: Boolean, onTap: () -> Unit) {
     val card = modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF241F1B)).clickable(role = Role.Button, onClick = onTap)
         .semantics { contentDescription = "Play ${song.title}" }.padding(12.dp)
-    val picture: @Composable (Modifier) -> Unit = { m -> Canvas(m) { when (song.picture) { "buns" -> buns(); "lamb" -> lamb(); else -> fiveFingers() } } }
+    val picture: @Composable (Modifier) -> Unit = { m -> Canvas(m) { songPicture(song.picture) } }
     val title: @Composable () -> Unit = {
         Text(song.title, color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, textAlign = if (stacked) TextAlign.Center else TextAlign.Start)
     }
@@ -187,38 +203,6 @@ private fun SongCard(song: ConcertSong, modifier: Modifier, stacked: Boolean, on
         picture(Modifier.fillMaxHeight(0.85f).heightIn(max = 120.dp).aspectRatio(1f))
         Spacer(Modifier.width(12.dp))
         title()
-    }
-}
-
-/** Three golden buns with their crosses. */
-private fun DrawScope.buns() {
-    val r = size.minDimension * 0.22f
-    for ((dx, dy) in listOf(-0.55f to 0.25f, 0.55f to 0.25f, 0f to -0.3f)) {
-        val c = Offset(size.width / 2 + dx * r * 1.6f, size.height / 2 + dy * r * 1.6f)
-        drawCircle(Brush.radialGradient(listOf(Color(0xFFE9B36A), Color(0xFFB9783A)), c, r), r, c)
-        drawLine(Color(0xFFFFF4E0), c - Offset(r * 0.6f, 0f), c + Offset(r * 0.6f, 0f), r * 0.18f, cap = StrokeCap.Round)
-        drawLine(Color(0xFFFFF4E0), c - Offset(0f, r * 0.6f), c + Offset(0f, r * 0.6f), r * 0.18f, cap = StrokeCap.Round)
-    }
-}
-
-/** A woolly lamb: a cloud of a body, a dark face, little legs. */
-private fun DrawScope.lamb() {
-    val w = size.width; val h = size.height
-    for (k in 0 until 3) drawLine(Color(0xFF3A2A20), Offset(w * (0.36f + k * 0.14f), h * 0.6f), Offset(w * (0.36f + k * 0.14f), h * 0.86f), w * 0.06f, cap = StrokeCap.Round)
-    for ((x, y, r) in listOf(Triple(0.4f, 0.5f, 0.17f), Triple(0.55f, 0.45f, 0.18f), Triple(0.68f, 0.52f, 0.15f), Triple(0.5f, 0.6f, 0.16f), Triple(0.33f, 0.4f, 0.13f)))
-        drawCircle(Color(0xFFF7F2EA), w * r, Offset(w * x, h * y))
-    drawOval(Color(0xFF3A2A20), Offset(w * 0.12f, h * 0.3f), Size(w * 0.24f, h * 0.22f))
-    drawCircle(Color.White, w * 0.025f, Offset(w * 0.2f, h * 0.38f))
-}
-
-/** A hand's five fingertips on five keys, each its own colour. */
-private fun DrawScope.fiveFingers() {
-    val w = size.width; val h = size.height
-    val colors = listOf(Accent, PupGold, Good, LeftHandColor, Color(0xFFB98AD9))
-    for (k in 0 until 5) {
-        val x = w * (0.14f + k * 0.18f)
-        drawRoundRect(Color(0xFFF7F2EA), Offset(x - w * 0.075f, h * 0.55f), Size(w * 0.15f, h * 0.4f), CornerRadius(w * 0.03f))
-        drawCircle(colors[k], w * 0.07f, Offset(x, h * (0.3f + 0.08f * kotlin.math.abs(k - 2) / 2f)))
     }
 }
 

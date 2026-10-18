@@ -39,6 +39,10 @@ fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: Stri
                 Game.CLAP -> ClapStage(step, lessonId, deps, inject, onEnded)
                 Game.SOFT_LOUD -> SoftLoudStage(step, lessonId, deps, inject, onEnded)
                 Game.CONCERT -> ConcertStage(step, lessonId, deps, inject, onEnded)
+                Game.ECHO -> EchoStage(step, lessonId, deps, inject, onEnded)
+                Game.CHORD -> ChordStage(step, lessonId, deps, inject, onEnded)
+                Game.SOFT_LOUD_TUNE -> TuneStage(step, lessonId, deps, inject, onEnded)
+                Game.SET_LIST -> SetListStage(step, lessonId, deps, inject, onEnded)
                 null -> {}
             }
         }

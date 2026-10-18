@@ -72,12 +72,13 @@ object SpokenCatalog {
 
     /**
      * The lines a kid hears, recorded slower (scripts/render_voice.py, speed [KID_SPEED]): the kid skin (stars, steps,
-     * goodnight, the keys by colour and animal), Pup's Playground (every step and scene, the stages' call-outs), the play
-     * corner and Practice today's kid words. Lines that name the kid are made on the phone, at the same speed.
+     * goodnight, the keys by colour and animal), Pup's Playground (every step and scene of its three pages, the stages'
+     * call-outs), the play corner and Practice today's kid words. Lines that name the kid are made on the phone, at the
+     * same speed.
      */
     fun kidLines(): List<String> = buildList {
         addAll(com.bigpapituna.sharpears.engine.skin.SkinLines.fixed())
-        for (lesson in com.bigpapituna.sharpears.engine.playground.PLAYGROUND.lessons) {
+        for (lesson in com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS.flatMap { it.lessons }) {
             lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
         }
         addAll(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.CALL_OUTS)

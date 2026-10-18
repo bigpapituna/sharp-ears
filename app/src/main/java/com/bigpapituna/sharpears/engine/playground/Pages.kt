@@ -12,7 +12,15 @@ data class PlaygroundPage(val id: String, val levelId: String, val place: Place,
 /** In path order. The garden is the first twelve; the pond and the concert hall pages follow. */
 val PLAYGROUND_PAGES: List<PlaygroundPage> = listOf(
     PlaygroundPage("garden", PLAYGROUND_ID, Place.GARDEN, "The garden", PLAYGROUND.lessons.map { it.id }),
+    PlaygroundPage("pond", POND_ID, Place.POND, "The pond", POND.lessons.map { it.id }),
+    PlaygroundPage("hall", HALL_ID, Place.CONCERT_HALL, "The concert hall", HALL.lessons.map { it.id }),
 )
+
+/** The pages' course levels, in path order (first in COURSE, before Basics). */
+val PLAYGROUND_LEVELS get() = listOf(PLAYGROUND, POND, HALL)
+
+/** True for the level of a Playground page (the garden, the pond, the concert hall). */
+fun isPlaygroundLevel(levelId: String) = PLAYGROUND_PAGES.any { it.levelId == levelId }
 
 fun pageOf(lessonId: String): PlaygroundPage? = PLAYGROUND_PAGES.firstOrNull { lessonId in it.lessonIds }
 

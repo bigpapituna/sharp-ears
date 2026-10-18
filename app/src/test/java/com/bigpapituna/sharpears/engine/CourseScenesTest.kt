@@ -33,7 +33,7 @@ class CourseScenesTest {
         assertTrue("read steps: ${reads.size}", reads.size >= 41)
         for ((id, step) in reads) {
             // The Playground's reads are bites for small children: one to three scenes.
-            val scenes = if (id.startsWith("playground-")) 1..3 else 2..4
+            val scenes = if (com.bigpapituna.sharpears.engine.playground.isPlaygroundLesson(id)) 1..3 else 2..4
             assertTrue("$id: ${step.scenes.size} scenes", step.scenes.size in scenes)
             assertEquals("$id: the text is the captions in order", step.scenes.joinToString(" ") { it.caption }, step.text)
         }

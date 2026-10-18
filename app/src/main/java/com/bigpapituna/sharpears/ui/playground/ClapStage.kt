@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,7 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.TAG
@@ -61,6 +65,8 @@ import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.Wav
 import com.bigpapituna.sharpears.engine.parseTokens
 import com.bigpapituna.sharpears.engine.playground.ClapCounter
+import com.bigpapituna.sharpears.engine.playground.Place
+import com.bigpapituna.sharpears.engine.playground.pageOf
 import com.bigpapituna.sharpears.engine.playground.ClapTries
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
 import com.bigpapituna.sharpears.engine.playground.drumSamples
@@ -107,11 +113,22 @@ private const val CONFIRM_MS = 110.0
  * 2.1.1, no dead ends: the pup shows it first ("Let me show you": a bar of the drum with the pad lighting on every
  * boom, then "Your turn!"). Nothing heard at all: he asks to clap again by himself, and after three silent tries says
  * "Good try, let's keep going" and the step ends ([ClapTries]); Skip and Clap again stay there for a grown-up.
+ *
+ * 2.2: the exercise may be a rhythm (the pond's "ta, ti-ti", the concert hall's "ta-a" and the rest): the drum plays
+ * its notes, a clap counts on the note nearest it, and each paw print carries its word ([rhythmWord]); a rest is a
+ * quiet "shh" between them. At the pond the pup drums on a lily pad, in the hall on the stage.
  */
 @Composable
 internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
-    val beats = parseTokens(ex.right).count { !it.rest }.coerceAtLeast(1)
+    val tokens = remember(ex) { parseTokens(ex.right) }
+    // Where the claps go (beats from the first counted beat), and how long the pattern runs.
+    val hits = remember(tokens) { tokens.filter { !it.rest }.map { it.startBeat } }
+    val beats = hits.size.coerceAtLeast(1)
+    val length = remember(tokens) { kotlin.math.ceil(tokens.sumOf { it.beats }).toInt().coerceAtLeast(1) }
+    // Words under the paw prints for a rhythm; a plain drum (a clap on every beat) has none.
+    val words = remember(tokens) { if (tokens.all { !it.rest && it.beats == 1.0 }) null else tokens.map(::rhythmWord) }
+    val place = pageOf(lessonId)?.place ?: Place.GARDEN
     val beatMs = 60_000.0 / ex.bpm
     val context = LocalContext.current
     val drum = remember { runCatching { DrumSound(context) }.getOrNull() }
@@ -126,7 +143,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
     var demoBeat by remember { mutableIntStateOf(-1) }
     var startNanos by remember { mutableStateOf(0L) }
     var beatNow by remember { mutableIntStateOf(-1) }          // -4..-1 count-in, 0.. the beats
-    val credited = remember { mutableStateListOf<Int>() }      // beats with a clap on them
+    var hitNow by remember { mutableIntStateOf(-1) }           // the drum's latest note of the pattern
+    val credited = remember { mutableStateListOf<Int>() }      // notes of the pattern with a clap on them
     var claps by remember { mutableIntStateOf(0) }
     val bursts = remember { mutableStateListOf<Pair<Long, Boolean>>() }   // (when, on the beat)
     val beatPulse = remember { Animatable(0f) }
@@ -149,11 +167,12 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         if (phase != ClapPhase.COUNT_IN && phase != ClapPhase.PLAYING) return
         claps++
         val ms = (nanos - startNanos) / 1e6 - 4 * beatMs                  // from the first counted beat
-        val beat = Math.round(ms / beatMs).toInt()
-        val on = beat in 0 until beats && abs(ms - beat * beatMs) <= ON_BEAT_MS
+        // The pattern's note nearest the clap (on a plain drum, the beat).
+        val beat = hits.indices.minByOrNull { abs(ms - hits[it] * beatMs) } ?: -1
+        val on = beat >= 0 && abs(ms - hits[beat] * beatMs) <= ON_BEAT_MS
         if (on && beat !in credited) credited += beat
         bursts += System.nanoTime() to on
-        Log.d(TAG, "playground: clap (${if (heardIt) "heard" else "tap"}) at ${"%.0f".format(ms)} ms, " + if (on) "on beat ${beat + 1}" else "between beats")
+        Log.d(TAG, "playground: clap (${if (heardIt) "heard" else "tap"}) at ${"%.0f".format(ms)} ms, " + if (on) "on note ${beat + 1}" else "between notes")
     }
     LaunchedEffect(heard) { heard.collect { t -> clap(t, heardIt = true) } }
 
@@ -176,12 +195,17 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         deps.voice.speak(PlaygroundLines.LET_ME_SHOW)
         delay(400)
         while (deps.voice.speaking.value) delay(50)
-        for (k in 0 until 4) {
+        // The first bar of the pattern (a plain drum: four booms), each note with its word for a rhythm.
+        val bar = hits.indices.filter { hits[it] < 4.0 }
+        val t0 = withFrameNanos { it }
+        for (k in bar) {
+            val due = t0 + (hits[k] * beatMs * 1e6).toLong()
+            while (withFrameNanos { it } < due) { }
             demoBeat = k
-            drum?.play(accent = k == 0)
+            drum?.play(accent = hits[k] == 0.0)
             if (!still) scope.launch { beatPulse.snapTo(1f); beatPulse.animateTo(0f, tween((beatMs * 0.8).toInt())) }
-            delay(beatMs.toLong())
         }
+        delay(beatMs.toLong())
         demoBeat = -1
         deps.voice.speak(PlaygroundLines.YOUR_TURN)
         delay(300)
@@ -204,19 +228,27 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
             while (firstSample.get() == 0L && System.nanoTime() < waitUntil) withFrameNanos { }
             if (firstSample.get() != 0L) startNanos = firstSample.get()
         }
-        Log.d(TAG, "playground: drum at ${ex.bpm.toInt()} for $beats beats (try ${attempt + 1})")
-        for (k in -4 until beats) {
-            val due = startNanos + ((k + 4) * beatMs * 1e6).toLong()
+        Log.d(TAG, "playground: drum at ${ex.bpm.toInt()} for $beats notes in $length beats (try ${attempt + 1})")
+        // The count-in's four beats, then the pattern's notes (a plain drum: every beat), each a boom; the beat dots
+        // follow the beats in between too.
+        val events = ((-4 until length).map { it.toDouble() to -1 } + hits.mapIndexed { i, h -> h to i }).sortedWith(compareBy({ it.first }, { -it.second }))
+        for ((at, hit) in events) {
+            val due = startNanos + ((at + 4) * beatMs * 1e6).toLong()
             while (withFrameNanos { it } < due) { }
-            beatNow = k
-            if (k == 0) phase = ClapPhase.PLAYING
-            drum?.play(accent = Math.floorMod(k, 4) == 0)
-            if (!still) scope.launch { beatPulse.snapTo(1f); beatPulse.animateTo(0f, tween((beatMs * 0.8).toInt())) }
+            if (hit < 0) {
+                if (at.toInt() != beatNow) beatNow = at.toInt()
+                if (at >= 0.0 && phase == ClapPhase.COUNT_IN) phase = ClapPhase.PLAYING
+                if (at < 0.0) drum?.play(accent = at.toInt() == -4) else continue
+            } else {
+                hitNow = hit
+                drum?.play(accent = Math.floorMod(at.toInt(), 4) == 0 && at == kotlin.math.floor(at))
+            }
+            if (!still) scope.launch { beatPulse.snapTo(1f); beatPulse.animateTo(0f, tween((beatMs * 0.6).toInt())) }
         }
-        delay((beatMs + CONFIRM_MS + 150).toLong())                       // the last clap's tail
+        delay((beatMs * (length - (hits.lastOrNull() ?: 0.0)) + CONFIRM_MS + 150).toLong())   // the last note, and the last clap's tail
         val heardAny = claps > 0
         phase = if (heardAny) ClapPhase.DONE else ClapPhase.NOTHING_HEARD
-        Log.d(TAG, "playground: drum done, ${credited.size} of $beats beats with a clap, $claps claps")
+        Log.d(TAG, "playground: drum done, ${credited.size} of $beats notes with a clap, $claps claps")
         when (ClapTries.after(attempt, heardAny)) {
             ClapTries.Next.DONE -> {
                 delay(1400)
@@ -242,20 +274,32 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val pupSize = (maxHeight * 0.42f).coerceIn(110.dp, 220.dp)
+        // 2.2: the pond's water, or the hall's stage, behind the drummer.
+        when (place) {
+            Place.POND -> Canvas(Modifier.fillMaxSize()) { pondWater(0.3f) }
+            Place.CONCERT_HALL -> Canvas(Modifier.fillMaxSize()) { hallStage(0.7f) }
+            Place.GARDEN -> {}
+        }
         Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                BeatDots(if (phase == ClapPhase.COUNT_IN || phase == ClapPhase.PLAYING) Math.floorMod(beatNow, 4) else -1)
+                // On the pond's water or the hall's curtains the dots sit on a dark pill, as the stage's line does.
+                Box(if (place == Place.GARDEN) Modifier else Modifier.background(Color(0xE62A221C), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    BeatDots(if (phase == ClapPhase.COUNT_IN || phase == ClapPhase.PLAYING) Math.floorMod(beatNow, 4) else -1)
+                }
                 StageLine(when (phase) {
-                    ClapPhase.DEMO -> if (demoBeat >= 0) "Clap, clap!" else PlaygroundLines.LET_ME_SHOW
+                    ClapPhase.DEMO -> if (demoBeat >= 0) words?.let { wordOfHit(tokens, demoBeat) } ?: "Clap, clap!" else PlaygroundLines.LET_ME_SHOW
                     ClapPhase.READY -> "Get ready to clap!"
                     ClapPhase.COUNT_IN -> listOf("One", "Two", "Three", "Four")[Math.floorMod(beatNow, 4)]
-                    ClapPhase.PLAYING -> if (bursts.lastOrNull()?.second == true) "On the boom!" else "Clap, clap!"
+                    ClapPhase.PLAYING -> if (words != null && hitNow >= 0) wordOfHit(tokens, hitNow)
+                        else if (bursts.lastOrNull()?.second == true) "On the boom!" else "Clap, clap!"
                     ClapPhase.DONE -> if (credited.size * 2 >= beats) "What a drummer you are!" else "I heard you! Now right on the boom."
                     // What the pup says next: he asks again by himself, or lets it go after the last silent try.
                     ClapPhase.NOTHING_HEARD -> if (ClapTries.after(attempt, heard = false) == ClapTries.Next.LET_GO) PlaygroundLines.LET_GO else PlaygroundLines.CLAP_AGAIN
                 })
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // The pond's pup drums on a lily pad.
+                if (place == Place.POND) Canvas(Modifier.fillMaxSize()) { lilyPad(Offset(size.width / 2, size.height / 2 + pupSize.toPx() * 0.42f), pupSize.toPx() * 0.7f) }
                 Canvas(Modifier.fillMaxSize()) { bursts.forEach { (t, on) -> clapBurst(frameNow, t, on, still) } }
                 PaintedPup(when (phase) {
                     ClapPhase.DONE -> Painted.CLAPPING
@@ -265,7 +309,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                     else -> Painted.DRUMMING
                 }, size = pupSize, squash = { beatPulse.value })
             }
-            PawRow(beats, credited.toSet(), if (phase == ClapPhase.PLAYING) beatNow else -1, Modifier.padding(vertical = 8.dp))
+            PawRow(tokens, credited.toSet(), if (phase == ClapPhase.PLAYING) hitNow else if (phase == ClapPhase.DEMO) demoBeat else -1, words,
+                Modifier.padding(vertical = 8.dp))
             if (phase == ClapPhase.NOTHING_HEARD) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { ended(Report(emptyList(), 0, 0, null, groups = 0, extraScore = 0)) }) { Text("Skip") }
@@ -297,19 +342,48 @@ private fun BeatDots(current: Int) {
     }
 }
 
-/** One paw print per beat: filled when a clap landed on it; the beat now has a ring. */
+/**
+ * One paw print per note of the pattern (a plain drum: per beat), filled when a clap landed on it; the note now has a
+ * ring. A rhythm's [words] sit under them ("Ta", "ti", "Ta-a"), a rest as a quiet "shh" in its place.
+ */
 @Composable
-private fun PawRow(beats: Int, credited: Set<Int>, now: Int, modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxWidth().height(28.dp).semantics { contentDescription = "${credited.size} of $beats beats with a clap" }) {
-        val step = minOf(size.width / beats, 40.dp.toPx())
-        val x0 = (size.width - step * beats) / 2 + step / 2
-        for (b in 0 until beats) {
-            val c = Offset(x0 + b * step, size.height / 2)
-            paw(c, step * 0.36f, if (b in credited) PupGold else InkDim.copy(alpha = 0.3f))
-            if (b == now) drawCircle(Ink.copy(alpha = 0.7f), step * 0.46f, c, style = Stroke(1.5.dp.toPx()))
+private fun PawRow(tokens: List<com.bigpapituna.sharpears.engine.Token>, credited: Set<Int>, now: Int, words: List<String>?, modifier: Modifier = Modifier) {
+    val notes = tokens.count { !it.rest }
+    val measurer = rememberTextMeasurer()
+    Canvas(modifier.fillMaxWidth().height(if (words != null) 48.dp else 28.dp).semantics { contentDescription = "${credited.size} of $notes notes with a clap" }) {
+        val cells = tokens.size.coerceAtLeast(1)
+        val step = minOf(size.width / cells, 40.dp.toPx())
+        val x0 = (size.width - step * cells) / 2 + step / 2
+        val y = 14.dp.toPx()
+        var hit = 0
+        tokens.forEachIndexed { i, t ->
+            val c = Offset(x0 + i * step, y)
+            if (t.rest) drawCircle(InkDim.copy(alpha = 0.35f), step * 0.1f, c)
+            else {
+                paw(c, step * 0.36f, if (hit in credited) PupGold else InkDim.copy(alpha = 0.3f))
+                if (hit == now) drawCircle(Ink.copy(alpha = 0.7f), step * 0.46f, c, style = Stroke(1.5.dp.toPx()))
+            }
+            words?.getOrNull(i)?.let { w ->
+                val l = measurer.measure(w, TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+                    color = if (!t.rest && hit == now) Ink else InkDim))
+                drawText(l, topLeft = Offset(c.x - l.size.width / 2f, size.height - l.size.height))
+            }
+            if (!t.rest) hit++
         }
     }
 }
+
+/** A rhythm's word for a token: ta for a beat, ti for half of one, ta-a for two, shh for a rest. */
+internal fun rhythmWord(t: com.bigpapituna.sharpears.engine.Token): String = when {
+    t.rest -> "shh"
+    t.beats <= 0.5 -> "ti"
+    t.beats >= 2.0 -> "ta-a"
+    else -> "ta"
+}
+
+/** The word of the pattern's [hit]th note, said big over the drum ("Ta!", "Ti!"). */
+private fun wordOfHit(tokens: List<com.bigpapituna.sharpears.engine.Token>, hit: Int): String =
+    tokens.filter { !it.rest }.getOrNull(hit)?.let(::rhythmWord)?.replaceFirstChar { it.uppercase() }?.plus("!") ?: "Clap, clap!"
 
 /** A paw print: a pad and four toes. */
 private fun DrawScope.paw(c: Offset, r: Float, color: Color) {

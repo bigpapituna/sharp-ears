@@ -54,8 +54,28 @@ enum class Game {
     CLAP,
     /** Keep the pup asleep with soft notes, wake him with loud ones ([SoftLoudGame]); a toy, it never fails. */
     SOFT_LOUD,
-    /** Pick one of [CONCERT_SONGS] and play it for everyone, in time; passes at [CONCERT_PASS]. */
+    /**
+     * Play a song for everyone, in time; passes at [CONCERT_PASS]. The lesson's [concertPlan] says which: pick one of
+     * three (the garden's [CONCERT_SONGS], the pond's), or the next of the kid's recital songs (the concert hall).
+     */
     CONCERT,
+    /**
+     * 2.2, copy the pup: each round is a little tune (the notes between two rests of the exercise) that the pup plays,
+     * with frogs on lily pads at the pond and lights on the stage in the concert hall, then hears back note by note.
+     */
+    ECHO,
+    /** 2.2, the pond's first chord: three keys at once (the exercise's chords), and the pup settles on them. */
+    CHORD,
+    /**
+     * 2.2, soft and loud for real: a tune (the exercise's phrases) the usual way, then softly, then loudly, each graded
+     * as a whole ([TuneLoudness]); the pup naps or wakes. A toy, it never fails.
+     */
+    SOFT_LOUD_TUNE,
+    /**
+     * 2.2, pick your three: choose three songs from the shelf ([SHELF]) for the recital and play the start of each once
+     * (wait mode). The exercise is the default set's first bite, for a screen that does not know the game.
+     */
+    SET_LIST,
 }
 
 /** Where a lesson sits in the pup's world (the map and the album pages). */
@@ -83,25 +103,25 @@ internal const val FENCES = "F#4|G#4|A#4|F#5|G#5|A#5"
 /** Any C a child can reach from the bench. */
 internal const val ANY_C = "C4|C2|C3|C5|C6"
 
-private fun rounds(vararg tokens: String, beats: Int = 2) = tokens.joinToString(" ") { "$it:$beats" }
+internal fun rounds(vararg tokens: String, beats: Int = 2) = tokens.joinToString(" ") { "$it:$beats" }
 
 // ---- Builders -------------------------------------------------------------------------------------------------------
 
-private fun read(vararg scenes: Scene) = Step(StepKind.READ, scenes.joinToString(" ") { it.caption }, scenes = scenes.toList())
-private fun listen(text: String, ex: Exercise) = Step(StepKind.LISTEN, text, ex)
-private fun play(text: String, ex: Exercise, game: Game? = null) = Step(StepKind.PLAY, text, ex, game = game)
-private fun memory(text: String, ex: Exercise) = Step(StepKind.FROM_MEMORY, text, ex)
-private fun perform(text: String, ex: Exercise, game: Game? = null) = Step(StepKind.PERFORM, text, ex, game = game)
+internal fun read(vararg scenes: Scene) = Step(StepKind.READ, scenes.joinToString(" ") { it.caption }, scenes = scenes.toList())
+internal fun listen(text: String, ex: Exercise) = Step(StepKind.LISTEN, text, ex)
+internal fun play(text: String, ex: Exercise, game: Game? = null) = Step(StepKind.PLAY, text, ex, game = game)
+internal fun memory(text: String, ex: Exercise) = Step(StepKind.FROM_MEMORY, text, ex)
+internal fun perform(text: String, ex: Exercise, game: Game? = null) = Step(StepKind.PERFORM, text, ex, game = game)
 private fun lesson(n: Int, title: String, summary: String, vararg steps: Step) = CourseLesson("playground-$n", title, summary, steps.toList())
 
 // ---- The tunes --------------------------------------------------------------------------------------------------------
 
-/** Lesson 4: up three steps and back down. */
-private val STEPS = Exercise(right = "C4:1 D4:1 E4:2 E4:1 D4:1 C4:2", bpm = 72.0, practice = Practice.RIGHT)
+/** Lesson 4: up three steps and back down (the pond's left paw walks them too). */
+internal val STEPS = Exercise(right = "C4:1 D4:1 E4:2 E4:1 D4:1 C4:2", bpm = 72.0, practice = Practice.RIGHT)
 /** Lesson 10: up to G and back, one finger per key; the bite is the climb. */
 private val UP_TO_G = Exercise(right = "C4:1 D4:1 E4:1 F4:1 G4:4 F4:1 E4:1 D4:1 C4:4", bpm = 76.0, practice = Practice.RIGHT, phraseEnd = 8.0)
-/** Lesson 7: middle C on every beat, two bars. */
-private val DRUM = Exercise(right = List(8) { "C4:1" }.joinToString(" "), bpm = 80.0, practice = Practice.RIGHT, beatLines = true)
+/** Lesson 7: middle C on every beat, two bars (the pond's drum plays it slower and quicker). */
+internal val DRUM = Exercise(right = List(8) { "C4:1" }.joinToString(" "), bpm = 80.0, practice = Practice.RIGHT, beatLines = true)
 
 /** A song for the concert: its title, the picture on its card, and the exercise (right hand, the band on the left). */
 data class ConcertSong(val title: String, val picture: String, val exercise: Exercise)
@@ -113,8 +133,8 @@ val CONCERT_SONGS = listOf(
     ConcertSong("Ode to Joy", "five", ODE_LINE.copy(left = "C3:4 G2:4 C3:4 G2:4", bpm = 80.0, practice = Practice.RIGHT, pass = CONCERT_PASS, phraseEnd = null)),
 )
 
-/** Lesson 7's two pictures: the drum's beat, and a clap on each one. */
-private fun drumBeat(words: List<String>, bpm: Int = 80) =
+/** Lesson 7's two pictures: the drum's beat, and a clap on each one (the pond's drum too). */
+internal fun drumBeat(words: List<String>, bpm: Int = 80) =
     RhythmVisual(4, 4, bpm, (0 until 4).map { Hit(it.toFloat(), 1f) }, counts = words, loops = 2, pitch = 36)
 
 // ---- The twelve lessons -----------------------------------------------------------------------------------------------
@@ -273,6 +293,11 @@ val PLAYGROUND_PLACES: Map<String, Place> by lazy { PLAYGROUND_PAGES.flatMap { p
 /** The plan's short path for big kids (section 4): these five, then Basics. */
 val BIG_KID_LESSONS: List<String> = listOf(2, 3, 6, 7, 12).map { "playground-$it" }
 
-/** Lessons with any-of ranges ("any key above C4", "a dog house"): the player's octave hint stays off there, the octave is the point. */
-val ANY_OF_LESSONS: Set<String> = PLAYGROUND.lessons
-    .filter { l -> l.steps.any { s -> s.exercise?.let { '|' in it.right || '|' in it.left } == true } }.map { it.id }.toSet()
+/**
+ * Lessons with any-of ranges ("any key above C4", "a dog house", "any D"), on every page: the player's octave hint stays
+ * off there, the octave is the point.
+ */
+val ANY_OF_LESSONS: Set<String> by lazy {
+    PLAYGROUND_LEVELS.flatMap { it.lessons }
+        .filter { l -> l.steps.any { s -> s.exercise?.let { '|' in it.right || '|' in it.left } == true } }.map { it.id }.toSet()
+}

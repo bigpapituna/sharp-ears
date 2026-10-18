@@ -83,13 +83,13 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private val NightTop = Color(0xFF111A33)
+internal val NightTop = Color(0xFF111A33)
 private val NightBottom = Color(0xFF2B2346)
 private val Moon = Color(0xFFF6EBCB)
-private val Cushion = Color(0xFF7A3E2C)
+internal val Cushion = Color(0xFF7A3E2C)
 
 /** How the pup is: asleep, stirring (a medium note in a soft round), jumping awake (a loud one), or yawning back to sleep. */
-private enum class Nap { ASLEEP, STIR, AWAKE, YAWN }
+internal enum class Nap { ASLEEP, STIR, AWAKE, YAWN }
 
 /**
  * Lesson 11, "Soft and loud": the pup naps on his cushion under the moon. The first middle C sets the level ("the way
@@ -202,7 +202,7 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
 
 /** The stage's rings for every sound, rising from the cushion (a stage with no keyboard to show them on). */
 @Composable
-private fun Ripples(fx: StageFx, modifier: Modifier) {
+internal fun Ripples(fx: StageFx, modifier: Modifier) {
     var clock by remember { mutableLongStateOf(0L) }
     val newest = fx.ripples.lastOrNull()?.id
     LaunchedEffect(newest) {
@@ -233,7 +233,7 @@ private fun Pad(label: String, color: Color, onTap: () -> Unit) {
 
 /** One icon per round: a ring for the first note, then a moon (soft) or a burst (loud); done ones filled, the current one big. */
 @Composable
-private fun RoundIcons(rounds: List<Loudness>, current: Int, modifier: Modifier = Modifier) {
+internal fun RoundIcons(rounds: List<Loudness>, current: Int, modifier: Modifier = Modifier) {
     val all = listOf<Loudness?>(null) + rounds
     Canvas(modifier.size(width = (all.size * 26).dp, height = 26.dp).semantics {
         contentDescription = if (current < 0) "First note" else "Round ${current + 1} of ${rounds.size}: ${rounds.getOrNull(current)?.name?.lowercase() ?: "done"}"
@@ -257,7 +257,7 @@ private fun RoundIcons(rounds: List<Loudness>, current: Int, modifier: Modifier 
 
 /** The meter: where the last note sat between soft and loud, with the soft and loud zones around the player's own level. */
 @Composable
-private fun Meter(rise: Double?, anchor: Double?, offset: Double, modifier: Modifier = Modifier) {
+internal fun Meter(rise: Double?, anchor: Double?, offset: Double, modifier: Modifier = Modifier) {
     val label = rise?.let { SoftLoud.grade(it, anchor, offset) }
     Column(modifier) {
         Text(if (label == null) "How loud I hear it" else "I hear: " + label.name.lowercase(), color = InkDim, fontSize = 13.sp)
@@ -277,7 +277,7 @@ private fun Meter(rise: Double?, anchor: Double?, offset: Double, modifier: Modi
 }
 
 /** The night: a deep sky, the moon, twinkling stars. */
-private fun DrawScope.night(twinkle: Float) {
+internal fun DrawScope.night(twinkle: Float) {
     drawRect(Brush.verticalGradient(listOf(NightTop, NightBottom)))
     val m = Offset(size.width * 0.84f, size.height * 0.16f)
     val r = minOf(size.width, size.height) * 0.07f
@@ -294,7 +294,7 @@ private fun DrawScope.night(twinkle: Float) {
 }
 
 /** Zs drifting up and away from the sleeping pup; bigger when he stirs. */
-private fun DrawScope.zs(t: Float, stir: Boolean, measurer: androidx.compose.ui.text.TextMeasurer) {
+internal fun DrawScope.zs(t: Float, stir: Boolean, measurer: androidx.compose.ui.text.TextMeasurer) {
     for (k in 0 until 3) {
         val p = (t + k / 3f) % 1f
         val x = size.width * (0.58f + 0.12f * p)

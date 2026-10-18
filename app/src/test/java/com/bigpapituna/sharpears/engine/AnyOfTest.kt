@@ -46,7 +46,7 @@ class AnyOfTest {
         assertTrue("still waiting for G", t.waiting)
         assertEquals(InputResult.GROUP_DONE, t.noteInput(67))
         // And existing songs build exactly as before: no group is any-of.
-        assertTrue(COURSE.filter { it.id != "playground" }.flatMap { it.lessons }.flatMap { it.steps }.mapNotNull { it.exercise }
+        assertTrue(COURSE.filter { !com.bigpapituna.sharpears.engine.playground.isPlaygroundLevel(it.id) }.flatMap { it.lessons }.flatMap { it.steps }.mapNotNull { it.exercise }
             .all { ex -> ex.toSong("x", "x").groups.none { it.anyOf } })
     }
 

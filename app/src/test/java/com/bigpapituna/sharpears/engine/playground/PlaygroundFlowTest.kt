@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.engine.playground
 
 import com.bigpapituna.sharpears.engine.CourseLesson
+import com.bigpapituna.sharpears.engine.Exercise
 import com.bigpapituna.sharpears.engine.InputResult
 import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Report
@@ -14,11 +15,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * No dead ends (2.1.1): every one of the twelve Playground lessons reaches its end with no right input at all, from a
- * kid who plays nothing and from one who plays only keys that are not it. Each step runs the way the app runs it: the
- * stages through StageRounds and the judges (as ui/playground's rememberStage), the drum through ClapTries, the embedded
- * player's wait mode through the same RoundCoach (PlayerScreen's letGo), Perform steps and the concert through
- * LessonScreen's StepRetry; the kid's bites as LessonScreen cuts them.
+ * No dead ends (2.1.1): every Playground lesson reaches its end with no right input at all, from a kid who plays
+ * nothing and from one who plays only keys that are not it: the garden's twelve, and since 2.2 the pond's and the
+ * concert hall's. Each step runs the way the app runs it: the stages through StageRounds and the judges (as
+ * ui/playground's rememberStage; phrases for the copy games and the soft and loud tune), the drum through ClapTries, the
+ * embedded player's wait mode through the same RoundCoach (PlayerScreen's letGo, the set list's three warm ups too),
+ * Perform steps and the concerts through LessonScreen's StepRetry; the kid's bites as LessonScreen cuts them.
  */
 class PlaygroundFlowTest {
     private enum class Kid { SILENT, WRONG }
@@ -27,7 +29,9 @@ class PlaygroundFlowTest {
     private class Walk(val steps: MutableList<String> = mutableListOf(), var ms: Long = 0)
 
     @Test fun everyLessonEndsWithNoRightInput() {
-        for (kid in Kid.entries) for (lesson in PLAYGROUND.lessons) {
+        val lessons = PLAYGROUND_LEVELS.flatMap { it.lessons }
+        assertEquals(36, lessons.size)
+        for (kid in Kid.entries) for (lesson in lessons) {
             val w = walk(lesson, kid)
             assertEquals("${lesson.id} ($kid): every step done: ${w.steps}", lesson.steps.size, w.steps.size)
             println("%-14s %-6s %5.1f min  %s".format(lesson.id, kid, w.ms / 60_000.0, w.steps.joinToString(" | ")))
@@ -42,7 +46,7 @@ class PlaygroundFlowTest {
             val step = Bites.kidStep(original, original.exercise?.let(Bites::phraseEndBeats))
             var fails = 0
             while (true) {
-                val (report, note) = run(step, kid, w)
+                val (report, note) = run(lesson.id, step, kid, w)
                 val judged = report == null || Bites.kidPassed(step, report)
                 val letGo = !judged && step.kind != StepKind.LISTEN && StepRetry.letGo(lesson.id, fails + 1)
                 if (judged || letGo) { w.steps += "${step.kind.name.lowercase()}${step.game?.let { " ${it.name.lowercase()}" } ?: ""}: $note" +
@@ -55,22 +59,30 @@ class PlaygroundFlowTest {
     }
 
     /** One try of a step: its report (null for a reading step) and a note for the log. */
-    private fun run(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
+    private fun run(lessonId: String, step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
         val ex = step.exercise ?: return null to "read"
-        return when {
-            step.game == Game.CLAP -> clap(kid, w)
-            step.game == Game.HIGH_LOW || step.game == Game.KEY_HUNT || step.game == Game.SOFT_LOUD -> stage(step, kid, w)
-            step.kind == StepKind.PERFORM || step.game == Game.CONCERT -> perform(step, kid, w)
-            step.kind == StepKind.LISTEN -> listen(step, w)
-            else -> waitMode(step, kid, w)
+        return when (step.game) {
+            Game.CLAP -> clap(kid, w)
+            Game.HIGH_LOW, Game.KEY_HUNT, Game.SOFT_LOUD, Game.ECHO, Game.CHORD, Game.SOFT_LOUD_TUNE -> stage(step, kid, w)
+            Game.SET_LIST -> setList(kid, w)
+            Game.CONCERT -> perform(concertPlan(lessonId, step).songs.first().exercise, kid, w)
+            null -> when (step.kind) {
+                StepKind.PERFORM -> perform(ex, kid, w)
+                StepKind.LISTEN -> listen(step, w)
+                else -> waitMode(ex, kid, w)
+            }
         }
     }
 
     /** A stage: rounds shown, heard, let go (ui/playground rememberStage). */
     private fun stage(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
         val ex = step.exercise!!
-        val r = StageRounds(ex.toSong("t", "t"), ex.practice)
+        val phrases = step.game == Game.ECHO || step.game == Game.SOFT_LOUD_TUNE
+        val r = StageRounds(ex.toSong("t", "t"), ex.practice, phrases = phrases)
         val game = if (step.game == Game.SOFT_LOUD) SoftLoudGame() else null
+        val tune = if (step.game == Game.SOFT_LOUD_TUNE) TuneLoudness() else null
+        val chord = if (step.game == Game.CHORD) ChordJudge(StageKeys.C_CHORD) else null
+        fun letGo() { if (game != null && !game.done) game.skip(); tune?.skipped(); chord?.reset() }
         var now = 0L
         var lastTry = 0L
         r.start(now)
@@ -79,7 +91,7 @@ class PlaygroundFlowTest {
             now += 20
             assertTrue("a stage that never ends: ${step.text}", now < 30 * 60_000)
             val cue = r.tick(20.0, now).second
-            if (cue is RoundCoach.Cue.LetGo && game != null && !game.done) game.skip()
+            if (cue is RoundCoach.Cue.LetGo) letGo()
             if (kid != Kid.WRONG || r.coach.phase != RoundCoach.Phase.LISTEN || now - lastTry < 1_500) continue
             lastTry = now
             // A key that is not it, the way each stage hears one.
@@ -90,8 +102,12 @@ class PlaygroundFlowTest {
                 }
                 Game.KEY_HUNT -> {
                     val hunt = Hunt.of(r.current!!.notes.map { it.midi })!!
-                    HuntJudge.judge(StageSound(now, HeardBy.NAMED, if (hunt == Hunt.C) 62 else 64, final = true), hunt)
+                    // A key a semitone above a letter's (never it), or a white key for the black-key hunts.
+                    val key = hunt.letter?.let { 60 + (hunt.pitchClasses.single() + 1) % 12 } ?: 64
+                    HuntJudge.judge(StageSound(now, HeardBy.NAMED, key, final = true), hunt)
                 }
+                Game.ECHO, Game.SOFT_LOUD_TUNE -> NoteJudge.judge(StageSound(now, HeardBy.NAMED, 71, final = true), r.expectedKey())
+                Game.CHORD -> chord!!.judge(StageSound(now, HeardBy.NAMED, 62, final = true))
                 else -> {
                     // Soft and loud: the other loudness each time (the first note sets the level, so anything counts there).
                     val g = game!!
@@ -102,12 +118,13 @@ class PlaygroundFlowTest {
             }
             when (val o = r.answer(wrong, now)) {
                 is StageRounds.Outcome.Found -> finds++
-                is StageRounds.Outcome.Missed -> if (o.cue is RoundCoach.Cue.LetGo && game != null && !game.done) game.skip()
+                is StageRounds.Outcome.Missed -> if (o.cue is RoundCoach.Cue.LetGo) letGo()
                 StageRounds.Outcome.Ignored -> {}
             }
         }
         w.ms += now
         if (game != null) assertTrue("the nap ends", game.done)
+        assertEquals("every round found or let go", r.rounds, r.done)
         return r.report() to "${r.rounds} rounds, ${r.letGo.size} let go, $finds taken by the game"
     }
 
@@ -115,7 +132,7 @@ class PlaygroundFlowTest {
     private fun clap(kid: Kid, w: Walk): Pair<Report?, String> {
         var attempt = 0
         while (true) {
-            w.ms += 16_000                                      // the count-in and eight beats at 60 to 80 bpm, and the pause
+            w.ms += 16_000                                      // the count-in and eight beats at 60 to 90 bpm, and the pause
             // A kid who plays keys instead of clapping: the clap counter hears no claps (it ignores piano).
             when (ClapTries.after(attempt, heard = false)) {
                 ClapTries.Next.DONE -> error("no claps were heard")
@@ -125,9 +142,16 @@ class PlaygroundFlowTest {
         }
     }
 
-    /** Perform (the drum's C on every boom, the concert): the song runs out; nothing right is under the pass mark. */
-    private fun perform(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
-        val ex = if (step.game == Game.CONCERT) CONCERT_SONGS.first().exercise else step.exercise!!
+    /** "Pick your three": picking (the default three), then each one's start in wait mode, as the embedded player runs it. */
+    private fun setList(kid: Kid, w: Walk): Pair<Report?, String> {
+        w.ms += 20_000
+        var groups = 0
+        for (s in Recital.songs(null)) groups += waitMode(s.start, kid, w).first!!.groups
+        return Report(emptyList(), 0, 0, null, groups = groups) to "set list, $groups notes warmed up"
+    }
+
+    /** Perform (the drums' C on every boom, the band, the concerts): the song runs out; nothing right is under the pass mark. */
+    private fun perform(ex: Exercise, kid: Kid, w: Walk): Pair<Report?, String> {
         val t = Transport(ex.toSong("t", "t")).apply { mode = Mode.PERFORM; practice = ex.practice; play(leadInMs = 3_000.0) }
         var ms = 0L
         while (t.playing) {
@@ -146,8 +170,7 @@ class PlaygroundFlowTest {
     }
 
     /** The embedded player's wait mode in a Playground lesson: a group goes by after three tries (PlayerScreen letGo). */
-    private fun waitMode(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
-        val ex = step.exercise!!
+    private fun waitMode(ex: Exercise, kid: Kid, w: Walk): Pair<Report?, String> {
         val t = Transport(ex.toSong("t", "t")).apply { mode = Mode.WAIT; practice = ex.practice; play(leadInMs = 2_000.0) }
         val coach = RoundCoach(firstDemoMs = 0, demoMs = 0, againDemoMs = 0, quietMs = 9_000)
         var now = 0L
@@ -157,7 +180,7 @@ class PlaygroundFlowTest {
         fun letGoGroup() { letGo++; for (k in t.expected.map { it.midi }) if (t.noteInput(k) == InputResult.GROUP_DONE) break }
         while (t.playing) {
             now += 20
-            assertTrue("a wait that never ends: ${step.text}", now < 30 * 60_000)
+            assertTrue("a wait that never ends", now < 30 * 60_000)
             t.tick(20.0)
             if (t.waiting != waiting) { waiting = t.waiting; if (waiting) coach.begin(0, now) else coach.found() }
             if (!t.waiting) continue
