@@ -202,6 +202,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var gate: ParentGateController
     /** The profile the app is open as (null while the picker shows). */
     private var openId: String? = null
+    /** Kid or grown-up, as the app was opened (a switch of kind reopens it). */
+    private var openKind: com.bigpapituna.sharpears.engine.family.ProfileKind? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -222,9 +224,12 @@ class MainActivity : ComponentActivity() {
             mic.reporter.flush()
         }
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this)        // alarms do not survive an update or restart
-        // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them.
+        // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
+        // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
         lifecycleScope.launch {
-            profiles.currentFlow.map { it.id }.distinctUntilChanged().collect { id -> if (openId != null && openId != id) openApp(fromLaunch = false) }
+            profiles.currentFlow.map { it.id to it.kind }.distinctUntilChanged().collect { (id, kind) ->
+                if (openId != null && (openId != id || openKind != kind)) openApp(fromLaunch = false)
+            }
         }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
         val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
@@ -256,6 +261,7 @@ class MainActivity : ComponentActivity() {
         // The phone handed to a kid: a gate a grown-up passed a minute ago does not stay open for them.
         if (profile.isKid && newPlayer) gate.close()
         openId = profile.id
+        openKind = profile.kind
         Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
@@ -437,6 +443,8 @@ class MainActivity : ComponentActivity() {
                     // A kid who reached today's goal hears goodnight once a run or a part is over (never mid-run; lessons
                     // say it themselves): the pup yawns, today's paw lands, songs and the Jam stay open.
                     var goodbye by remember { mutableStateOf(false) }
+                    // A kid who finished Beginner is offered grown-up mode once, on their Learn path.
+                    var grownUpOffered by remember { mutableStateOf(bedtime.grownUpOffered) }
                     fun maybeGoodnight(after: String): Boolean {
                         val today = java.time.LocalDate.now()
                         if (!com.bigpapituna.sharpears.engine.skin.Bedtime.sayGoodnight(profile.isKid, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)) return false
@@ -778,7 +786,17 @@ class MainActivity : ComponentActivity() {
                                             onEar = { screen = Screen.EarTraining(s) },
                                             theory = { m -> com.bigpapituna.sharpears.ui.theory.TheoryCard(theory, onOpen = { screen = Screen.Theory(s) }, modifier = m) },
                                             earStreak = remember { earStore.workoutStreak() },
-                                            path = path)
+                                            path = path,
+                                            grownUp = if (!CoursePath.offerGrownUp(current.isKid, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
+                                                fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
+                                                com.bigpapituna.sharpears.ui.family.GrownUpOffer(current.name,
+                                                    onSwitch = { gate.guard {
+                                                        answered()
+                                                        Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
+                                                        profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
+                                                    } },
+                                                    onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                            } })
                                     }
                                     HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,
                                         // A scale or warm-up plays like a lesson step: the full player in wait mode at the exercise's

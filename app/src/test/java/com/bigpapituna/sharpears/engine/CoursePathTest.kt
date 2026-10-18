@@ -57,4 +57,12 @@ class CoursePathTest {
     @Test fun anyOfLessonsAreTheRangeGames() {
         assertEquals(setOf("playground-1", "playground-2", "playground-3"), ANY_OF_LESSONS)
     }
+
+    @Test fun grownUpModeIsOfferedOnceAfterBeginner() {
+        val beginner = COURSE.first { it.id == CoursePath.GROWN_UP_AFTER }.lessons.map { it.id }.toSet()
+        assertTrue(CoursePath.offerGrownUp(kid = true, offered = false, done = { it in beginner }))
+        assertFalse("not before Beginner is finished", CoursePath.offerGrownUp(kid = true, offered = false, done = { it in beginner.drop(1) }))
+        assertFalse("once only", CoursePath.offerGrownUp(kid = true, offered = true, done = { it in beginner }))
+        assertFalse("grown-ups are grown-ups already", CoursePath.offerGrownUp(kid = false, offered = false, done = { it in beginner }))
+    }
 }

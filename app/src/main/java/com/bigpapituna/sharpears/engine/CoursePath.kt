@@ -47,4 +47,13 @@ class CoursePath(val firstUnitId: String, val bigKid: Boolean = false, private v
 
     /** 1-based number of [lesson] on the path (the extra unit numbers on after the course). */
     fun numberOf(lesson: CourseLesson): Int = lessons.indexOfFirst { it.second.id == lesson.id } + 1
+
+    companion object {
+        /** After this unit the app suggests grown-up mode to a kid's grown-up, once (KIDS-PLAN section 1). */
+        const val GROWN_UP_AFTER = "beginner"
+
+        /** Offer grown-up mode now: a kid who finished [GROWN_UP_AFTER] and has not been offered it yet. */
+        fun offerGrownUp(kid: Boolean, offered: Boolean, done: (String) -> Boolean, course: List<CourseLevel> = COURSE): Boolean =
+            kid && !offered && course.firstOrNull { it.id == GROWN_UP_AFTER }?.lessons?.let { it.isNotEmpty() && it.all { l -> done(l.id) } } == true
+    }
 }

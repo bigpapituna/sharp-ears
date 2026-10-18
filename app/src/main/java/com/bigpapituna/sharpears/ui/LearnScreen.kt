@@ -108,7 +108,9 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 /** The Theory Academy's row (TheoryCard), drawn first beside the course. */
                 theory: (@Composable (Modifier) -> Unit)? = null,
                 /** The course in this person's order (2.1): a kid's starts in the Playground, a grown-up's at Basics. */
-                path: CoursePath = CoursePath("basics")) {
+                path: CoursePath = CoursePath("basics"),
+                /** A kid who finished Beginner: the offer of grown-up mode, at the top of the path (null: none). */
+                grownUp: (@Composable () -> Unit)? = null) {
     val next = path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
@@ -142,6 +144,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     }
                     Pup(Pose.LEARNING, size = 64.dp)
                 }
+                grownUp?.let { Box(Modifier.padding(bottom = 12.dp)) { it() } }
                 // Beside the course: practice that is never "done" (new music, new rounds each time). Not before a kid
                 // can read: the cards are words, and the pup's world below is the whole path for them.
                 if (!kid || reader) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
