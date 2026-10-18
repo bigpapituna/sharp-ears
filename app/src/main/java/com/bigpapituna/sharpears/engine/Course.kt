@@ -14,6 +14,8 @@ import com.bigpapituna.sharpears.engine.theory.Tint
 import com.bigpapituna.sharpears.engine.theory.Touch
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow
+import com.bigpapituna.sharpears.engine.playground.Game
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND
 
 /**
  * The Learn course: levels of short lessons. Each lesson is a list of steps: text to read (and hear), and
@@ -66,7 +68,13 @@ enum class StepKind { READ, LISTEN, PLAY, FROM_MEMORY, PERFORM, RAMP, PEDAL, DYN
  * animated picture, in order; [text] is the whole prose (the captions joined), kept for the voice catalog and
  * screen readers. Other steps carry an [exercise] played in the embedded player, and [text] is the instruction.
  */
-data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = null, val scenes: List<Scene> = emptyList()) {
+data class Step(val kind: StepKind, val text: String, val exercise: Exercise? = null, val scenes: List<Scene> = emptyList(),
+                /**
+                 * A Playground game that draws its own stage instead of the embedded player (2.1, ui/playground): the pup
+                 * flying with pitch, the black-key hunt, clapping, soft and loud, the concert. The step's [kind] and
+                 * [exercise] still say how it runs, so a screen that does not know the game plays it in the player.
+                 */
+                val game: Game? = null) {
     val mode get() = when (kind) { StepKind.LISTEN -> Mode.LISTEN; StepKind.PERFORM, StepKind.RAMP, StepKind.PEDAL -> Mode.PERFORM; else -> Mode.WAIT }
     /** Note names and finger numbers are shown on the notes and keys. */
     val labels get() = kind != StepKind.FROM_MEMORY
@@ -744,7 +752,14 @@ private val TECHNIQUE_2 = listOf(
             Exercise(right = "G4:1 A4:1 B4:1 D5:1 C5:2 A4:2 B4:1 A4:1 F#4:1 D4:1 G4:4", bpm = 72.0, practice = Practice.RIGHT))),
 )
 
-val COURSE: List<CourseLevel> = listOf(
+/**
+ * The whole course, in order. 2.1: Pup's Playground (engine/playground) comes first, so a kid starts there; a grown-up's
+ * path starts at Basics (the integrator orders the path by Profile.firstUnitId). Built on first use: the Playground's
+ * lessons call the notation functions in this file while they are made, so building the list with this file's other
+ * values would see the Playground half made (null) when the Playground is touched first.
+ */
+val COURSE: List<CourseLevel> by lazy { listOf(
+    PLAYGROUND,
     CourseLevel("basics", "Basics", "Where to sit, where the notes are, and which finger is which.", listOf(
         run {
             val e = Exercise(right = "C4:1 r:1 C4:1 r:1 C4:1 r:1 C4:2", bpm = 60.0, practice = Practice.RIGHT)
@@ -1101,4 +1116,4 @@ val COURSE: List<CourseLevel> = listOf(
     CourseLevel("repertoire-1", "Repertoire 1", "Six easy tunes, learned phrase by phrase: hands apart, then together.", REPERTOIRE_1),
     CourseLevel("repertoire-2", "Repertoire 2", "Six medium pieces: new keys, longer phrases and famous openings.", REPERTOIRE_2),
     CourseLevel("technique-2", "Technique 2", "Scales with the book fingering, broken chords, touch, shaping, pedal and sight-reading habits.", TECHNIQUE_2),
-)
+) }
