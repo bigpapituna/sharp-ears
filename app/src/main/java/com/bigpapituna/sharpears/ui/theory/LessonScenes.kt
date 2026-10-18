@@ -269,9 +269,8 @@ internal fun DrawScope.fingerNumbersScene(v: FingerNumbersVisual, t: Int, ink: S
             if (blackTip[h][finger]) ay -= keyH * 0.3f * smooth(d)
         }
         if (hands != null) clipRect { drawPaintedHand(hands, right, HandPose.REST, pose, d, 3, ax, ay, w, stretch, filter = handFilter(ink)) }
-        // "Right hand" on the back of the hand, if it shows.
-        val back = handWrist(right, 3, ax, ay, w, stretch).let { Offset(it.x, mix(ay, it.y, 0.55f)) }
-        if (back.y < size.height - 10.dp.toPx()) text(ink, if (right) "Right hand" else "Left hand", back, TextKind.LABEL, 11.sp, HandInk)
+        // "Right hand" in the stage's corner on that hand's side (on the painted hand itself it read as a tattoo).
+        text(ink, if (right) "Right hand" else "Left hand", Offset(if (right) size.width - 54.dp.toPx() else 54.dp.toPx(), 16.dp.toPx()), TextKind.LABEL, 11.sp, ink.dim)
         // The numbers pop onto the painted fingertips in the intro; the pressing finger's is lit.
         for (f in 1..5) {
             val shown = if (v.intro) progress(t, v.popAt(f) - 60, 320) else 1f
