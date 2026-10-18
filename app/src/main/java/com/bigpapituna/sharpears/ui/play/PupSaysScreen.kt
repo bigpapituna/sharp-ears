@@ -198,11 +198,13 @@ private fun PupSaysGameScreen(
         }
         sounding = -1
         game.demoDone(); changed()
-        line = if (game.multi) "${game.current.player.name}, copy me!" else "Your turn: copy me!"
+        // Short, because the mic waits for the voice: notes played while he speaks are only heard on the keys here.
+        say(if (game.multi) "${game.current.player.name}, copy me!" else "Your turn!")
     }
 
+    LaunchedEffect(Unit) { voice?.speak(line) }                // the opening line, for those who do not read yet
     val listening = game.phase == Phase.LISTEN
-    MicStrikes(mic, listen = listening && voice?.holdsMic != true, expected = game.micNotes(), groups = game.micGroups(), label = "pupsays") { e -> input(e.midi, "mic") }
+    rememberMicStrikes(mic, listen = listening && voice?.holdsMic != true, expected = game.micNotes(), groups = game.micGroups(), label = "pupsays") { e -> input(e.midi, "mic") }
     if (midi != null) LaunchedEffect(midi) { midi.events.collect { e -> if (e is NoteEvent.On) input(e.midi, "midi") } }
 
     val res = results

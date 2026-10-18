@@ -88,7 +88,7 @@ internal enum class MicState { LISTENING, PAUSED, NO_PERMISSION }
  * [onStrike] gets the rest on the main thread. Asks for the permission once. Returns the mic's state.
  */
 @Composable
-internal fun MicStrikes(
+internal fun rememberMicStrikes(
     mic: MicInput, listen: Boolean, expected: Set<Int>, groups: List<Set<Int>>, label: String,
     onStrike: (MicEvent.Strike) -> Unit,
 ): MicState {

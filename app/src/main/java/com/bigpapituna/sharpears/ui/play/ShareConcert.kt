@@ -224,7 +224,7 @@ private fun decodeSample(context: Context, path: String): FloatArray? = runCatch
  * opens the share sheet. [songTitle] and [stars] are the run's; [stickerRes] the sticker it dropped, when there is one.
  */
 @Composable
-fun ShareConcertButton(run: RunRecording?, songTitle: String, stars: Int, stickerRes: Int? = null, modifier: Modifier = Modifier) {
+fun ShareConcertButton(run: RunRecording?, songTitle: String, stars: Int, modifier: Modifier = Modifier, stickerRes: Int? = null) {
     val context = LocalContext.current
     val name = LocalProfile.current.name
     val scope = rememberCoroutineScope()

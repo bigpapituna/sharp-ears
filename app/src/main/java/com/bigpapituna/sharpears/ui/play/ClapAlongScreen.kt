@@ -125,7 +125,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
 
     // Clapping: the mic runs (no notes expected) and the clap counter reads the raw frames on the audio thread.
     val clapping = mode == ClapMode.CLAP && frames != null
-    val micState = MicStrikes(mic, listen = clapping, expected = emptySet(), groups = emptyList(), label = "clap") {}
+    val micState = rememberMicStrikes(mic, listen = clapping, expected = emptySet(), groups = emptyList(), label = "clap") {}
     if (frames != null) {
         val heard = remember { Channel<Long>(Channel.UNLIMITED) }
         // The collector outlives speed and mode changes, so it calls whatever judge and mode are current.

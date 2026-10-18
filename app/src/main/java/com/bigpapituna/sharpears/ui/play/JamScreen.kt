@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -181,11 +182,11 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
 
     // The chord ear listens to the raw audio while the mic runs.
     val ear = remember { if (frames != null) ChordEar() else null }
-    val micState = MicStrikes(mic, listen = true, expected = jam.micNotes(), groups = jam.micGroups(), label = "jam") { e ->
+    val micState = rememberMicStrikes(mic, listen = true, expected = jam.micNotes(), groups = jam.micGroups(), label = "jam") { e ->
         val onset = e.sample - ((e.delayMs ?: 0.0) * MicInput.RATE / 1000).toLong()
         val at = nowMs() - (mic.matcher.samplesProcessed - onset) * 1000 / MicInput.RATE
-        if (jam.micEcho(e.midi, at)) { Log.d(TAG, "jam: ${noteName(e.midi)} dropped (an echo of a higher note)"); return@MicStrikes }
-        if (recentHits[e.midi]?.let { at - it < 200 } == true) return@MicStrikes       // the chord ear already showed it
+        if (jam.micEcho(e.midi, at)) { Log.d(TAG, "jam: ${noteName(e.midi)} dropped (an echo of a higher note)"); return@rememberMicStrikes }
+        if (recentHits[e.midi]?.let { at - it < 200 } == true) return@rememberMicStrikes       // the chord ear already showed it
         hit(e.midi, at, "mic")
         if (ear != null) scope.launch {
             // Ask the chord ear once the audio after the onset is in (about 200 ms), then show the chord's other keys.
@@ -266,7 +267,7 @@ internal fun JamContent(
             SpeechBubble(line, Modifier.padding(start = 8.dp))
             // The pup jumps up to two fifths of the space above the keys, scaled to the pitch (read at layout, so the
             // jump never recomposes the screen).
-            var room by remember { mutableStateOf(0f) }
+            var room by remember { mutableFloatStateOf(0f) }
             Box(Modifier.fillMaxWidth().weight(1f).onGloballyPositioned { room = it.size.height.toFloat() }, contentAlignment = Alignment.BottomCenter) {
                 PupPicture(pupRes, 168.dp, Modifier
                     .offset { IntOffset(0, -(bounce() * room * 0.4f).roundToInt()) }
