@@ -189,7 +189,12 @@ fun PlayerScreen(
     val kid = profile.isKid
     // Kids get big keys: just the octave the notes need, about twice as wide (REGULAR is exactly fitRange).
     val keySize = KeyboardSize.forKid(kid)
-    val range = remember(song, keySize) { keySize.rangeOf(song.notes) }
+    // A kid playing one hand (the concert's band plays the other) sees only that hand's keys; the rest play themselves.
+    val range = remember(song, keySize) {
+        val hand = when (start.practice) { Practice.RIGHT -> Hand.RIGHT; Practice.LEFT -> Hand.LEFT; Practice.BOTH -> null }
+        val own = if (kid && hand != null && start.duet == null) song.notes.filter { it.hand == hand } else emptyList()
+        keySize.rangeOf(own.ifEmpty { song.notes })
+    }
     // Chord names follow a transpose: the bars are labelled again from the moved notes.
     val chords = remember(song, chordTrack) {
         if (chordTrack == null || transpose == 0) chordTrack
@@ -982,11 +987,14 @@ fun PlayerScreen(
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             SharpEarsTheme(dark = androidx.compose.foundation.isSystemInDarkTheme()) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    com.bigpapituna.sharpears.ui.play.DuetPicker(onStart = { d ->
-                        pickingDuet = false; duet = d
-                        practice = Practice.BOTH; transport.practice = Practice.BOTH; version++
-                        Log.d(TAG, "duet: ${d.leftId} left, ${d.rightId} right on ${song.id}")
-                    }, onCancel = { pickingDuet = false })
+                    // One readable column, centred on a wide screen.
+                    Box(contentAlignment = Alignment.TopCenter) {
+                        com.bigpapituna.sharpears.ui.play.DuetPicker(onStart = { d ->
+                            pickingDuet = false; duet = d
+                            practice = Practice.BOTH; transport.practice = Practice.BOTH; version++
+                            Log.d(TAG, "duet: ${d.leftId} left, ${d.rightId} right on ${song.id}")
+                        }, onCancel = { pickingDuet = false }, modifier = Modifier.widthIn(max = 640.dp))
+                    }
                 }
             }
         }
@@ -1093,6 +1101,7 @@ fun PlayerScreen(
     LaunchedEffect(handsTip) { handsTip?.let { Log.d(TAG, "hands tip ${song.id}: $it") } }
     fun pickHands(p: Practice?) {
         val stage = handsTip ?: return
+        if (duet != null) return                       // a duet plays both hands, one person each: no hands advice
         if (p != null) { practice = p; transport.practice = p; version++ }
         meta?.let { prefs.dismissHandsTip(it.id, stage) }
         Log.d(TAG, "hands tip $stage -> ${p ?: "dismissed"}")
@@ -1101,6 +1110,7 @@ fun PlayerScreen(
     @Composable
     fun HandsTipRow() {
         val stage = handsTip ?: return
+        if (duet != null) return                       // a duet plays both hands, one person each: no hands advice
         Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(when (stage) {

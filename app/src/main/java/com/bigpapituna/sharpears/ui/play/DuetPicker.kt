@@ -92,23 +92,23 @@ internal fun PeoplePicker(people: List<Profile>, chosen: List<String>, max: Int,
  * (see ui/play/INTEGRATION.md). With nobody else on the phone, the pup says how to add someone.
  */
 @Composable
-fun DuetPicker(onStart: (Duet) -> Unit, onCancel: () -> Unit) {
+fun DuetPicker(onStart: (Duet) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
     val me = LocalProfile.current
     val others = LocalProfiles.current?.all.orEmpty().filter { it.id != me.id }
     var partner by remember { mutableStateOf(others.singleOrNull()?.id) }
     var meLeft by remember { mutableStateOf(false) }
     DuetPickerContent(me, others, partner, meLeft, onPick = { partner = if (partner == it) null else it }, onSwap = { meLeft = !meLeft },
         onStart = { partner?.let { onStart(Duet.of(me.id, it, if (meLeft) com.bigpapituna.sharpears.engine.Hand.LEFT else com.bigpapituna.sharpears.engine.Hand.RIGHT)) } },
-        onCancel = onCancel)
+        onCancel = onCancel, modifier = modifier)
 }
 
 @Composable
 internal fun DuetPickerContent(
     me: Profile, others: List<Profile>, partnerId: String?, meLeft: Boolean,
-    onPick: (String) -> Unit, onSwap: () -> Unit, onStart: () -> Unit, onCancel: () -> Unit,
+    onPick: (String) -> Unit, onSwap: () -> Unit, onStart: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier,
 ) {
     val partner = others.firstOrNull { it.id == partnerId }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().verticalScroll(rememberScrollState())
+    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ExitPill(onCancel, label = "Back")
         Text("Play a duet", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
