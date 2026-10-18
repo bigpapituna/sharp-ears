@@ -76,6 +76,10 @@ import com.bigpapituna.sharpears.engine.RunWords
 import com.bigpapituna.sharpears.engine.SongArt
 import com.bigpapituna.sharpears.engine.TroubleSpot
 import com.bigpapituna.sharpears.engine.TroubleSpots
+import com.bigpapituna.sharpears.engine.family.ProfileKind
+import com.bigpapituna.sharpears.engine.skin.Stars
+import com.bigpapituna.sharpears.ui.family.profile
+import com.bigpapituna.sharpears.ui.skin.StarRow
 import com.bigpapituna.sharpears.ui.motion.countUp
 import com.bigpapituna.sharpears.ui.motion.easeOutCubic
 import kotlinx.coroutines.delay
@@ -97,14 +101,22 @@ private class RecapMotion(private val still: Boolean) {
  * the accuracy filling a ring as it counts up, stat chips (good, ok, missed, longest streak, time), +XP with the
  * level bar, then the hardest bars to loop and "Hear my run" as quieter actions under Play again. Wide windows
  * (the player is held sideways) put the pup on the left and the numbers on the right. Still with animations off.
+ *
+ * 2.1: every recap leads with one to three stars (engine/skin/Stars), landing one by one with a chime. Grown-ups keep
+ * everything above under them. A kid sees no number at all (no ring, no chips, no XP, no "Loop bar 3"): the stars,
+ * the pup, and the kid words from RunWords with their name; three stars are the party.
  */
 @Composable
 fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, onReplay: () -> Unit) {
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     val m = remember(e) { RecapMotion(still) }
-    // The sunburst, confetti, trophy and flourish only for a best worth it (RunWords.CELEBRATE_FROM).
-    val party = RunWords.celebrates(e.recap?.accuracy ?: 0, e.newBest)
+    val who = profile()
+    val kid = who.kind == ProfileKind.KID
+    val stars = Stars.of(e.recap, e.wrongKeys)
+    val seed = remember(e) { e.hashCode() }
+    // The sunburst, confetti, trophy and flourish: grown-ups on a best worth it (RunWords.CELEBRATE_FROM), kids on three stars.
+    val party = RunWords.party(who.kind, e.recap, e.wrongKeys, e.newBest)
     LaunchedEffect(e) {
         if (party && sampler != null) launch { flourish(sampler) }
         if (still) return@LaunchedEffect
@@ -124,11 +136,12 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val hardest = e.spots.firstOrNull()?.bar
     val pose = when {
         party -> Pose.LEVEL_UP
+        kid -> if (stars >= 2) Pose.GREAT_JOB else Pose.PRACTICING      // never a sad pup for a kid
         r != null -> when { r.accuracy >= 85 -> Pose.GREAT_JOB; r.accuracy >= 50 -> Pose.PRACTICING; else -> Pose.MISTAKE }
         else -> when { e.wrongKeys == 0 -> Pose.GREAT_JOB; e.wrongKeys <= 5 -> Pose.PRACTICING; else -> Pose.MISTAKE }
     }
-    val title = if (r != null) RunWords.title(r.accuracy, e.newBest) else RunWords.waitTitle(e.wrongKeys)
-    val line = if (r != null) RunWords.line(r, hardest, speed) else RunWords.waitLine(e.wrongKeys, hardest)
+    val title = RunWords.headline(who.kind, r, e.wrongKeys, e.newBest, seed)
+    val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.name, seed = seed)
     val stats = buildList {
         if (r != null) { add(Stat("${r.good}", "Good")); add(Stat("${r.ok}", "OK")); add(Stat("${r.miss}", "Missed")); add(Stat("${r.longestStreak}", "Streak")) }
         else add(Stat("${e.wrongKeys}", if (e.wrongKeys == 1) "Wrong note" else "Wrong notes"))
@@ -156,7 +169,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(max = 420.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) })
             }
-            val numbers: @Composable ColumnScope.() -> Unit = {
+            // The stars lead; they start landing as the headline pops (kids get them bigger, and nothing else).
+            val starRow: @Composable ColumnScope.() -> Unit = {
+                StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) 72.dp else 48.dp,
+                    sampler = sampler, startDelayMs = if (still) 0L else 420L)
+            }
+            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { starRow() } } else { {
+                starRow()
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.slideIn(m.rest, 0)) {
                     if (r != null) AccuracyRing(r.accuracy, m.count, if (wide) 104.dp else 116.dp)
@@ -177,7 +196,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                         }
                     }
                 }
-            }
+            } }
             // Play again, always in view; the run played back and Close beside it.
             val actions: @Composable () -> Unit = {
                 FlowRow(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -210,9 +229,12 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     }
 }
 
-/** Slides in as the [i]-th part of the rest (0..1 of [rest], each part a little after the one before). */
+/**
+ * Slides in as the [i]-th part of the rest (0..1 of [rest], each part a little after the one before). Every part ends
+ * fully in (the old 1.6 slope left the eighth part, Play again, at 64% when the stats ran long).
+ */
 private fun Modifier.slideIn(rest: Animatable<Float, *>, i: Int) = graphicsLayer {
-    val k = (rest.value * 1.6f - i * 0.12f).coerceIn(0f, 1f)
+    val k = (rest.value * (1f + i * 0.12f) - i * 0.12f).coerceIn(0f, 1f)
     alpha = k; translationY = (1 - k) * 36f
 }
 
