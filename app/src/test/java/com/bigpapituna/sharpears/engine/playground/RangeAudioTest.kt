@@ -14,8 +14,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The range exercises with sound: PianoSynth notes through the note matcher (the hunts) or the pitch tracker (high and
- * low) into the transport in wait mode, as the player and the Playground's stages run them.
+ * The range exercises with sound: PianoSynth notes through the note matcher or the pitch tracker into the transport in
+ * wait mode. Since 2.1.1 the stages hear through the matcher with strict keys (StageHearingTest); the pitch tracker is
+ * only their fallback guess, still checked here for what it names.
  */
 class RangeAudioTest {
     private val fs = 48_000
@@ -27,10 +28,10 @@ class RangeAudioTest {
     }
 
     /** Notes [played] (name to the second it is struck) through a matcher listening as the player does. */
-    private fun throughMatcher(song: com.bigpapituna.sharpears.engine.Song, played: List<Pair<String, Double>>, lengthS: Double): Run {
+    private fun throughMatcher(song: com.bigpapituna.sharpears.engine.Song, played: List<Pair<String, Double>>, lengthS: Double, strict: Boolean = false): Run {
         val audio = PianoSynth.render(played.map { (n, at) -> SynthNote(noteNumber(n), at * 1000, 700.0) }, lengthS * 1000)
         val t = Transport(song).apply { mode = Mode.WAIT; play() }
-        val m = NoteMatcher(fs)
+        val m = NoteMatcher(fs).apply { strictKeys = strict }
         val results = mutableListOf<Pair<Int, InputResult>>()
         var i = 0
         while (i < audio.size) {
@@ -61,7 +62,7 @@ class RangeAudioTest {
 
     @Test fun theDogHouseHuntPassesOnAnyDogHouseAndNotOnItsNeighbours() {
         val song = step(2, Game.KEY_HUNT)
-        val pass = throughMatcher(song, listOf("D#4" to 1.0, "C#5" to 3.5, "C#3" to 6.0), 8.0)
+        val pass = throughMatcher(song, listOf("D#4" to 1.0, "C#5" to 3.5, "D#5" to 6.0), 8.0)
         assertEquals("three dog houses found: ${pass.results}", 3, pass.done)
         assertTrue(pass.results.all { it.second == InputResult.GROUP_DONE })
         // White keys right next to the dog house are not it.
@@ -73,22 +74,24 @@ class RangeAudioTest {
     @Test fun theCHuntThroughTheMatcher() {
         val cs = throughMatcher(step(3, Game.KEY_HUNT), listOf("C5" to 1.0, "C3" to 3.5, "C4" to 6.0), 8.0)
         assertEquals("${cs.results}", 3, cs.done)
-        // Not tried here: keys that are not C. Asked about five Cs at once the matcher credits C3 for a G4 (its third
-        // partial) and C6 for a D4 on PianoSynth, which is why the hunt stage listens through the pitch tracker below.
+        // Keys that are not C, with strict keys as the stage listens (2.1.1): the plain matcher, asked about five Cs at
+        // once, credited C3 for a G4 (its third partial) and C6 for a D4 on PianoSynth; strict, no key passes for a C.
+        val notC = throughMatcher(step(3, Game.KEY_HUNT), listOf("G4" to 1.0, "D4" to 2.5, "A2" to 4.0, "E5" to 5.5), 7.5, strict = true)
+        assertEquals("${notC.results}", 0, notC.results.size)
     }
 
-    /** The hunt stage hears through the pitch tracker: it names the struck key itself, so no partial is mistaken for a member. */
+    /** The pitch tracker names the struck key itself (the stages' fallback guess since 2.1.1). */
     @Test fun theHuntsThroughThePitchTracker() {
-        val dog = throughPitch(step(2, Game.KEY_HUNT), listOf("D#4" to 1.0, "C#5" to 3.5, "C#3" to 6.0), 8.0)
+        val dog = throughPitch(step(2, Game.KEY_HUNT), listOf("D#4" to 1.0, "C#5" to 3.5, "D#5" to 6.0), 8.0)
         assertEquals("${dog.results}", 3, dog.done)
-        val fence = throughPitch(step(2, Game.KEY_HUNT, 1), listOf("G#4" to 1.0, "F#3" to 3.5, "A#5" to 6.0), 8.0)
+        val fence = throughPitch(step(2, Game.KEY_HUNT, 1), listOf("G#4" to 1.0, "F#5" to 3.5, "A#5" to 6.0), 8.0)
         assertEquals("${fence.results}", 3, fence.done)
         // A dog house is not a fence, and the white keys around a fence are not it either.
         val notFence = throughPitch(step(2, Game.KEY_HUNT, 1), listOf("C#4" to 1.0, "G4" to 2.5, "B4" to 4.0, "D#5" to 5.5), 7.0)
         assertEquals("${notFence.results}", 0, notFence.done)
         assertEquals(4, notFence.results.size)
         // Dog house, fence, fence, dog house: one of each group's keys, in any octave.
-        val mixed = throughPitch(step(2, Game.KEY_HUNT, 2), listOf("C#4" to 1.0, "A#3" to 3.5, "G#5" to 6.0, "D#3" to 8.5), 10.5)
+        val mixed = throughPitch(step(2, Game.KEY_HUNT, 2), listOf("C#4" to 1.0, "A#4" to 3.5, "G#5" to 6.0, "D#5" to 8.5), 10.5)
         assertEquals("${mixed.results}", 4, mixed.done)
         val cs = throughPitch(step(3, Game.KEY_HUNT), listOf("D4" to 1.0, "C5" to 2.5, "C2" to 5.0, "B3" to 7.5, "C6" to 8.5), 10.5)
         assertEquals("${cs.results}", listOf(InputResult.WRONG, InputResult.GROUP_DONE, InputResult.GROUP_DONE, InputResult.WRONG, InputResult.GROUP_DONE),

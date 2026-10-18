@@ -46,7 +46,7 @@ const val PLAYGROUND_ID = "playground"
  * an ordinary [Step.kind] and exercise, so a screen that does not know the game can play it in the player.
  */
 enum class Game {
-    /** The pup flies up on high keys and lands on low ones: any-of groups over half the piano, heard by [PitchHeight]. */
+    /** The pup flies up on high keys and lands on low ones: any-of groups over half the piano, heard by the note matcher (StageKeys). */
     HIGH_LOW,
     /** A big keyboard: the dog houses (two black keys), the fences (three) or the Cs light up as they are found. */
     KEY_HUNT,
@@ -73,9 +73,13 @@ const val CONCERT_PASS = 60
 private fun high(demo: String) = "$demo|C#4..C8"
 /** Every key to the left of middle C. */
 private fun low(demo: String) = "$demo|A0..B3"
-/** The two-black-key groups (dog houses) and three-black-key groups (fences) in the middle three octaves, the given one first. */
-internal const val DOG_HOUSES = "C#4|D#4|C#3|D#3|C#5|D#5"
-internal const val FENCES = "F#4|G#4|A#4|F#3|G#3|A#3|F#5|G#5|A#5"
+/**
+ * The two-black-key groups (dog houses) and three-black-key groups (fences) in the two octaves around middle C, the
+ * nearest first: what the stage's note matcher listens for (StageKeys). One in another octave still counts on the
+ * piano: the matcher names it and the hunt takes it (HuntJudge).
+ */
+internal const val DOG_HOUSES = "C#4|D#4|C#5|D#5"
+internal const val FENCES = "F#4|G#4|A#4|F#5|G#5|A#5"
 /** Any C a child can reach from the bench. */
 internal const val ANY_C = "C4|C2|C3|C5|C6"
 

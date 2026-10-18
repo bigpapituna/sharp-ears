@@ -19,5 +19,24 @@ object PlaygroundLines {
         "Soft, so I keep sleeping.", "Now loud. Wake me up!",
         // The concert (lesson 12).
         "Which song tonight?", "Bravo!",
+        // 2.1.1: the C hunt and the nap's nudges, spoken now between rounds.
+        "C is just left of the dog house.", "A little louder!",
+        // Every round shows itself first, then listens; three tries and it goes by (RoundCoach).
+        LET_ME_SHOW, YOUR_TURN, AGAIN, LET_GO, WHITE_KEY, CLAP_AGAIN, I_HEARD_YOU,
     )
+
+    /** The first round's demo begins. */
+    const val LET_ME_SHOW = "Let me show you."
+    /** The demo is over: the kid plays. */
+    const val YOUR_TURN = "Your turn!"
+    /** A quiet stretch: the round is shown again. */
+    const val AGAIN = "Here it is again."
+    /** Three tries: the round goes by with one star. */
+    const val LET_GO = "Good try, let's keep going."
+    /** A black-key hunt heard a white key; the pup points at the group, which glows. */
+    const val WHITE_KEY = "That one's white. Try the black ones here."
+    /** The drum heard no claps: it plays again by itself. */
+    const val CLAP_AGAIN = "Let's clap again!"
+    /** Shown (not spoken) when a sound has no key: the pup's ear twitches. */
+    const val I_HEARD_YOU = "I heard you!"
 }

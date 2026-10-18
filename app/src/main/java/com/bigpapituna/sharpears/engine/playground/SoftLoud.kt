@@ -74,6 +74,16 @@ class SoftLoudGame(val rounds: List<Loudness> = SoftLoud.ROUNDS, private val off
     /** What the current round asks for (null for the first note). */
     val target: Loudness? get() = rounds.getOrNull(round)
 
+    /**
+     * The round goes by with nothing heard for it (2.1.1: the stage's quiet tries ran out). The first note: no level of
+     * their own, so the fixed thresholds grade the rest. A round: moved on, not matched.
+     */
+    fun skip() {
+        check(!done) { "the game is over" }
+        if (round < 0) round = 0 else round++
+        tries = 0
+    }
+
     fun heard(riseDb: Double): Verdict {
         check(!done) { "the game is over" }
         if (round < 0) {
