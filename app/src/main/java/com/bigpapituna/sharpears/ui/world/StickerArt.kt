@@ -1,10 +1,7 @@
 package com.bigpapituna.sharpears.ui.world
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -12,8 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -32,6 +29,7 @@ import com.bigpapituna.sharpears.data.WorldStore
 import com.bigpapituna.sharpears.engine.world.Rarity
 import com.bigpapituna.sharpears.engine.world.Sticker
 import com.bigpapituna.sharpears.ui.reducedMotion
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -58,9 +56,16 @@ fun Sticker.tilt(): Float = (((id.hashCode() % 9) + 9) % 9 - 4) * 1.6f
 fun StickerImage(sticker: Sticker, modifier: Modifier = Modifier, tilt: Float = sticker.tilt(), shine: Boolean = true, shadow: Boolean = true) {
     val still = reducedMotion()
     val shiny = shine && sticker.rarity == Rarity.SHINY
-    val t: State<Float> = if (shiny && !still) rememberInfiniteTransition(label = "shine")
-        .animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart), label = "sweep")
-    else remember { mutableFloatStateOf(0.45f) }
+    // The sheen sweeps across in 1.4 s, then rests 2.6 s: no frames while it rests.
+    val sweep = remember { Animatable(0.45f) }
+    if (shiny && !still) LaunchedEffect(sticker.id) {
+        while (true) {
+            sweep.snapTo(0f)
+            sweep.animateTo(1f, tween(1400, easing = LinearEasing))
+            delay(2600)
+        }
+    }
+    val t: State<Float> = sweep.asState()
     Box(modifier.graphicsLayer { rotationZ = tilt }) {
         if (shine && sticker.rarity == Rarity.RARE) Canvas(Modifier.fillMaxSize()) {
             drawCircle(Brush.radialGradient(listOf(RareBlue.copy(alpha = 0.45f), Color.Transparent)), radius = size.minDimension * 0.62f)
@@ -68,10 +73,14 @@ fun StickerImage(sticker: Sticker, modifier: Modifier = Modifier, tilt: Float = 
         val painter = painterResource(stickerRes(sticker))
         if (shadow) Image(painter, contentDescription = null, colorFilter = ColorFilter.tint(Color(0x2E3A2418), BlendMode.SrcIn),
             modifier = Modifier.fillMaxSize().offset(1.5.dp, 2.5.dp))
-        Image(painter, contentDescription = null, modifier = Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        // Only a shiny one needs an offscreen layer (the sheen paints only where the sticker is), and only while the
+        // sheen is on it; the rest of the time, and for every other sticker, it draws straight.
+        Image(painter, contentDescription = null, modifier = Modifier.fillMaxSize().then(if (!shiny) Modifier else Modifier.graphicsLayer {
+            compositingStrategy = if (still || t.value in 0.001f..0.999f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+        })
             .drawWithContent {
                 drawContent()
-                if (shiny) {
+                if (shiny && (still || t.value in 0.001f..0.999f)) {
                     // A diagonal prism band sweeping across, only where the sticker is (SrcAtop).
                     val p = t.value * 2.2f - 0.6f
                     val w = size.width

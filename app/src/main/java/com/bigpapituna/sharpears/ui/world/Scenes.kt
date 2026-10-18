@@ -36,7 +36,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.luminance
@@ -148,15 +152,35 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
     BoxWithConstraints(modifier.fillMaxWidth().aspectRatio(SCENE_RATIO).clip(RoundedCornerShape(20.dp))
         .semantics { contentDescription = "${place.title}: ${items.size} of 10 stickers" + if (place == Place.GARDEN) ", dog house stage ${state.house}" else "" }) {
         val w = maxWidth
-        Spacer(Modifier.fillMaxSize().drawWithCache {
-            val trail = trailPath(place, size)
-            onDrawBehind {
+        val stage = state.house
+        val egg = state.egg
+        // Everything that stands still is drawn once into a bitmap (per size, theme, stage and egg); each tick of the
+        // scene clock only paints the sky, that bitmap, and the few things that move. Its own layer keeps the
+        // stickers' and the pup's animation from redrawing it.
+        Spacer(Modifier.fillMaxSize().graphicsLayer().drawWithCache {
+            val front = ImageBitmap(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1))
+            CanvasDrawScope().draw(this, layoutDirection, Canvas(front), size) {
                 when (place) {
-                    Place.GARDEN -> drawGarden(state.house, night, t.value, egg = state.egg)
-                    Place.POND -> drawPond(night, t.value)
-                    Place.CONCERT -> drawConcert(night, t.value)
+                    Place.GARDEN -> drawGarden(stage, night, egg)
+                    Place.POND -> drawPond(night)
+                    Place.CONCERT -> drawConcert(night)
                 }
-                drawTrail(trail, place, night)
+                drawTrail(trailPath(place, size), place, night)
+            }
+            val p = Palette(night)
+            onDrawBehind {
+                val tick = t.value
+                when (place) {
+                    Place.GARDEN -> { skyBase(p, night, 0.45f); skyLife(p, night, tick, 0.45f) }
+                    Place.POND -> { skyBase(p, night, 0.38f); skyLife(p, night, tick, 0.38f) }
+                    Place.CONCERT -> {}
+                }
+                drawImage(front)
+                when (place) {
+                    Place.GARDEN -> drawHouseLife(stage, HOUSE_BASE.toOffset(size), size.width * HOUSE_W, tick)
+                    Place.POND -> ripples(tick)
+                    Place.CONCERT -> {}
+                }
             }
         })
         if (place == Place.GARDEN) {
@@ -255,20 +279,26 @@ private fun DrawScope.drawTrail(trail: Path, place: Place, night: Boolean) {
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(size.width * 0.02f, size.width * 0.05f))))
 }
 
-private fun DrawScope.sky(p: Palette, night: Boolean, t: Float, horizon: Float) {
+/** The sky behind a scene: its gradient, and at dusk the moon. */
+private fun DrawScope.skyBase(p: Palette, night: Boolean, horizon: Float) {
     drawRect(Brush.verticalGradient(listOf(p.skyTop, p.skyLow), endY = size.height * horizon), size = Size(size.width, size.height * horizon + 2f))
     if (night) {
-        // Stars and a moon.
+        val moon = Offset(size.width * 0.34f, size.height * 0.11f)
+        drawCircle(Color(0xFFFFF3C4).copy(alpha = 0.18f), size.width * 0.09f, moon)
+        drawCircle(Color(0xFFFFF0B8), size.width * 0.045f, moon)
+        drawCircle(p.skyTop, size.width * 0.04f, moon + Offset(size.width * 0.022f, -size.width * 0.012f))
+    }
+}
+
+/** What moves in the sky: stars twinkling at dusk, two clouds drifting across. */
+private fun DrawScope.skyLife(p: Palette, night: Boolean, t: Float, horizon: Float) {
+    if (night) {
         val r = java.util.Random(11)
         repeat(26) {
             val x = r.nextFloat() * size.width; val y = r.nextFloat() * size.height * horizon * 0.85f
             val tw = 0.5f + 0.5f * sin((t * 8f + it * 0.37f) * 2f * PI.toFloat())
             drawCircle(Color.White, size.width * (0.0035f + 0.003f * (it % 3)), Offset(x, y), alpha = 0.35f + 0.5f * tw)
         }
-        val moon = Offset(size.width * 0.34f, size.height * 0.11f)
-        drawCircle(Color(0xFFFFF3C4).copy(alpha = 0.18f), size.width * 0.09f, moon)
-        drawCircle(Color(0xFFFFF0B8), size.width * 0.045f, moon)
-        drawCircle(p.skyTop, size.width * 0.04f, moon + Offset(size.width * 0.022f, -size.width * 0.012f))
     }
     // Two clouds drifting slowly across.
     for ((i, at) in listOf(0.18f, 0.62f).withIndex()) {
@@ -317,9 +347,14 @@ private fun DrawScope.outlined(path: Path, fill: Color, line: Float, ink: Color 
     drawPath(path, ink, style = Stroke(line, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
-private fun DrawScope.drawGarden(stage: Int, night: Boolean, t: Float, egg: Boolean) {
+/** Where the garden's dog house stands (the middle of its floor) and how wide it is, as shares of the scene. */
+private val HOUSE_BASE = Offset(0.28f, 0.50f)
+private const val HOUSE_W = 0.27f
+private fun Offset.toOffset(size: Size) = Offset(x * size.width, y * size.height)
+
+/** The garden's still parts: lawn, hills, the tree, the dog house in its stage, the nest when an egg waits. */
+private fun DrawScope.drawGarden(stage: Int, night: Boolean, egg: Boolean) {
     val p = Palette(night)
-    sky(p, night, t, horizon = 0.45f)
     ground(p, top = 0.42f)
     val w = size.width; val h = size.height
     // A round tree on the right.
@@ -332,7 +367,7 @@ private fun DrawScope.drawGarden(stage: Int, night: Boolean, t: Float, egg: Bool
     drawPath(crown, Ink, style = Stroke(w * 0.012f))
     drawPath(crown, if (night) Color(0xFF3F7048) else Color(0xFF7CC173))
     drawCircle(Color.White.copy(alpha = 0.18f), w * 0.03f, Offset(w * 0.845f, h * 0.17f))
-    drawDogHouse(stage, Offset(w * 0.28f, h * 0.50f), w * 0.27f, night, t)
+    drawDogHouse(stage, HOUSE_BASE.toOffset(size), w * HOUSE_W, night, life = false)
     if (egg) drawNest(Offset(WorldAnchors.EGG.x * w, WorldAnchors.EGG.y * h + w * 0.02f), w * 0.13f)
 }
 
@@ -340,19 +375,15 @@ private fun DrawScope.drawGarden(stage: Int, night: Boolean, t: Float, egg: Bool
  * The dog house, standing on [base] (centre of its floor), [width] wide. Stage 1 plain wood; 2 a red roof, a paw over
  * the door and a flower box; 3 also a chimney with smoke, a flag on top and a porch light (glowing at dusk).
  */
-fun DrawScope.drawDogHouse(stage: Int, base: Offset, width: Float, night: Boolean, t: Float = 0f) {
+fun DrawScope.drawDogHouse(stage: Int, base: Offset, width: Float, night: Boolean, t: Float = 0f, life: Boolean = true) {
     val w = width; val line = w * 0.028f
     val left = base.x - w / 2f; val right = base.x + w / 2f
     val wallTop = base.y - w * 0.58f
     val peak = Offset(base.x, wallTop - w * 0.36f)
     if (stage >= 3) {
-        // The chimney behind the roof, smoke curling up from it.
+        // The chimney behind the roof (its smoke is drawHouseLife's).
         val ch = Path().apply { addRect(Rect(base.x + w * 0.16f, peak.y + w * 0.02f, base.x + w * 0.29f, wallTop - w * 0.02f)) }
         outlined(ch, Color(0xFFC9705F), line)
-        for (k in 0 until 3) {
-            val f = (t * 6f + k / 3f) % 1f
-            drawCircle(Color.White, w * (0.035f + 0.03f * f), Offset(base.x + w * (0.225f + 0.05f * sin(f * 6f)), peak.y - w * (0.02f + 0.3f * f)), alpha = 0.7f * (1f - f))
-        }
     }
     val walls = Path().apply { moveTo(left, base.y); lineTo(left, wallTop); lineTo(peak.x, peak.y + w * 0.06f); lineTo(right, wallTop); lineTo(right, base.y); close() }
     outlined(walls, Color(0xFFEBC890), line)
@@ -394,12 +425,8 @@ fun DrawScope.drawDogHouse(stage: Int, base: Offset, width: Float, night: Boolea
         outlined(box, Color(0xFFB07A4A), line)
     }
     if (stage >= 3) {
-        // A flag on the peak and a porch light beside the door.
-        val pole = Offset(peak.x, peak.y - w * 0.02f)
-        drawLine(Ink, pole, pole - Offset(0f, w * 0.3f), line)
-        val wave = sin(t * 2f * PI.toFloat() * 10f) * w * 0.02f
-        val flag = Path().apply { moveTo(pole.x, pole.y - w * 0.3f); lineTo(pole.x + w * 0.2f, pole.y - w * 0.25f + wave); lineTo(pole.x, pole.y - w * 0.19f); close() }
-        outlined(flag, Color(0xFFE38E5A), line * 0.8f)
+        // The flag on the peak (waving: drawHouseLife) and a porch light beside the door.
+        if (life) drawHouseLife(stage, base, width, t)
         val lamp = Offset(base.x - w * 0.3f, base.y - w * 0.36f)
         if (night) drawCircle(Brush.radialGradient(listOf(Color(0xFFFFE9A0).copy(alpha = 0.7f), Color.Transparent), lamp, w * 0.28f), w * 0.28f, lamp)
         drawLine(Ink, lamp + Offset(0f, -w * 0.06f), lamp + Offset(0f, -w * 0.1f), line * 0.7f)
@@ -408,9 +435,36 @@ fun DrawScope.drawDogHouse(stage: Int, base: Offset, width: Float, night: Boolea
     }
 }
 
-private fun DrawScope.drawPond(night: Boolean, t: Float) {
+/** The moving part of a stage-3 dog house: smoke curling up from the chimney and the flag waving. */
+fun DrawScope.drawHouseLife(stage: Int, base: Offset, width: Float, t: Float) {
+    if (stage < 3) return
+    val w = width; val line = w * 0.028f
+    val wallTop = base.y - w * 0.58f
+    val peak = Offset(base.x, wallTop - w * 0.36f)
+    for (k in 0 until 3) {
+        val f = (t * 6f + k / 3f) % 1f
+        drawCircle(Color.White, w * (0.035f + 0.03f * f), Offset(base.x + w * (0.225f + 0.05f * sin(f * 6f)), peak.y - w * (0.02f + 0.3f * f)), alpha = 0.7f * (1f - f))
+    }
+    val pole = Offset(peak.x, peak.y - w * 0.02f)
+    drawLine(Ink, pole, pole - Offset(0f, w * 0.3f), line)
+    val wave = sin(t * 2f * PI.toFloat() * 10f) * w * 0.02f
+    val flag = Path().apply { moveTo(pole.x, pole.y - w * 0.3f); lineTo(pole.x + w * 0.2f, pole.y - w * 0.25f + wave); lineTo(pole.x, pole.y - w * 0.19f); close() }
+    outlined(flag, Color(0xFFE38E5A), line * 0.8f)
+}
+
+/** Ripples moving out across the pond. */
+private fun DrawScope.ripples(t: Float) {
+    val w = size.width; val h = size.height
+    for (k in 0 until 3) {
+        val f = (t * 4f + k / 3f) % 1f
+        val c = Offset(w * (0.30f + 0.25f * k), h * (0.50f + 0.05f * (k % 2)))
+        drawOval(Color.White, Offset(c.x - w * 0.08f * f, c.y - w * 0.02f * f), Size(w * 0.16f * f, w * 0.04f * f), alpha = 0.6f * (1f - f), style = Stroke(w * 0.004f))
+    }
+}
+
+/** The pond's still parts: the far trees, the lawn, the water with its lily pads and reeds. */
+private fun DrawScope.drawPond(night: Boolean) {
     val p = Palette(night)
-    sky(p, night, t, horizon = 0.38f)
     val w = size.width; val h = size.height
     // A line of round trees on the far side.
     val trees = Path().apply { for (k in 0 until 9) addOval(Rect(Offset(w * (0.03f + k * 0.12f), h * (0.33f - 0.02f * (k % 2))), w * 0.075f)) }
@@ -429,11 +483,6 @@ private fun DrawScope.drawPond(night: Boolean, t: Float) {
     }
     drawPath(pond, Brush.verticalGradient(listOf(p.water, p.waterDeep), startY = h * 0.39f, endY = h * 0.72f))
     drawPath(pond, p.line, style = Stroke(w * 0.008f))
-    for (k in 0 until 3) {
-        val f = (t * 4f + k / 3f) % 1f
-        val c = Offset(w * (0.30f + 0.25f * k), h * (0.50f + 0.05f * (k % 2)))
-        drawOval(Color.White, Offset(c.x - w * 0.08f * f, c.y - w * 0.02f * f), Size(w * 0.16f * f, w * 0.04f * f), alpha = 0.6f * (1f - f), style = Stroke(w * 0.004f))
-    }
     for ((x, y, r) in listOf(Triple(0.18f, 0.62f, 0.05f), Triple(0.72f, 0.66f, 0.045f), Triple(0.86f, 0.50f, 0.04f))) {
         val c = Offset(w * x, h * y)
         val pad = Path().apply { addOval(Rect(c.x - w * r, c.y - w * r * 0.5f, c.x + w * r, c.y + w * r * 0.5f)) }
@@ -449,7 +498,8 @@ private fun DrawScope.drawPond(night: Boolean, t: Float) {
     }
 }
 
-private fun DrawScope.drawConcert(night: Boolean, t: Float) {
+/** The concert hall, all still: the wall, the stage in its spotlight, the curtains, the seats. */
+private fun DrawScope.drawConcert(night: Boolean) {
     val w = size.width; val h = size.height
     val dim = if (night) 0.8f else 1f
     fun c(argb: Long) = Color(argb).let { if (night) Color(it.red * dim, it.green * dim, it.blue * dim) else it }
@@ -462,8 +512,8 @@ private fun DrawScope.drawConcert(night: Boolean, t: Float) {
     outlined(stage, c(0xFFD39A62), w * 0.006f)
     for (k in 1..5) drawLine(c(0xFFB98454), Offset(w * k / 6f, h * 0.47f), Offset(w * (k / 6f - 0.02f + 0.04f * k / 6f), h * 0.54f), w * 0.004f)
     drawRect(c(0xFF8A5A3A), Offset(0f, h * 0.54f), Size(w, h * 0.02f))
-    // The spotlight's cone on the middle of the stage, breathing a little.
-    val glow = 0.22f + 0.05f * sin(t * 2f * PI.toFloat() * 6f)
+    // The spotlight's cone on the middle of the stage.
+    val glow = 0.24f
     val cone = Path().apply { moveTo(w * 0.47f, 0f); lineTo(w * 0.53f, 0f); lineTo(w * 0.66f, h * 0.5f); lineTo(w * 0.34f, h * 0.5f); close() }
     drawPath(cone, Brush.verticalGradient(listOf(Color(0xFFFFF0C0).copy(alpha = glow * 0.6f), Color(0xFFFFF0C0).copy(alpha = glow))))
     drawOval(Color(0xFFFFF0C0).copy(alpha = glow * 1.4f), Offset(w * 0.34f, h * 0.47f), Size(w * 0.32f, h * 0.05f))

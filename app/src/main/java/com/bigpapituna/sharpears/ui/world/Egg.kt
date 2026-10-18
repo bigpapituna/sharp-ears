@@ -1,13 +1,12 @@
 package com.bigpapituna.sharpears.ui.world
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -25,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.bigpapituna.sharpears.ui.reducedMotion
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -58,13 +58,19 @@ private fun crackPoints(w: Float, h: Float): List<Offset> =
 @Composable
 fun EggView(look: EggLook, modifier: Modifier = Modifier, crack: Float = 1f, open: Float = 1f, wobble: Float? = null) {
     val still = reducedMotion()
-    val idle = if (wobble == null && look == EggLook.CLOSED && !still) rememberInfiniteTransition(label = "egg")
-        .animateFloat(0f, 1f, infiniteRepeatable(tween(3200, easing = LinearEasing), RepeatMode.Restart), label = "wobble") else null
+    // A closed egg rocks twice (0.8 s), then rests 2.4 s; no frames while it rests.
+    val rock = remember { Animatable(1f) }
+    if (wobble == null && look == EggLook.CLOSED && !still) LaunchedEffect(Unit) {
+        while (true) {
+            rock.snapTo(0f)
+            rock.animateTo(1f, tween(800, easing = LinearEasing))
+            delay(2400)
+        }
+    }
     Canvas(modifier.semantics {
         contentDescription = when (look) { EggLook.CLOSED -> "A mystery egg"; EggLook.CRACKING -> "The egg is cracking"; EggLook.HATCHED -> "The egg hatched" }
     }) {
-        // A closed egg rocks twice every few seconds, then rests.
-        val tilt = wobble ?: idle?.value?.let { if (it < 0.25f) sin(it / 0.25f * 4f * PI.toFloat()) * (1f - it / 0.25f) else 0f } ?: 0f
+        val tilt = wobble ?: rock.value.let { sin(it * 4f * PI.toFloat()) * (1f - it) }
         rotate(tilt * 12f, Offset(size.width / 2f, size.height * 0.97f)) { drawEgg(look, crack, open) }
     }
 }
