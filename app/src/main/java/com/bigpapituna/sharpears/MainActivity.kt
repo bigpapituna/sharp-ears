@@ -308,6 +308,7 @@ class MainActivity : ComponentActivity() {
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
         //   --ef lightSlow <n>   (stretches the hit-line lights n times, to catch them in a screenshot)
+        //   --ef fxSlow <n>      (2.1.1: the same for the Playground stages' rings and call-outs and the Jam's captions)
         //   --ez daily true   (starts "Practice today" straight away)
         //   --es screen sight [--ei level 1|2] [--es inject ...]   (sight-reading; seeded when injecting)
         //   --es lesson <id> --es midi "800:p1 4790:p0 1000:60/40"   (a pretend MIDI keyboard: pedal and key/velocity at ms after Play)
@@ -328,6 +329,7 @@ class MainActivity : ComponentActivity() {
             tabletop = debuggable && intent.getBooleanExtra("tabletop", false),
             lightSlow = if (debuggable) intent.getFloatExtra("lightSlow", 1f) else 1f,
         )
+        com.bigpapituna.sharpears.ui.playground.FxSlow.factor = if (debuggable) intent.getFloatExtra("fxSlow", 1f).coerceIn(1f, 20f) else 1f
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)
         val route = intent.getStringExtra("screen")?.takeIf { debuggable }
@@ -692,7 +694,7 @@ class MainActivity : ComponentActivity() {
                             BackHandler { voice.stop(); screen = s.back }
                             val frames = remember { mic.frameTap() }
                             when (s.toy) {
-                                Toy.JAM -> com.bigpapituna.sharpears.ui.play.JamScreen(mic, midi, frames, onExit = { screen = s.back }, hint = s.hint)
+                                Toy.JAM -> com.bigpapituna.sharpears.ui.play.JamScreen(mic, midi, frames, onExit = { screen = s.back }, hint = s.hint, voice = voice)
                                 Toy.PUP_SAYS -> com.bigpapituna.sharpears.ui.play.PupSaysScreen(mic, midi, sampler, voice, sound = { prefs.sound },
                                     onExit = { voice.stop(); screen = s.back },
                                     // Each player's best of the day goes into their own world (the crown of the day is read from them).

@@ -123,36 +123,76 @@ class JamTest {
         assertEquals(setOf(64), ear2.notesAt(500L * 48))
     }
 
-    @Test fun aChordOnTheMicThrowsConfettiWithTheChordEar() {
-        // What JamScreen does: the matcher hears one note of the chord, the chord ear the rest at the same onset.
+    @Test fun theChordEarAddsKeysButNeverMakesAChord() {
+        // What JamScreen does (2.1.1): the matcher's strikes are confirmed, the chord ear's extra keys are not. They
+        // burst on their keys, but only confirmed notes make "two together", a chord or a run.
         val jam = Jam()
         val audio = PianoSynth.render(listOf(60, 64, 67).map { SynthNote(it, 600.0, gainDb = -16.0) } + SynthNote(72, 2000.0), 3000.0)
         val ear = ChordEar()
-        val m = com.bigpapituna.sharpears.engine.NoteMatcher()
+        val m = com.bigpapituna.sharpears.engine.NoteMatcher().apply { strictKeys = true }
         m.expected = jam.micNotes(); m.groups = jam.micGroups()
         val effects = ArrayList<Jam.Effect>()
         val waiting = ArrayList<Pair<com.bigpapituna.sharpears.engine.MicEvent.Strike, Long>>()   // strike, onset
-        var strikes = 0
+        val confirmed = ArrayList<Int>()
         MicRig.run(audio, m, onChunk = { c, n, at ->
             ear.feed(c, n, at)
-            // Like the screen: once the audio is in, ask the chord ear about each strike's onset.
             waiting.removeAll { (s, onset) ->
                 val notes = ear.notesAt(onset) ?: return@removeAll false
-                notes.filter { it != s.midi && kotlin.math.abs(it - s.midi) != 1 }.forEach { effects += jam.strike(it, onset / 48) }
+                notes.filter { it != s.midi && kotlin.math.abs(it - s.midi) != 1 }.forEach { effects += jam.strike(it, onset / 48, confirmed = false) }
                 true
             }
         }) { e ->
-            if (e !is com.bigpapituna.sharpears.engine.MicEvent.Strike) return@run
-            strikes++
+            if (e !is com.bigpapituna.sharpears.engine.MicEvent.Strike || e.inferredFrom != null) return@run
+            confirmed += e.midi
             val onset = e.sample - ((e.delayMs ?: 0.0) * 48).toLong()
             effects += jam.strike(e.midi, onset / 48)
             waiting += e to onset
         }
-        assertTrue("the matcher alone misses most of a free-play chord", strikes < 4)
-        val chord = effects.filterIsInstance<Jam.Effect.Chord>()
-        assertEquals(1, chord.size)
-        assertEquals(listOf(60, 64, 67), chord[0].notes)
-        assertFalse(effects.filterIsInstance<Jam.Effect.Burst>().any { it.midi !in setOf(60, 64, 67, 72) })
+        val chordKeys = confirmed.filter { it in setOf(60, 64, 67) }
+        println("the matcher confirmed ${confirmed.map { com.bigpapituna.sharpears.engine.noteName(it) }}; bursts on " +
+            effects.filterIsInstance<Jam.Effect.Burst>().map { com.bigpapituna.sharpears.engine.noteName(it.midi) })
+        assertTrue("every confirmed key was played", confirmed.all { it in setOf(60, 64, 67, 72) })
+        // The chord ear fills in the chord's keys on screen...
+        assertTrue(effects.filterIsInstance<Jam.Effect.Burst>().map { it.midi }.containsAll(listOf(60, 64, 67)))
+        // ...but confetti comes only from three confirmed notes, and two make "two together".
+        assertEquals(if (chordKeys.size >= 3) 1 else 0, effects.count { it is Jam.Effect.Chord })
+        assertEquals(if (chordKeys.size >= 2) 1 else 0, effects.count { it is Jam.Effect.Together })
+    }
+
+    @Test fun unconfirmedNotesNeverMakeAChordOrARun() {
+        val jam = Jam()
+        val fx = listOf(60 to 1000L, 64 to 1010L, 67 to 1020L).flatMap { (m, t) -> jam.strike(m, t, confirmed = false) }
+        assertTrue(fx.none { it is Jam.Effect.Chord || it is Jam.Effect.Together })
+        assertEquals(3, fx.count { it is Jam.Effect.Burst })
+        val run = listOf(60, 62, 64, 65, 67).mapIndexed { i, m -> m to 2000L + i * 200 }.flatMap { (m, t) -> jam.strike(m, t, confirmed = false) }
+        assertTrue(run.none { it is Jam.Effect.Rainbow })
+        // One unconfirmed key with two confirmed: two together, no confetti.
+        val mixed = jam.strike(60, 5000) + jam.strike(64, 5010, confirmed = false) + jam.strike(67, 5020)
+        assertEquals(1, mixed.count { it is Jam.Effect.Together }); assertEquals(0, mixed.count { it is Jam.Effect.Chord })
+    }
+
+    @Test fun twoConfirmedNotesAreTwoTogetherAndThreeAChord() {
+        val jam = Jam()
+        val two = jam.play(60 to 1000L, 64 to 1050L)
+        assertEquals(listOf(Jam.Effect.Together(listOf(60, 64))), two.filterIsInstance<Jam.Effect.Together>())
+        val third = jam.strike(67, 1100)
+        assertEquals(1, third.count { it is Jam.Effect.Chord })
+        assertEquals("two together is said once a chord", 0, third.count { it is Jam.Effect.Together })
+    }
+
+    @Test fun everyEventHasACaption() {
+        assertEquals(JamWords.Caption("C!", "C!"), JamWords.note(60, reader = true))
+        assertEquals(JamWords.Caption("F#!", "F sharp!"), JamWords.note(66, reader = true))
+        assertEquals(JamWords.Caption("The red cat key", "the red cat key"), JamWords.note(72, reader = false))
+        assertEquals("the black key between the cat and the dog", JamWords.note(61, reader = false).spoken)
+        assertEquals("Two notes together!", JamWords.of(Jam.Effect.Together(listOf(60, 64)), true)?.text)
+        assertEquals("Three notes! A chord!", JamWords.of(Jam.Effect.Chord(listOf(60, 64, 67)), false)?.text)
+        assertEquals("Up the rainbow!", JamWords.of(Jam.Effect.Rainbow(listOf(60, 62, 64, 65, 67)), true)?.text)
+        assertEquals(null, JamWords.of(Jam.Effect.Bounce(0.5f), true))
+        // The spoken forms are in the voice catalog (recorded, said slower for kids).
+        val kid = com.bigpapituna.sharpears.engine.SpokenCatalog.kidLines()
+        assertTrue(kid.containsAll(JamWords.spoken()))
+        assertTrue(JamWords.spoken().none { '#' in it })
     }
 
     @Test fun aHighNotesEchoOnALowerKeyIsDropped() {

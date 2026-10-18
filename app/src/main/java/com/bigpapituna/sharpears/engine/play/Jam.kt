@@ -4,9 +4,14 @@ import com.bigpapituna.sharpears.engine.skin.NoteColours
 
 /**
  * The Jam: no goal, no score. Every note the mic hears does something, and this decides what: its colour bursts
- * from the key, the pup bounces higher the higher the note, three or more notes within [CHORD_MS] (a chord) throw
- * confetti, and a quick run of [RUN_NOTES] or more rising notes paints a rainbow. The screen (ui/play/JamScreen.kt)
- * draws the effects; this class only turns strikes into them, so it is tested on the JVM.
+ * from the key, the pup bounces higher the higher the note, two notes within [CHORD_MS] are "two together", three or
+ * more (a chord) throw confetti, and a quick run of [RUN_NOTES] or more rising notes paints a rainbow. The screen
+ * (ui/play/JamScreen.kt) draws the effects and the pup's caption for each ([JamWords]); this class only turns strikes
+ * into them, so it is tested on the JVM.
+ *
+ * Only confirmed notes (the matcher's strikes, a key touched, MIDI) make a chord or a run (2.1.1, Roy: the confetti
+ * came with no reason anyone could see). The chord ear's extra notes ([strike] with confirmed false) burst on their
+ * keys and nothing more.
  *
  * [low]..[high] is the keyboard on screen and the range the mic listens to, plus every C from C2 to C6 (see
  * [micNotes]; the quest's "Find all the Cs" can be done here). Notes outside it still burst, clamped for the bounce.
@@ -19,7 +24,9 @@ class Jam(val low: Int = LOW, val high: Int = HIGH) {
         data class Burst(val midi: Int, val argb: Int) : Effect
         /** The pup jumps; [height] 0..1 of his highest jump, scaled to the pitch. */
         data class Bounce(val height: Float) : Effect
-        /** Three or more notes together: confetti. */
+        /** Two confirmed notes together. */
+        data class Together(val notes: List<Int>) : Effect
+        /** Three or more confirmed notes together: confetti. */
         data class Chord(val notes: List<Int>) : Effect
         /** A quick rising run: a rainbow arc over the keys, from the run's lowest note to its highest. */
         data class Rainbow(val notes: List<Int>) : Effect
@@ -28,6 +35,7 @@ class Jam(val low: Int = LOW, val high: Int = HIGH) {
     private var clusterStart = Long.MIN_VALUE / 2
     private val cluster = LinkedHashSet<Int>()
     private var clusterThrown = false
+    private var pairShown = false
 
     private val run = ArrayList<Int>()
     private var lastAt = Long.MIN_VALUE / 2
@@ -47,16 +55,22 @@ class Jam(val low: Int = LOW, val high: Int = HIGH) {
     /** Notes heard so far, for the log. */
     var notes = 0; private set
 
-    /** A note was struck at [atMs] (any clock, as long as it only goes forward). Returns what to show, in order. */
-    fun strike(midi: Int, atMs: Long): List<Effect> {
+    /**
+     * A note was struck at [atMs] (any clock, as long as it only goes forward). Returns what to show, in order.
+     * [confirmed]: the matcher heard it (or it was touched, or came by MIDI); false for the chord ear's extra notes,
+     * which burst on their keys but never make a chord or a run.
+     */
+    fun strike(midi: Int, atMs: Long, confirmed: Boolean = true): List<Effect> {
         notes++
         val out = ArrayList<Effect>(4)
         out += Effect.Burst(midi, NoteColours.blend(midi).toInt())
         out += Effect.Bounce(bounceHeight(midi))
+        if (!confirmed) return out
 
-        // A chord: notes whose strikes all fall within CHORD_MS of the first one. Confetti once per chord.
-        if (atMs - clusterStart > CHORD_MS) { clusterStart = atMs; cluster.clear(); clusterThrown = false }
+        // A chord: notes whose strikes all fall within CHORD_MS of the first one. Two together once, confetti once per chord.
+        if (atMs - clusterStart > CHORD_MS) { clusterStart = atMs; cluster.clear(); clusterThrown = false; pairShown = false }
         cluster += midi
+        if (!pairShown && cluster.size == 2) { pairShown = true; out += Effect.Together(cluster.sorted()) }
         if (!clusterThrown && cluster.size >= CHORD_NOTES) { clusterThrown = true; out += Effect.Chord(cluster.sorted()) }
 
         // A run: each note higher than the one before and close behind it. Notes struck together (a chord) are one
@@ -111,4 +125,47 @@ class Jam(val low: Int = LOW, val high: Int = HIGH) {
         /** A twelfth, two octaves and a third, two octaves and a fifth: partials 3, 5 and 6. */
         val ECHO_INTERVALS = setOf(19, 28, 31)
     }
+}
+
+/**
+ * What the pup says over each Jam event (2.1.1): a caption bubble for about a second, so a child sees what just
+ * happened. A note is its letter for readers ("C!") and its colour and animal before reading ("the red cat key", as the
+ * kid skin names keys); two notes, a chord and a rainbow have their own lines. [spoken] is the same words for the voice.
+ */
+object JamWords {
+    data class Caption(val text: String, val spoken: String)
+
+    const val TOGETHER = "Two notes together!"
+    const val CHORD = "Three notes! A chord!"
+    const val RAINBOW = "Up the rainbow!"
+    /** The line at the top for the first seconds: what to do. */
+    const val START_HINT = "Play any key"
+    /** How long a caption stays up. */
+    const val CAPTION_MS = 1_100L
+    /** How long the start hint stays up. */
+    const val HINT_MS = 10_000L
+
+    private val SHARPS = mapOf(1 to "C sharp", 3 to "D sharp", 6 to "F sharp", 8 to "G sharp", 10 to "A sharp")
+
+    /** A note's caption: the letter for a reader, the colour and animal before reading. */
+    fun note(midi: Int, reader: Boolean): Caption {
+        if (!reader) return NoteColours.spokenName(midi, reader = false).let { Caption(it.replaceFirstChar(Char::uppercase), it) }
+        val letter = NoteColours.letter(midi)
+        val said = SHARPS[Math.floorMod(midi, 12)] ?: letter
+        return Caption("$letter!", "$said!")
+    }
+
+    fun of(e: Jam.Effect, reader: Boolean): Caption? = when (e) {
+        is Jam.Effect.Burst -> note(e.midi, reader)
+        is Jam.Effect.Together -> Caption(TOGETHER, TOGETHER)
+        is Jam.Effect.Chord -> Caption(CHORD, CHORD)
+        is Jam.Effect.Rainbow -> Caption(RAINBOW, RAINBOW)
+        is Jam.Effect.Bounce -> null
+    }
+
+    /** Every fixed line, for the voice catalog. */
+    fun spoken(): List<String> = buildList {
+        for (pc in 0..11) { add(note(60 + pc, reader = true).spoken); add(note(60 + pc, reader = false).spoken) }
+        add(TOGETHER); add(CHORD); add(RAINBOW)
+    }.distinct()
 }
