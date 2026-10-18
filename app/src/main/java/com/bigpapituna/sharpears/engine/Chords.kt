@@ -119,7 +119,17 @@ fun progressionSong(p: Progression, key: Int, bpm: Double = 72.0): Song {
         voicings[i].map { Note(it, t, bar - 150, Hand.RIGHT, 75) } + Note(48 + c.root % 12, t, bar - 150, Hand.LEFT, 80)
     }.sortedWith(compareBy({ it.startMs }, { it.midi }))
     val sections = chords.mapIndexed { i, c -> Section("${p.degrees[i].numeral} ${c.name}", i * bar, (i + 1) * bar) }
-    return Song("prog-${p.name}-$key", "${p.name} in ${rootName(key)}", bpm, 4 to 4, notes, groupOnsets(notes), sections, chords.size * bar)
+    val song = Song("prog-${p.name}-$key", "${p.name} in ${rootName(key)}", bpm, 4 to 4, notes, groupOnsets(notes), sections, chords.size * bar)
+    // Each triad with the Chords dictionary's fingers for its inversion (the solver put a first inversion under 1 3 5
+    // where the dictionary shows 1 2 5); the rootless sevenths keep the solver's.
+    val worked = Fingering.of(song)
+    val fingering = chords.flatMapIndexed { i, c ->
+        val v = voicings[i]
+        val inversion = c.type.intervals.indexOfFirst { Math.floorMod(c.root + it, 12) == Math.floorMod(v.first(), 12) }
+        if (c.type.intervals.size == 3 && v.size == 3 && inversion >= 0) c.fingering(inversion)
+        else song.notes.filter { it.hand == Hand.RIGHT && it.startMs == i * bar }.map { worked[it] ?: 1 }
+    }
+    return song.copy(fingering = fingering)
 }
 
 /**

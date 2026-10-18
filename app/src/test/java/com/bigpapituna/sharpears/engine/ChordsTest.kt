@@ -46,6 +46,26 @@ class ChordsTest {
         }
     }
 
+    /** 2.2.1 QA: the player's numbers on a progression's triads are the Chords dictionary's for that inversion. */
+    @Test fun progressionTriadsShowTheDictionarysFingers() {
+        var triads = 0
+        for (p in PROGRESSIONS) for (key in PROGRESSION_KEYS) {
+            val song = progressionSong(p, key)
+            val f = Fingering.of(song)
+            for (g in song.groups) {
+                val right = g.notes.filter { it.hand == Hand.RIGHT }.sortedBy { it.midi }
+                assertTrue("${song.id}: every right-hand note has a finger", right.all { f[it] in 1..5 })
+                if (right.size != 3) continue
+                val chord = Chord(Math.floorMod(g.notes.first { it.hand == Hand.LEFT }.midi, 12), p.degrees[(g.startMs / (4 * 60_000 / 72.0).toLong()).toInt()].type)
+                if (chord.type.intervals.size != 3) continue
+                val inversion = chord.type.intervals.indexOfFirst { Math.floorMod(chord.root + it, 12) == Math.floorMod(right.first().midi, 12) }
+                assertEquals("${song.id} ${chord.name} inversion $inversion", chord.fingering(inversion), right.map { f[it] })
+                triads++
+            }
+        }
+        assertEquals("two triad progressions, four chords, five keys", 40, triads)
+    }
+
     @Test fun drillAcceptsAnyOctaveAndOrderAndCountsStreaks() {
         val d = ChordDrill(listOf(Chord(0, ChordType.MAJOR), Chord(7, ChordType.MAJOR)), seed = 1)
         val first = d.current
