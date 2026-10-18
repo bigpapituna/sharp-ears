@@ -45,8 +45,9 @@ import com.bigpapituna.sharpears.ui.motion.BounceSize
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.rememberPupController
 
-/** What the pup says when something goes on (or everything comes off). */
-fun wearLine(item: WearItem?, on: Boolean): String = when {
+/** What the pup says when something goes on, one thing comes off ([stillWearing] the rest), or everything comes off. */
+fun wearLine(item: WearItem?, on: Boolean, stillWearing: Boolean = false): String = when {
+    item != null && !on && stillWearing -> "Off it comes."
     item == null || !on -> "Back to just me."
     else -> when (item) {
         WearItem.BOW_TIE -> "Very smart."
@@ -88,9 +89,10 @@ fun DressUp(world: WorldStore, modifier: Modifier = Modifier) {
                 row.forEach { item ->
                     WearTile(item, worn = item in s.outfit.items, unlocked = s.unique >= item.unlockAt, need = item.unlockAt - s.unique, modifier = Modifier.weight(1f)) {
                         val on = item !in s.outfit.items
+                        val stillWearing = (s.outfit.items - item).isNotEmpty()
                         world.wear(item)
                         sounds.pop(if (on) 1.15f else 0.85f)
-                        said = wearLine(item, on)
+                        said = wearLine(item, on, stillWearing)
                     }
                 }
             }

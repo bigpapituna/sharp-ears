@@ -20,6 +20,7 @@ class WorldCopyTest {
         for (notes in listOf(0, 10, 160, TreatJar.CAPACITY)) for (kid in listOf(true, false)) for (t in listOf(0, 2)) add(jarLine(notes, kid, t))
         WearItem.entries.forEach { add(wearLine(it, true)) }
         add(wearLine(null, false))
+        add(wearLine(WearItem.SUNGLASSES, on = false, stillWearing = true))
         for (u in listOf(0, 1, 2, 9, 30)) for (o in listOf(Outfit.NONE, Outfit(setOf(WearItem.BOW_TIE)))) add(wardrobeLine(o, u))
         for (u in listOf(0, 4, 5, 14, 15, 30)) add(houseLine(u))
         val s = Stickers.ALL[0]
