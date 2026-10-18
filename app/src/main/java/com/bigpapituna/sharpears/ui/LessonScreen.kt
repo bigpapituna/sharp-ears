@@ -193,10 +193,14 @@ fun LessonScreen(
         } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
-        val passed = if (kid) Bites.kidPassed(s, report) else s.passed(report)
+        val judged = if (kid) Bites.kidPassed(s, report) else s.passed(report)
+        // Pup's Playground (2.1.1, no dead ends): the third try that does not pass lets the step go on.
+        val letGo = !judged && s.kind != StepKind.LISTEN && com.bigpapituna.sharpears.engine.playground.StepRetry.letGo(lesson.id, fails + 1)
+        val passed = judged || letGo
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake (a kid: the pup's
         // words with their name, no numbers).
         val line = if (s.kind == StepKind.LISTEN) null
+            else if (letGo) com.bigpapituna.sharpears.engine.playground.PlaygroundLines.LET_GO.let { com.bigpapituna.sharpears.engine.Feedback(it, it) }
             else if (kid) RunWords.kidStepLine(passed, last, who.name).let { com.bigpapituna.sharpears.engine.Feedback(it, it) }
             else if (s.kind.needsMidi) (report.extraScore ?: 0).let { score ->
                 val what = if (s.kind == StepKind.PEDAL) "Pedal changes in time" else "Notes at the right loudness"
@@ -206,18 +210,18 @@ fun LessonScreen(
             else if (s.kind == StepKind.RAMP) com.bigpapituna.sharpears.engine.Feedback("Full speed. " + if (last) "Lesson done." else "On to the next step.",
                 "Full speed. " + if (last) "Lesson done." else "On to the next step.")
             else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last, flats = s.exercise?.flats == true)
-        Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
+        Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed${if (letGo) " (let go after ${fails + 1} tries)" else ""} feedback=\"${line?.text}\"")
         feedback = line?.text
         line?.let { voice.speak(it.spoken) }
-        if (s.kind != StepKind.LISTEN) reaction = if (passed) Pose.GREAT_JOB else if (kid) Pose.GET_READY else Pose.MISTAKE
+        if (s.kind != StepKind.LISTEN) reaction = if (judged) Pose.GREAT_JOB else if (kid || letGo) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
         if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text); return }
-        // Passing a step that took a few tries earns the high-five.
-        val highFive = fails >= 2
+        // Passing a step that took a few tries earns the high-five (not a step let go).
+        val highFive = fails >= 2 && !letGo
         if (highFive) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
         fails = 0
         // The last step goes straight to the celebration; any other waits on Continue.
-        if (last) complete() else bar = Triple(Cheer.GOOD, if (highFive) "High five!" else cheerTitle(cheers++),
+        if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!" else cheerTitle(cheers++),
             if (highFive) "You stuck with it. " + (line?.text ?: "") else line?.text)
     }
 
@@ -315,6 +319,7 @@ fun LessonScreen(
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                                 anyOfLessons = com.bigpapituna.sharpears.engine.playground.ANY_OF_LESSONS,
                                 onWrongKey = { pupNow.react(PupReaction.HEAD_TILT) },
+                                letGo = com.bigpapituna.sharpears.engine.playground.StepRetry.isPlayground(lesson.id),
                             )
                         }
                     }

@@ -116,6 +116,8 @@ import kotlinx.coroutines.launch
 
 /** Before Play, the run's first notes sit this far (song ms) above the hit line: just under the top of the lane. */
 private const val PREVIEW_MS = com.bigpapituna.sharpears.engine.LOOKAHEAD_MS * 0.75
+/** Pup's Playground: a quiet stretch this long while wait mode holds counts as a try (three let the group go, about 27 s). */
+private const val LET_GO_QUIET_MS = 9_000L
 
 /** How the player opens. [inject] (debug) replaces the microphone with a WAV file or "synth:..." notes. */
 data class PlayerStart(
@@ -172,6 +174,11 @@ fun PlayerScreen(
     anyOfLessons: Set<String> = emptySet(),
     /** Every wrong key shown (mic, touch, MIDI), for the pup's head tilt and the skin's key flash (ui/hints/INTEGRATION.md). */
     onWrongKey: (WrongKey) -> Unit = {},
+    /**
+     * Pup's Playground (2.1.1, no dead ends): a group wait mode holds on goes by after three tries (wrong keys, or quiet
+     * stretches with nothing played), and the pup says "Good try, let's keep going".
+     */
+    letGo: Boolean = false,
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
@@ -228,6 +235,8 @@ fun PlayerScreen(
     var octaveShown by remember { mutableStateOf<OctaveHint.Hint?>(null) }
     // Not where any key of a range will do ("any key above C4"): there the octave is the point.
     val octaveOn = remember(song, anyOfLessons) { OctaveHint.appliesTo(song.id, anyOfLessons) && song.groups.none { it.anyOf } }
+    // Pup's Playground: a group held on goes by after three tries (RoundCoach without its demo: the hints show the key).
+    val waitCoach = remember(letGo) { if (letGo) com.bigpapituna.sharpears.engine.playground.RoundCoach(firstDemoMs = 0, demoMs = 0, againDemoMs = 0, quietMs = LET_GO_QUIET_MS) else null }
     // Wrong keys shown so far (ids for onWrongKey); the room-noise watchdog's offer.
     var wrongKeys by remember { mutableIntStateOf(0) }
     var noiseOffer by remember { mutableStateOf<NoiseWatch.Suggestion?>(null) }
@@ -379,11 +388,13 @@ fun PlayerScreen(
     fun say(line: String) { hintLine = line; voice.speak(line, deferrable = false) }
     /** A wait began: hint escalation (wait mode, labels shown) and the octave hint (mic) start over. */
     fun hintsBegin() {
+        if (transport.mode == Mode.WAIT) waitCoach?.begin(0, android.os.SystemClock.uptimeMillis())
         hintStep = HintStep.NONE; octaveShown = null
         if (transport.mode == Mode.WAIT && labels) hintPlan.begin(android.os.SystemClock.elapsedRealtime())
         if (micOn && octaveOn && transport.mode == Mode.WAIT) mic.octaveReset(transport.listenFor)
     }
     fun hintsEnd() {
+        waitCoach?.found()
         if (hintPlan.waiting || hintStep != HintStep.NONE || octaveShown != null) Log.d(TAG, "hints: wait over at $hintStep")
         hintPlan.end(); hintStep = HintStep.NONE; octaveShown = null; mic.octaveReset(emptySet())
     }
@@ -401,6 +412,24 @@ fun PlayerScreen(
         }
         Log.d(TAG, "hints: the app plays ${notes.map { noteName(it) }}")
         say("Your turn.")
+    }
+    /**
+     * Pup's Playground: the group waited on goes by ("Good try, let's keep going", said over the mic if it listens): its
+     * notes go to the transport as if played, so the run moves on.
+     */
+    fun letGoGroup() {
+        val keys = transport.expected.map { it.midi }
+        if (keys.isEmpty()) return
+        Log.d(TAG, "let go: ${keys.map { noteName(it) }} after ${waitCoach?.tries} tries")
+        hintLine = com.bigpapituna.sharpears.engine.playground.PlaygroundLines.LET_GO
+        voice.speakOverMic(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.LET_GO)
+        for (k in keys) if (transport.noteInput(k) == InputResult.GROUP_DONE) break
+        version++
+    }
+    /** A try that was not it, while wait mode holds: the coach counts it (Pup's Playground). */
+    fun waitMiss() {
+        if (!transport.waiting) return
+        if (waitCoach?.miss(android.os.SystemClock.uptimeMillis()) is com.bigpapituna.sharpears.engine.playground.RoundCoach.Cue.LetGo) letGoGroup()
     }
     /** A wrong key from any input: counted, logged, and handed to whoever draws it (the skin's flash, the pup). */
     fun showWrongKey(played: Int, nearest: Int?, distance: Int?) {
@@ -484,6 +513,7 @@ fun PlayerScreen(
             InputResult.WRONG -> {
                 wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime())
                 WrongKey.of(midi, expectedBefore, 0).let { showWrongKey(midi, it.nearest, it.distance) }
+                waitMiss()
             }
             InputResult.CORRECT, InputResult.GROUP_DONE -> {
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
@@ -698,6 +728,8 @@ fun PlayerScreen(
                         mic.noiseWatch.wrong(now); checkNoise(now)
                     }
                     Log.d(TAG, "input mic -> WRONG ${noteName(e.midi)} at ${transport.positionMs.toLong()} ms (painted=$paint)")
+                    if (!paint) Juice.onHeard()
+                    waitMiss()
                 }
             }
         }
@@ -709,6 +741,8 @@ fun PlayerScreen(
             val now = android.os.SystemClock.elapsedRealtime()
             mic.noiseWatch.noise(now)
             if (transport.waiting) stallWatch.heard(System.currentTimeMillis(), "noise (no piano note in it)")
+            // "I heard you": every pup on screen hops a little, even for a sound with no key in it.
+            Juice.onHeard()
             checkNoise(now)
         }
     }
@@ -807,6 +841,8 @@ fun PlayerScreen(
                     if (wasWaiting) hintsBegin() else hintsEnd()
                     if (wasWaiting) tail("waiting at ${at(transport.positionMs)} for ${transport.expected.joinToString(", ") { noteName(it.midi) }}")
                 }
+                // Pup's Playground: three tries (or quiet stretches) and the group goes by.
+                if (transport.waiting && waitCoach?.tick(android.os.SystemClock.uptimeMillis()) is com.bigpapituna.sharpears.engine.playground.RoundCoach.Cue.LetGo) letGoGroup()
                 // Stuck: the key glows, then the hand points at it, then the app plays it.
                 hintPlan.advance(android.os.SystemClock.elapsedRealtime())?.let { step ->
                     hintStep = step

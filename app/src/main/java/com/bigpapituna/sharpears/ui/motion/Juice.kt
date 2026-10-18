@@ -47,6 +47,18 @@ object Juice {
         if (sound) WorldSounds.tick(0.35f + 0.65f * Bounce.loudness(riseDb))
     }
 
+    /**
+     * The mic heard something that was no key it could name (2.1.1, "I heard you"): every pup on screen hops a little,
+     * so nothing a child does is silent on screen. No tick, no crumb: it was not a note.
+     */
+    fun onHeard() {
+        flow.tryEmit(PupBounce(HEARD_MIDI, HEARD_RISE, SystemClock.uptimeMillis()))
+        PupInput.poke()
+    }
+    /** A small hop: middle C at a soft rise. */
+    private const val HEARD_MIDI = 60
+    private const val HEARD_RISE = 4.0
+
     /** A MIDI velocity (1..127) as a rise in dB, for the bounce and the tick. */
     fun riseOf(velocity: Int): Double = 6.0 + 24.0 * (velocity.coerceIn(1, 127) / 127.0)
 }
