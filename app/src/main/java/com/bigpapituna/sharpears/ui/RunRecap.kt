@@ -164,7 +164,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     Box(Modifier.fillMaxSize().paper()) {
         if (party) Confetti(e, Modifier.fillMaxSize())
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            val wide = maxWidth > maxHeight * 1.2f
+            // Side by side on a landscape screen and on a big square one (the Fold's inner screen), stacked on a phone.
+            val wide = maxWidth > maxHeight * 1.2f || (maxWidth >= 720.dp && maxHeight < maxWidth * 1.3f)
             val pupSize = if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
@@ -252,10 +253,14 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     Spacer(Modifier.height(16.dp))
                     actions()
                 }
-            } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)) {
-                head()
-                Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) { numbers(); actions() }
+            } else Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // The pup, the stars and the drop scroll in the space left over; the way on stays pinned under them.
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)) {
+                    head()
+                    Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) { numbers() }
+                }
+                Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(top = 12.dp)) { actions() }
             }
         }
     }
