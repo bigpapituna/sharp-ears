@@ -211,6 +211,10 @@ chord use plain notes (no any-of); `ANY_OF_LESSONS` lists hall-1.
 
 ### What the integrator checks after merging with the kid-home branch
 
+Done in 2.2.0 (branch `release-2.2`, CLAUDE.md "2.2.0 status"): all six hold; `Place.ofPlaygroundLesson` was removed and
+every lookup goes through the lesson's page (KidPages.dropPlace over `pageOf`). The list stays as the record of what
+was checked.
+
 1. The map's anchors per page: a stone for every id of `PLAYGROUND_PAGES[1].lessonIds` (pond) and `[2]` (hall), in
    order, with their stars. The world's `Place.ofPlaygroundLesson(n)` still splits the garden's twelve into three places
    (4 each), which is wrong now: each page is its own place (`pageOf(id).place`: GARDEN, POND, CONCERT_HALL; the world's

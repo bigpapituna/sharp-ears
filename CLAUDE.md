@@ -303,6 +303,34 @@ ui/kid/INTEGRATION.md.
 - Not proven: no kid has seen it; the pond and the hall exist only as layouts until the pages branch lands; frame time of
   the map on the Fold (emulator only, swiftshader).
 
+### 2.2.0 status (integrated 2026-10-18, branch `release-2.2`, versionCode 9; emulators only, not on Roy's phone yet)
+`pages` and `kidhome` merged: a kid's home is the map of the garden, the pond and the concert hall (36 stones, stars,
+a finale per page), then the big kids' road; grown-ups keep 2.1 with the three pages as Extra units on Learn.
+- Merge checks (ui/kid and ui/playground INTEGRATION.md): every place lookup is the lesson's page (`pageOf`,
+  KidPages.dropPlace); `Place.ofPlaygroundLesson` is gone. lessonDone and LessonScreen's "one more" drop and preview the
+  page's place (pond-12 dropped pond-10, hall-12 concert-3 on the emulator). Learn shows the pages as Extra, never an
+  adult's next lesson. KidMap.next is CoursePath.next: a pre-reader walks all 36, a reader the garden's short list then
+  the pond and the hall whole (KidMapTest walks both on the real pages). "kid" and "play" (the recital) are in
+  ProgressFiles.NAMES.
+- Fixed in the merge: collected stickers sat on the trails' stones (garden bottom row, the pond's boardwalk, the hall's
+  carpet); they sit in the gaps now and MapAnchorsTest keeps them clear. Stones ahead of the pup were see-through (planks
+  and carpet showed through); solid now. The hall's audience stood in the bottom row's stars; seated lower.
+- Redraw: the kid home drew a second full-screen paper over MainActivity's; the concert hall repainted at the 20 Hz
+  scene clock with nothing moving (`rememberSceneClock(running = false)`); the next stone's ripple recomposed it every
+  frame (read at draw now). Fold emulator, map idle 10 s: p50 200 ms (85 to 100 frames) before, 150 ms (100 to 104)
+  after; scrolling p50 150 ms; the adult Learn tab measures the same 150 ms on this host. All GPU (swiftshader issue
+  and swap about 100 ms a frame, UI thread under 5 ms): measure on the Fold itself before trusting any of it.
+- Voice: 2597 catalog lines, all recorded (583 kid lines at 0.85); 4 new for the pond's and the hall's finales; no
+  recording deleted.
+- Emulator walk (5558 Fold, 5554 phone; Mia pre-reader p1, Leo reader p2): the map's three scenes and the gate, stones to
+  lessons, pond-1/3/9/12 and hall-1/6/11/12 by route, the garden's encore let go after three silent tries (one star),
+  every finale rolling on (garden to pond-1, pond to hall-1, hall to the road with the gate open), Play, Songs, My
+  stickers, the grown-ups' corner, asleep, dark mode, the adult home, Learn and world. No crash or ANR. Screenshots:
+  app/build/screens/r22-*.png (not committed).
+- Tests: 759 JVM, lint 0 errors (25 warnings, all older).
+- Still open: everything on a real piano with a kid; the map's frame time on the Fold; a finale's "Next stop" names the
+  next page even when that page was already walked (only reachable through debug seeds).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

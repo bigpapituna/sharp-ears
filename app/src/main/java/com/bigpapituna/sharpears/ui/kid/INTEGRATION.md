@@ -44,10 +44,15 @@ Three things to know:
 - **A new `Place` value** (a fourth place) needs a branch in `KidPages.worldPlace` and art in `ui/world/Scenes.kt`; the
   `when` is exhaustive, so the build says so.
 - **Drops follow pages now**: a garden lesson drops garden stickers (2.1 dropped pond stickers from lessons 5 to 8 and
-  concert stickers from 9 to 12 by number, `Place.ofPlaygroundLesson`, now unused). Twelve garden lessons plus the eggs
-  usually fill most of the garden page by its finale, which is what the finale shows.
+  concert stickers from 9 to 12 by number through `Place.ofPlaygroundLesson`, removed in 2.2.0). Twelve garden lessons
+  plus the eggs usually fill most of the garden page by its finale, which is what the finale shows.
+- **Stickers keep off the stones** (2.2.0): each sticker's spot (`WorldAnchors.item`) sits in the trail's gaps;
+  MapAnchorsTest.stickersSitClearOfTheStones fails if a moved sticker or trail row would cover a stone or its stars.
 
 ## After merging `pages` and `kidhome`: check
+
+Done in 2.2.0 (branch `release-2.2`): every step below, with the four new finale lines recorded (2597 in the catalog);
+see CLAUDE.md "2.2.0 status".
 
 1. A trial merge of `pages` (at f2bb6bf) into `kidhome` (done in this worktree and aborted, nothing committed) conflicts
    in three files only: `engine/CoursePath.kt` (take kidhome's: it is page-driven and gives the same order and the same
