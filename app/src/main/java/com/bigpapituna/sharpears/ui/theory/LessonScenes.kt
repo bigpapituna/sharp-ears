@@ -505,13 +505,40 @@ private fun glyph(beats: Float): Pair<NoteValue, Boolean> {
     return options.firstOrNull { (v, d) -> v.beats * (if (d) 1.5f else 1f) <= beats + 0.001f } ?: (NoteValue.SIXTEENTH to false)
 }
 
+/** The fewest staff spaces between two onsets of a phrase: a head is 1.24 wide and an eighth's flag reaches past it. */
+internal const val PHRASE_MIN_GAP = 1.9f
+
+/** Where each onset of a phrase sits, as weights: onsets spread by a soft power of their gaps (quick notes get room). */
+internal fun phraseOnsetWeights(starts: List<Float>, span: Float): List<Float> =
+    (starts + span).distinct().sorted().zipWithNext { a, b -> Math.pow((b - a).toDouble(), 0.55).toFloat() }
+
+/**
+ * The staff space for a phrase [width] px wide: [base], or smaller when the notes are dense, so that no two onsets sit
+ * closer than [PHRASE_MIN_GAP] spaces (2.2.1: two bars of eighths on a phone drew their heads and flags over each other).
+ * Never under [PHRASE_MIN_SCALE] of [base], so a very long phrase (the whole Toccata opening on a phone) stays readable,
+ * its quickest notes close but not on top of each other. [keyFifths] sharps or flats take their room before the time
+ * signature, as the scene draws them.
+ */
+internal fun phraseStaffSpace(base: Float, width: Float, weights: List<Float>, keyFifths: Int): Float {
+    val total = weights.sum()
+    if (weights.isEmpty() || total <= 0f) return base
+    val sig = abs(keyFifths)
+    val fixed = 3.4f + sig * 1.15f + (if (sig > 0) 0.8f else 0f) + 2.6f + 0.9f + 0.6f      // clef, key, time, margins
+    val share = weights.min() / total
+    return minOf(base, maxOf(base * PHRASE_MIN_SCALE, share * width / (PHRASE_MIN_GAP + share * fixed)))
+}
+
+/** The smallest a dense phrase's staff gets, as a share of its usual size. */
+internal const val PHRASE_MIN_SCALE = 0.4f
+
 internal fun DrawScope.phraseScene(v: PhraseVisual, t: Int, ink: StageInk) {
     val pad = 12.dp.toPx()
     val grand = v.hasRight && v.hasLeft
     val l = pianoFor(v.low, v.high, size.width - 2 * pad, size.height * 0.2f)
     val kTop = size.height - pad - l.height
     val staffBot = kTop - 10.dp.toPx()
-    val s = if (grand) minOf(staffBot / 16.5f, 15.dp.toPx(), (size.width - 2 * pad) / 22f) else minOf(staffBot / 11f, 18.dp.toPx(), (size.width - 2 * pad) / 20f)
+    val base = if (grand) minOf(staffBot / 16.5f, 15.dp.toPx(), (size.width - 2 * pad) / 22f) else minOf(staffBot / 11f, 18.dp.toPx(), (size.width - 2 * pad) / 20f)
+    val s = phraseStaffSpace(base, size.width - 2 * pad, phraseOnsetWeights(v.notes.map { it.start }, v.span), v.keyFifths)
     val staves = if (grand) {
         val gap = 3.8f * s
         val trebleBottom = staffBot / 2 - gap / 2 + 1.5f * s
