@@ -61,6 +61,7 @@ import com.bigpapituna.sharpears.engine.RunWords
 import com.bigpapituna.sharpears.engine.family.PawWeek
 import com.bigpapituna.sharpears.engine.skin.Bedtime
 import com.bigpapituna.sharpears.engine.skin.Bites
+import com.bigpapituna.sharpears.engine.world.PupReaction
 import com.bigpapituna.sharpears.ui.family.LocalParentGate
 import com.bigpapituna.sharpears.ui.family.profile
 import com.bigpapituna.sharpears.ui.skin.Goodbye
@@ -89,6 +90,10 @@ class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput,
  * number; one main button per screen (no Back or scene controls in the bottom row). When a kid's daily goal is reached
  * the lesson ends on the goodbye (ui/skin/Goodbye) and new lessons wait for tomorrow ([onSongs] and [onJam] stay open).
  * Grown-ups see none of this.
+ *
+ * The Playground's game steps (2.1) draw their own stage (ui/playground's registry) where the embedded player would be.
+ * [onDone] reports the lesson and returns what it dropped in the pup's world: the finish shows it flipping in, and
+ * "one more" offers [next] with a peek at its drop. A wrong key makes the pup tilt his head.
  */
 @Composable
 fun LessonScreen(
@@ -97,15 +102,20 @@ fun LessonScreen(
     midiScript: String? = null,
     /** Debug (--ei scene n): the scene a reading step opened first starts on. */
     startScene: Int = 0,
-    onStep: (Int) -> Unit, onSong: (() -> Unit)?, onDone: () -> Unit, onNext: (() -> Unit)?, onBack: () -> Unit,
+    onStep: (Int) -> Unit, onSong: (() -> Unit)?, onDone: () -> com.bigpapituna.sharpears.engine.world.Reward?, onNext: (() -> Unit)?, onBack: () -> Unit,
     /** Where a kid's bite of an exercise ends, in beats (null: the whole exercise). The playground team's phraseEnd. */
     phraseEnd: (Exercise) -> Double? = Bites::phraseEndBeats,
     /** The goodbye's ways on: the songs, and the Jam. Null: Back. */
     onSongs: (() -> Unit)? = null, onJam: (() -> Unit)? = null,
+    /** The lesson [onNext] opens, for "one more" (its title and the peek at its drop). */
+    next: CourseLesson? = null,
 ) {
     val who = profile()
     val kid = who.isKid
-    val (level, _) = ALL.first { it.second == lesson }
+    val path = remember(who.firstUnitId, who.reader) { com.bigpapituna.sharpears.engine.CoursePath(who.firstUnitId, bigKid = kid && who.reader) }
+    val level = path.levelOf(lesson) ?: ALL.first { it.second == lesson }.first
+    val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
+    var reward by remember { mutableStateOf<com.bigpapituna.sharpears.engine.world.Reward?>(null) }
     var index by remember { mutableIntStateOf(startStep.coerceIn(0, lesson.steps.lastIndex)) }
     var feedback by remember { mutableStateOf<String?>(null) }
     var finished by remember { mutableStateOf(false) }
@@ -176,7 +186,7 @@ fun LessonScreen(
         if (last) {
             finished = true
             tookSecs = (System.currentTimeMillis() - openedAt) / 1000
-            onDone()
+            reward = onDone()
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
@@ -217,7 +227,7 @@ fun LessonScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to lessons") }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    if (!kid) Text("${level.title}, lesson ${ALL.indexOfFirst { it.second == lesson } + 1}", style = MaterialTheme.typography.labelLarge,
+                    if (!kid) Text("${level.title}, lesson ${path.numberOf(lesson)}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
@@ -272,11 +282,22 @@ fun LessonScreen(
                     }
                 }
             } else {
-                // The pup gives the instruction (his face answers each try for a few seconds).
+                // The pup gives the instruction; his face answers each try for a few seconds, and that face is the
+                // message, so no idle acts over it. He tilts his head at a wrong key.
+                val pup = rememberPupController(idle = reaction == null)
+                val pupNow by androidx.compose.runtime.rememberUpdatedState(pup)
                 PupSays(reaction ?: if (step.kind == StepKind.LISTEN) Pose.LISTENING else Pose.PRACTICING, step.text,
-                    Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge)
+                    Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
+                    controller = pup)
                 val ex = step.exercise
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
+                    if (com.bigpapituna.sharpears.ui.playground.hasPlaygroundStage(step)) key(index, run) {
+                        com.bigpapituna.sharpears.ui.playground.PlaygroundStage(step, lesson.id, deps,
+                            inject = inject?.takeIf { index == startStep && run == 0 },
+                            onEnded = { exerciseEnded(step, it) },
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).fillMaxHeight())
+                    } else
                     // The stage is always dark, like the full player: the one raised panel on this screen.
                     SharpEarsTheme(dark = true) {
                         key(index, run) {
@@ -292,6 +313,8 @@ fun LessonScreen(
                                 embedded = Embedded(if (kid) kidStateLabel(step) else stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP,
                                     special = step.kind.takeIf { it.needsMidi }),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
+                                anyOfLessons = com.bigpapituna.sharpears.engine.playground.ANY_OF_LESSONS,
+                                onWrongKey = { pupNow.react(PupReaction.HEAD_TILT) },
                             )
                         }
                     }
@@ -326,21 +349,34 @@ fun LessonScreen(
     // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
     val bedtimeNow = kid && finished && progress != null &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)
+    // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
+    val dropSlot: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw) } }
+    val nextDrop = remember(reward, next) {
+        val n = next
+        if (reward == null || n == null) null
+        else world?.preview(n.id.removePrefix("playground-").toIntOrNull()?.let { com.bigpapituna.sharpears.engine.world.Place.ofPlaygroundLesson(it) })
+    }
+    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow) {
+        { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = { voice.stop(); onNext() }, title = next.title) }
+    } else null
     if (finished && !goodnight) {
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
-            primary = when { bedtimeNow -> "Goodnight, pup"; onNext != null -> "Next lesson"; else -> "Done" },
-            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else (onNext ?: onBack)() },
+            primary = when { bedtimeNow -> "Goodnight, pup"; oneMore != null -> "All lessons"; onNext != null -> "Next lesson"; else -> "Done" },
+            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
+            reward = dropSlot, oneMore = oneMore,
         ) else Celebration(
             "Lesson complete!", lesson.summary,
             listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(tookSecs / 60, tookSecs % 60), "Time"),
                 Stat("$retries", if (retries == 1) "Retry" else "Retries")),
-            primary = if (onNext != null) "Next lesson" else "Done", onPrimary = { voice.stop(); (onNext ?: onBack)() },
-            secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
+            primary = if (oneMore != null) "All lessons" else if (onNext != null) "Next lesson" else "Done",
+            onPrimary = { voice.stop(); if (oneMore != null) onBack() else (onNext ?: onBack)() },
+            secondary = if (onNext != null && oneMore == null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
             xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
+            reward = dropSlot, oneMore = oneMore,
         )
     }
     // The goodbye after the lesson that reached the goal: shown once today.
@@ -349,6 +385,15 @@ fun LessonScreen(
         Goodbye(who.name, week, onSongs = { voice.stop(); (onSongs ?: onBack)() }, onClose = { voice.stop(); onBack() },
             onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) })
     }
+    }
+}
+
+/** What a finished lesson dropped: the cards flipping in, then anything more (an egg laid, the dog house grown). */
+@Composable
+private fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.bigpapituna.sharpears.ui.world.DropReveal(reward, cardWidth = 120.dp)
+        com.bigpapituna.sharpears.ui.world.RewardExtras(reward)
     }
 }
 

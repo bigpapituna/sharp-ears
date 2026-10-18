@@ -81,12 +81,18 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
 fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
                   today: TodayPanel? = null, goal: GoalState? = null,
                   /** The family wall (ui/family/FamilyWall.kt) under the pup; null on a phone with one profile. */
-                  family: (@Composable () -> Unit)? = null) {
+                  family: (@Composable () -> Unit)? = null,
+                  /** Pup's quest (ui/play/QuestCard), under "Practice today". */
+                  quest: (@Composable () -> Unit)? = null,
+                  /** The play corner (ui/play/PlayRow): high up for a kid ([kid], the Jam is the app for a four-year-old), under the quest otherwise. */
+                  play: (@Composable () -> Unit)? = null, kid: Boolean = false) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
+    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
     val pose = when {
         today?.summary != null -> Pose.RESTING
         goal?.met == true -> Pose.GREAT_JOB
         (goal?.streak ?: 0) >= 3 || goal == null && practice?.contains("in a row") == true -> Pose.STREAK
+        dressed -> Pose.WEAR_BASE                    // in his outfit (2.1): the base pose is the one he wears it in
         else -> Pose.WELCOME
     }
     var tapLine by remember { mutableStateOf<String?>(null) }
@@ -108,11 +114,20 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
             }
         }
         family?.let { wall -> item(key = "family") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp)) { wall() } } }
-        // "Practice today" is the one raised panel; Continue sits under it as a plain row.
+        val playItem: (() -> Unit)? = play?.let { p -> {
+            item(key = "play") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)) { p() } }
+        } }
+        if (kid) playItem?.invoke()
+        // "Practice today" is the one raised panel; the quest sits under it, Continue under that as a plain row.
         if (today != null) {
             item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }
+            quest?.let { q -> item(key = "quest") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp)) { q() } } }
             first?.let { e -> item { ContinueRow(e, fresh = continueWith == null, a, arts[e.meta.id]) } }
-        } else first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, arts[e.meta.id]) } } }
+        } else {
+            quest?.let { q -> item(key = "quest") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) { q() } } }
+            first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, arts[e.meta.id]) } } }
+        }
+        if (!kid) playItem?.invoke()
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach

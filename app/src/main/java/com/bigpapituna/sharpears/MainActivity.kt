@@ -15,7 +15,20 @@ import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.ui.LearnScreen
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.LessonScreen
-import com.bigpapituna.sharpears.ui.nextLesson
+import com.bigpapituna.sharpears.engine.CoursePath
+import com.bigpapituna.sharpears.engine.play.QuestEvent
+import com.bigpapituna.sharpears.engine.world.Reward
+import com.bigpapituna.sharpears.data.PlayStore
+import com.bigpapituna.sharpears.data.WorldStore
+import com.bigpapituna.sharpears.ui.world.LocalWorld
+import com.bigpapituna.sharpears.ui.world.LocalPupOutfit
+import com.bigpapituna.sharpears.ui.world.WorldTab
+import com.bigpapituna.sharpears.ui.world.WorldSounds
+import com.bigpapituna.sharpears.ui.motion.Juice
+import com.bigpapituna.sharpears.ui.motion.wakesPup
+import com.bigpapituna.sharpears.ui.play.Toy
+import com.bigpapituna.sharpears.ui.play.frameTap
+import com.bigpapituna.sharpears.ui.play.opens
 import com.bigpapituna.sharpears.ui.HomeShell
 import com.bigpapituna.sharpears.ui.LicencesScreen
 import com.bigpapituna.sharpears.ui.PrivacyScreen
@@ -125,6 +138,17 @@ import kotlinx.coroutines.withContext
 
 const val TAG = "SharpEars"
 
+/**
+ * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
+ * one is on screen (cheaper, and nothing there paints them). Not stored; the old setting comes back on leaving.
+ */
+@androidx.compose.runtime.Composable
+private fun QuietWrongKeys(mic: MicInput) = androidx.compose.runtime.DisposableEffect(mic) {
+    val before = mic.matcher.config.nameWrongKeys
+    mic.matcher.config = mic.matcher.config.copy(nameWrongKeys = false)
+    onDispose { mic.matcher.config = mic.matcher.config.copy(nameWrongKeys = before) }
+}
+
 private sealed interface Screen {
     /** The five tabs. [chordsTab], [inject] and [game] only matter for Chords, [practiceTab] for Practice. */
     data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.PLAY, val inject: String? = null,
@@ -147,13 +171,17 @@ private sealed interface Screen {
     /** First run: four questions, then the suggested lesson. */
     data object Onboarding : Screen
     data class Theory(val back: Screen) : Screen
+    /** The pup's world (2.1): the places, the jar and egg, the album, dress-up and the records, from the You tab's card. */
+    data class World(val back: Screen, val tab: WorldTab = WorldTab.WORLD) : Screen
+    /** The play corner (2.1): the Jam, Pup says or Clap along. [hint] is the quest's line for the Jam ("find all the Cs"). */
+    data class Play(val toy: Toy, val back: Screen, val hint: String? = null) : Screen
 }
 
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding -> 1
-    is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup -> 2
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.World -> 1
+    is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play -> 2
 }
 
 /** The player is always dark, like a video; everything else follows the system. */
@@ -200,6 +228,8 @@ class MainActivity : ComponentActivity() {
         }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
         val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
+        // The world's jingles and the note tick (one SoundPool for the app; Settings > Sound switches them with the rest).
+        WorldSounds.init(this)
         if (profiles.roster.needsPicker && savedInstanceState == null && !debugRoute && debugProfile == null) showPicker()
         else openApp(fromLaunch = true)
     }
@@ -222,21 +252,39 @@ class MainActivity : ComponentActivity() {
      */
     private fun openApp(fromLaunch: Boolean) {
         val profile = profiles.current
+        val newPlayer = openId != profile.id
         // The phone handed to a kid: a gate a grown-up passed a minute ago does not stay open for them.
-        if (profile.isKid && openId != profile.id) gate.close()
+        if (profile.isKid && newPlayer) gate.close()
         openId = profile.id
         Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
+        // The mic follows the player: a kid's offset and report tag for every mic screen (chords, ear games, tuner,
+        // playground), and a new player starts with wrong keys painted again (the last one's room may have been noisier).
+        mic.forProfile(profile.isKid, profile.micOffsetDb, newSession = newPlayer)
         openVoice?.release()
         val voice = Voice(this, prefs, mic).also { openVoice = it }   // the speech engine itself starts on the first line
+        voice.speed = if (profile.isKid) 0.85f else 1f              // big and slow for kids (KIDS-PLAN 3.8)
         val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
         // Someone who already played (XP from catchUp or since) skips the first-run questions.
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
-        // A kid goes straight in: no questions, the goal the profile was made with.
-        if (profile.isKid && !progress.onboardingDone) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
+        // A kid goes straight in: no questions, the goal the profile was made with, and the first game opens at once.
+        val newKid = profile.isKid && !progress.onboardingDone
+        if (newKid) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
+        // Kids read the keys by their pads: every white key labelled (a letter, or an animal before reading), until a grown-up picks.
+        if (profile.isKid && !prefs.keyLabelsChosen) prefs.keyLabels = com.bigpapituna.sharpears.data.KeyLabels.ALL
+        // The pup's world for this profile: stickers, the jar every note feeds, the outfit; the shelf starts with old bests.
+        val world = WorldStore(this, profile.id)
+        world.mergeRecords(repo.all().associate { it.id to prefs.progress(it.id).bestAccuracy }.filterValues { it >= 0 })
+        Juice.world = world
+        WorldSounds.on = prefs.sound
+        val playStore = PlayStore(this, profile.id)
+        fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
+        // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
+        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader)
+        val bedtime = com.bigpapituna.sharpears.ui.skin.BedtimeStore(this, profile.id)
         val practiceStore = PracticeStore(this, profile.id)
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
         val theory = TheoryStore(this, profile.id)     // one store for the Learn card and the academy, so the card updates
@@ -258,6 +306,12 @@ class MainActivity : ComponentActivity() {
         //   --es screen sight [--ei level 1|2] [--es inject ...]   (sight-reading; seeded when injecting)
         //   --es lesson <id> --es midi "800:p1 4790:p0 1000:60/40"   (a pretend MIDI keyboard: pedal and key/velocity at ms after Play)
         //   --es profile <id>   (open as that profile, skipping the picker; combine with any route above)
+        //   --es screen world [--es tab world|album|dress|records]   (this profile's world)
+        //   --es screen jam|pupsays|clap [--es hint "<line>"]   (the play corner)
+        //   --es screen worlddemo --es part album|world|map|jar|egg|dress|reveal|shelf|idle|onemore ...   (a demo world, ui/world/WorldDemo.kt)
+        //   --es screen skin --es view lane|wrong|recap|goodbye|asleep|paws|bite ...   (the kid skin's demo, ui/skin/SkinDemo.kt)
+        //   --es screen motion [--es demo celebrate|cheer|pup|keys]   (the motion demo over home)
+        //   --es lesson playground-<n> [--ei step n] [--es inject synth:...|claps:400,1150|dyn:60/-20,60/-8@1600~1500]
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -270,8 +324,9 @@ class MainActivity : ComponentActivity() {
         )
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)
+        val route = intent.getStringExtra("screen")?.takeIf { debuggable }
         val first: Screen = when {
-            debuggable && intent.getStringExtra("screen") == "chords" -> Screen.Home(HomeTab.CHORDS,
+            route == "chords" -> Screen.Home(HomeTab.CHORDS,
                 when (intent.getStringExtra("tab")) {
                     "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
                     "daily", "lessons" -> ChordsTab.LESSONS
@@ -283,22 +338,25 @@ class MainActivity : ComponentActivity() {
                 // --es pack <id>: start a Chords session on that pack, locked or not (to see its items).
                 intent.getStringExtra("pack")?.let { id -> lessons.curriculum().packs.firstOrNull { p -> p.id == id }?.let { p -> lessons.startSession(p.items) } }
             }
-            debuggable && intent.getStringExtra("screen") == "world" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }   // world team: --es part album|world|jar|egg|dress|reveal|shelf|idle|onemore
-            debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
-            debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
-            debuggable && intent.getStringExtra("screen") == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
-            debuggable && intent.getStringExtra("screen") == "profile" -> Screen.Home(HomeTab.YOU)
-            debuggable && intent.getStringExtra("screen") == "onboarding" -> Screen.Onboarding
-            debuggable && intent.getStringExtra("screen") == "practice" -> Screen.Home(HomeTab.PRACTICE,
+            route == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
+            route == "learn" -> Screen.Home(HomeTab.LEARN)
+            route == "profile" || route == "you" -> Screen.Home(HomeTab.YOU)
+            route == "onboarding" -> Screen.Onboarding
+            route == "practice" -> Screen.Home(HomeTab.PRACTICE,
                 practiceTab = PracticeTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: PracticeTab.SCALES)
-            debuggable && intent.getStringExtra("screen") == "ear" -> Screen.EarTraining(Screen.Home(HomeTab.LEARN), when {
+            route == "ear" -> Screen.EarTraining(Screen.Home(HomeTab.LEARN), when {
                 intent.getBooleanExtra("workout", false) -> EarStart(workout = true)
                 else -> intent.getStringExtra("game")?.let(EarKind::byId)?.let { EarStart(it, intent.getIntExtra("level", 0)) }
             })
-            debuggable && intent.getStringExtra("screen") == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
-            debuggable && intent.getStringExtra("screen") == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
-            debuggable && intent.getStringExtra("screen") == "playground" -> Screen.Home(HomeTab.LEARN).also {
-                com.bigpapituna.sharpears.ui.playground.showPlaygroundDebug(this, intent, LessonDeps(sampler, midi, mic, voice, prefs, true), profile) }
+            route == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
+            route == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
+            route == "world" -> Screen.World(Screen.Home(HomeTab.YOU),
+                WorldTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: WorldTab.WORLD)
+            route == "jam" || route == "pupsays" || route == "clap" ->
+                Screen.Play(when (route) { "jam" -> Toy.JAM; "pupsays" -> Toy.PUP_SAYS; else -> Toy.CLAP }, Screen.Home(), intent.getStringExtra("hint"))
+            // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
+            route == "worlddemo" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }
+            route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
                     Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"), intent.getIntExtra("scene", 0))
@@ -312,8 +370,15 @@ class MainActivity : ComponentActivity() {
         }
 
         val startDaily = debuggable && intent.getBooleanExtra("daily", false)
-        // First run: the onboarding questions, unless a debug route asked for a screen.
-        val opening = if (!progress.onboardingDone && first == Screen.Home() && !startDaily) Screen.Onboarding else first
+        // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
+        // the first Playground game (Back from it goes to the Learn path).
+        val opening = when {
+            newKid && first == Screen.Home() && !startDaily ->
+                path.next { prefs.lessonDone(it) }?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
+            !progress.onboardingDone && first == Screen.Home() && !startDaily -> Screen.Onboarding
+            else -> first
+        }
+        if (newKid) Log.d(TAG, "profiles: new kid ${profile.id} opens on ${(opening as? Screen.Lesson)?.lesson?.id}")
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
         if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
@@ -324,11 +389,13 @@ class MainActivity : ComponentActivity() {
             var screen by remember { mutableStateOf(opening) }
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
-            // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile.
+            // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
+            // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
-                LocalProfiles provides profiles, LocalParentGate provides gate) {
+                LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
-                Surface(Modifier.fillMaxSize().paper(), color = androidx.compose.ui.graphics.Color.Transparent,
+                // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
+                Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onBackground) {   // textured page (ui/Backdrop.kt)
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
@@ -367,9 +434,28 @@ class MainActivity : ComponentActivity() {
                     // "Practice today": due chords, the next lesson, then the Continue song's worst bar (or the song).
                     fun continueMeta() = songs.firstOrNull { it.id == prefs.lastSongId && repo.available(it) }
                         ?: songs.firstOrNull { it.difficulty == "easy" && repo.available(it) }
+                    // A kid who reached today's goal hears goodnight once a run or a part is over (never mid-run; lessons
+                    // say it themselves): the pup yawns, today's paw lands, songs and the Jam stay open.
+                    var goodbye by remember { mutableStateOf(false) }
+                    fun maybeGoodnight(after: String): Boolean {
+                        val today = java.time.LocalDate.now()
+                        if (!com.bigpapituna.sharpears.engine.skin.Bedtime.sayGoodnight(profile.isKid, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)) return false
+                        bedtime.goodnightOn = today
+                        goodbye = true
+                        Log.d(TAG, "bedtime: goodnight after $after")
+                        return true
+                    }
+                    // A course lesson finished: progress, today's quest, and the pup's world (a sticker; the egg laid or hatched).
+                    fun lessonDone(l: CourseLesson): Reward {
+                        prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id))
+                        quest(QuestEvent.LessonDone(l.id))
+                        val place = l.id.takeIf { it.startsWith("playground-") }?.removePrefix("playground-")?.toIntOrNull()
+                            ?.let { com.bigpapituna.sharpears.engine.world.Place.ofPlaygroundLesson(it) }
+                        return world.lessonComplete(l.id, place)
+                    }
                     fun todayPlan(): SessionPlan {
                         val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
-                        val next = com.bigpapituna.sharpears.ui.ALL.firstOrNull { !prefs.lessonDone(it.second.id) }?.second
+                        val next = path.next { prefs.lessonDone(it) }
                         val song = continueMeta()?.let { m ->
                             val minutes = runCatching { repo.load(m).durationMs / 60_000.0 }.getOrDefault(3.0)
                             SessionSong(m.id, m.title, minutes, prefs.troubleBars(m.id).firstOrNull())
@@ -398,7 +484,9 @@ class MainActivity : ComponentActivity() {
                         val part = as_ ?: s.plan.parts[s.index]
                         val done = if (completed) s.done + part else s.done
                         Log.d(TAG, "daily: part ${s.index + 1} ${if (completed) "done" else "left"}: ${part.done}")
-                        if (s.index + 1 >= s.plan.parts.size) finishDaily(s, done)
+                        // A kid's goal reached with this part: the session ends on goodnight (a lesson says it itself).
+                        if (completed && part !is SessionPart.Lesson && maybeGoodnight("a Practice today part")) finishDaily(s, done)
+                        else if (s.index + 1 >= s.plan.parts.size) finishDaily(s, done)
                         else screen = s.copy(index = s.index + 1, between = true, done = done)
                     }
 
@@ -410,7 +498,10 @@ class MainActivity : ComponentActivity() {
                             progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
                         }
                         when (e) {
-                            is EarEvent.Round -> progress.record(ProgressEvent.EarRound(e.clean))
+                            is EarEvent.Round -> {
+                                progress.record(ProgressEvent.EarRound(e.clean))
+                                if (e.kind == EarKind.MELODY && e.clean) quest(QuestEvent.PupCopied(0))     // copying the pup, by ear
+                            }
                             is EarEvent.GameComplete -> { practised(e.seconds); progress.record(ProgressEvent.GameComplete("ear:" + e.kind.id, e.level, e.score, e.rounds)) }
                             is EarEvent.Workout -> { practised(e.seconds); progress.record(ProgressEvent.GameComplete("ear:workout", 0, e.score, e.rounds)) }
                         }
@@ -444,19 +535,28 @@ class MainActivity : ComponentActivity() {
                     // Each screen keeps its own theme while it animates out (the home does not turn dark under the curtain).
                     SharpEarsTheme(dark = playerShown(s) || systemDark) {
                     when (s) {
-                        is Screen.Player -> PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
-                            s.startMs, dump, s.start, onBack = { screen = s.back },
-                            chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
+                        is Screen.Player -> {
+                            // A run that reached its end (a song, a progression) may be where a kid's goal was reached.
+                            var ranToEnd by remember { mutableStateOf(false) }
+                            PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
+                                s.startMs, dump, s.start, onBack = { screen = s.back; if (ranToEnd) maybeGoodnight("a song") },
+                                onFinished = { ranToEnd = true },
+                                chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
+                        }
                         is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson
+                            val next = path.after(l)
                             androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
                                 midiScript = s.midiScript, startScene = s.scene,
                                 onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
-                                onDone = { prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id)) },
-                                onNext = nextLesson(l)?.let { n -> { screen = Screen.Lesson(n, s.back) } },
-                                onBack = { screen = s.back }) }
+                                onDone = { lessonDone(l) },
+                                onNext = next?.let { n -> { screen = Screen.Lesson(n, s.back) } },
+                                onBack = { screen = s.back },
+                                onSongs = { voice.stop(); screen = Screen.Home(HomeTab.SONGS) },
+                                onJam = { voice.stop(); screen = Screen.Play(Toy.JAM, Screen.Home()) },
+                                next = next) }
                         }
                         is Screen.Daily -> {
                             val part = s.plan.parts[s.index]
@@ -465,7 +565,7 @@ class MainActivity : ComponentActivity() {
                                 Interstitial(part.next, voice, onGo = { screen = s.copy(between = false) },
                                     onSkip = { voice.stop(); advanceDaily(s, completed = false) },
                                     onEnd = { voice.stop(); finishDaily(s, s.done) },
-                                    parts = s.plan.parts, index = s.index, done = s.done)
+                                    parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                                     BackHandler { advanceDaily(s, completed = false) }
@@ -478,11 +578,15 @@ class MainActivity : ComponentActivity() {
                                             if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
                                         }
                                     }
+                                    QuietWrongKeys(mic)
                                     androidx.compose.foundation.layout.Column {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
                                         DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily },
-                                            onEnd = { n -> advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n))) })
+                                            onEnd = { n ->
+                                                part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
+                                                advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
+                                            })
                                     }
                                 }
                                 is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -490,9 +594,11 @@ class MainActivity : ComponentActivity() {
                                     BackHandler { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
                                         onStep = {}, onSong = null,
-                                        onDone = { prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id)) },
+                                        onDone = { lessonDone(l) },
                                         onNext = null,
-                                        onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }) }
+                                        onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) },
+                                        onSongs = { voice.stop(); finishDaily(s, s.done + part); screen = Screen.Home(HomeTab.SONGS) },
+                                        onJam = { voice.stop(); finishDaily(s, s.done + part); screen = Screen.Play(Toy.JAM, Screen.Home()) }) }
                                 }
                                 is SessionPart.Loop, is SessionPart.Song -> {
                                     val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
@@ -508,7 +614,10 @@ class MainActivity : ComponentActivity() {
                                             onBack = { advanceDaily(s, completed = System.currentTimeMillis() - partStart >= 60_000) },
                                             onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
                                             chordTrack = lessons.songChords.value[id],
-                                            onTimeUp = { advanceDaily(s, completed = true) })
+                                            onTimeUp = {
+                                                if (part is SessionPart.Loop) quest(QuestEvent.LoopDone(part.songId, part.bar))
+                                                advanceDaily(s, completed = true)
+                                            })
                                     }
                                 }
                             }
@@ -519,6 +628,7 @@ class MainActivity : ComponentActivity() {
                                 onBack = { screen = s.back })
                         }
                         is Screen.EarTraining -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            QuietWrongKeys(mic)
                             // The hub handles Back itself: a game goes back to the hub, the hub to Learn.
                             EarTrainingScreen(sampler, midi, mic, voice, prefs.micDefault, onBack = { screen = s.back },
                                 onReport = ::earEvent, sound = { prefs.sound }, start = s.start)
@@ -560,6 +670,29 @@ class MainActivity : ComponentActivity() {
                             BackHandler { screen = s.back }
                             LicencesScreen(songs, onBack = { screen = s.back })
                         }
+                        is Screen.World -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            com.bigpapituna.sharpears.ui.world.WorldScreen(world, songs, onBack = { screen = s.back }, start = s.tab,
+                                onSong = { openSong(it, back = s) })
+                        }
+                        is Screen.Play -> Box(Modifier.fillMaxSize()) {
+                            BackHandler { voice.stop(); screen = s.back }
+                            val frames = remember { mic.frameTap() }
+                            when (s.toy) {
+                                Toy.JAM -> com.bigpapituna.sharpears.ui.play.JamScreen(mic, midi, frames, onExit = { screen = s.back }, hint = s.hint)
+                                Toy.PUP_SAYS -> com.bigpapituna.sharpears.ui.play.PupSaysScreen(mic, midi, sampler, voice, sound = { prefs.sound },
+                                    onExit = { voice.stop(); screen = s.back },
+                                    // Each player's best of the day goes into their own world (the crown of the day is read from them).
+                                    onFinished = { results -> results.forEach { r ->
+                                        val result = com.bigpapituna.sharpears.engine.world.PupSaysResult(r.profileId, r.best)
+                                        if (r.profileId == world.profileId) world.pupSays(result) else WorldStore(this@MainActivity, r.profileId).pupSays(result)
+                                    } })
+                                Toy.CLAP -> {
+                                    val clicks = remember { runCatching { com.bigpapituna.sharpears.audio.Clicks(this@MainActivity) }.getOrNull() }
+                                    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { clicks?.release() } }
+                                    com.bigpapituna.sharpears.ui.play.ClapAlongScreen(mic, frames, clicks, voice, sound = { prefs.sound }, onExit = { voice.stop(); screen = s.back })
+                                }
+                            }
+                        }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
@@ -594,17 +727,40 @@ class MainActivity : ComponentActivity() {
                                                 TodayPanel(plan.aboutLabel, if (debuggable && intent.getBooleanExtra("emptyToday", false)) emptyList() else plan.parts.map { it.row },
                                                     prefs.dailySummary(java.time.LocalDate.now()))
                                             },
-                                            goal = remember(pv, progress.version.intValue) {
+                                            goal = remember(pv, progress.version.intValue, current.isKid) {
                                                 val st = progress.streak()
-                                                GoalState(progress.goalLine(), DailyGoal.met(progress.secondsToday(), progress.goalMinutes), st.streak, st.atRisk)
+                                                // A kid's goal line is how the pup feels, never minutes.
+                                                GoalState(if (current.isKid) com.bigpapituna.sharpears.engine.SessionWords.kidGoal(progress.secondsToday(), progress.goalMinutes) else progress.goalLine(),
+                                                    DailyGoal.met(progress.secondsToday(), progress.goalMinutes), st.streak, st.atRisk)
                                             },
-                                            // Everyone's week, when there is more than one of us; tapping someone opens the app as them.
+                                            // Everyone's week, when there is more than one of us; tapping someone opens the app as them. Each
+                                            // shows their latest sticker; whoever copied the pup furthest today wears the crown.
                                             family = if (!roster.needsPicker) null else {
                                                 {
-                                                    val wall = remember(roster, pv, progress.version.intValue) { familyWallEntries(this@MainActivity, roster) }
-                                                    FamilyWall(wall, onSwitch = profiles::switchTo)
+                                                    val wall = remember(roster, pv, progress.version.intValue) {
+                                                        familyWallEntries(this@MainActivity, roster, latestSticker = { id -> WorldStore.latestSticker(this@MainActivity, id) })
+                                                    }
+                                                    val crowned = remember(roster, pv) { WorldStore.crownOfTheDay(this@MainActivity, roster.profiles.map { it.id }) }
+                                                    FamilyWall(wall, onSwitch = profiles::switchTo, crowned = crowned)
                                                 }
-                                            })
+                                            },
+                                            // Pup's quest under Practice today: a tap goes where the task is done.
+                                            quest = {
+                                                com.bigpapituna.sharpears.ui.play.QuestCard(remember(pv, lv) { todayPlan() }, onTask = { t ->
+                                                    Log.d(TAG, "quest: open ${t.opens} for ${t.kind}")
+                                                    val song = t.ref?.let { id -> songs.firstOrNull { it.id == id && repo.available(it) } }
+                                                    if (t.opens == "songs" && song != null) openSong(song)     // "Play Minuet in G": straight in
+                                                    else screen = when (t.opens) {
+                                                        "jam" -> Screen.Play(Toy.JAM, s, hint = "Can you find all the Cs?")
+                                                        "pupsays" -> Screen.Play(Toy.PUP_SAYS, s)
+                                                        "chords" -> Screen.Home(HomeTab.CHORDS, ChordsTab.LESSONS)
+                                                        "learn" -> Screen.Home(HomeTab.LEARN)
+                                                        else -> s
+                                                    }
+                                                })
+                                            },
+                                            play = { com.bigpapituna.sharpears.ui.play.PlayRow(onToy = { t -> screen = Screen.Play(t, s) }) },
+                                            kid = current.isKid)
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
@@ -613,7 +769,8 @@ class MainActivity : ComponentActivity() {
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
                                             onEar = { screen = Screen.EarTraining(s) },
                                             theory = { m -> com.bigpapituna.sharpears.ui.theory.TheoryCard(theory, onOpen = { screen = Screen.Theory(s) }, modifier = m) },
-                                            earStreak = remember { earStore.workoutStreak() })
+                                            earStreak = remember { earStore.workoutStreak() },
+                                            path = path)
                                     }
                                     HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,
                                         // A scale or warm-up plays like a lesson step: the full player in wait mode at the exercise's
@@ -630,19 +787,34 @@ class MainActivity : ComponentActivity() {
                                             when (t) { PracticeTab.METRONOME -> "metronome"; PracticeTab.TUNER -> "tuner"; else -> null }
                                                 ?.let { progress.record(ProgressEvent.FeatureUsed(it)) }
                                         })
-                                    HomeTab.CHORDS -> ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
-                                        onPlayProgression = { p, key ->
-                                            screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
-                                                0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
-                                        })
-                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { screen = Screen.Settings(s) } })
+                                    HomeTab.CHORDS -> {
+                                        QuietWrongKeys(mic)
+                                        ChordsScreen(sampler, midi, mic, voice, prefs, lessons, prefs.micDefault, s.chordsTab, s.inject, s.game,
+                                            onPlayProgression = { p, key ->
+                                                screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                                                    0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
+                                            })
+                                    }
+                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { screen = Screen.Settings(s) } },
+                                        kid = current.isKid,
+                                        // The pup's world in one card: the garden, and a way into the album, dress-up and the records.
+                                        world = { com.bigpapituna.sharpears.ui.world.WorldCard(world, onOpen = { tab -> screen = Screen.World(s, tab) }) },
+                                        paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = true) })
                                 }
                             }
                         }
                     }
                     }
                     }
-                    dailyDone?.let { (parts, min, streak) ->
+                    if (goodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                        com.bigpapituna.sharpears.ui.skin.Goodbye(current.name,
+                            remember { com.bigpapituna.sharpears.engine.family.PawWeek.of(progress.practiceLog(), java.time.LocalDate.now()) },
+                            onSongs = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Home(HomeTab.SONGS) },
+                            onClose = { voice.stop(); goodbye = false; dailyDone = null },
+                            onJam = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Play(Toy.JAM, Screen.Home()) },
+                            say = { voice.speak(it, interrupt = true) })
+                    }
+                    if (!goodbye) dailyDone?.let { (parts, min, streak) ->
                         com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
                             listOf(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
@@ -655,9 +827,6 @@ class MainActivity : ComponentActivity() {
                     // Debug: --es screen motion [--es demo celebrate|cheer|pup|keys] (Team E's effects, ui/motion/MotionDemo.kt).
                     var motionDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "motion") }
                     if (motionDemo) com.bigpapituna.sharpears.ui.motion.MotionDemo(intent.getStringExtra("demo"), sampler) { motionDemo = false }
-                    // Debug: --es screen play [--es demo jam|pupsays|clap|duet|quest] (the Play team's screens, ui/play/PlayDemo.kt).
-                    var playDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "play") }
-                    if (playDemo) com.bigpapituna.sharpears.ui.play.PlayDemo(intent.getStringExtra("demo"), mic, midi, sampler, voice, { prefs.sound }) { playDemo = false }
                     importError?.let { msg ->
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
                             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
@@ -665,8 +834,11 @@ class MainActivity : ComponentActivity() {
                     // Level-ups and achievement toasts, last so they sit on top. Not on the stage: a level-up waits until
                     // the song is over (the store keeps it pending), so it never interrupts playing.
                     // A Celebration on screen holds the level-up back until it closes: celebration first, then the level.
+                    // A kid's session ends on the sticker, not on XP (KIDS-PLAN 3.4): XP still adds up underneath for grown-up
+                    // mode later, but no level-up screen full of numbers.
+                    if (current.isKid) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
                     if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
-                        ProgressOverlays(progress, holdLevelUp = com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
+                        ProgressOverlays(progress, holdLevelUp = current.isKid || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
                     // The parent gate, over everything while an action waits for a grown-up.
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }
@@ -674,6 +846,11 @@ class MainActivity : ComponentActivity() {
             }
             }
         } }
+    }
+
+    override fun onPause() {
+        Juice.world?.flush()            // the treat jar saves every few notes; the rest now
+        super.onPause()
     }
 
     override fun onDestroy() {

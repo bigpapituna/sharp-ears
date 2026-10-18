@@ -66,6 +66,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.COURSE
+import com.bigpapituna.sharpears.engine.CoursePath
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_ID
+import com.bigpapituna.sharpears.engine.world.Place
+import com.bigpapituna.sharpears.ui.world.PlaceScene
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.CourseLevel
 import com.bigpapituna.sharpears.engine.LessonKind
@@ -73,15 +77,19 @@ import com.bigpapituna.sharpears.engine.kind
 import com.bigpapituna.sharpears.engine.lessonKind
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
-/** Lessons in course order, for "next lesson" and numbering. */
+/** Lessons in course order (every unit, the Playground first), for finding a lesson's unit. */
 internal val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
 
-/** One row of the path: a unit banner, a lesson stop, the card under a tapped stop, or a unit's trophy. */
+/**
+ * One row of the path: a unit banner, a lesson stop, the card under a tapped stop, or a unit's trophy. A kid's
+ * Playground is not a trail but the pup's world: each place a [Scene] with its four lessons as stops on it.
+ */
 private sealed interface PathRow {
     data class Banner(val level: CourseLevel) : PathRow
     data class Stop(val level: CourseLevel, val lesson: CourseLesson, val i: Int) : PathRow
     data class Card(val lesson: CourseLesson) : PathRow
     data class Trophy(val level: CourseLevel) : PathRow
+    data class Scene(val level: CourseLevel, val place: Place, val lessons: List<CourseLesson>) : PathRow
 }
 
 /** Sideways place of the i-th stop in a unit, as a share of the swing: the trail winds left and right. */
@@ -98,19 +106,26 @@ private val SWING = 72.dp
 fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null,
                 onEar: () -> Unit = {}, earStreak: Int = 0,
                 /** The Theory Academy's row (TheoryCard), drawn first beside the course. */
-                theory: (@Composable (Modifier) -> Unit)? = null) {
-    val next = ALL.firstOrNull { !done(it.second.id) }?.second
+                theory: (@Composable (Modifier) -> Unit)? = null,
+                /** The course in this person's order (2.1): a kid's starts in the Playground, a grown-up's at Basics. */
+                path: CoursePath = CoursePath("basics")) {
+    val next = path.next(done)
     var open by remember { mutableStateOf<String?>(null) }
-    val rows = remember(open, next) {
-        COURSE.flatMap { level ->
-            listOf(PathRow.Banner(level)) +
-                level.lessons.flatMapIndexed { i, l -> listOfNotNull(PathRow.Stop(level, l, i), PathRow.Card(l).takeIf { open == l.id }) } +
-                PathRow.Trophy(level)
+    // A kid walks the Playground through the pup's world (the places drawn from their own stickers).
+    val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
+    val mapped = world != null && path.levels.first().id == PLAYGROUND_ID && !path.isExtra(path.levels.first())
+    val rows = remember(open, next, mapped) {
+        path.levels.flatMap { level ->
+            val body = if (mapped && level.id == PLAYGROUND_ID) Place.entries.flatMapIndexed { p, place ->
+                val four = level.lessons.drop(p * 4).take(4)
+                listOf(PathRow.Scene(level, place, four)) + four.filter { it.id == open }.map { PathRow.Card(it) }
+            } else level.lessons.flatMapIndexed { i, l -> listOfNotNull(PathRow.Stop(level, l, i), PathRow.Card(l).takeIf { open == l.id }) }
+            listOf(PathRow.Banner(level)) + body + PathRow.Trophy(level)
         }
     }
     val list = rememberLazyListState()
     LaunchedEffect(Unit) {
-        val at = rows.indexOfFirst { it is PathRow.Stop && it.lesson == next }
+        val at = rows.indexOfFirst { (it is PathRow.Stop && it.lesson == next) || (it is PathRow.Scene && next in it.lessons) }
         if (at > 0) list.scrollToItem(at - 1)      // two rows above the next stop (the header is item 0), so it sits in view
     }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -119,7 +134,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(top = 20.dp, bottom = 12.dp)) {
                         Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-                        Text("${ALL.count { done(it.second.id) }} of ${ALL.size} lessons", style = MaterialTheme.typography.bodySmall,
+                        Text("${path.counted.count { done(it.id) }} of ${path.counted.size} lessons", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Pup(Pose.LEARNING, size = 64.dp)
@@ -134,15 +149,24 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 }
             }
         }
-        items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"; is PathRow.Trophy -> "t-${r.level.id}" } }) { r ->
+        items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"
+            is PathRow.Trophy -> "t-${r.level.id}"; is PathRow.Scene -> "s-${r.place.name}" } }) { r ->
             when (r) {
-                is PathRow.Banner -> UnitBanner(r.level, r.level.lessons.count { done(it.id) }, current = r.level.lessons.any { it == next })
+                is PathRow.Banner -> UnitBanner(r.level, r.level.lessons.count { done(it.id) }, current = r.level.lessons.any { it == next },
+                    number = path.levels.indexOf(r.level) + 1, extra = path.isExtra(r.level))
                 is PathRow.Stop -> {
                     val state = when { done(r.lesson.id) -> StopState.DONE; r.lesson == next -> StopState.NEXT; else -> StopState.LATER }
-                    StopRow(r.lesson, ALL.indexOfFirst { it.second == r.lesson } + 1, WIND[r.i % WIND.size], state) {
+                    StopRow(r.lesson, path.numberOf(r.lesson), WIND[r.i % WIND.size], state) {
                         open = if (open == r.lesson.id) null else r.lesson.id
                     }
                 }
+                is PathRow.Scene -> PlaceScene(r.place, world!!.state, Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    stop = { n ->
+                        r.lessons.getOrNull((n - 1) % 4)?.let { l ->
+                            val state = when { done(l.id) -> StopState.DONE; l == next -> StopState.NEXT; else -> StopState.LATER }
+                            MapStop(l, n, state) { open = if (open == l.id) null else l.id }
+                        }
+                    })
                 is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next) { open = null; onOpen(r.lesson) }
                 is PathRow.Trophy -> UnitTrophy(r.level, r.level.lessons.all { done(it.id) })
             }
@@ -184,17 +208,18 @@ private fun LessonKind.icon() = when (this) {
  * small icons. The unit in progress is filled with the accent.
  */
 @Composable
-private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean) {
+private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean, number: Int, extra: Boolean) {
     val c = MaterialTheme.colorScheme
     val bg = if (current) c.primary else c.surfaceContainerHigh
     val ink = if (current) c.onPrimary else c.onSurface
-    val number = remember(level) { COURSE.indexOf(level) + 1 }
     val kinds = remember(level) { level.lessons.map { it.kind }.distinct().sortedBy { it.ordinal } }
     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 12.dp)
         .clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Unit $number", style = Numeric.merge(MaterialTheme.typography.labelMedium), color = ink.copy(alpha = 0.75f), modifier = Modifier.weight(1f))
+            // A grown-up's Playground is an extra, open to everyone: no unit number, no claim on the next lesson.
+            Text(if (extra) "Extra: games for kids, open to all" else "Unit $number", style = Numeric.merge(MaterialTheme.typography.labelMedium),
+                color = ink.copy(alpha = 0.75f), modifier = Modifier.weight(1f))
             // What is inside: one small icon per kind of lesson.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics(mergeDescendants = true) {
                 contentDescription = kinds.joinToString(", ") { it.label }
@@ -240,7 +265,7 @@ private fun StopRow(lesson: CourseLesson, number: Int, wind: Float, state: StopS
         // The pup on the roomier side, pointing at the stop (his pose points right, so he is mirrored on the right).
         if (state == StopState.NEXT) {
             val right = wind < 0f
-            Pup(Pose.GET_READY, size = 96.dp, modifier = Modifier.offset(x = x + if (right) 132.dp else (-132).dp, y = 8.dp)
+            Pup(Pose.GET_READY, size = 96.dp, idle = false, modifier = Modifier.offset(x = x + if (right) 132.dp else (-132).dp, y = 8.dp)
                 .graphicsLayer { if (right) scaleX = -1f })
         }
     }
@@ -348,5 +373,29 @@ private fun UnitTrophy(level: CourseLevel, complete: Boolean) {
     }
 }
 
-/** The lesson after [lesson] in course order, if any. */
-fun nextLesson(lesson: CourseLesson): CourseLesson? = ALL.indexOfFirst { it.second == lesson }.let { ALL.getOrNull(it + 1)?.second }
+/**
+ * A Playground lesson on the pup's world map: a round stop like the trail's, smaller, numbered 1 to 12. The next one
+ * is bigger and sends out a white ring; a done one wears a tick.
+ */
+@Composable
+private fun MapStop(lesson: CourseLesson, number: Int, state: StopState, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val still = reducedMotion()
+    val size: Dp = if (state == StopState.NEXT) 52.dp else 42.dp
+    val face = when (state) { StopState.DONE, StopState.NEXT -> c.primary; StopState.LATER -> c.surfaceContainerHighest }
+    val ring = if (state == StopState.NEXT && !still) rememberInfiniteTransition(label = "ring")
+        .animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "pulse").value else 0f
+    Box(Modifier.size(size + 20.dp), contentAlignment = Alignment.Center) {
+        if (state == StopState.NEXT) Box(Modifier.size(size + 4.dp).graphicsLayer {
+            val k = 1f + 0.3f * ring; scaleX = k; scaleY = k; alpha = (1f - ring) * 0.7f
+        }.border(3.dp, Color.White, CircleShape))
+        Box(Modifier.size(size).pressScale().clip(CircleShape).background(face).border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Lesson $number, ${lesson.title}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started" } },
+            contentAlignment = Alignment.Center) {
+            if (state == StopState.DONE) Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.onPrimary, modifier = Modifier.size(22.dp))
+            else Text("$number", style = Numeric.merge(MaterialTheme.typography.titleMedium),
+                color = if (state == StopState.LATER) c.onSurfaceVariant else c.onPrimary)
+        }
+    }
+}

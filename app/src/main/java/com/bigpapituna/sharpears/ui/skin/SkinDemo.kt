@@ -76,7 +76,7 @@ fun SkinDemo(intent: Intent, sampler: Sampler, midi: MidiDevices, mic: MicInput,
                 "bite" -> androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                     val lesson = COURSE.flatMap { it.lessons }.firstOrNull { it.id == intent.getStringExtra("lesson") } ?: COURSE.first().lessons.first()
                     LessonScreen(lesson, intent.getIntExtra("step", 0), LessonDeps(sampler, midi, mic, voice, prefs, ready()), null,
-                        onStep = {}, onSong = null, onDone = {}, onNext = null, onBack = {},
+                        onStep = {}, onSong = null, onDone = { null }, onNext = null, onBack = {},
                         // The phrase-end hook as the playground team will fill it: the first two bars here.
                         phraseEnd = { ex -> intent.getIntExtra("bars", 2).takeIf { it > 0 }?.let { b -> b.toDouble() * ex.beats } })
                 } }

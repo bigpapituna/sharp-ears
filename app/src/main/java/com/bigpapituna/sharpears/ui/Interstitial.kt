@@ -62,32 +62,36 @@ private const val COUNTDOWN_MS = 2400
  * and a Go button fills its ring once the voice has finished; when the ring closes the part opens by itself. Go
  * opens it straight away; Skip passes over it; End for today stops the session. [parts], [index] and [done] are
  * the session (without them the chips are left out and the line is quoted from [line]).
+ *
+ * A kid (2.1) hears and reads the kid words (SessionWords: no counts, no bar numbers, no minutes) and sees no part
+ * numbers either.
  */
 @Composable
 fun Interstitial(line: String, voice: Voice, onGo: () -> Unit, onSkip: () -> Unit, onEnd: () -> Unit,
-                 parts: List<SessionPart> = emptyList(), index: Int = -1, done: List<SessionPart> = emptyList()) {
+                 parts: List<SessionPart> = emptyList(), index: Int = -1, done: List<SessionPart> = emptyList(), kid: Boolean = false) {
     val ring = remember(line) { Animatable(0f) }
+    val part = parts.getOrNull(index)
+    val spoken = if (kid && part != null) SessionWords.kidNext(part) else line
     LaunchedEffect(line) {
-        Log.d(TAG, "daily: $line")
-        voice.speak(line, interrupt = true)
+        Log.d(TAG, "daily: $spoken")
+        voice.speak(spoken, interrupt = true)
         delay(400)
         while (voice.speaking.value) delay(50)
         ring.animateTo(1f, tween(COUNTDOWN_MS, easing = LinearEasing))
         onGo()
     }
-    val part = parts.getOrNull(index)
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (part != null) Text("Practice today, part ${index + 1} of ${parts.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
+        if (part != null) Text(if (kid) "Practice today" else "Practice today, part ${index + 1} of ${parts.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
             color = c.primary)
         Pup(Pose.GET_READY, size = 176.dp)
-        UpBubble(part?.let(SessionWords::quoted) ?: SessionWords.quoted(line), Modifier.widthIn(max = 480.dp).semantics { heading() })
+        UpBubble(part?.let { SessionWords.quoted(it, kid) } ?: SessionWords.quoted(line), Modifier.widthIn(max = 480.dp).semantics { heading() })
         part?.let {
-            Text(SessionWords.about(it), style = MaterialTheme.typography.bodyMedium,
+            Text(SessionWords.about(it, kid), style = MaterialTheme.typography.bodyMedium,
                 color = c.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 420.dp))
         }
-        if (parts.size > 1) PartChips(parts, index, done, Modifier.padding(top = 4.dp))
+        if (parts.size > 1) PartChips(parts, index, done, Modifier.padding(top = 4.dp), kid)
         ChunkyButton(onClick = onGo, modifier = Modifier.padding(top = 8.dp).widthIn(min = 200.dp, max = 360.dp).fillMaxWidth()) {
             CountdownRing(ring)
             Spacer(Modifier.size(10.dp))
@@ -110,7 +114,7 @@ private fun SessionPart.icon() = when (this) {
 
 /** The session as a row of chips: done ones ticked, this one raised in the accent, the rest outlined. */
 @Composable
-private fun PartChips(parts: List<SessionPart>, index: Int, done: List<SessionPart>, modifier: Modifier) {
+private fun PartChips(parts: List<SessionPart>, index: Int, done: List<SessionPart>, modifier: Modifier, kid: Boolean) {
     val c = MaterialTheme.colorScheme
     FlowRow(modifier.widthIn(max = 520.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,7 +122,7 @@ private fun PartChips(parts: List<SessionPart>, index: Int, done: List<SessionPa
             val now = i == index
             val ticked = i < index && p in done
             val base = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = SessionWords.chip(p) + when { now -> ", next"; ticked -> ", done"; i < index -> ", skipped"; else -> "" }
+                contentDescription = SessionWords.chip(p, kid) + when { now -> ", next"; ticked -> ", done"; i < index -> ", skipped"; else -> "" }
             }
             val look = when {
                 now -> base.background(c.primary, CircleShape)
@@ -131,7 +135,7 @@ private fun PartChips(parts: List<SessionPart>, index: Int, done: List<SessionPa
                 Icon(painterResource(if (ticked) R.drawable.ic_check else p.icon()), contentDescription = null, tint = if (ticked) c.primary else ink,
                     modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
-                Text(SessionWords.chip(p), style = MaterialTheme.typography.labelLarge, color = ink, modifier = Modifier.clearAndSetSemantics { })
+                Text(SessionWords.chip(p, kid), style = MaterialTheme.typography.labelLarge, color = ink, modifier = Modifier.clearAndSetSemantics { })
             }
         }
     }

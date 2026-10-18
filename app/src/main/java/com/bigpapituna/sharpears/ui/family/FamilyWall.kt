@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -69,10 +70,10 @@ fun familyWallEntries(context: Context, roster: Roster, today: LocalDate = Local
  * The family wall (docs/KIDS-PLAN.md section 2): a home card with everyone's pup, name, seven paw prints for this week
  * (filled on days practised) and their latest sticker. Siblings see each other's week; that is most of the motivation.
  * Tapping someone switches to them ([onSwitch]); switching is free, the gate guards settings, not play. Hidden with
- * fewer than two people.
+ * fewer than two people. [crowned] wears today's crown (the longest Pup says pattern, WorldStore.crownOfTheDay).
  */
 @Composable
-fun FamilyWall(entries: List<FamilyWallEntry>, onSwitch: (String) -> Unit, modifier: Modifier = Modifier) {
+fun FamilyWall(entries: List<FamilyWallEntry>, onSwitch: (String) -> Unit, modifier: Modifier = Modifier, crowned: String? = null) {
     if (entries.size < 2) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -80,18 +81,18 @@ fun FamilyWall(entries: List<FamilyWallEntry>, onSwitch: (String) -> Unit, modif
             Text("  this week", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            entries.forEach { e -> Member(e) { onSwitch(e.profile.id) } }
+            entries.forEach { e -> Member(e, crown = e.profile.id == crowned) { onSwitch(e.profile.id) } }
         }
     }
 }
 
 @Composable
-private fun Member(e: FamilyWallEntry, onClick: () -> Unit) {
+private fun Member(e: FamilyWallEntry, crown: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(20.dp)
     val days = e.week.count { it.practised }
     val said = "${e.profile.name}${if (e.current) ", playing now" else ""}, $days ${if (days == 1) "day" else "days"} this week" +
-        if (e.stickerRes != null) ", latest sticker shown" else ""
+        (if (e.stickerRes != null) ", latest sticker shown" else "") + if (crown) ", crown of the day" else ""
     Column(Modifier.width(128.dp).clip(shape)
         .background(if (e.current) c.primaryContainer.copy(alpha = 0.55f) else Color.Transparent)
         .border(if (e.current) 2.dp else 1.dp, if (e.current) c.primary else c.outlineVariant, shape)
@@ -102,10 +103,29 @@ private fun Member(e: FamilyWallEntry, onClick: () -> Unit) {
         Box {
             PupAvatar(e.profile.avatar, size = 60.dp)
             StickerSlot(e.stickerRes, Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 4.dp))
+            if (crown) Crown(Modifier.align(Alignment.TopStart).offset(x = (-8).dp, y = (-10).dp).size(width = 30.dp, height = 22.dp))
         }
         Text(e.profile.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             e.week.forEach { d -> Paw(d, 13.dp) }
+        }
+    }
+}
+
+/** The crown of the day: three gold points with a jewel on each, tilted a little, as if put on in a hurry. */
+@Composable
+private fun Crown(modifier: Modifier) {
+    val gold = Color(0xFFF2B630); val deep = Color(0xFFB9821A); val jewel = Color(0xFFE5484D)
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        rotate(-14f) {
+            val p = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.08f, h * 0.92f); lineTo(w * 0.02f, h * 0.22f); lineTo(w * 0.3f, h * 0.55f); lineTo(w * 0.5f, h * 0.05f)
+                lineTo(w * 0.7f, h * 0.55f); lineTo(w * 0.98f, h * 0.22f); lineTo(w * 0.92f, h * 0.92f); close()
+            }
+            drawPath(p, gold)
+            drawPath(p, deep, style = Stroke(1.2.dp.toPx()))
+            listOf(0.02f to 0.22f, 0.5f to 0.05f, 0.98f to 0.22f).forEach { (x, y) -> drawCircle(jewel, radius = w * 0.07f, center = androidx.compose.ui.geometry.Offset(w * x, h * y)) }
         }
     }
 }

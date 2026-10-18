@@ -41,6 +41,8 @@ class Prefs(context: Context, val profileId: String) {
     var keyLabels: KeyLabels
         get() = KeyLabels.entries.getOrElse(p.getInt("keyLabels", KeyLabels.C_ONLY.ordinal)) { KeyLabels.C_ONLY }
         set(v) = edit { putInt("keyLabels", v.ordinal) }
+    /** Key labels were ever set (a new kid profile starts with every white key labelled, until someone chooses). */
+    val keyLabelsChosen: Boolean get() = p.contains("keyLabels")
     /** App sound for touch and listen mode. The mic still mutes it unless headphones are on. */
     var sound: Boolean
         get() = p.getBoolean("sound", true)

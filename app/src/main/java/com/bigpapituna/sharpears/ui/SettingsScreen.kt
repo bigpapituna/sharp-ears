@@ -112,6 +112,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             }
 
             Section("Falling notes")
+            // Colour notes belong to the profile (2.1): on for kids from the start, a choice for grown-ups.
+            val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
+            val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+            if (profiles != null) Toggle("Colour notes", "Each note and key in its own colour: C red, D orange, E yellow, F green, G teal, A blue, B purple, " +
+                "as in many beginners' books.", me.colourNotes) { on -> profiles.update(me.id) { it.copy(colourNotes = on) } }
             Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it }
             Toggle("Finger numbers", "A suggested finger for each note, 1 for the thumb to 5 for the little finger.",
                 prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it }
@@ -124,7 +129,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
 
             Section("Sound")
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
-                prefs.sound && v >= 0) { prefs.sound = it }
+                prefs.sound && v >= 0) { prefs.sound = it; com.bigpapituna.sharpears.ui.world.WorldSounds.on = it }
             Toggle("Vibration on touch keys", "A light tap for a right note, a double tap for a wrong one, when you play on the screen.",
                 prefs.haptics && v >= 0) { prefs.haptics = it }
 

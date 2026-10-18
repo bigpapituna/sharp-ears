@@ -93,10 +93,14 @@ private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
 /**
  * The You tab: the pup and your level, today's goal and streak, your totals, a 30 day chart, a 12 week calendar,
  * achievements and a report card per song. The gear opens Settings.
+ *
+ * 2.1: [world] is the pup's world card (album, jar, dress-up, records behind it) and [paws] this week's paw calendar.
+ * A grown-up finds them under today's panel; for a kid ([kid]) they come first: the album is a kid's You tab.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onSettings: () -> Unit) {
+fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onSettings: () -> Unit,
+                  kid: Boolean = false, world: (@Composable () -> Unit)? = null, paws: (@Composable () -> Unit)? = null) {
     val today = remember { LocalDate.now() }
     val v = store.version.intValue + prefs.version.intValue
     val data = remember(v) { ProfileData(store, prefs, today) }
@@ -105,8 +109,14 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
     val rows = remember { achievementRows() }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings); Hero(data) } }
+        if (kid) {
+            item(key = "bar") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings) } }
+            world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 8.dp)) { w() } } }
+            paws?.let { p -> item(key = "paws") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 8.dp)) { p() } } }
+            item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp).padding(top = 12.dp)) { Hero(data) } }
+        } else item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings); Hero(data) } }
         item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }) } }
+        if (!kid) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
         item(key = "stats") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { StatsRow(data.snap) } }
         item(key = "bars") {
             Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
@@ -167,6 +177,8 @@ private fun Hero(d: ProfileData) {
         d.streak.streak >= 3 -> Pose.STREAK
         d.streak.atRisk -> Pose.GET_READY
         d.level >= 10 -> Pose.PRACTICING
+        // Dressed up (2.1): the base pose wears the outfit, so the pup shows it off when nothing else applies.
+        com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE -> Pose.WEAR_BASE
         else -> Pose.WELCOME
     }
     val level = rememberCountUp(d.level, 700)
