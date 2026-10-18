@@ -463,7 +463,9 @@ class MainActivity : ComponentActivity() {
                     }
                     fun todayPlan(): SessionPlan {
                         val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
-                        val next = path.next { prefs.lessonDone(it) }
+                        // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
+                        val asleep = profile.isKid && bedtime.goodnightOn == java.time.LocalDate.now()
+                        val next = if (asleep) null else path.next { prefs.lessonDone(it) }
                         // A kid's session is short (KIDS-PLAN 3.9): the next game or lesson and a whole song, no chord
                         // review and no bar on a loop.
                         val song = continueMeta()?.let { m ->
