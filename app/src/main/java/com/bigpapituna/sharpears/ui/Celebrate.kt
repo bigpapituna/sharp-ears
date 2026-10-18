@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -154,7 +155,7 @@ fun Celebration(
     val spin = if (newBest && !still) rememberInfiniteTransition(label = "spin")
         .animateFloat(0f, 360f, infiniteRepeatable(tween(45_000, easing = LinearEasing), RepeatMode.Restart), label = "spin") else null
     val px = with(LocalDensity.current) { 320.dp.toPx() }
-    val middle: @Composable ColumnScope.() -> Unit = {
+    val head: @Composable ColumnScope.(pupSize: androidx.compose.ui.unit.Dp) -> Unit = { pupSize ->
         Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
             Pup(pose, size = pupSize, onTap = {}, idle = false, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
@@ -187,8 +188,11 @@ fun Celebration(
         if (xpGained != null) XpRow(xpGained, xpBar, xp, Modifier.graphicsLayer {
             val k = ((rest.value - 0.4f) / 0.6f).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 30f
         })
+    }
+    val drop: @Composable ColumnScope.() -> Unit = {
         if (reward != null && rest.value > 0.3f) Box(Modifier.padding(top = 4.dp)) { reward() }
     }
+    val middle: @Composable ColumnScope.() -> Unit = { head(pupSize); drop() }
     val bottom: @Composable ColumnScope.() -> Unit = {
         // "One more" brings its own big button; then the way out is the quieter one.
         if (oneMore != null) {
@@ -201,7 +205,24 @@ fun Celebration(
     Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         Confetti(title, Modifier.fillMaxSize())
-        if (compact) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        // A landscape screen or a big square one (the Fold's inner screen): the pup and his words on the left, the drop
+        // and the way on at the right, so nothing has to scroll out of sight.
+        val wide = compact && (maxWidth > maxHeight * 1.2f || (maxWidth >= 720.dp && maxHeight < maxWidth * 1.3f))
+        val headPup = minOf(maxHeight * 0.32f, 190.dp)
+        if (wide) Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            Column(Modifier.weight(0.45f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                head(headPup)
+            }
+            Column(Modifier.weight(0.55f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                val scroll = rememberScrollState()
+                Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxWidth().fadeBottom(scroll).verticalScroll(scroll).padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically), content = drop)
+                Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(vertical = 12.dp).then(bottomMotion),
+                    horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
+            }
+        } else if (compact) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             // With a reward or "one more" there is more to show: the middle scrolls above the buttons, never under them.
             val scroll = rememberScrollState()
             Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxWidth().fadeBottom(scroll).verticalScroll(scroll).padding(horizontal = 28.dp, vertical = 12.dp),
@@ -213,6 +234,7 @@ fun Celebration(
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp), content = middle)
             Column(Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp).then(bottomMotion),
                 horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
+        }
         }
     }
 }
