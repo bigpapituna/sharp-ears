@@ -43,21 +43,8 @@ class MelodyMemoryGame(level: Int, seed: Long = System.nanoTime(), rounds: Int =
             1 -> scaleNotes(pc, mn, t, t + 12)
             else -> scaleNotes(pc, mn, t - 5, t + 14)
         }
-        val steps = when (level) { 0 -> listOf(-2, -1, -1, -1, 1, 1, 1, 2); 1 -> listOf(-3, -2, -1, -1, -1, 1, 1, 1, 2, 3); else -> listOf(-4, -3, -2, -2, -1, -1, -1, 1, 1, 1, 2, 2, 3, 4) }
-        var i = if (level < 2) 0 else rnd.nextInt(pool.size)
-        full = buildList {
-            add(pool[i])
-            repeat(rounds + startLength - 2) {
-                var next: Int
-                do {
-                    val s = steps[rnd.nextInt(steps.size)]
-                    next = i + s
-                    if (next !in pool.indices) next = i - s
-                } while (next !in pool.indices || next == i)
-                i = next
-                add(pool[i])
-            }
-        }
+        val walk = MelodyWalk(pool, MelodyWalk.stepsFor(level), rnd, start = if (level < 2) 0 else rnd.nextInt(pool.size))
+        full = buildList { repeat(rounds + startLength - 1) { add(walk.next()) } }
     }
 
     var progress = 0; private set
@@ -112,4 +99,37 @@ class MelodyMemoryGame(level: Int, seed: Long = System.nanoTime(), rounds: Int =
 
     /** The largest jump between neighbours in the whole melody, in scale steps (for tests). */
     fun biggestLeap(): Int = full.zipWithNext { a, b -> abs(pool.indexOf(b) - pool.indexOf(a)) }.maxOrNull() ?: 0
+}
+
+/**
+ * The melody's path through a [pool] of scale notes: it starts on `pool[start]`, then each next note moves by a step
+ * drawn from [steps] (scale steps, a step that would leave the pool goes the other way, never a repeat). Melody memory
+ * draws its whole melody with it; Pup says (engine/play) keeps drawing for as long as the game goes on.
+ */
+class MelodyWalk(val pool: List<Int>, private val steps: List<Int>, private val rnd: Random, start: Int = 0) {
+    init { require(pool.size >= 2 && start in pool.indices) { "a walk needs two notes and a start inside the pool" } }
+    private var i = start
+    private var first = true
+
+    /** The next note of the melody (the first call gives the start). */
+    fun next(): Int {
+        if (first) { first = false; return pool[i] }
+        var next: Int
+        do {
+            val s = steps[rnd.nextInt(steps.size)]
+            next = i + s
+            if (next !in pool.indices) next = i - s
+        } while (next !in pool.indices || next == i)
+        i = next
+        return pool[i]
+    }
+
+    companion object {
+        /** Melody memory's steps per level: mostly neighbours, skips up to two, three or four scale steps. */
+        fun stepsFor(level: Int): List<Int> = when (level) {
+            0 -> listOf(-2, -1, -1, -1, 1, 1, 1, 2)
+            1 -> listOf(-3, -2, -1, -1, -1, 1, 1, 1, 2, 3)
+            else -> listOf(-4, -3, -2, -2, -1, -1, -1, 1, 1, 1, 2, 2, 3, 4)
+        }
+    }
 }
