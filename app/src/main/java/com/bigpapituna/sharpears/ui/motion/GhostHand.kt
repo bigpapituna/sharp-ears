@@ -96,6 +96,9 @@ private class HandState(val hand: Hand) {
     val dip = FloatArray(6)
     val next = BooleanArray(6)          // fingers of the next note(s)
     val black = BooleanArray(6)         // ... and whether that key is black (the finger reaches further in)
+    val keyX = FloatArray(6)            // ... and that key's centre
+    // The painted hand's pose: cross-fading from [from] to [to], [mix] 0..1.
+    var from = HandPose.REST; var to = HandPose.REST; var mix = 1f
 
     /** One frame. True while anything still moves. */
     fun step(notes: List<GhostNote>, pos: Double, dt: Float, keys: KeyboardLayout, still: Boolean, show: Boolean): Boolean {
@@ -112,7 +115,7 @@ private class HandState(val hand: Hand) {
                 if (g.midi in keys.lowMidi..keys.highMidi) {
                     val f = g.finger ?: 3
                     sum += keys.rect(g.midi).centerX - fingerOffset(f, hand) * keys.whiteWidth; n++
-                    if (g.finger != null) { next[f] = true; black[f] = isBlack(g.midi) }
+                    if (g.finger != null) { next[f] = true; black[f] = isBlack(g.midi); keyX[f] = keys.rect(g.midi).centerX }
                 }
                 j++
             }
@@ -133,6 +136,13 @@ private class HandState(val hand: Hand) {
             v += a * dt; x += v * dt
             if (kotlin.math.abs(target - x) < 0.5f && kotlin.math.abs(v) < 2f) { x = target; v = 0f } else moving = true
         }
+        // The painted pose: the finger most of the way down presses; a change cross-fades over 200 ms.
+        var best = 0; var bestDip = 0.35f
+        for (f in 1..5) if (dip[f] > bestDip) { bestDip = dip[f]; best = f }
+        val pose = HandPose.press(best)
+        if (pose != to) { from = if (mix >= 0.5f) to else from; to = pose; mix = 0f }
+        if (still) mix = 1f
+        else if (mix < 1f) { mix = minOf(1f, mix + dt / 0.2f); moving = true }
         val want = if (visible) 1f else 0f
         if (still) alpha = want
         else if (alpha != want) {
@@ -196,14 +206,47 @@ fun GhostHand(
     // Outlines: a thin edge, and a thicker one in the hand colour on the finger(s) that play next.
     val dens = LocalDensity.current.density
     val strokes = remember(dens) { arrayOf(Stroke(width = 1.5f * dens), Stroke(width = 2.5f * dens)) }
+    val painted = rememberHandFrames()
     Canvas(modifier.clipToBounds().onSizeChanged { box = it }.clearAndSetSemantics { }) {
         frame.longValue
         val l = keys ?: return@Canvas
+        val frames = painted.value
         for (s in states) {
             if (s.alpha <= 0.01f) continue
-            // 60%, drawn straight onto the keys (no offscreen layer: that cost ~5 ms a frame on the emulator).
-            drawHand(s, l, numbers, strokes, 0.6f * s.alpha)
+            // 60%, drawn straight onto the keys (no offscreen layer: that cost ~5 ms a frame on the emulator). The
+            // painted hand when its frames are in; the drawn one while they load, or for good if they failed.
+            if (frames != null) drawPainted(frames, s, l, numbers, 0.6f * s.alpha) else drawHand(s, l, numbers, strokes, 0.6f * s.alpha)
         }
+    }
+}
+
+/** The painted hand for [s]: middle finger at its glide position, the pressing finger's frame cross-fading in. */
+private fun DrawScope.drawPainted(frames: HandFrames, s: HandState, l: KeyboardLayout, numbers: Array<TextLayoutResult>, a: Float) {
+    val h = size.height
+    val w = l.whiteWidth
+    val right = s.hand == Hand.RIGHT
+    val handColor = if (right) RightHandColor else LeftHandColor
+    // Fingertips up the keys, so the thumb (lower on the hand) still reaches the front of its key. The player's keys
+    // are short for their width, so the hand is shortened to match (foreshortened, as the keys are).
+    val drop = handTip(right, HandPose.REST, 1, 3, 0f, 0f, w).y
+    val squash = (h * 0.5f / drop).coerceIn(0.4f, 1f)
+    var ay = h * 0.86f - drop * squash
+    var ax = s.x
+    val f = when (s.to) { HandPose.PRESS_1 -> 1; HandPose.PRESS_2 -> 2; HandPose.PRESS_3 -> 3; HandPose.PRESS_4 -> 4; HandPose.PRESS_5 -> 5; else -> 0 }
+    if (f > 0 && s.next[f]) {
+        // The pressing finger lands on its key, reaching in for a black one.
+        ax += (s.keyX[f] - handTip(right, s.to, f, 3, ax, ay, w, squash = squash).x) * s.mix
+        if (s.black[f]) ay -= h * 0.25f * s.mix
+    }
+    drawPaintedHand(frames, right, s.from, s.to, s.mix, 3, ax, ay, w, alpha = a, squash = squash)
+    // The next finger(s): a soft spot of the hand colour on the tip as it presses, and the finger's number.
+    for (k in 1..5) {
+        if (!s.next[k]) continue
+        val tip = handTip(right, s.from, s.to, s.mix, k, 3, ax, ay, w, squash = squash)
+        val d = s.dip[k]
+        drawCircle(handColor, w * (0.34f + 0.12f * d), tip, alpha = (0.35f + 0.4f * d) * minOf(1f, a / 0.6f))
+        val t = numbers[k]
+        drawText(t, topLeft = Offset(tip.x - t.size.width / 2f, tip.y - t.size.height / 2f), alpha = minOf(1f, a / 0.6f))
     }
 }
 

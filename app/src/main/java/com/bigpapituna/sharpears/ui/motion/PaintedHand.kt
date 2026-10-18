@@ -108,19 +108,19 @@ internal fun handFrameHeight(whiteWidth: Float) = handFrameWidth(whiteWidth) / H
  * lined up on the anchor finger across the keys, since the painted left hand's thumb splays wider than the mirrored
  * presses'. [stretch] widens the hand across the keys (1 = fingers a white key apart).
  */
-internal fun handTip(right: Boolean, pose: HandPose, finger: Int, anchorFinger: Int, anchorX: Float, anchorY: Float, whiteWidth: Float, stretch: Float = 1f): Offset {
+internal fun handTip(right: Boolean, pose: HandPose, finger: Int, anchorFinger: Int, anchorX: Float, anchorY: Float, whiteWidth: Float, stretch: Float = 1f, squash: Float = 1f): Offset {
     val rest = HAND_ANCHORS[frameOf(HandPose.REST, right)]
     val a = HAND_ANCHORS[frameOf(pose, right)]
-    val w = handFrameWidth(whiteWidth) * stretch; val h = handFrameHeight(whiteWidth)
+    val w = handFrameWidth(whiteWidth) * stretch; val h = handFrameHeight(whiteWidth) * squash
     val i = finger - 1; val k = anchorFinger - 1
     return Offset(anchorX + (a.x[i] - a.x[k]) * w, anchorY + (a.y[i] - rest.y[k]) * h)
 }
 
 /** [handTip] between two poses, [mix] 0 at [from] and 1 at [to]. */
-internal fun handTip(right: Boolean, from: HandPose, to: HandPose, mix: Float, finger: Int, anchorFinger: Int, anchorX: Float, anchorY: Float, whiteWidth: Float, stretch: Float = 1f): Offset {
-    val a = handTip(right, from, finger, anchorFinger, anchorX, anchorY, whiteWidth, stretch)
+internal fun handTip(right: Boolean, from: HandPose, to: HandPose, mix: Float, finger: Int, anchorFinger: Int, anchorX: Float, anchorY: Float, whiteWidth: Float, stretch: Float = 1f, squash: Float = 1f): Offset {
+    val a = handTip(right, from, finger, anchorFinger, anchorX, anchorY, whiteWidth, stretch, squash)
     if (mix <= 0f || from == to) return a
-    val b = handTip(right, to, finger, anchorFinger, anchorX, anchorY, whiteWidth, stretch)
+    val b = handTip(right, to, finger, anchorFinger, anchorX, anchorY, whiteWidth, stretch, squash)
     return Offset(a.x + (b.x - a.x) * mix, a.y + (b.y - a.y) * mix)
 }
 
@@ -137,16 +137,17 @@ internal val DarkStageHand by lazy { ColorFilter.lighting(Color(0xFFDCD6D2), Col
 
 /**
  * Draws the painted hand placed as in [handTip], cross-fading from [from] to [to] by [mix]. [lift] (0 on the keys,
- * 1 hovering) moves its soft shadow out and fades it; [alpha] is the whole hand's. Allocates nothing.
+ * 1 hovering) moves its soft shadow out and fades it; [alpha] is the whole hand's; [squash] shortens it up the keys
+ * (a flat keyboard seen at a low angle). Allocates nothing.
  */
 internal fun DrawScope.drawPaintedHand(
     frames: HandFrames, right: Boolean, from: HandPose, to: HandPose, mix: Float,
     anchorFinger: Int, anchorX: Float, anchorY: Float, whiteWidth: Float,
-    stretch: Float = 1f, alpha: Float = 1f, lift: Float = 0f, filter: ColorFilter? = null,
+    stretch: Float = 1f, alpha: Float = 1f, lift: Float = 0f, filter: ColorFilter? = null, squash: Float = 1f,
 ) {
     if (alpha <= 0.01f) return
     val rest = HAND_ANCHORS[frameOf(HandPose.REST, right)]
-    val w = handFrameWidth(whiteWidth) * stretch; val h = handFrameHeight(whiteWidth)
+    val w = handFrameWidth(whiteWidth) * stretch; val h = handFrameHeight(whiteWidth) * squash
     val k = anchorFinger - 1
     val top = anchorY - rest.y[k] * h
     val size = IntSize(w.roundToInt(), h.roundToInt())
