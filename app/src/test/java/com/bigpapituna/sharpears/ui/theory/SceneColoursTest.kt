@@ -3,7 +3,9 @@ package com.bigpapituna.sharpears.ui.theory
 import androidx.compose.ui.graphics.Color
 import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.LeftHandColor
+import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,6 +30,16 @@ class SceneColoursTest {
     /** The concert's Ode to Joy card draws five balls over five keys: C to G in their colours, not A's blue and B's purple. */
     @Test fun theFiveFingerCardWearsCToG() {
         assertEquals(listOf(60, 62, 64, 65, 67).map { Color(NoteColours.colour(it)) }, com.bigpapituna.sharpears.ui.playground.FIVE_PICTURE_COLOURS)
+    }
+
+    /** The letter on a lit colour-note key reads on it: white "E" on the yellow key did not (dark mode showed it). */
+    @Test fun lettersOnColourNoteKeysAreReadable() {
+        for (midi in 60..71) if (!NoteColours.isBlack(midi)) {
+            val ink = sceneLitInk(midi, colourNotes = true)
+            val argb = (ink.toArgb().toLong() and 0xFFFFFFFFL)
+            assertTrue("${NoteColours.letter(midi)}: contrast", NoteColours.contrast(argb, NoteColours.colour(midi)) >= 3.0)
+        }
+        assertEquals(Color.White, sceneLitInk(64, colourNotes = false))
     }
 
     @Test fun withoutColourNotesAndForContextKeysNothingChanges() {

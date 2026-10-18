@@ -80,6 +80,10 @@ internal fun rememberStageInk(): StageInk {
 /** The grey of a context key (Tint.DIM): it stays grey with colour notes on. */
 internal val DimKey = Color(0xFF9A8F85)
 
+/** The letter on a lit key: white on the accent; with colour notes on, the ink that reads on the key's colour (not white on yellow). */
+internal fun sceneLitInk(midi: Int, colourNotes: Boolean): Color =
+    if (colourNotes) Color(com.bigpapituna.sharpears.engine.skin.NoteColours.let { it.inkFor(it.colour(midi)) }) else Color.White
+
 /**
  * The colour a scene paints [midi] that it lights in [lit]: with colour notes on, the key's own colour (engine/skin
  * NoteColours, a black key the blend of its neighbours), as on the player's lane and keys, at [lit]'s alpha; else [lit].
@@ -153,7 +157,7 @@ internal fun DrawScope.drawPiano(
             Offset(x, origin.y + down), Size(w, keyH - lip - down), r)
         name(k.midi)?.let { t ->
             text(ink, t, Offset(x + w / 2, origin.y + keyH - lip - keyH * 0.13f), TextKind.LABEL, labelSize,
-                color = if (c != null && c.alpha > 0.5f) Color.White else KeyLabel)
+                color = if (c != null && c.alpha > 0.5f) sceneLitInk(k.midi, ink.colourNotes) else KeyLabel)
         }
     }
     drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent), startY = origin.y, endY = origin.y + keyH * 0.07f),
