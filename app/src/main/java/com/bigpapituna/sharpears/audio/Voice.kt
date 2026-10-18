@@ -38,6 +38,13 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     /** The Kokoro model is on the phone (else only the recorded lines use the natural voice). */
     val naturalModelInstalled get() = natural.modelInstalled
 
+    /**
+     * How fast lines made on the phone are spoken: 1 for grown-ups, 0.85 for kids (KIDS-PLAN 3.8, "big and slow";
+     * MainActivity.openApp sets it per profile). Recorded lines carry their own speed (render_voice.py renders the
+     * kid lines at 0.85). Lines with a kid's name in them are always made on the phone, so they follow this.
+     */
+    @Volatile var speed: Float = 1f
+
     init {
         mic.onStopped = ::micStopped
         if (prefs.voice && prefs.naturalVoice) natural.warmUp()   // loads in the background while the first screen opens
@@ -93,7 +100,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         if (prefs.naturalVoice && natural.canSay(text)) {
             if (flush) { tts?.stop(); inFlight.clear(); beforeReady.clear() }
             speaking.value = true
-            natural.say(text, flush)
+            natural.say(text, flush, speed)
             return
         }
         if (flush) natural.stop()
@@ -105,6 +112,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         inFlight += id
         speaking.value = true
         Log.d(TAG, "voice: $text")
+        t.setSpeechRate(0.95f * speed)
         t.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, id)
     }
 

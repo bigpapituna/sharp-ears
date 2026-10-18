@@ -65,8 +65,30 @@ object SpokenCatalog {
         }
         CHEER_TITLES.forEach(::add)
         earLines().forEach(::add)
+        // 2.1: the kid skin's words, the Playground's call-outs, the play corner, and Practice today said the kid way.
+        kidLines().forEach(::add)
         return lines.toList()
     }
+
+    /**
+     * The lines a kid hears, recorded slower (scripts/render_voice.py, speed [KID_SPEED]): the kid skin (stars, steps,
+     * goodnight, the keys by colour and animal), Pup's Playground (every step and scene, the stages' call-outs), the play
+     * corner and Practice today's kid words. Lines that name the kid are made on the phone, at the same speed.
+     */
+    fun kidLines(): List<String> = buildList {
+        addAll(com.bigpapituna.sharpears.engine.skin.SkinLines.fixed())
+        for (lesson in com.bigpapituna.sharpears.engine.playground.PLAYGROUND.lessons) {
+            lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
+        }
+        addAll(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.CALL_OUTS)
+        addAll(com.bigpapituna.sharpears.engine.play.PlayLines.fixed())
+        add(RunWords.kidLessonLine(null))
+        add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
+        for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))
+    }.map(::normalize).distinct()
+
+    /** How fast the kid lines are recorded (KIDS-PLAN 3.8: the pup speaks slower to kids). */
+    const val KID_SPEED = 0.85
 
     /**
      * Ear training lines whose words are fixed by the game (engine/ear): the prompts, and the answers that name a note,

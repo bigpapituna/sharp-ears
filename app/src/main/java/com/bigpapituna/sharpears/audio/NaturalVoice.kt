@@ -47,12 +47,13 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     /** True when this voice can say [text]: it is recorded, or the model is on the phone. */
     fun canSay(text: String) = recording(text) != null || (modelInstalled && !modelFailed)
 
-    fun say(text: String, flush: Boolean) {
+    /** Says [text] after what is queued ([flush]: instead of it); a generated line at [speed] (Kokoro's, 1 = normal). */
+    fun say(text: String, flush: Boolean, speed: Float = 1f) {
         if (flush) stop()
         val gen = generation
         pending.incrementAndGet()
         worker.execute {
-            try { if (gen == generation) speakNow(text, gen) }
+            try { if (gen == generation) speakNow(text, gen, speed) }
             catch (e: Exception) { Log.w(TAG, "voice: natural voice failed on \"$text\"", e) }
             finally { if (pending.decrementAndGet() == 0) onIdle() }
         }
@@ -66,7 +67,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
 
     fun release() { stop(); worker.execute { if (modelLoad.isInitialized()) modelLoad.value?.release() }; worker.shutdown() }
 
-    private fun speakNow(text: String, gen: Int) {
+    private fun speakNow(text: String, gen: Int, speed: Float) {
         val file = recording(text)
         if (file != null) { Log.d(TAG, "voice: (recorded) $text"); playRecording(file, gen); return }
         val tts = modelLoad.value ?: return
@@ -81,7 +82,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
             val t0 = System.currentTimeMillis()
             var written = 0
             // An object, not a lambda: the native side looks up invoke(float[]): Integer by name, which a lambda lacks.
-            tts.generateWithCallback(text, sid = speaker, speed = 1.0f, callback = object : (FloatArray) -> Int {
+            tts.generateWithCallback(text, sid = speaker, speed = speed, callback = object : (FloatArray) -> Int {
                 override fun invoke(chunk: FloatArray): Int {
                     if (gen != generation) return 0
                     if (written == 0) { Log.d(TAG, "voice: (first sound in ${System.currentTimeMillis() - t0} ms) $text"); track.play() }
