@@ -29,7 +29,9 @@ Not yet:
 - The per-kid report in the parent corner (minutes, lessons, where they got stuck) and take-turns in the ear games
   (Pup says has turns; the ear games do not).
 - Frame timing on the Fold itself with the profile build (emulator numbers only so far).
-- A second Playground page, by design (section 9).
+- (Built in 2.2, branch `pages`: the pond and the concert hall, twelve lessons each after the garden, then Basics.
+  Roy asked for the kids' path to be comprehensive; section 9 had held them back until the first page got used. See
+  CLAUDE.md, 2.2 pages.)
 
 Written 2026-10-18. Status at writing: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
 phone and one piano, in a room with talking, on visits (so short sessions, new kids set up in seconds).

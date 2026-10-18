@@ -235,6 +235,40 @@ and the Jam's chord confetti came with no sound and no words.
   of a C-E-G chord, so mic chords will mostly show as keys bursting, not confetti); the sounds' pitchlessness through
   the Fold's speaker and mic. The clips Roy's next session saves are meant for exactly this.
 
+## 2.2 pages: the pond and the concert hall (2026-10-18, branch `pages`, emulator-5554 only; version not bumped)
+The kids' path: the garden's twelve, then the pond's twelve, then the concert hall's twelve, then the big kids' road
+(Basics). Built alongside the kid home (branch kidhome: the world map, stars on stones, the finale); merge notes in
+ui/playground/INTEGRATION.md, "2.2".
+- Contract: engine/playground/Pages.kt `PLAYGROUND_PAGES` (garden, pond `POND_ID` "playground-pond" `pond-1..12`,
+  hall `HALL_ID` "playground-hall" `hall-1..12`), `PLAYGROUND_LEVELS`, `pageOf`, `isPlaygroundLesson`,
+  `isPlaygroundLevel`. COURSE: garden, pond, hall, Basics... (106 lessons). CoursePath: kids walk all three pages then
+  Basics; readers get the garden's short list, then the pond and the hall whole; grown-ups see all three as Extra units.
+- Content: engine/playground/Pond.kt and Hall.kt, the garden's model (READ steps of one to three scenes, game steps,
+  bites). Songs the course has are reused note for note and cut at their first phrase (Twinkle, Row, Old MacDonald,
+  London Bridge, Ode to Joy, Lightly Row, Yankee Doodle, the Rhythm unit's bars, fingers-left, five-c, "together"); the
+  shared phrases moved to engine/Exercises.kt. engine/playground/Concerts.kt: the shelf of nine songs (a start to warm
+  up on, a version with the band at a kid's tempo, CONCERT_PASS), the pond's three, the recital (`Recital`, kept per
+  profile in the "play" file, data/RecitalStore.kt), `concertPlan(lessonId, step, recital)`.
+- Games: new `ECHO` (copy the pup: frogs on lily pads, spotlights in the hall), `CHORD` (C E G, the pup settles on
+  it), `SOFT_LOUD_TUNE` (Ode's phrase usual, soft, loud, soft, graded per phrase), `SET_LIST` (pick three from the
+  shelf, warm up on each); grown: `CLAP` (rhythms with ta, ti, ta-a and shh under the paws; pond and hall backdrops),
+  `KEY_HUNT` (letters C to G, each round's letter said, badges with the letter or the animal), `CONCERT` (the plan:
+  pond picks with frogs and ducks watching, the recital plays the kid's three with the collected animals).
+- Hearing: StageRounds phrases (a phrase a round, notes as progress, a let go plays the rest), StageEar(chords),
+  StageKeys.FIVE / letter(pc) / C_CHORD (one group), NoteJudge, ChordJudge, TuneLoudness. NoteMatcher strict keys skip
+  a lower note of the key's own group (G4 under C4 in a chord): a simultaneous C E G on PianoSynth gave C and E only
+  before. Every key at two levels against each new set, the chord rolled 0 to 150 ms, other chords and single keys
+  never passing, Roy's scale (session-155837) through the letters and the C position: all as expected.
+- Fixed in the garden: the "whole song" steps of Hot Cross Buns and Mary were cut back to the bite for kids.
+- Voice: 239 new kid lines (2577 recorded). Lines: PlaygroundLines.PageLines.
+- Tests: 730 JVM (702 before): PagesTest, PhraseGamesTest, PlaygroundChecks (the garden's checks on every page),
+  PlaygroundFlowTest over all 36 lessons (silent and wrong-keys kids), StageHearingTest and StageSoundsTest on the new
+  sets. Lint 0 errors. Time model: 104 to 181 s a lesson (the garden's 107 to 139). Screenshots of every new lesson's
+  main stage or scene: app/build/screens/pages-pond-N.png, pages-hall-N.png (not committed).
+- Still unproven: everything on a real piano and a kid (the emulator has no piano); the chord on a real piano (one
+  group, strict); phrase copy timing (a kid playing a tune faster than the matcher's refractory); the soft and loud
+  tune's per-phrase grade (synthetic only, like the garden's nap).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
