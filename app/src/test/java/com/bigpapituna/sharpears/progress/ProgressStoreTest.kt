@@ -94,6 +94,22 @@ class ProgressStoreTest {
         assertEquals(300, store.practiceLog()[d0])                          // the larger of the two, not 600
     }
 
+    /** 2.2.1 QA: Reset progress says it clears practice time and best scores; the goal ring, streak and sight-reading best kept them. */
+    @Test fun resetClearsPracticeTimeEverywhereAndTheSightBest() {
+        val today = LocalDate.now()
+        prefs.addPractice(today, 240)
+        store.record(ProgressEvent.Practice(at(today), 240))
+        prefs.saveSightBest(1, com.bigpapituna.sharpears.engine.SightScore(40, 1))
+        assertEquals(240, store.secondsToday(today))
+        assertEquals(1, store.streak(today).streak)
+        val xp = store.xp
+        prefs.resetProgress(); store.clearPracticeLog()
+        assertEquals(0, store.secondsToday(today))
+        assertEquals(0, store.streak(today).streak)
+        assertNull(prefs.sightBest(1))
+        assertEquals("XP is kept", xp, store.xp)
+    }
+
     @Test fun lessonXpIsPaidOnce() {
         assertEquals(100, store.record(ProgressEvent.LessonComplete("sit")).xpGained)
         assertEquals(0, store.record(ProgressEvent.LessonComplete("sit")).xpGained)

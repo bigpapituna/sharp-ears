@@ -710,7 +710,7 @@ class MainActivity : ComponentActivity() {
                                 onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
                                 onBack = { screen = s.back },
-                                onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory; XP kept)") },
+                                onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
                                 family = { FamilySettings(profiles) }, showReminder = current.isOwner)
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {

@@ -101,6 +101,9 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
 
     fun secondsToday(today: LocalDate = LocalDate.now()): Int = practiceLog()[today] ?: 0
 
+    /** Settings > Reset progress clears practice time: this log too, or the goal ring, streak and calendar keep it. */
+    fun clearPracticeLog() = edit { p.all.keys.filter { it.startsWith("day:") }.forEach(::remove) }
+
     /** "3 of 10 min today", for the home greeting. */
     fun goalLine(today: LocalDate = LocalDate.now()): String = DailyGoal.line(secondsToday(today), goalMinutes)
 

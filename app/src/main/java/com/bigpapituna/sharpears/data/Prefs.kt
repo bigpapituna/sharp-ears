@@ -182,7 +182,7 @@ class Prefs(context: Context, val profileId: String) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") }
         edit { keys.forEach(::remove) }
     }
 
