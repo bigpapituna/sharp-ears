@@ -161,6 +161,10 @@ Roy: "I don't like areas that have just text." Every Learn reading step is now a
   and captions. emulator-5556 crashed in host GPU mode once on 2026-10-14: start it with -gpu swiftshader_indirect
   -crash-report-mode disabled.
 
+## 2.1 family (FAMILY.md; stage 1 foundation done 2026-10-18, branch family-foundation, emulator-5558 only)
+- Profiles: data/Profiles.kt ("profiles" file, rules in engine/family/Roster.kt: up to 8, owner "Roy" id "owner" keeps the plain progress files), picker on launch with 2+ profiles, Songs shows the family wall, Settings > Family adds, renames, deletes (asks twice) and switches a kid to grown-up mode. A switch rebuilds the app for the new profile (MainActivity.openApp).
+- Every ProgressFiles.NAMES file but "mic" is per profile (ProgressFiles.fileFor: "progress.p3"); backup carries all profiles and the roster. Parent gate (hold the pup 3 s, then a sum) guards Settings and Mic setup for kids, profile management and the report token for everyone; open 10 min. How to use all of it: ui/family/INTEGRATION.md.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
