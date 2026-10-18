@@ -92,6 +92,16 @@ import com.bigpapituna.sharpears.engine.TroubleSpots
 import com.bigpapituna.sharpears.engine.fitRange
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.engine.hints.HintPlan
+import com.bigpapituna.sharpears.engine.hints.HintStep
+import com.bigpapituna.sharpears.engine.hints.NoiseWatch
+import com.bigpapituna.sharpears.engine.hints.OctaveHint
+import com.bigpapituna.sharpears.engine.hints.WrongKey
+import com.bigpapituna.sharpears.ui.hints.KeyGlow
+import com.bigpapituna.sharpears.ui.hints.NOISE_LINE
+import com.bigpapituna.sharpears.ui.hints.NoiseSheet
+import com.bigpapituna.sharpears.ui.hints.OctaveArrow
+import com.bigpapituna.sharpears.ui.hints.PointingHand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -147,6 +157,10 @@ fun PlayerScreen(
     chordTrack: com.bigpapituna.sharpears.engine.ChordTrack? = null,
     /** [PlayerStart.timeLimitMs] ran out. */
     onTimeUp: () -> Unit = {},
+    /** Lesson ids whose exercises use any-of ranges ("any key above C4"): no octave hint there (the playground's list). */
+    anyOfLessons: Set<String> = emptySet(),
+    /** Every wrong key shown (mic, touch, MIDI), for the pup's head tilt and the skin's key flash (ui/hints/INTEGRATION.md). */
+    onWrongKey: (WrongKey) -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
@@ -182,6 +196,18 @@ fun PlayerScreen(
     var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
     val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
+    // Who is playing: the mic offset and the report tag follow the profile; hint timings are theirs.
+    val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+    LaunchedEffect(profile.id, profile.kind, profile.micOffsetDb) { mic.forProfile(profile.isKid, profile.micOffsetDb) }
+    // Hint escalation while wait mode is stuck (glow, the hand points, the app plays it), and the octave hint.
+    val hintPlan = remember(profile.hintSeconds) { HintPlan(profile.hintSeconds) }
+    var hintStep by remember { mutableStateOf(HintStep.NONE) }
+    var hintLine by remember { mutableStateOf<String?>(null) }     // the pup's hint line over the lane
+    var octaveShown by remember { mutableStateOf<OctaveHint.Hint?>(null) }
+    val octaveOn = remember(song.id, anyOfLessons) { OctaveHint.appliesTo(song.id, anyOfLessons) }
+    // Wrong keys shown so far (ids for onWrongKey); the room-noise watchdog's offer.
+    var wrongKeys by remember { mutableIntStateOf(0) }
+    var noiseOffer by remember { mutableStateOf<NoiseWatch.Suggestion?>(null) }
     var highFive by remember { mutableStateOf(0) }                 // bumps when the player pushes through a hard passage
     var showHighFive by remember { mutableStateOf(false) }
     LaunchedEffect(highFive) { if (highFive > 0) { showHighFive = true; delay(2400); showHighFive = false } }
@@ -310,11 +336,12 @@ fun PlayerScreen(
     val stallMark = remember { longArrayOf(0) }
     fun stallBegin() {
         if (!micOn || transport.mode != Mode.WAIT) return
+        stallWatch.profile = mic.profileKind
         stallMark[0] = mic.clipMark()
         stallWatch.start(System.currentTimeMillis(), transport.expected.map { noteName(it.midi) },
             "song=${song.id} title=${song.title} position_ms=${transport.positionMs.toLong()} speed=${transport.speed} hands=${transport.practice}\n" +
                 "group=${transport.listenGroup.sorted().joinToString(",") { noteName(it) }} mic=${mic.source.value} " +
-                "sensitivity_db=${mic.matcher.config.sensitivityDb} recorded=${java.time.LocalDateTime.now()}")
+                "sensitivity_db=${mic.matcher.config.sensitivityDb} mic_offset_db=${mic.matcher.offsetDb} recorded=${java.time.LocalDateTime.now()}")
     }
     fun stallEnd(outcome: String) {
         val s = stallWatch.end(System.currentTimeMillis(), outcome) ?: return
@@ -323,7 +350,47 @@ fun PlayerScreen(
         val title = "Stuck: ${song.title} at ${at(transport.positionMs)} on ${transport.expected.joinToString(", ") { noteName(it.midi) }} (${s.waitedMs / 1000} s, $outcome)"
         mic.saveStall(stallMark[0], "title=$title\n" + s.report, name)
     }
-    fun pause() { stallEnd("paused"); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
+    /** The pup says [line] over the lane (and aloud when the mic is not listening through the speaker). */
+    fun say(line: String) { hintLine = line; voice.speak(line, deferrable = false) }
+    /** A wait began: hint escalation (wait mode, labels shown) and the octave hint (mic) start over. */
+    fun hintsBegin() {
+        hintStep = HintStep.NONE; octaveShown = null
+        if (transport.mode == Mode.WAIT && labels) hintPlan.begin(android.os.SystemClock.elapsedRealtime())
+        if (micOn && octaveOn && transport.mode == Mode.WAIT) mic.octaveReset(transport.listenFor)
+    }
+    fun hintsEnd() {
+        if (hintPlan.waiting || hintStep != HintStep.NONE || octaveShown != null) Log.d(TAG, "hints: wait over at $hintStep")
+        hintPlan.end(); hintStep = HintStep.NONE; octaveShown = null; mic.octaveReset(emptySet())
+    }
+    /**
+     * Hint step c: the app plays the waiting notes and the pup says "your turn". With the mic listening through the
+     * speaker it is deaf meanwhile, so it does not take the phone's note for the player's.
+     */
+    fun playHint() {
+        val notes = transport.expected.map { it.midi }
+        if (notes.isEmpty()) return
+        if (prefs.sound) {
+            if (micOn && !mic.headphonesOn()) mic.deafFor(1_700)
+            notes.forEach { sampler.noteOn(it, 80) }
+            scope.launch { delay(900); notes.forEach { sampler.noteOff(it) } }
+        }
+        Log.d(TAG, "hints: the app plays ${notes.map { noteName(it) }}")
+        say("Your turn.")
+    }
+    /** A wrong key from any input: counted, logged, and handed to whoever draws it (the skin's flash, the pup). */
+    fun showWrongKey(played: Int, nearest: Int?, distance: Int?) {
+        val k = WrongKey(played, nearest, distance, (++wrongKeys).toLong())
+        Log.d(TAG, "wrong key ${noteName(played)}" + (nearest?.let { " near ${noteName(it)}, $distance away, ${if (k.slip) "yellow" else "red"}" } ?: ""))
+        onWrongKey(k)
+    }
+    /** Asks the room-noise watchdog; the pup offers once per session. */
+    fun checkNoise(now: Long) {
+        val s = mic.noiseWatch.check(now) ?: return
+        Log.d(TAG, "noise watch: offer (${s.noise} noise, ${s.painted} painted in the last minute, pause=${s.pauseListening})")
+        noiseOffer = s
+        voice.speak(NOISE_LINE, deferrable = false)
+    }
+    fun pause() { stallEnd("paused"); hintsEnd(); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
         // A fresh run starts early so its first notes are seen falling: Perform counts in two bars (clicks and
@@ -369,6 +436,7 @@ fun PlayerScreen(
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         // Perform: a note that raised the "good" count was on time (Perfect), any other right note was OK (Good).
         val good0 = transport.score?.recap()?.good ?: 0
+        val expectedBefore = transport.expected.map { it.midi }
         val result = transport.noteInput(midi, latencyMs)
         val grade = if (transport.mode == Mode.PERFORM) (if ((transport.score?.recap()?.good ?: 0) > good0) HitLights.PERFECT else HitLights.GOOD) else null
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
@@ -383,7 +451,10 @@ fun PlayerScreen(
             return result
         }
         when (result) {
-            InputResult.WRONG -> { wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime()) }
+            InputResult.WRONG -> {
+                wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime())
+                WrongKey.of(midi, expectedBefore, 0).let { showWrongKey(midi, it.nearest, it.distance) }
+            }
             InputResult.CORRECT, InputResult.GROUP_DONE -> {
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
@@ -551,15 +622,33 @@ fun PlayerScreen(
                     if (midi.connected.value != null) answerKey.mic(System.currentTimeMillis(), e.midi)
                     stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
+                    mic.noiseWatch.right(android.os.SystemClock.elapsedRealtime())
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
-                    tail("mic: a strike with none of the expected notes")
-                    stallWatch.heard(System.currentTimeMillis(), "a strike with none of the expected notes in it")
-                    if (mic.wrongFlash) wrongFeedback()
-                    Log.d(TAG, "input mic -> WRONG at ${transport.positionMs.toLong()} ms (flash=${mic.wrongFlash})")
+                    val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(e.riseDb)} dB"
+                    tail("mic: $what")
+                    stallWatch.heard(System.currentTimeMillis(), what)
+                    val paint = mic.paintsWrongKeys
+                    if (paint) {
+                        wrongFeedback()
+                        showWrongKey(e.midi, e.nearest, e.distance)
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        mic.noiseWatch.wrong(now); checkNoise(now)
+                    }
+                    Log.d(TAG, "input mic -> WRONG ${noteName(e.midi)} at ${transport.positionMs.toLong()} ms (painted=$paint)")
                 }
             }
+        }
+    }
+    // Loudness jumps with no piano note in them: the room-noise watchdog counts them while a run plays.
+    LaunchedEffect(mic) {
+        mic.noise.collect {
+            if (!micOn || !transport.playing) return@collect
+            val now = android.os.SystemClock.elapsedRealtime()
+            mic.noiseWatch.noise(now)
+            if (transport.waiting) stallWatch.heard(System.currentTimeMillis(), "noise (no piano note in it)")
+            checkNoise(now)
         }
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -627,7 +716,7 @@ fun PlayerScreen(
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
         var wasWaiting = transport.waiting
-        if (wasWaiting) stallBegin()                     // resumed in the middle of a wait
+        if (wasWaiting) { stallBegin(); hintsBegin() }   // resumed in the middle of a wait
         var listening = transport.listenFor
         var passes = transport.passes
         while (transport.playing) {
@@ -654,7 +743,14 @@ fun PlayerScreen(
                     version++
                     if (wasWaiting) Log.d(TAG, "wait at ${transport.positionMs.toLong()} ms expect=${transport.expected.map { noteName(it.midi) }}")
                     if (wasWaiting) stallBegin() else stallEnd("played")
+                    if (wasWaiting) hintsBegin() else hintsEnd()
                     if (wasWaiting) tail("waiting at ${at(transport.positionMs)} for ${transport.expected.joinToString(", ") { noteName(it.midi) }}")
+                }
+                // Stuck: the key glows, then the hand points at it, then the app plays it.
+                hintPlan.advance(android.os.SystemClock.elapsedRealtime())?.let { step ->
+                    hintStep = step
+                    Log.d(TAG, "hints: $step on ${transport.expected.map { noteName(it.midi) }} after ${hintPlan.stepsMs[step.ordinal - 1] / 1000} s")
+                    if (step == HintStep.PLAY) playHint()
                 }
                 // Perform mode: what the mic listens for moves with the song.
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
@@ -663,6 +759,7 @@ fun PlayerScreen(
             }
         }
         playing = false
+        hintsEnd()
         flushPractice()
         Log.d(TAG, "transport stopped at ${transport.positionMs.toLong()} ms")
         if (transport.positionMs >= song.durationMs) finished()
@@ -673,6 +770,19 @@ fun PlayerScreen(
     val tabletop = rememberTabletop(force = start.tabletop)
     var rootTopPx by remember { mutableFloatStateOf(0f) }
     val waitingNow = remember(version) { transport.waiting }
+    // The octave hint: while a wait-mode wait listens, ask the mic four times a second.
+    LaunchedEffect(waitingNow, micOn, mode, playing) {
+        if (!waitingNow || !micOn || !octaveOn || mode != Mode.WAIT || !playing) return@LaunchedEffect
+        while (true) {
+            delay(250)
+            mic.octaveCheck()?.let { h ->
+                Log.d(TAG, "octave hint: ${noteName(h.expected)} played ${if (h.playedOctaveOffset > 0) "an octave up" else "an octave down"}")
+                octaveShown = h
+                say(h.line)
+            }
+        }
+    }
+    LaunchedEffect(hintLine) { if (hintLine != null) { delay(4_500); hintLine = null } }
     val moving = playing && !waitingNow && transport.positionMs >= 0
     val showVideo = videoOn && tutorial != null
 
@@ -749,7 +859,7 @@ fun PlayerScreen(
         }
         Log.d(TAG, "flag: $what at ${at(flagAt)}, saving $name")
         if (mic.canClip) mic.saveStall(flagMark + 2L * com.bigpapituna.sharpears.audio.MicInput.RATE, report, name)
-        else { mic.reporter.saveText(name, report); mic.reporter.flush() }
+        else { mic.reporter.saveText(name, com.bigpapituna.sharpears.engine.StallWatch.tagProfile(report, mic.profileKind)); mic.reporter.flush() }
     }
 
     @Composable
@@ -774,12 +884,22 @@ fun PlayerScreen(
             BeatCounter(metro.beatsPerBar, metro.beatInBar(position), Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
         // The pup: ready during the count-in, a high-five after a hard passage comes good.
         if (showHighFive) PupSays(Pose.GREAT_JOB, "High five!", Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
+        else if (hintLine != null) PupSays(Pose.LEARNING, hintLine!!, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).widthIn(max = 420.dp))
         else if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
             Pup(Pose.GET_READY, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp)
         // Before the first Play: a quiet hint, nothing else.
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
+        noiseOffer?.let { offer ->
+            NoiseSheet(
+                onKeep = { noiseOffer = null; Log.d(TAG, "noise watch: keep showing wrong keys") },
+                onStop = { mic.wrongPaintOff = true; noiseOffer = null; Log.d(TAG, "noise watch: wrong keys off for this session") },
+                // Session only: the mic goes off for this song; the "mic on" setting is not touched.
+                onPause = if (offer.pauseListening && mode == Mode.WAIT) ({ noiseOffer = null; micOn = false; Log.d(TAG, "noise watch: listening paused") }) else null,
+                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+            )
+        }
         if (chordsOn && chords != null) ChordLabel(chords, position, song.preferFlats, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
@@ -835,7 +955,15 @@ fun PlayerScreen(
                 sheen = !playing,
             )
             com.bigpapituna.sharpears.ui.motion.GhostHand(ghost, { position }, range.first, range.last, Modifier.matchParentSize(),
-                visible = labels && prefs.ghostHand && prefs.version.intValue >= 0)
+                visible = labels && prefs.ghostHand && prefs.version.intValue >= 0 && hintStep < HintStep.POINT)
+            // Hints while stuck: the waiting keys glow, then the painted hand points at one (right hand first).
+            if (hintStep >= HintStep.GLOW && expected.isNotEmpty())
+                KeyGlow(remember(expected) { expected.associate { it.midi to handColor(it.hand) } }, range.first, range.last, Modifier.matchParentSize())
+            if (hintStep >= HintStep.POINT) {
+                val n = expected.filter { it.hand == Hand.RIGHT }.minByOrNull { it.midi } ?: expected.minByOrNull { it.midi }
+                if (n != null) PointingHand(n.midi, n.hand == Hand.RIGHT, range.first, range.last, Modifier.matchParentSize())
+            }
+            octaveShown?.let { OctaveArrow(it.expected, it.playedOctaveOffset, range.first, range.last, Modifier.matchParentSize()) }
         }
     }
 

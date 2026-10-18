@@ -62,13 +62,68 @@ class MicInput(private val context: Context) {
     val recording = mutableStateOf<String?>(null)
 
     /**
-     * Red flash for wrong notes heard by the mic. Off by default: in a room with talking or TV, loudness jumps
-     * cannot be told apart from wrong piano notes (57 false flashes in 54 s of Roy's session).
+     * Show wrong keys heard by the mic (2.1: on by default for everyone, the switch stays in Microphone setup). The
+     * mic names a wrong key only on a confident piano strike (MicEvent.Wrong); talking and TV go to [noise] instead.
+     * Roy's scale session with talking in the room: 57 false flashes when every loudness jump was one, 0 now.
+     * A noisy room can still stop the painting for the session ([wrongPaintOff], the room-noise watchdog).
      */
-    // ponytail: on/off only; naming the wrong note (a semitone-grid search) is the upgrade
     var wrongFlash: Boolean
-        get() = prefs.getBoolean("wrongFlash", false)
+        get() = prefs.getBoolean("wrongFlash", true)
         set(v) { prefs.edit().putBoolean("wrongFlash", v).apply() }
+
+    /** "Stop for this session" from the room-noise watchdog: no wrong keys painted until the app closes. Never stored. */
+    @Volatile var wrongPaintOff = false
+    /** Whether a wrong key the mic hears is painted now: the setting, unless this session turned it off. */
+    val paintsWrongKeys get() = wrongFlash && !wrongPaintOff
+    /** The room-noise watchdog for this app session (the player feeds it and asks it; see engine/hints/NoiseWatch). */
+    val noiseWatch = com.bigpapituna.sharpears.engine.hints.NoiseWatch()
+
+    /**
+     * The person playing: [kid] goes into every report this mic saves as "profile=kid|adult" (never the name), and
+     * [micOffsetDb] (Profile.micOffsetDb, +3 for kids) makes the matcher that much easier. Call it whenever the
+     * profile opens or changes; the stored sensitivity setting is untouched.
+     */
+    fun forProfile(kid: Boolean, micOffsetDb: Double) {
+        profileKind = com.bigpapituna.sharpears.engine.StallWatch.profileKind(kid)
+        matcher.offsetDb = micOffsetDb
+        Log.d(TAG, "mic: profile $profileKind, offset $micOffsetDb dB")
+    }
+    /** "kid" or "adult" ([forProfile]); reports carry it. */
+    @Volatile var profileKind: String = "adult"
+        private set
+
+    /** Loudness jumps with no expected and no piano note in them (talking, TV, knocks), as matcher samples. */
+    private val _noise = MutableSharedFlow<Long>(extraBufferCapacity = 32)
+    val noise: SharedFlow<Long> = _noise
+
+    // The octave hint listens on the audio thread (every turned-down expected note); the player asks it.
+    private val octave = com.bigpapituna.sharpears.engine.hints.OctaveHint()
+    private fun sampleMs(sample: Long) = sample * 1000 / RATE
+    init {
+        matcher.noise = { s -> if (System.nanoTime() >= deafUntil) _noise.tryEmit(s) }
+        matcher.candidates = { c -> synchronized(octave) { octave.candidate(sampleMs(c.sample), c) } }
+    }
+
+    /** A new wait on [expected] (or none): the octave hint starts over. Main thread. */
+    fun octaveReset(expected: Set<Int>) = synchronized(octave) { octave.reset(expected) }
+
+    /** The octave hint, once per wait, when the mic has heard an expected note an octave off for about two seconds. */
+    fun octaveCheck(): com.bigpapituna.sharpears.engine.hints.OctaveHint.Hint? =
+        synchronized(octave) { octave.check(sampleMs(matcher.samplesProcessed)) }
+
+    /**
+     * Ignore what the mic hears for [ms] (the app is playing a note through the speaker as a hint: the mic must not
+     * take it for the player's). The matcher keeps listening so nothing is stale afterwards; its events are dropped.
+     */
+    fun deafFor(ms: Long) { deafUntil = System.nanoTime() + ms * 1_000_000; Log.d(TAG, "mic: deaf for $ms ms") }
+    @Volatile private var deafUntil = 0L
+
+    /**
+     * Raw input for the clap counter (playground and play teams): called on the audio thread with each chunk as it
+     * is read (512 frames at 48 kHz, mono floats -1..1), before note matching. The array is reused for the next chunk,
+     * so copy what you keep, and return fast: the capture loop waits for you. Null (the default) costs nothing.
+     */
+    @Volatile var rawFrames: ((FloatArray) -> Unit)? = null
 
     var micAddress: String?
         get() = prefs.getString("micAddress", null)
@@ -249,11 +304,20 @@ class MicInput(private val context: Context) {
 
     private fun handle(buf: FloatArray, n: Int) {
         tap?.invoke(buf, n)
+        rawFrames?.invoke(if (n == buf.size) buf else buf.copyOf(n))
         // The writer is read inside the lock: stopRecording() nulls and closes it under the same lock, and a stale
         // reference taken outside would append to a closed file (EBADF at the end of every recording).
         synchronized(this) { writer?.append(buf, n) }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
-        for (e in matcher.process(buf, n)) _events.tryEmit(e)
+        val deaf = System.nanoTime() < deafUntil
+        for (e in matcher.process(buf, n)) {
+            if (deaf) continue
+            when (e) {
+                is MicEvent.Strike -> synchronized(octave) { octave.right(e.midi) }
+                is MicEvent.Wrong -> synchronized(octave) { octave.wrong(sampleMs(e.sample), e.midi, e.riseDb) }
+            }
+            _events.tryEmit(e)
+        }
         if (framesRead - lastLevelPost >= RATE / 15) {
             lastLevelPost = framesRead
             val db = matcher.levelDb.toFloat()
@@ -299,11 +363,12 @@ class MicInput(private val context: Context) {
         val n = (end - from).toInt()
         if (n <= 0) return
         val clip = FloatArray(n) { ring[((from + it) % ring.size).toInt()] }
+        val tagged = com.bigpapituna.sharpears.engine.StallWatch.tagProfile(report, profileKind)
         Thread {
             val dir = stallDir().apply { mkdirs() }
             val wav = File(dir, "$name.wav")
             Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-            File(dir, "$name.txt").writeText(report + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
+            File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
             // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
             val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
             while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
