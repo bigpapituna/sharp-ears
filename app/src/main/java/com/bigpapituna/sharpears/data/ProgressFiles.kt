@@ -14,10 +14,12 @@ import com.bigpapituna.sharpears.engine.family.Roster
  * achievements and goals ("profile"), ear training ("ear"), the practice tools ("practice") and theory ("theory").
  *
  * Since 2.1 every file but "mic" is per profile: the owner keeps the plain names, everyone else has
- * "<name>.<profileId>" ([fileFor]). A backup carries every profile's files and the roster ("profiles").
+ * "<name>.<profileId>" ([fileFor]). A backup carries every profile's files and the roster ("profiles"). 2.1 adds the
+ * pup's world ("world": stickers, the jar, the outfit), the play corner ("play": today's quest, Pup says bests) and the
+ * kid skin's bedtime dates ("skin").
  */
 object ProgressFiles {
-    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory")
+    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin")
 
     /** The preference file [name] (one of [NAMES]) opens for [profileId]: "progress" for the owner, "progress.p3" otherwise. */
     fun fileFor(name: String, profileId: String): String = ProfileFiles.fileFor(name, profileId)

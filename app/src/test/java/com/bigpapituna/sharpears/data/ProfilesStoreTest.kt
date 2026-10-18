@@ -124,9 +124,9 @@ class ProfilesStoreTest {
     }
 
     @Test fun progressFilesNamesTheSameFiles() {
-        assertEquals(listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory"),
+        assertEquals(listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin"),
             ProgressFiles.NAMES.map { ProgressFiles.fileFor(it, "owner") })
-        assertEquals(listOf("progress.p2", "mastery.p2", "mic", "profile.p2", "ear.p2", "practice.p2", "theory.p2"),
+        assertEquals(listOf("progress.p2", "mastery.p2", "mic", "profile.p2", "ear.p2", "practice.p2", "theory.p2", "world.p2", "play.p2", "skin.p2"),
             ProgressFiles.NAMES.map { ProgressFiles.fileFor(it, "p2") })
     }
 
