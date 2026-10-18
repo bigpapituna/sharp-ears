@@ -285,9 +285,15 @@ private fun DrawScope.lambPicture() {
     drawCircle(Color.White, w * 0.025f, Offset(w * 0.2f, h * 0.38f))
 }
 
+/**
+ * The "five" song card's balls over C D E F G: each its key's colour (red, orange, yellow, green, teal), as on the keys
+ * and notes. It was five theme colours ending in blue and purple, which are A's and B's.
+ */
+internal val FIVE_PICTURE_COLOURS = listOf(60, 62, 64, 65, 67).map(::noteColour)
+
 private fun DrawScope.fivePicture() {
     val w = size.width; val h = size.height
-    val colors = listOf(Accent, PupGold, Good, LeftHandColor, Color(0xFFB98AD9))
+    val colors = FIVE_PICTURE_COLOURS
     for (k in 0 until 5) {
         val x = w * (0.14f + k * 0.18f)
         drawRoundRect(Color(0xFFF7F2EA), Offset(x - w * 0.075f, h * 0.55f), Size(w * 0.15f, h * 0.4f), CornerRadius(w * 0.03f))

@@ -25,6 +25,11 @@ class SceneColoursTest {
         })
     }
 
+    /** The concert's Ode to Joy card draws five balls over five keys: C to G in their colours, not A's blue and B's purple. */
+    @Test fun theFiveFingerCardWearsCToG() {
+        assertEquals(listOf(60, 62, 64, 65, 67).map { Color(NoteColours.colour(it)) }, com.bigpapituna.sharpears.ui.playground.FIVE_PICTURE_COLOURS)
+    }
+
     @Test fun withoutColourNotesAndForContextKeysNothingChanges() {
         for (midi in 48..84) {
             assertEquals(accent, sceneNoteColour(midi, accent, colourNotes = false))
