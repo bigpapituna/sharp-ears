@@ -27,6 +27,40 @@ section" is just turning the skin off, which a parent can do at any time and the
 
 One engine, one matcher, one lesson model (Step, Scene, Exercise), one set of songs.
 
+## 1b. For everyone, not only kids (added 2026-10-18)
+
+Roy's call: the things that make a game sticky are not a kids' feature. They are on for every profile; the kid
+skin is only the presentation layer on top (section 3). So, for adults and kids alike:
+
+- **Juice on every note.** Every detected note makes the pup react (a bounce scaled to pitch, an ear flick), the key
+  flashes its colour, a soft tick sounds. Lessons, songs, practice: nothing the player does is silent. The Jam
+  screen is the same thing with no goal.
+- **A living pup.** Idle moments after ten seconds of nothing (sneeze, tail chase, butterfly, scratch, sleep),
+  reactions (surprised, thinking, shh, peek) at the right moments, and the pup eating when the treat jar is tipped.
+  Never sad, never nagging: "ready to play", not "you abandoned me".
+- **Variable rewards.** Stickers drop from lessons and song runs with three rarities (common, rare, shiny). The
+  drop is random within a floor (never more than three lessons without a rare). A mystery egg appears every third
+  lesson and hatches on the next one. Collections show their gaps ("7 of 10 in the pond"). Adults get the same
+  album; the stickers are not babyish (instruments, animals, places).
+- **A world that grows.** The dog house upgrades in three stages, the garden fills with what was collected, the
+  concert audience is the animals unlocked so far. The lesson path lives inside this place. Effort becomes
+  something you can see and show.
+- **"One more".** The next lesson's button appears during the celebration, with a preview of what it drops.
+- **Sound.** A jingle per rarity, the pup's bark on a clean run, a soft chime per star. Audio lands faster than
+  pixels.
+- **Showing off.** The "songs I can play" shelf with bronze, silver and gold records per song; Share my concert
+  (a recording plus a card) for anyone, not only Grandma.
+- **Family wall, duet, take turns, crown of the day**: for every profile.
+- **Octave hint and hint escalation**: for everyone, with adult timings (6, 12, 18 s) and kid timings (4, 8, 12 s).
+- **Stars** are shown for everyone; adults also see the accuracy number. Colour notes are a toggle adults can turn
+  on (many adult beginners use colour books too).
+
+What stays kid-only: animal key names, bites (one scene per step), hiding numbers, the 5 to 8 minute goodbye, the
+parent gate, slower speech, the pup saying the name on every recap (adults get it on milestones only).
+
+Left out for everyone: timers, energy limits, lose-your-streak, nags. The parents are the gatekeepers, and Roy is
+an adult user who would uninstall over those.
+
 ## 2. Profiles: the family on one phone
 
 Progress lives in SharedPreferences files named in `ProgressFiles.NAMES` (progress, mastery, mic, profile, ear,
@@ -150,13 +184,14 @@ one integrator. Each team leaves an INTEGRATION.md in its package, as in 2.0.
 |---|---|---|---|
 | 1 | Foundation | Opus, high | Profiles (suffix, picker, new-kid flow, per-profile settings), `KidsMode` state, parent gate, family wall data. Merged before anything else starts. |
 | 2a | Playground | Opus, high | The twelve lessons + scenes, the map on the lesson path, range exercise, clap counter, soft/loud grade, phrase cut points on reused lessons. |
-| 2b | Skin | Sonnet, medium | Colour and animal notes on NoteLane, Keyboard and scenes; bites; stars recap and kid RunWords; sticker album; dress the pup; big keys; session goodbye and paw calendar. |
+| 2b | Skin | Sonnet, medium | Colour and animal notes on NoteLane, Keyboard and scenes (colour as a toggle for adults); bites; stars on every recap, numbers hidden for kids; kid RunWords; big keys; session goodbye and paw calendar. |
+| 2f | World and rewards | Opus, high | For all profiles: juice on every note, the living pup (idle and reaction poses from art/mascot), sticker drops with rarities and the floor, mystery egg, album with gaps, dog house stages, garden and audience, treat jar, "one more" button, jingles, the records shelf, dress the pup. |
 | 2c | Detector and hints | Opus, high | Hint escalation, octave hint (engine + pup line + lane arrow), per-profile sensitivity offset, take-turns listening pauses, kid tag on stuck reports. |
 | 2d | Play | Sonnet, medium | Jam, Pup says (two player), Clap along, Share my concert, Pup's quest, Duet. |
 | 2e | Voice and stickers | Sonnet, medium | Catalog lines, name generation hooks, render run, placeholder stickers and accessories, pup pose hooks. |
 | 3 | Integration | Opus, high | Picker and onboarding wiring, Learn path order per profile kind, family wall on home, grown-up-mode prompt after Beginner, Duet and take-turns in the player, screenshots of everything on the Fold emulator, merge, 2.1.0 release. |
 
-Rough size: about 5,000 lines, 80 to 100 new tests, one release (2.1.0, versionCode 7). Two days of agent time;
+Rough size: about 6,500 lines, 100 to 120 new tests, one release (2.1.0, versionCode 7). Two days of agent time;
 one evening of Roy's for art prompts and a first test with the kids.
 
 ## 9. Not in this plan
