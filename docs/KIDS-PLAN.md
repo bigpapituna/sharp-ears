@@ -55,6 +55,8 @@ skin is only the presentation layer on top (section 3). So, for adults and kids 
 - **Wrong key shown, by default.** The key you hit lights yellow when it is within two semitones of the right one
   and red when it is further away, for every profile (toggle stays in Settings). Only on confident strikes, so
   room talk does not paint keys.
+  If the room still fools it (a burst of "wrong keys" that do not look like a piano), the pup offers once per
+  session to stop painting wrong keys, or to pause listening; the setting itself is untouched.
 - **Stars** are shown for everyone; adults also see the accuracy number. Colour notes are a toggle adults can turn
   on (many adult beginners use colour books too).
 

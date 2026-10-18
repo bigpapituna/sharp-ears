@@ -75,6 +75,13 @@ What each team delivers (details and copy in docs/KIDS-PLAN.md):
   falling-note column glow yellow or red for about 600 ms with a short shake, kids get the same colours but the
   pup's head tilt instead of any wording like "wrong". Test: distance classification, and a fixture replay
   asserting the wrong count on 155837 does not rise above the current number.
+- **detector, room-noise watchdog (Roy, same evening)**: when the mic keeps producing wrong-key events that do
+  not look like a piano (no partial structure, no clean attack, or many in a burst while the keys the song
+  expects stay silent), count them per minute; past a threshold (start at 6 in a minute, tune on the
+  recordings) the pup offers once per session: "Noisy room? I can stop painting wrong keys for now" with two
+  ChunkyButtons: "Keep showing" and "Stop for this session" (and, when it happens in listen or wait mode with no
+  playing at all for a while, "Pause listening"). Turning it off is per session, never changes the setting.
+  Pure Android-free counter in engine/hints with tests; the sheet in ui/hints.
 - **detector**: hint escalation (glow, painted hand points, app plays it) with per-profile timings; the octave
   hint from the 2026-10-17 clips (when the strongest rejected candidate is an octave from an expected note for
   two seconds: pup line + arrow overlay in ui/hints); per-profile mic sensitivity offset; a raw-frame tap on
