@@ -221,7 +221,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
             }
         }
         said?.let(::show)
-        Log.d(TAG, "jam: ${noteName(m)} ($src${if (confirmed) "" else ", not confirmed"}) caption \"${said?.text}\"")
+        Log.d(TAG, "jam: ${noteName(m)} ($src${if (confirmed) "" else ", not confirmed"}) at $at caption \"${said?.text}\"")
         if (m % 12 == 0) {
             val stars: List<QuestTask> = store.recordQuest(QuestEvent.NotePlayed(m), kid)
             if (stars.isNotEmpty()) line = if (kid) "You found all the Cs! A quest star!" else "All the Cs: a quest star."
