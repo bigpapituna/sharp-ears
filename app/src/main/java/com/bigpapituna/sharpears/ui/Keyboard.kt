@@ -56,6 +56,16 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.KeyRect
 import com.bigpapituna.sharpears.engine.KeyboardLayout
 import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.engine.skin.KeyboardSize
+import com.bigpapituna.sharpears.engine.skin.NoteColours
+import com.bigpapituna.sharpears.ui.skin.WrongFlash
+import com.bigpapituna.sharpears.ui.skin.colourNotesOn
+import com.bigpapituna.sharpears.ui.skin.drawAnimal
+import com.bigpapituna.sharpears.ui.skin.drawNoteColour
+import com.bigpapituna.sharpears.ui.skin.drawWrongKey
+import com.bigpapituna.sharpears.ui.skin.inkOn
+import com.bigpapituna.sharpears.ui.skin.noteColour
+import com.bigpapituna.sharpears.ui.skin.rememberFlashClock
 import kotlinx.coroutines.delay
 
 // Off-white and off-black keys (no pure white or black), slate edges to match the stage.
@@ -74,6 +84,11 @@ private val KeyLabel = Color(0xFF6B6058)
  * [lit] keys are drawn in their color (pressed keys, or keys the song wants next). Lit keys sink 3 dp and
  * spring back when released; [flash] sends a glow and ripple out of a judged key; [sheen] is an occasional
  * idle glint. With the system's animations off, keys still go down and up but nothing else moves.
+ *
+ * 2.1 (ui/skin): with [colours] every key wears a pad of its Boomwhacker colour near the front (black keys striped in
+ * their neighbours' colours), and a note-name label sits on the pad: the letter for a [reader], the key's animal for a
+ * kid who cannot read yet. [keySize] BIG (kids) draws bigger labels and pads; the range the caller passes decides how
+ * wide the keys are (KeyboardSize.range). [wrong] makes a wrong key glow yellow or red with a short shake.
  */
 @Composable
 fun Keyboard(
@@ -93,6 +108,14 @@ fun Keyboard(
     flash: Map<Int, Color> = emptyMap(),
     /** A faint light that sweeps across the keys now and then; pass false while a song plays. */
     sheen: Boolean = true,
+    /** Boomwhacker colour pads on the keys: follows the profile (kids on, grown-ups by Settings) unless a screen says. */
+    colours: Boolean = colourNotesOn(),
+    /** Letters on the pads; false swaps note-name labels for the key's animal (kids who cannot read yet). */
+    reader: Boolean = com.bigpapituna.sharpears.ui.family.reader(),
+    /** BIG for kids: larger labels and pads (pass KeyboardSize.range for the wider keys). */
+    keySize: KeyboardSize = KeyboardSize.REGULAR,
+    /** Wrong keys shown: the key glows yellow (a slip of up to two semitones) or red with a short shake. */
+    wrong: WrongFlash? = null,
 ) {
     val still = reducedMotion()
     val motion = remember { KeyMotion() }
@@ -137,6 +160,8 @@ fun Keyboard(
     }
     val text = rememberTextMeasurer()
     val labelCache = remember(text) { HashMap<String, androidx.compose.ui.text.TextLayoutResult>() }
+    val animalPath = remember { androidx.compose.ui.graphics.Path() }
+    val wrongClock = rememberFlashClock(wrong)
     // Read only inside the Canvas, so the pulse redraws the keyboard without recomposing the screen.
     val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         0.35f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "pulse")
@@ -151,7 +176,7 @@ fun Keyboard(
 
     Box(
         modifier
-            .semantics { contentDescription = "Piano keyboard ${noteName(lowMidi)} to ${noteName(highMidi)}" }
+            .semantics { contentDescription = "Piano keyboard ${noteName(lowMidi)} to ${noteName(highMidi)}" + if (colours) ", in colours" else "" }
             .onGloballyPositioned { c ->
                 if (c.size != box) {
                     box = c.size
@@ -191,7 +216,22 @@ fun Keyboard(
             drawRect(KeyEdge)                                  // shows through the gaps between keys
             val keyH = l.whiteKeys.firstOrNull()?.let { it.bottom - it.top } ?: size.height
             val whiteBody = Brush.verticalGradient(listOf(WhiteTop, WhiteKey, WhiteLow), startY = 0f, endY = keyH)
-            l.whiteKeys.forEach { k -> drawWhiteKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.75f), whiteBody, motion.pos[k.midi], sinkPx) }
+            // A wrong key shakes and glows (its pad and label move with it); the clock runs only while one does.
+            val wrongNow = wrongClock.longValue
+            fun shake(k: KeyRect) = if (wrong == null || wrongNow == 0L) 0f else wrong.shakePx(k.midi, wrongNow, still, (k.right - k.left) * 0.10f)
+            fun wrongGlow(k: KeyRect, dx: Float) {
+                if (wrong == null || wrongNow == 0L) return
+                val g = wrong.glow(k.midi, wrongNow, still)
+                if (g > 0f) wrong.tone(k.midi)?.let { drawWrongKey(k, g, it, dx) }
+            }
+            l.whiteKeys.forEach { k ->
+                val dx = shake(k)
+                translate(left = dx) {
+                    drawWhiteKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.75f), whiteBody, motion.pos[k.midi], sinkPx)
+                    if (colours) drawColourPad(k, motion.pos[k.midi], sinkPx, keySize.labelScale)
+                }
+                wrongGlow(k, dx)
+            }
             val s = sweep.value
             if (s > 0f && s < 1f) {
                 val band = l.whiteWidth * 3f
@@ -200,25 +240,53 @@ fun Keyboard(
             }
             // The rail the keys tuck under: a soft shadow along the top edge.
             drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent), endY = keyH * 0.08f), size = Size(size.width, keyH * 0.08f))
-            l.blackKeys.forEach { k -> drawBlackKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.85f), motion.pos[k.midi], sinkPx) }
+            l.blackKeys.forEach { k ->
+                val dx = shake(k)
+                translate(left = dx) {
+                    drawBlackKey(k, lit[k.midi], pulsing[k.midi]?.copy(alpha = a * 0.85f), motion.pos[k.midi], sinkPx)
+                    if (colours) drawColourPad(k, motion.pos[k.midi], sinkPx, keySize.labelScale)
+                }
+                wrongGlow(k, dx)
+            }
             if (now != 0L) motion.drawRipples(this, l, now)
+            val fontPx = 14.sp.toPx() * keySize.labelScale
             for ((midi, label) in labels) {
                 if (midi !in lowMidi..highMidi) continue
                 val k = l.rect(midi)
+                val dx = shake(k)
+                val sunk = motion.pos[midi].coerceIn(0f, 1f) * sinkPx
+                if (colours) {
+                    // On the pad: the letter in the ink that reads on that colour, or the key's animal for a pre-reader.
+                    val pad = padRect(k, motion.pos[midi], sinkPx, keySize.labelScale)
+                    val isName = label.first() in 'A'..'G'
+                    val animal = if (isName && !reader) NoteColours.animal(midi) else null
+                    if (animal != null) {
+                        val icon = minOf(pad.width * 0.84f, pad.height * 0.84f)
+                        drawAnimal(animal, Offset(pad.center.x + dx, pad.center.y), icon, inkOn(midi), noteColour(midi), animalPath)
+                    } else if (!(isName && !reader)) {
+                        val px = minOf(fontPx, pad.height * 0.62f)
+                        val ink = inkOn(midi)
+                        val m = labelCache.getOrPut("$label|pad|$px|${ink.value}") {
+                            text.measure(label, TextStyle(color = ink, fontSize = (px / density / fontScale).sp, fontFamily = Geist, fontWeight = FontWeight.Bold))
+                        }
+                        drawText(m, topLeft = Offset(pad.center.x - m.size.width / 2f + dx, pad.center.y - m.size.height / 2f))
+                    }
+                    continue
+                }
                 // A lit white key is darker (hand colour, sunk), so its label turns light like a black key's.
                 val light = k.black || lit[midi] != null
-                val m = labelCache.getOrPut("$label|$light") {
-                    text.measure(label, TextStyle(color = if (light) Ink else KeyLabel, fontSize = 14.sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
+                val m = labelCache.getOrPut("$label|$light|$fontPx") {
+                    text.measure(label, TextStyle(color = if (light) Ink else KeyLabel, fontSize = (fontPx / density / fontScale).sp, fontFamily = Geist, fontWeight = FontWeight.SemiBold))
                 }
                 val lip = (k.bottom - k.top) * if (k.black) 0.12f else 0.07f
                 // Centred on the key, but kept inside it (and the keyboard), so "C2" on the first key is never cut.
                 val x = (k.centerX - m.size.width / 2f).coerceIn(minOf(k.left + 3f, size.width - m.size.width), maxOf(k.left + 3f, minOf(k.right - m.size.width - 3f, size.width - m.size.width - 3f)))
-                drawText(m, topLeft = Offset(x, k.bottom - lip - m.size.height - 6f + motion.pos[midi].coerceIn(0f, 1f) * sinkPx))
+                drawText(m, topLeft = Offset(x + dx, k.bottom - lip - m.size.height - 6f + sunk))
             }
         }
         // Remembered once; it reads the latest callbacks when TalkBack activates a key.
         val tap = remember { { m: Int -> on(m, 90); off(m) } }
-        layout?.let { KeySemantics(it, tap) }
+        layout?.let { KeySemantics(it, tap, colours) }
     }
 }
 
@@ -227,7 +295,7 @@ fun Keyboard(
  * the Canvas above handles fingers. Skips recomposition while the layout is unchanged.
  */
 @Composable
-private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit) {
+private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit, colours: Boolean) {
     val density = LocalDensity.current
     (l.whiteKeys + l.blackKeys).forEach { k ->
         with(density) {
@@ -235,13 +303,37 @@ private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit) {
                 Modifier.offset { IntOffset(k.left.toInt(), k.top.toInt()) }
                     .size((k.right - k.left).toDp(), (k.bottom - k.top).toDp())
                     .clearAndSetSemantics {
-                        contentDescription = noteName(k.midi)
+                        contentDescription = noteName(k.midi) + if (colours) ", ${NoteColours.colourName(k.midi)}" else ""
                         role = Role.Button
                         onClick { tap(k.midi); true }
                     },
             )
         }
     }
+}
+
+/**
+ * Where a key's colour pad sits: near the front of the face (the part a finger lands on), inset from the sides,
+ * sinking with the key. [scale] grows it for big keys.
+ */
+private fun padRect(k: KeyRect, d: Float, sinkPx: Float, scale: Float): androidx.compose.ui.geometry.Rect {
+    val w = k.right - k.left; val h = k.bottom - k.top
+    val front = h * if (k.black) 0.12f else 0.07f
+    val sink = (d * sinkPx).coerceIn(-sinkPx * 0.4f, front * 0.8f)
+    val inset = w * if (k.black) 0.14f else 0.12f
+    val padH = minOf(h * 0.30f, (w - 2 * inset) * 1.05f * scale, h * 0.42f)
+    val bottom = k.top + sink + h - front - w * 0.10f
+    return androidx.compose.ui.geometry.Rect(k.left + inset, bottom - padH, k.right - inset, bottom)
+}
+
+/** The key's colour: a pad near the front (stripes on a black key) and a faint wash of it up a white key's face. */
+private fun DrawScope.drawColourPad(k: KeyRect, d: Float, sinkPx: Float, scale: Float) {
+    val pad = padRect(k, d, sinkPx, scale)
+    val w = k.right - k.left
+    if (!k.black) drawRoundRect(noteColour(k.midi), Offset(k.left + 1.2f, k.top), Size(w - 2.4f, pad.top - k.top), CornerRadius(w * 0.10f), alpha = 0.10f)
+    drawNoteColour(k.midi, pad.topLeft, pad.size, CornerRadius(minOf(pad.width, pad.height) * 0.28f))
+    // A soft highlight on the top edge so the pad reads as a sticker on the key, not a hole in it.
+    drawRoundRect(Color.White, pad.topLeft, Size(pad.width, pad.height * 0.22f), CornerRadius(minOf(pad.width, pad.height) * 0.28f), alpha = 0.18f)
 }
 
 /**

@@ -1,8 +1,15 @@
 package com.bigpapituna.sharpears.engine
 
+import com.bigpapituna.sharpears.engine.family.ProfileKind
+import com.bigpapituna.sharpears.engine.skin.Stars
+
 /**
  * The words on a song's end-of-run recap, in the pup's voice: a headline by result and one coaching line.
  * No milliseconds and no symbols: timing reads as "right on the beat" or "a hair late".
+ *
+ * Kids (2.1, docs/KIDS-PLAN.md section 3) get their own vocabulary, chosen by the profile kind in [headline] and
+ * [coaching]: picked by the stars (engine/skin/Stars), never a number, never "New best", and the pup says the kid's
+ * name on every recap. Grown-ups keep the words below unchanged.
  */
 object RunWords {
     /** A best worth a party: the first score of a song is always a "best", but 2% is not a celebration. */
@@ -51,4 +58,66 @@ object RunWords {
         hardest != null -> "$wrongKeys wrong ${if (wrongKeys == 1) "note" else "notes"} on the way. Bar $hardest is worth a loop."
         else -> "$wrongKeys wrong ${if (wrongKeys == 1) "note" else "notes"} on the way. Once more and they'll settle."
     }
+
+    // Kids (2.1). Templates: "{name}" becomes ", Mia" (or nothing without a name), so a line reads the same either way.
+
+    /** Kid headlines by stars (index 0 is one star). Short enough to read aloud in one breath. */
+    val KID_TITLES: List<List<String>> = listOf(
+        listOf("You played it!", "You got to the end!", "Good going!"),
+        listOf("Nice playing!", "That sounded lovely!", "Woof! Nice one!"),
+        listOf("You did it!", "The pup is dancing!", "Wow, wow, wow!"),
+    )
+
+    /** Kid lines by stars, with the name. */
+    val KID_LINES: List<List<String>> = listOf(
+        listOf("You got to the end{name}! Let's play it once more, nice and slow.",
+            "Every try makes it easier{name}. Again?",
+            "Good job sticking with it{name}. Shall we try again?"),
+        listOf("Lovely playing{name}. Play it again and catch every note?",
+            "So close to every star{name}. One more go?",
+            "That sounded great{name}. Ready for another try?"),
+        listOf("Every note was right{name}. The pup wants to hear it again!",
+            "That was perfect{name}! Paws in the air!",
+            "You played it just right{name}. What a star!"),
+    )
+
+    /** "{name}" filled: ", Mia", or nothing when there is no name. */
+    fun named(template: String, name: String?): String =
+        template.replace("{name}", name?.trim()?.takeIf { it.isNotEmpty() }?.let { ", $it" } ?: "")
+
+    /** A kid's headline for [stars] (1..3); [seed] picks among the variants so runs do not all sound the same. */
+    fun kidTitle(stars: Int, seed: Int = 0): String = KID_TITLES[stars.coerceIn(1, 3) - 1].let { it[Math.floorMod(seed, it.size)] }
+
+    /** A kid's line for [stars] with their [name]. */
+    fun kidLine(stars: Int, name: String?, seed: Int = 0): String =
+        named(KID_LINES[stars.coerceIn(1, 3) - 1].let { it[Math.floorMod(seed, it.size)] }, name)
+
+    /** The recap headline for whoever played: kids by the stars, grown-ups by the accuracy (Perform) or wrong keys (Wait). */
+    fun headline(kind: ProfileKind, recap: Recap?, wrongKeys: Int, newBest: Boolean, seed: Int = 0): String = when {
+        kind == ProfileKind.KID -> kidTitle(Stars.of(recap, wrongKeys), seed)
+        recap != null -> title(recap.accuracy, newBest)
+        else -> waitTitle(wrongKeys)
+    }
+
+    /** The recap's one line for whoever played: kids hear their [name], grown-ups get the coaching above. */
+    fun coaching(kind: ProfileKind, recap: Recap?, wrongKeys: Int, hardest: Int?, speed: Double, name: String? = null, seed: Int = 0): String = when {
+        kind == ProfileKind.KID -> kidLine(Stars.of(recap, wrongKeys), name, seed)
+        recap != null -> line(recap, hardest, speed)
+        else -> waitLine(wrongKeys, hardest)
+    }
+
+    /** The party (sunburst, confetti, flourish): grown-ups on a new best worth it ([celebrates]), kids on three stars. */
+    fun party(kind: ProfileKind, recap: Recap?, wrongKeys: Int, newBest: Boolean): Boolean =
+        if (kind == ProfileKind.KID) Stars.of(recap, wrongKeys) == Stars.MAX else celebrates(recap?.accuracy ?: 0, newBest)
+
+    /** After a kid's lesson step: on to the next one, or once more (no "not quite", no numbers). */
+    fun kidStepLine(passed: Boolean, last: Boolean, name: String?): String = named(when {
+        passed && last -> "You did it{name}! That's the whole lesson."
+        passed -> "You did it{name}! On to the next one."
+        else -> "Almost{name}! Let's try that again."
+    }, name)
+
+    /** The end of a kid's lesson: the headline and the line under it. */
+    const val KID_LESSON_TITLE = "You did it!"
+    fun kidLessonLine(name: String?): String = named("Lesson done{name}. The pup is so proud of you.", name)
 }
