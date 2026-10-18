@@ -251,7 +251,8 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
         }
         if (place == Place.CONCERT) Scenery.audience(owned).forEachIndexed { i, s ->
             val a = WorldAnchors.seat(i)
-            StickerImage(s, Modifier.centerAt(a.x, a.y - 0.05f).size(w * 0.105f), tilt = 0f, shine = false)
+            // Sunk into the seat a little, clear of the stars under the hall's bottom row of stones.
+            StickerImage(s, Modifier.centerAt(a.x, a.y - 0.02f).size(w * 0.105f), tilt = 0f, shine = false)
         }
         if (stop != null) WorldAnchors.stops(place, stops).forEachIndexed { i, a ->
             Box(Modifier.centerAt(a.x, a.y)) { stop(i) }
