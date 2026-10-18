@@ -35,8 +35,10 @@ object Fingering {
             val fingers = solve(events.map { ev -> ev.map { if (mirror) -it.midi else it.midi } }, events.map { ev -> ev.map { isBlack(it.midi) } })
             events.forEachIndexed { i, ev -> ev.forEachIndexed { j, n -> out[n] = fingers[i][j] } }
         }
-        // A lesson can give the standard fingering (scales that start on a black key, thumb crossings by the book).
+        // A lesson can give the standard fingering (scales that start on a black key, thumb crossings by the book), for
+        // either hand: what its pictures and words name is then what the notes, the ghost hand and the hints show.
         song.fingering?.let { fixed -> song.notes.filter { it.hand == Hand.RIGHT }.zip(fixed).forEach { (n, f) -> out[n] = f } }
+        song.leftFingering?.let { fixed -> song.notes.filter { it.hand == Hand.LEFT }.zip(fixed).forEach { (n, f) -> out[n] = f } }
         return out
     }
 

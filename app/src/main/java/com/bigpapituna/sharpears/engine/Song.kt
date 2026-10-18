@@ -27,6 +27,8 @@ data class Song(
     val preferFlats: Boolean = false,
     /** Fixed right-hand fingers, one per right-hand note in time order (a lesson's scale); null: worked out. */
     val fingering: List<Int>? = null,
+    /** Fixed left-hand fingers, one per left-hand note in time order (a scale's book fingering, "little finger on low C"); null: worked out. */
+    val leftFingering: List<Int>? = null,
 )
 
 /**

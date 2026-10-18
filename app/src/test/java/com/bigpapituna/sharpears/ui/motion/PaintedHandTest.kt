@@ -27,6 +27,24 @@ class PaintedHandTest {
         }
     }
 
+    /**
+     * 2.2.1 QA: PRESS_n is the frame with finger n down, in both hands. The left hand's frames are mirrored, so its finger
+     * numbers run the other way across the keys: its thumb sits on the high side, its little finger on the low side.
+     */
+    @Test fun everyPressDropsItsOwnFingerInBothHandsAndTheLeftThumbSitsHigh() {
+        for (right in listOf(true, false)) {
+            for (f in 1..5) {
+                val drops = (1..5).map { g -> handTip(right, HandPose.press(f), g, g, 0f, 0f, w).y - handTip(right, HandPose.REST, g, g, 0f, 0f, w).y }
+                assertEquals("press $f right=$right drops finger ${drops.indexOf(drops.max()) + 1}", f, drops.indexOf(drops.max()) + 1)
+                assertTrue("press $f right=$right: finger $f goes down", drops[f - 1] > w * 0.15f)
+                (1..5).filter { it != f }.forEach { g -> assertEquals("press $f right=$right moves finger $g", 0f, drops[g - 1], w * 0.05f) }
+            }
+            val thumb = handTip(right, HandPose.REST, 1, 3, 0f, 0f, w).x
+            val little = handTip(right, HandPose.REST, 5, 3, 0f, 0f, w).x
+            assertTrue("right=$right: the thumb on the ${if (right) "low" else "high"} side", if (right) thumb < little else thumb > little)
+        }
+    }
+
     @Test fun madePressesDropTheirFinger() {
         for (f in listOf(2, 4)) {
             val rest = handTip(true, HandPose.REST, f, 3, 0f, 0f, w)

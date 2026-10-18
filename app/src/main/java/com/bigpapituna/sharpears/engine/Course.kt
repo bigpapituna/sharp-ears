@@ -44,6 +44,8 @@ data class Exercise(
     val flats: Boolean = false,
     /** Right-hand fingers by the book, one per note ("1 2 3 1 2 3 4 5"); empty: worked out by [Fingering]. */
     val fingers: String = "",
+    /** Left-hand fingers by the book, one per left-hand note ("5 4 3 2 1 3 2 1"); empty: worked out by [Fingering]. */
+    val leftFingers: String = "",
     /**
      * Where the first phrase ends, in beats from the start (8.0 = the end of bar 2 in four four). The kid skin plays
      * only this much as a bite ([bite]); null: the exercise is one bite already.
@@ -187,7 +189,22 @@ fun Exercise.toSong(id: String, title: String): Song {
     val groups = (groupOnsets(plain) + choices).sortedBy { it.startMs }
     val end = notes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
     return Song("lesson-$id", title, bpm, beats to 4, notes, groups, emptyList(), end + 400, preferFlats = flats,
-        fingering = fingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() })
+        fingering = fingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() },
+        leftFingering = leftFingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() })
+}
+
+/**
+ * The exercise with every finger written out: a hand without book fingers gets the ones [Fingering] works out for the
+ * whole exercise. Cut from this, a kid's bite shows the same fingers as the whole line it comes from (worked out on the
+ * bite alone, the first phrase of Lightly Row put G under finger 4, the whole line under 5). A hand whose notes do not
+ * all get a finger (alternatives, very wide chords) keeps being worked out.
+ */
+fun Exercise.withFingers(): Exercise {
+    if (fingers.isNotBlank() && leftFingers.isNotBlank()) return this
+    val song = toSong("fingers", "")
+    val worked = Fingering.of(song)
+    fun of(hand: Hand) = song.notes.filter { it.hand == hand }.map { worked[it] }.takeIf { it.isNotEmpty() && it.all { f -> f != null } }?.joinToString(" ")
+    return copy(fingers = fingers.ifBlank { of(Hand.RIGHT) ?: "" }, leftFingers = leftFingers.ifBlank { of(Hand.LEFT) ?: "" })
 }
 
 /** "1.5" stays "1.5", "2.0" is written "2". */
@@ -195,17 +212,19 @@ private fun beatsText(b: Double) = if (b == b.toLong().toDouble()) b.toLong().to
 
 /**
  * The kid bite (2.1, docs/KIDS-PLAN.md section 3): the exercise cut at [Exercise.phraseEnd]. Tokens that start before
- * the cut stay (one that runs past it is shortened to end there), later ones go, in both hands; the book fingers are cut
- * to the right-hand notes that remain. An exercise without a phrase end is its own bite.
+ * the cut stay (one that runs past it is shortened to end there), later ones go, in both hands; the fingers of the whole
+ * exercise ([withFingers]) are cut to the notes that remain, so the bite and the whole line agree. An exercise without a
+ * phrase end is its own bite.
  */
 fun Exercise.bite(): Exercise {
     val end = phraseEnd ?: return this
+    val whole = withFingers()
     fun cut(spec: String) = parseTokens(spec).filter { it.startBeat < end - 1e-9 }
         .joinToString(" ") { t -> "${t.text}:${beatsText(minOf(t.beats, end - t.startBeat))}" }
+    fun keep(fingers: String, line: String) = fingers.split(' ').filter { it.isNotBlank() }.take(parseTokens(line).sumOf { it.keys.size }).joinToString(" ")
     val right = cut(right)
-    val kept = parseTokens(right).sumOf { it.keys.size }
-    return copy(right = right, left = cut(left), phraseEnd = null,
-        fingers = fingers.split(' ').filter { it.isNotBlank() }.take(kept).joinToString(" "))
+    val left = cut(left)
+    return whole.copy(right = right, left = left, phraseEnd = null, fingers = keep(whole.fingers, right), leftFingers = keep(whole.leftFingers, left))
 }
 
 private fun lesson(id: String, title: String, summary: String, vararg steps: Step, song: String? = null) =
@@ -309,12 +328,12 @@ private const val STANDARD_SCALE = "1 2 3 1 2 3 4 5 4 3 2 1 3 2 1"
 
 /** A left-hand pattern: read it, hear both hands, the left hand alone, then both hands under a four-bar tune. */
 private fun leftHandLesson(id: String, title: String, summary: String, scenes: List<Scene>, left: String, tune: String,
-                           bpm: Double = 72.0, beats: Int = 4): CourseLesson {
-    val both = Exercise(right = tune, left = left, bpm = bpm, beats = beats)
+                           bpm: Double = 72.0, beats: Int = 4, leftFingers: String = ""): CourseLesson {
+    val both = Exercise(right = tune, left = left, bpm = bpm, beats = beats, leftFingers = leftFingers)
     return lesson(id, title, summary,
         read(*scenes.toTypedArray()),
         listen("Listen to the pattern under the tune.", both),
-        play("The left hand alone. The notes wait for you.", Exercise(left = left, bpm = bpm, practice = Practice.LEFT, beats = beats)),
+        play("The left hand alone. The notes wait for you.", Exercise(left = left, bpm = bpm, practice = Practice.LEFT, beats = beats, leftFingers = leftFingers)),
         play("Now both hands: the tune on top, the pattern underneath.", both))
 }
 
@@ -365,7 +384,7 @@ private val LEFT_HAND_PATTERNS = listOf(
             fingers("", "C4 A3 G3 E3 C3", intro = false, steps = fingered("C3 G3 C4 G3 C3", "5 2 1 2 5", right = false, labels = mapOf(2 to "Wide open"), spread = 1.75f),
                 stepMs = 650), Mood.POINT)),
         left = "C3:1 G3:1 C4:2 F2:1 C3:1 F3:2 G2:1 D3:1 G3:2 C3:1 G3:1 C4:2",
-        tune = "E4:1 G4:1 C5:2 A4:1 F4:1 A4:2 B4:1 G4:1 D5:2 C5:4"),
+        tune = "E4:1 G4:1 C5:2 A4:1 F4:1 A4:2 B4:1 G4:1 D5:2 C5:4", leftFingers = "5 2 1 5 2 1 5 2 1 5 2 1"),
     leftHandLesson("lh-octaves", "Octaves", "The same note in two places, little finger and thumb.", listOf(
         scene("An octave is the same note eight white keys apart.", interval("A2", "E4", "C3", "C4", "Octave")),
         scene("Stretch the left hand from finger 5 to the thumb and keep that shape as you move from chord to chord.",
@@ -423,7 +442,9 @@ private val TECHNIQUE = listOf(
     run {
         val r = "C4:0.25 E4:0.25 F4:0.25 G4:0.25 A4:0.25 G4:0.25 F4:0.25 E4:0.25 D4:0.25 F4:0.25 G4:0.25 A4:0.25 B4:0.25 A4:0.25 G4:0.25 F4:0.25 " +
             "E4:0.25 G4:0.25 A4:0.25 B4:0.25 C5:0.25 B4:0.25 A4:0.25 G4:0.25 F4:0.25 A4:0.25 B4:0.25 C5:0.25 D5:0.25 C5:0.25 B4:0.25 A4:0.25"
-        val ex = Exercise(right = r, left = r.replace("4:", "3:").replace("5:", "4:"), bpm = 72.0, beats = 2)
+        // Hanon's fingers, as the scene shows them: up to 5 and back down to 2 in every group (the left hand mirrors it).
+        val ex = Exercise(right = r, left = r.replace("4:", "3:").replace("5:", "4:"), bpm = 72.0, beats = 2,
+            fingers = List(4) { "1 2 3 4 5 4 3 2" }.joinToString(" "), leftFingers = List(4) { "5 4 3 2 1 2 3 4" }.joinToString(" "))
         lesson("hanon-1", "Hanon exercise 1", "The first four bars, both hands, target 72 beats a minute.",
             read(
                 scene("Hanon's first exercise climbs one step at a time: a leap of a third from the thumb, then up to finger 5 and back down to finger 2.",
@@ -669,9 +690,10 @@ private val TECHNIQUE_2 = listOf(
         perform("F major. Finger 4 plays B flat, then the thumb tucks under to C. $PASS_80",
             Exercise(right = SCALE_F, left = SCALE_F_LEFT, bpm = 72.0, flats = true, fingers = "1 2 3 4 1 2 3 4 3 2 1 4 3 2 1"))),
     run {
+        // The hand stays still over each chord, as the scene says: bottom, middle, top, middle on 1, 3, 5, 3.
         val broken = Exercise(right = "C4:0.5 E4:0.5 G4:0.5 E4:0.5 C4:0.5 E4:0.5 G4:0.5 E4:0.5 F4:0.5 A4:0.5 C5:0.5 A4:0.5 F4:0.5 A4:0.5 C5:0.5 A4:0.5 " +
             "G4:0.5 B4:0.5 D5:0.5 B4:0.5 G4:0.5 B4:0.5 D5:0.5 B4:0.5 C4:0.5 E4:0.5 G4:0.5 E4:0.5 C4:2",
-            left = "C3:4 F3:4 G2:4 C3:4", bpm = 66.0)
+            left = "C3:4 F3:4 G2:4 C3:4", bpm = 66.0, fingers = List(7) { "1 3 5 3" }.joinToString(" ") + " 1")
         lesson("t2-broken", "Broken chords", "One chord, one note at a time: C, F and G.",
             read(
                 scene("A broken chord plays the notes of a chord one after another.", chords(chord("C4 E4 G4", "C major"))),
@@ -953,7 +975,8 @@ val COURSE: List<CourseLevel> by lazy { listOf(
                 memory(FROM_MEMORY, e))
         },
         run {
-            val e = Exercise(right = "C4+E4+G4:2 F4+A4+C5:2 G4+B4+D5:2 C4+E4+G4:2", bpm = 60.0, practice = Practice.RIGHT)
+            val e = Exercise(right = "C4+E4+G4:2 F4+A4+C5:2 G4+B4+D5:2 C4+E4+G4:2", bpm = 60.0, practice = Practice.RIGHT,
+                fingers = List(4) { "1 3 5" }.joinToString(" "))
             lesson("triads", "Triads", "Three notes, every other white key.",
                 read(
                     scene("A triad stacks three notes a skip apart: C, E, G is C major.", chords(chord("C4 E4 G4", "C major", tags = listOf("root", "3rd", "5th")))),
@@ -1036,7 +1059,7 @@ val COURSE: List<CourseLevel> by lazy { listOf(
     CourseLevel("advanced", "Advanced", "Longer scales, seventh chords, arpeggios and real repertoire.", listOf(
         run {
             val e = Exercise(right = "C4:0.5 D4:0.5 E4:0.5 F4:0.5 G4:0.5 A4:0.5 B4:0.5 C5:0.5 D5:0.5 E5:0.5 F5:0.5 G5:0.5 A5:0.5 B5:0.5 C6:2",
-                bpm = 72.0, practice = Practice.RIGHT)
+                bpm = 72.0, practice = Practice.RIGHT, fingers = "1 2 3 1 2 3 4 1 2 3 1 2 3 4 5")
             lesson("scale-two", "Two-octave scales", "Thumb under twice.",
                 read(
                     scene("Two octaves use the fingering 1 2 3, 1 2 3 4, 1 2 3, 1 2 3 4 5.",
@@ -1062,7 +1085,8 @@ val COURSE: List<CourseLevel> by lazy { listOf(
                 memory(FROM_MEMORY, e))
         },
         run {
-            val e = Exercise(right = "C4:0.5 E4:0.5 G4:0.5 C5:0.5 E5:0.5 G5:0.5 C6:1 G5:0.5 E5:0.5 C5:0.5 G4:0.5 E4:0.5 C4:2", bpm = 66.0, practice = Practice.RIGHT)
+            val e = Exercise(right = "C4:0.5 E4:0.5 G4:0.5 C5:0.5 E5:0.5 G5:0.5 C6:1 G5:0.5 E5:0.5 C5:0.5 G4:0.5 E4:0.5 C4:2", bpm = 66.0, practice = Practice.RIGHT,
+                fingers = "1 2 3 1 2 3 5 3 2 1 3 2 1")
             lesson("arpeggios", "Arpeggios", "A chord spread over two octaves.",
                 read(
                     scene("Play the notes of a chord one at a time, up and down.", keys("C4", "C6", walk("C4 E4 G4 C5 E5 G5 C6 G5 E5 C5 G4 E4 C4"), stepMs = 330), Mood.LISTEN),

@@ -11,6 +11,7 @@ import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.QUARTERS_PATTERN
 import com.bigpapituna.sharpears.engine.ROW_X
 import com.bigpapituna.sharpears.engine.TWINKLE
+import com.bigpapituna.sharpears.engine.TWINKLE_LEFT_FINGERS
 import com.bigpapituna.sharpears.engine.bite
 import com.bigpapituna.sharpears.engine.chord
 import com.bigpapituna.sharpears.engine.chordPress
@@ -62,14 +63,15 @@ private val ROW = ROW_X.copy(practice = Practice.RIGHT, bpm = 72.0, phraseEnd = 
 private val FARM = MACDONALD_X.copy(practice = Practice.RIGHT, bpm = 80.0, phraseEnd = 8.0)
 /** London Bridge a little slower, cut after "falling down" (two bars of two). */
 private val BRIDGE = LONDON_X.copy(practice = Practice.RIGHT, bpm = 72.0, phraseEnd = 4.0)
-/** The garden's three steps, an octave down in the left hand. */
-private val LEFT_STEPS = Exercise(left = STEPS.right.replace("4:", "3:"), bpm = 72.0, practice = Practice.LEFT)
+/** The garden's three steps, an octave down in the left hand: the little finger on C, one finger a key, as the scene shows. */
+private val LEFT_STEPS = Exercise(left = STEPS.right.replace("4:", "3:"), bpm = 72.0, practice = Practice.LEFT, leftFingers = "5 4 3 3 4 5")
 /** Twinkle's middle: up above the world so high, like a diamond in the sky. */
 private const val TWINKLE_B = "G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2"
 private const val TWINKLE_B_LEFT = "C3:2 F3:2 C3:2 G2:2 C3:2 F3:2 C3:2 G2:2"
-/** The whole star song, A B A, right hand at 70 with the band on the left. */
+/** The whole star song, A B A, right hand at 70 with the band on the left (the A section's left fingers, the B's alike). */
 private val TWINKLE_WHOLE = TWINKLE.copy(right = "${TWINKLE.right} $TWINKLE_B ${TWINKLE.right}", left = "${TWINKLE.left} $TWINKLE_B_LEFT ${TWINKLE.left}",
-    bpm = 70.0, practice = Practice.RIGHT, phraseEnd = null)
+    bpm = 70.0, practice = Practice.RIGHT, phraseEnd = null,
+    leftFingers = "$TWINKLE_LEFT_FINGERS 5 2 5 5 5 2 5 5 $TWINKLE_LEFT_FINGERS")
 /** Ta, ti-ti: the eighths pattern of the Rhythm unit, its first bar, twice. */
 private val TA_TITI = Bites.cut(Exercise(right = EIGHTHS_PATTERN), 4.0).right.let { bar -> Exercise(right = "$bar $bar", bpm = 60.0, practice = Practice.RIGHT, beatLines = true) }
 /** Ta ta ta ta (the quarters pattern's first bar), then ta ti-ti ta ti-ti, to listen to. */
@@ -175,7 +177,7 @@ val POND: CourseLevel = CourseLevel(POND_ID, "Pup's Pond", "Twelve more games by
             scene("Then Twinkle with both paws. Your left hand plays one low note at a time.",
                 phrase(TWINKLE, PhraseHands.BOTH, upTo = 8f), Mood.LISTEN)),
         play("Hold low C with your left hand. Your right hand walks up and back down.",
-            Exercise(right = "C4:1 D4:1 E4:2 E4:1 D4:1 C4:2", left = "C3:4 C3:4", bpm = 66.0)),
+            Exercise(right = "C4:1 D4:1 E4:2 E4:1 D4:1 C4:2", left = "C3:4 C3:4", bpm = 66.0, leftFingers = "5 5")),
         listen("Listen to the start of Twinkle with both paws.", TWINKLE.bite()),
         play("Your turn, both paws. The notes wait until both hands have played.", TWINKLE.bite()),
         memory("Both paws once more, all by yourself.", TWINKLE.bite())),

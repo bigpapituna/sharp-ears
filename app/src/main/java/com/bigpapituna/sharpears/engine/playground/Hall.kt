@@ -44,7 +44,7 @@ internal fun anyLetter(letter: Char) = "${letter}4|${letter}2|${letter}3|${lette
 // ---- The tunes ------------------------------------------------------------------------------------------------------
 
 /** Ode to Joy's first line with the book's fingers in the C position (thumb on C), as "Your first melody" shows them. */
-private val ODE = ODE_LINE.copy(fingers = "3 3 4 5 5 4 3 2 1 1 2 3 3 2 2")
+private val ODE = ODE_LINE
 /** Lightly Row a little slower, cut after "lightly row, lightly row". */
 private val LIGHTLY = LIGHTLY_X.copy(practice = Practice.RIGHT, bpm = 76.0, phraseEnd = 8.0)
 /** Yankee Doodle a little slower, cut after "went to town". */
@@ -56,8 +56,8 @@ private val ODE_BAND = CONCERT_SONGS[2].exercise
 /** Ode to Joy's first line over the simplest left hand: low C under bar 1, G under bar 2, and again. */
 private val ODE_TOGETHER = ODE.copy(left = "C3:4 G3:4 C3:4 G3:4", practice = Practice.BOTH, bpm = 72.0)
 /** Ode to Joy's first phrase once for each round of [TuneLoudness.ROUNDS] (the usual way, softly, loudly, softly), a breath between. */
-private val ODE_ROUNDS = ODE_LINE.bite().right.let { p -> Exercise(right = List(TuneLoudness.ROUNDS.size) { p }.joinToString(" r:2 "), bpm = 80.0,
-    practice = Practice.RIGHT) }
+private val ODE_ROUNDS = ODE_LINE.bite().let { p -> Exercise(right = List(TuneLoudness.ROUNDS.size) { p.right }.joinToString(" r:2 "), bpm = 80.0,
+    practice = Practice.RIGHT, fingers = List(TuneLoudness.ROUNDS.size) { p.fingers }.joinToString(" ")) }
 /** Ta-a ta-a (the Rhythm unit's halves, its first bar), then ta ta ta and a rest. */
 private val TAA_REST = Exercise(right = Bites.cut(Exercise(right = HALVES_PATTERN), 4.0).right + " C4:1 C4:1 C4:1 r:1", bpm = 66.0, practice = Practice.RIGHT,
     beatLines = true)

@@ -30,13 +30,21 @@ internal val BUNS_X = Exercise(right = "E4:1 D4:1 C4:2 E4:1 D4:1 C4:2 C4:0.5 C4:
 /** Every C from low to high, the low ones in the left hand ("Find C anywhere" and the Playground's "Where C lives"). */
 internal val FIND_C = Exercise(right = "r:4 C4:2 C5:2 C6:2", left = "C2:2 C3:2 r:6", bpm = 60.0)
 
-/** Ode to Joy's first line in the C position ("Your first melody"). The kid bite is bar 2, before the hand turns back. */
+/**
+ * Ode to Joy's first line in the C position ("Your first melody"), with the fingers its scene shows (thumb on C, one
+ * finger per key). The kid bite is bar 2, before the hand turns back.
+ */
 internal val ODE_LINE = Exercise(right = "E4:1 E4:1 F4:1 G4:1 G4:1 F4:1 E4:1 D4:1 C4:1 C4:1 D4:1 E4:1 E4:1.5 D4:0.5 D4:2", bpm = 90.0,
-    practice = Practice.RIGHT, phraseEnd = 8.0)
+    practice = Practice.RIGHT, phraseEnd = 8.0, fingers = "3 3 4 5 5 4 3 2 1 1 2 3 3 2 2")
 
-/** Twinkle Twinkle's first line (the A section), both hands ("Hands together", "Your first whole song", the pond). The bite is bar 2. */
+/**
+ * Twinkle Twinkle's first line (the A section), both hands ("Hands together", "Your first whole song", the pond). The bite
+ * is bar 2. The left hand's little finger keeps low C, as the pond's "Both paws" says ([TWINKLE_LEFT_FINGERS]).
+ */
 internal val TWINKLE = Exercise(right = "C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2",
-    left = "C3:4 F3:2 C3:2 F3:2 C3:2 G2:2 C3:2", bpm = 80.0, phraseEnd = 8.0)
+    left = "C3:4 F3:2 C3:2 F3:2 C3:2 G2:2 C3:2", bpm = 80.0, phraseEnd = 8.0, leftFingers = TWINKLE_LEFT_FINGERS)
+/** Twinkle's bass, C3 F3 C3 F3 C3 G2 C3: the little finger on every C (and down to G), F under finger 2. */
+internal const val TWINKLE_LEFT_FINGERS = "5 2 5 2 5 5 5"
 
 // Opening phrases (four bars) of the repertoire songs, written in the same notation as scripts/gen_songs.py; Repertoire 1
 // and 2 teach them, the Playground's pond and concert hall (2.2) play their first phrase and perform them with the band.
@@ -44,10 +52,12 @@ internal val ROW_X = Exercise(right = "C4:1.5 C4:1.5 C4:1 D4:0.5 E4:1.5 E4:1 D4:
     left = "C3:3 C3:3 C3:3 C3:3", bpm = 84.0, beats = 3)
 internal val LONDON_X = Exercise(right = "G4:0.75 A4:0.25 G4:0.5 F4:0.5 E4:0.5 F4:0.5 G4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 F4:0.5 G4:1",
     left = "C3:2 C3:2 G2:2 C3:2", bpm = 96.0, beats = 2)
+// Yankee Doodle and Old MacDonald carry the fingers their scenes teach: the thumb reaching down to G and B and back to the
+// C position; the thumb on low G, then the hand sliding up for E, I, E, I, O.
 internal val YANKEE_X = Exercise(right = "C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 D4:1 G3:1 C4:1 C4:1 D4:1 E4:1 C4:1 B3:3",
-    left = "C3:4 C3:2 G2:2 C3:4 C3:2 G2:2", bpm = 100.0)
+    left = "C3:4 C3:2 G2:2 C3:4 C3:2 G2:2", bpm = 100.0, fingers = "1 1 2 3 1 3 2 1 1 1 2 3 1 1")
 internal val MACDONALD_X = Exercise(right = "C4:1 C4:1 C4:1 G3:1 A3:1 A3:1 G3:2 E4:1 E4:1 D4:1 D4:1 C4:4",
-    left = "C3:4 F3:2 C3:2 C3:2 G2:2 C3:4", bpm = 96.0)
+    left = "C3:4 F3:2 C3:2 C3:2 G2:2 C3:4", bpm = 96.0, fingers = "4 4 4 1 2 2 1 3 3 2 2 1")
 internal val LIGHTLY_X = Exercise(right = "G4:1 E4:1 E4:2 F4:1 D4:1 D4:2 C4:1 D4:1 E4:1 F4:1 G4:1 G4:1 G4:2",
     left = "C3:2 G3:2 G2:2 D3:2 C3:2 G3:2 G2:2 D3:2", bpm = 92.0)
 
@@ -60,7 +70,8 @@ internal const val HALVES_PATTERN = "C4:2 C4:2 C4:4 C4:1 C4:1 C4:2 C4:4"
 internal const val EIGHTHS_PATTERN = "C4:1 C4:0.5 C4:0.5 C4:1 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:2"
 
 /** The left hand's five fingers up and back down from the C below middle C ("The left hand mirrors it", the pond's left paw). */
-internal val LEFT_HAND_WALK = Exercise(left = "C3:1 D3:1 E3:1 F3:1 G3:1 F3:1 E3:1 D3:1 C3:2", bpm = 70.0, practice = Practice.LEFT)
+internal val LEFT_HAND_WALK = Exercise(left = "C3:1 D3:1 E3:1 F3:1 G3:1 F3:1 E3:1 D3:1 C3:2", bpm = 70.0, practice = Practice.LEFT,
+    leftFingers = "5 4 3 2 1 2 3 4 5")
 
 /** Each finger's key in the five-finger position on [notes] (letters, "Bb" for a flat), from the root in [octave] upward. */
 internal fun fiveFingerKeys(notes: List<String>, octave: Int): List<String> {

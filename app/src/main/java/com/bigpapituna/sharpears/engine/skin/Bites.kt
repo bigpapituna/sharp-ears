@@ -4,6 +4,8 @@ import com.bigpapituna.sharpears.engine.Exercise
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
+import com.bigpapituna.sharpears.engine.parseTokens
+import com.bigpapituna.sharpears.engine.withFingers
 
 /**
  * Kid bites (docs/KIDS-PLAN.md section 3, item 2): the same lessons, cut small. A reading step shows its first scene
@@ -43,14 +45,19 @@ object Bites {
         return out.joinToString(" ") { (n, l) -> "$n:${fmt(l)}" }
     }
 
-    /** [ex] cut at [endBeats] (both hands; the book fingering follows the right-hand notes kept). Null or past the end: unchanged. */
+    /**
+     * [ex] cut at [endBeats] (both hands). The fingers are the whole exercise's ([withFingers]) for the notes kept, so the
+     * bite shows the same fingers as the whole line. Null or past the end: unchanged.
+     */
     fun cut(ex: Exercise, endBeats: Double?): Exercise {
         if (endBeats == null || endBeats <= 0) return ex
         if (endBeats >= maxOf(beats(ex.right), beats(ex.left)) - EPS) return ex
+        val whole = ex.withFingers()
+        fun keep(fingers: String, line: String) =
+            fingers.split(" ").filter { it.isNotBlank() }.take(parseTokens(line).sumOf { it.keys.size }).joinToString(" ")
         val right = cutLine(ex.right, endBeats)
-        val keptRightNotes = tokens(right).filter { it.first != "r" }.sumOf { it.first.split('+').size }
-        val fingers = ex.fingers.split(" ").filter { it.isNotBlank() }.take(keptRightNotes).joinToString(" ")
-        return ex.copy(right = right, left = cutLine(ex.left, endBeats), fingers = fingers)
+        val left = cutLine(ex.left, endBeats)
+        return whole.copy(right = right, left = left, fingers = keep(whole.fingers, right), leftFingers = keep(whole.leftFingers, left))
     }
 
     /**

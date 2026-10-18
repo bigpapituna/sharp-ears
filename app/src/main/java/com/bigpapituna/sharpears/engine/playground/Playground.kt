@@ -249,11 +249,12 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
                 Mood.POINT),
             scene("Play it on every boom, four times.", lane("", "C3:1 C3:1 C3:1 C3:1", bpm = 72), Mood.LISTEN),
             scene("Then hold it down while your right hand plays on top.", lane("E4:1 D4:1 C4:2", "C3:4", bpm = 72))),
-        play("Low C with your little finger, four times.", Exercise(left = "C3:1 C3:1 C3:1 C3:1", bpm = 72.0, practice = Practice.LEFT)),
+        // The left paw's low C is always its little finger, as the scene says (worked out alone, it would be the thumb).
+        play("Low C with your little finger, four times.", Exercise(left = "C3:1 C3:1 C3:1 C3:1", bpm = 72.0, practice = Practice.LEFT, leftFingers = "5 5 5 5")),
         play("Left paw, right paw: low C, then middle C, back and forth.",
-            Exercise(right = "r:1 C4:1 r:1 C4:1 r:1 C4:1 r:1 C4:1", left = "C3:1 r:1 C3:1 r:1 C3:1 r:1 C3:1 r:1", bpm = 72.0)),
+            Exercise(right = "r:1 C4:1 r:1 C4:1 r:1 C4:1 r:1 C4:1", left = "C3:1 r:1 C3:1 r:1 C3:1 r:1 C3:1 r:1", bpm = 72.0, leftFingers = "5 5 5 5")),
         play("Hold the low C while your right hand plays hot cross buns.",
-            Exercise(right = "E4:1 D4:1 C4:2 E4:1 D4:1 C4:2", left = "C3:4 C3:4", bpm = 72.0))),
+            Exercise(right = "E4:1 D4:1 C4:2 E4:1 D4:1 C4:2", left = "C3:4 C3:4", bpm = 72.0, leftFingers = "5 5"))),
 
     lesson(10, "Up to G", "Five fingers, five keys, all the way up to G.",
         read(
