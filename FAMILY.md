@@ -11,7 +11,7 @@ as REVAMP.md: each team owns its files exclusively, new preferences go in the te
 no Android imports and JVM tests, an INTEGRATION.md at the team's package root says what to wire, compile and
 tests pass before every commit, commit on the branch, never push.
 
-## Stage 1: Foundation (Opus, high) on branch family/foundation
+## Stage 1: Foundation (Opus, high) on branch family-foundation
 
 Owns everything in this stage; nobody else runs. Delivers:
 
@@ -35,7 +35,7 @@ Owns everything in this stage; nobody else runs. Delivers:
 - Tests: profile rules, store round trip per profile, backup includes all profiles, suffix migration keeps
   existing files, parent gate sum logic.
 
-## Stage 2: five teams (parallel, branches family/<team>, worktrees C:\dev\piano-wt\<team>)
+## Stage 2: five teams (parallel, branches family-<team>, worktrees C:\dev\piano-wt\<team>)
 
 | Team | Model, effort | Emulator | Owns (exclusive) |
 |---|---|---|---|
