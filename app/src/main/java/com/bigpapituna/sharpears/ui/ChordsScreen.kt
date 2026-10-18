@@ -131,10 +131,10 @@ fun ChordsScreen(
         }
         when (tab) {
             ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
-            ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression)
-            ChordsTab.DICTIONARY -> Dictionary(sampler)
-            ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject)
-            ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression)
+            ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound })
+            ChordsTab.DICTIONARY -> Dictionary(sampler, sound = { prefs.sound })
+            ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject, sound = { prefs.sound })
+            ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression, sound = { prefs.sound })
         }
     }
 }
@@ -161,7 +161,7 @@ private fun ordinalWord(i: Int) = listOf("Root position", "First inversion", "Se
  * segmented control. Never a wrapping wall of chips.
  */
 @Composable
-private fun Dictionary(sampler: Sampler) {
+private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
     var root by remember { mutableIntStateOf(0) }
     var type by remember { mutableStateOf(ChordType.MAJOR) }
     var inversion by remember { mutableIntStateOf(0) }
@@ -183,14 +183,14 @@ private fun Dictionary(sampler: Sampler) {
             try {
                 // One by one with the finger on each, then all together.
                 for ((m, f) in notes.zip(fingers)) {
-                    sounding[m] = Hand.RIGHT; dots[Hand.RIGHT] = FingerDot(m, f); sampler.noteOn(m, 80)
+                    sounding[m] = Hand.RIGHT; dots[Hand.RIGHT] = FingerDot(m, f); if (sound()) sampler.noteOn(m, 80)
                     delay(380)
                     sampler.noteOff(m); sounding.remove(m)
                     delay(40)
                 }
                 dots.clear()
                 delay(160)
-                notes.forEach { sounding[it] = Hand.RIGHT; sampler.noteOn(it, 90) }
+                notes.forEach { sounding[it] = Hand.RIGHT; if (sound()) sampler.noteOn(it, 90) }
                 delay(1500)
             } finally {
                 notes.forEach { sampler.noteOff(it) }
@@ -227,7 +227,7 @@ private fun Dictionary(sampler: Sampler) {
                 val whites = (low..high).count { !isBlack(it) }
                 val keyH = (maxWidth / whites * 4.2f).coerceIn(120.dp, 200.dp)
                 ScaleKeyboard(low, high, notes.zip(fingers).toMap(), emptyMap(), sounding + touched, dots,
-                    onNoteOn = { m -> touched[m] = Hand.RIGHT; sampler.noteOn(m, 90) },
+                    onNoteOn = { m -> touched[m] = Hand.RIGHT; if (sound()) sampler.noteOn(m, 90) },
                     onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
                     description = "${chord.name}: " + notes.zip(fingers).joinToString(", ") { (n, f) -> "${noteName(n)} finger $f" },
                     modifier = Modifier.fillMaxWidth().height(keyH + 16.dp))
@@ -271,12 +271,12 @@ private val FAMILIES = listOf(
 )
 
 @Composable
-private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject: String?) {
+private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject: String?, sound: () -> Boolean) {
     var families by remember { mutableStateOf(setOf("Major", "Minor")) }
     val pool = remember(families) { (0..11).flatMap { r -> FAMILIES.filter { it.first in families }.flatMap { it.second }.map { Chord(r, it) } } }
     // Injected (debug) runs use a fixed seed so the chord order is known in advance.
     val drill = remember(pool) { ChordDrill(pool.ifEmpty { listOf(Chord(0, ChordType.MAJOR)) }, seed = if (inject != null) 1 else System.nanoTime()) }
-    ChordTrainer(drill, sampler, midi, mic, micStart = inject != null, inject = inject,
+    ChordTrainer(drill, sampler, midi, mic, micStart = inject != null, inject = inject, sound = sound,
         header = {
             // One row of pills (several can be on), never a wrapping cloud.
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -295,6 +295,8 @@ private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject:
 @Composable
 private fun ChordTrainer(
     drill: ChordDrill, sampler: Sampler, midi: MidiDevices, mic: MicInput, micStart: Boolean, inject: String?,
+    /** Settings > App sound: off, the touch keys are silent. */
+    sound: () -> Boolean,
     header: @Composable () -> Unit, skip: () -> Unit, onDone: (Chord, Boolean) -> Unit = { _, _ -> },
     /** The pup beside the chord, reacting to each one (the Practice tab; a session shows him in its own header). */
     pup: Boolean = false,
@@ -400,7 +402,7 @@ private fun ChordTrainer(
         }
         Keyboard(
             LOW, HIGH, lit = lit,
-            onNoteOn = { m, v -> touched[m] = Good; if (!micOn || mic.headphonesOn()) sampler.noteOn(m, v); strike(m, "touch") },
+            onNoteOn = { m, v -> touched[m] = Good; if (sound() && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v); strike(m, "touch") },
             onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
             modifier = Modifier.fillMaxWidth().height(220.dp),
             flash = keyFlash,
@@ -416,7 +418,7 @@ private fun Stat(label: String, value: Int) = Column(horizontalAlignment = Align
 }
 
 @Composable
-private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit) {
+private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, sound: () -> Boolean) {
     var key by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf<Pair<Int, Int>?>(null) }      // progression, chord sounding
     var job by remember { mutableStateOf<Job?>(null) }
@@ -437,7 +439,7 @@ private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit) {
                 chords.forEachIndexed { i, ch ->
                     sounding = listOf(48 + ch.root % 12) + voicings[i]
                     playing = pi to i
-                    sounding.forEach { sampler.noteOn(it, 80) }
+                    if (sound()) sounding.forEach { sampler.noteOn(it, 80) }
                     delay(ms)
                     sounding.forEach(sampler::noteOff)
                 }
@@ -498,12 +500,12 @@ private fun ActionRow(title: String, detail: String, action: String?, onAction: 
 @Composable
 private fun Lessons(
     store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, inject: String?,
-    onPlayProgression: (Progression, Int) -> Unit,
+    onPlayProgression: (Progression, Int) -> Unit, sound: () -> Boolean,
 ) {
     val v = store.version.intValue
     if (store.session.isNotEmpty()) {
         BackHandler { store.endSession() }                 // Back leaves the session, not the Chords tab
-        Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression); return
+        Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = sound); return
     }
     val now = remember(v) { System.currentTimeMillis() }
     val songPacks = store.songPacks.value
@@ -566,13 +568,13 @@ private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur
  */
 @Composable
 fun DailyChords(store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, itemIds: List<String>,
-                inject: String?, onEnd: (answered: Int) -> Unit) {
+                inject: String?, sound: () -> Boolean = { true }, onEnd: (answered: Int) -> Unit) {
     LaunchedEffect(itemIds) {
         val all = store.curriculum().packs.flatMap { it.items }.distinctBy { it.id }.associateBy { it.id }
         store.startSession(itemIds.mapNotNull { all[it] })
     }
     if (store.session.isEmpty()) return
-    Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression = { _, _ -> },
+    Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression = { _, _ -> }, sound = sound,
         onEnd = { val n = store.sessionIndex; store.endSession(); onEnd(n) })
 }
 
@@ -582,6 +584,7 @@ private fun Session(
     onPlayProgression: (Progression, Int) -> Unit,
     /** Set inside "Practice today": the end of the queue (or End) hands back to the session instead of a summary. */
     onEnd: (() -> Unit)? = null,
+    sound: () -> Boolean,
 ) {
     val scope = rememberCoroutineScope()
     val item = store.session.getOrNull(store.sessionIndex)
@@ -590,7 +593,7 @@ private fun Session(
     if (item == null) {
         Celebration("Session done!", "The ones that were not clean come back tomorrow.",
             listOf(Stat("${store.sessionCorrect}/$n", "Clean"), Stat("$n", "Practised")),
-            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler)
+            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler.takeIf { sound() })
         return
     }
     val progress = @Composable {
@@ -605,7 +608,7 @@ private fun Session(
             val drill = remember(store.sessionIndex) { ChordDrill(listOf(item.chord), seed = 1) }
             // How the chord went (null until played); the pup's bar then waits on Continue, like a lesson step.
             var result by remember(store.sessionIndex) { mutableStateOf<Boolean?>(null) }
-            ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, header = progress,
+            ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, sound = sound, header = progress,
                 skip = { store.answer(false) },
                 onDone = { _, clean -> if (result == null) result = clean })
             result?.let { clean ->

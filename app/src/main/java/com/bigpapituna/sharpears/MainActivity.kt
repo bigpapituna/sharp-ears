@@ -644,7 +644,7 @@ class MainActivity : ComponentActivity() {
                                     androidx.compose.foundation.layout.Column {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
-                                        DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily },
+                                        DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily }, sound = { prefs.sound },
                                             onEnd = { n ->
                                                 part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
                                                 advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
@@ -908,7 +908,7 @@ class MainActivity : ComponentActivity() {
                                                     onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
                                             } })
                                     }
-                                    HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore,
+                                    HomeTab.PRACTICE -> PracticeScreen(sampler, mic, practiceStore, sound = { prefs.sound },
                                         // A scale or warm-up plays like a lesson step: the full player in wait mode at the exercise's
                                         // tempo; Back returns to this tab (the tab picked is kept in the Home screen).
                                         onOpenExercise = { ex, title ->

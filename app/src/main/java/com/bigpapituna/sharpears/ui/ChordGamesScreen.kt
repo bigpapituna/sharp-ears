@@ -155,7 +155,8 @@ private fun GameScreen(
     val touched = remember { mutableStateMapOf<Int, Color>() }
     val flash = remember { mutableStateMapOf<Int, Color>() }               // judged keys: a ripple each
     val scope = rememberCoroutineScope()
-    val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics()
+    // Settings > Vibration on touch keys; a buzz only ever answers a key touched on the screen.
+    val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
     val round = remember(version) { game.round }
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
@@ -216,7 +217,7 @@ private fun GameScreen(
             ChordGame.Outcome.WRONG -> {
                 missed = true
                 flashKeys(listOf(m), WrongGlow, 450)
-                haptics.miss()
+                if (src == "touch") haptics.miss()
                 a.line?.let { line = it.text to false; voice.speak(it.spoken, deferrable = false) }
             }
             ChordGame.Outcome.FOUND -> { flashKeys(listOf(m), Good, 450); a.line?.let { line = it.text to true } }
@@ -225,7 +226,7 @@ private fun GameScreen(
                 progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.ChordRound((game as? ChordGame)?.target?.root))
                 // The success moment: a green burst across every key of the answer (a warm one when it took a slip).
                 flashKeys(game.lit().keys + m, if (a.clean) Good else RightHandColor, 900)
-                if (a.clean) haptics.success()
+                if (a.clean && src == "touch") haptics.success()
                 line = null
                 review = RoundEnd(a.line!!.text, a.clean)
                 voice.speak(a.line.spoken)

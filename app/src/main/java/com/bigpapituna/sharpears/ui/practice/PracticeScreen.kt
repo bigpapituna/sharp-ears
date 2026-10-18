@@ -109,6 +109,8 @@ fun PracticeScreen(
     onEvent: (PracticeEvent) -> Unit = {},
     /** A tab was picked (integration: remembers it across the player and counts the metronome and tuner as used). */
     onTab: (PracticeTab) -> Unit = {},
+    /** Settings > App sound: off, "Play it" and the touch keys are silent (the tuner's A is the tool itself). */
+    sound: () -> Boolean = { true },
 ) {
     var tab by rememberSaveable { mutableStateOf(startTab) }
     // Which of scales and arpeggios the first tab shows (kept while another tab is open).
@@ -134,7 +136,7 @@ fun PracticeScreen(
         AnimatedContent(topIndex(tab), Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { i ->
             when (i) {
                 0 -> PatternScreen(lastPattern == PracticeTab.ARPEGGIOS,
-                    { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent)
+                    { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent, sound)
                 1 -> WarmupsScreen(store, onOpenExercise, onEvent)
                 2 -> MetronomeScreen(store)
                 else -> TunerScreen(mic, sampler)
@@ -170,7 +172,7 @@ private val HANDS = listOf(Practice.LEFT, Practice.RIGHT, Practice.BOTH)
 @Composable
 private fun PatternScreen(
     arps: Boolean, onMode: (Boolean) -> Unit, sampler: Sampler, store: PracticeStore,
-    onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit,
+    onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit, sound: () -> Boolean,
 ) {
     val p = if (arps) "arp" else "scale"
     var root by remember(arps) { mutableIntStateOf(store.int("$p.root", 0).coerceIn(0, 11)) }
@@ -224,7 +226,7 @@ private fun PatternScreen(
                         val ms = 60_000L / bpmNow
                         for ((h, line) in lines) {
                             val (m, f) = line[i]
-                            sounding[m] = h; dots[h] = FingerDot(m, f); sampler.noteOn(m, 85)
+                            sounding[m] = h; dots[h] = FingerDot(m, f); if (sound()) sampler.noteOn(m, 85)
                         }
                         haptics.tick()
                         delay(ms * 9 / 10)
@@ -268,7 +270,7 @@ private fun PatternScreen(
 
             KeyboardPanel(model, hand, { hand = it; store.putEnum("$p.hand", it) }, octaves, { octaves = it; store.putInt("$p.octaves", it) },
                 bpm, { bpm = it; store.putInt("$p.bpm", it) }, loop, { loop = it; store.putBool("practice.loop", it) },
-                sounding + touched, dots, sampler, touched, Modifier.padding(horizontal = 12.dp))
+                sounding + touched, dots, sampler, touched, Modifier.padding(horizontal = 12.dp), sound)
 
             PupLine(if (job != null) Pose.LISTENING else Pose.LEARNING, model.line(hand), Modifier.padding(horizontal = 16.dp))
 
@@ -301,6 +303,7 @@ private fun KeyboardPanel(
     model: PatternModel, hand: Practice, onHand: (Practice) -> Unit, octaves: Int, onOctaves: (Int) -> Unit,
     bpm: Int, onBpm: (Int) -> Unit, loop: Boolean, onLoop: (Boolean) -> Unit,
     sounding: Map<Int, Hand>, dots: Map<Hand, FingerDot>, sampler: Sampler, touched: MutableMap<Int, Hand>, modifier: Modifier = Modifier,
+    sound: () -> Boolean = { true },
 ) {
     val right = if (hand != Practice.LEFT) model.notes(Hand.RIGHT).zip(model.fingers(Hand.RIGHT)).toMap() else emptyMap()
     val left = if (hand != Practice.RIGHT) model.notes(Hand.LEFT).zip(model.fingers(Hand.LEFT)).toMap() else emptyMap()
@@ -324,7 +327,7 @@ private fun KeyboardPanel(
         }
         val keyH = (347f / whites * 4.4f).coerceIn(120f, 168f).dp
         ScaleKeyboard(low, high, right, left, sounding, dots,
-            onNoteOn = { m -> touched[m] = if (m in left && m !in right) Hand.LEFT else Hand.RIGHT; sampler.noteOn(m, 90) },
+            onNoteOn = { m -> touched[m] = if (m in left && m !in right) Hand.LEFT else Hand.RIGHT; if (sound()) sampler.noteOn(m, 90) },
             onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
             description = model.title + ", " + when (hand) { Practice.RIGHT -> "right hand"; Practice.LEFT -> "left hand"; Practice.BOTH -> "both hands" } +
                 ". Fingers " + (if (hand == Practice.LEFT) left else right).values.joinToString(" "),
