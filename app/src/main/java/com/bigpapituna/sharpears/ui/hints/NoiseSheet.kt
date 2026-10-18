@@ -19,8 +19,6 @@ import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.StageRaised
 
-/** The pup's line when the room-noise watchdog trips (shown and spoken). */
-const val NOISE_LINE = "Noisy room? I can stop painting wrong keys for now"
 
 /**
  * The room-noise watchdog's offer, once per session, over the stage: the pup asks, "Keep showing" leaves everything
@@ -29,10 +27,10 @@ const val NOISE_LINE = "Noisy room? I can stop painting wrong keys for now"
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NoiseSheet(onKeep: () -> Unit, onStop: () -> Unit, onPause: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun NoiseSheet(onKeep: () -> Unit, onStop: () -> Unit, onPause: (() -> Unit)?, modifier: Modifier = Modifier, kid: Boolean = false) {
     Column(modifier.widthIn(max = 560.dp).background(StageRaised, RoundedCornerShape(20.dp)).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.Start) {
-        PupSays(Pose.LISTENING, NOISE_LINE, size = 64.dp, idle = false)
+        PupSays(Pose.LISTENING, com.bigpapituna.sharpears.engine.hints.NoiseWatch.line(kid), size = 64.dp, idle = false)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ChunkyButton(onClick = onKeep) { Text("Keep showing") }
             ChunkyButton(onClick = onStop) { Text("Stop for this session") }

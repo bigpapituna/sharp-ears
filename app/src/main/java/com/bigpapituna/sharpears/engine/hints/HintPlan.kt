@@ -57,5 +57,7 @@ class HintPlan(seconds: List<Int>) {
 
     companion object {
         val DEFAULT = listOf(6, 12, 18)
+        /** What the pup says after the app plays the waiting keys (the PLAY step). */
+        const val YOUR_TURN = "Your turn."
     }
 }

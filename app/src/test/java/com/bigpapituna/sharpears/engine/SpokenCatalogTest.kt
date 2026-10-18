@@ -25,6 +25,24 @@ class SpokenCatalogTest {
         } + "\n")
     }
 
+    /**
+     * 2.2.1 QA: a fixed line a screen speaks is in the catalog, so it is recorded and plays at once in the pup's voice. The
+     * octave hint, the noisy-room offer and the kid home's treat jar were missing (made on the phone, or by the platform
+     * voice where the model is not installed); a source scan catches a new plain line handed to the voice.
+     */
+    @Test fun everyFixedLineAScreenSpeaksIsRecorded() {
+        val all = SpokenCatalog.all().toSet()
+        val kid = SpokenCatalog.kidLines().toSet()
+        for (l in com.bigpapituna.sharpears.engine.hints.OctaveHint.LINES) assertTrue(l, l in all)
+        assertTrue(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID in kid)
+        for (l in com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES) assertTrue(l, l in kid)
+        val literal = Regex("""\b(?:speak|speakOverMic|say)\("((?:[^"\\$]|\\.)+)"\s*[,)]""")
+        val spoken = File("src/main/java").walkTopDown().filter { it.extension == "kt" && "Demo" !in it.name }
+            .flatMap { f -> literal.findAll(f.readText()).map { f.name to it.groupValues[1] } }.toList()
+        assertTrue("found the plain lines: ${spoken.size}", spoken.isNotEmpty())
+        for ((file, line) in spoken) assertTrue("$file says \"$line\", which is not recorded", SpokenCatalog.normalize(line) in all)
+    }
+
     /** 2.1: the kid skin, the Playground's stages and the play corner are in, and nothing with a name is recorded. */
     @Test fun kidLinesAreListed() {
         val kid = SpokenCatalog.kidLines()

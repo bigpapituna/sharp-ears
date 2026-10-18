@@ -98,7 +98,6 @@ import com.bigpapituna.sharpears.engine.hints.NoiseWatch
 import com.bigpapituna.sharpears.engine.hints.OctaveHint
 import com.bigpapituna.sharpears.engine.hints.WrongKey
 import com.bigpapituna.sharpears.ui.hints.KeyGlow
-import com.bigpapituna.sharpears.ui.hints.NOISE_LINE
 import com.bigpapituna.sharpears.ui.hints.NoiseSheet
 import com.bigpapituna.sharpears.ui.hints.OctaveArrow
 import com.bigpapituna.sharpears.ui.hints.PointingHand
@@ -385,7 +384,9 @@ fun PlayerScreen(
         mic.saveStall(stallMark[0], "title=$title\n" + s.report, name)
     }
     /** The pup says [line] over the lane (and aloud when the mic is not listening through the speaker). */
-    fun say(line: String) { hintLine = line; voice.speak(line, deferrable = false) }
+    // A hint is said while the mic listens (that is when hints come): over it, the mic deaf while the line plays, as the
+    // Playground's call-outs are. speak(deferrable = false) dropped every one of them unless headphones were on.
+    fun say(line: String) { hintLine = line; voice.speakOverMic(line) }
     /** A wait began: hint escalation (wait mode, labels shown) and the octave hint (mic) start over. */
     fun hintsBegin() {
         if (transport.mode == Mode.WAIT) waitCoach?.begin(0, android.os.SystemClock.uptimeMillis())
@@ -411,7 +412,7 @@ fun PlayerScreen(
             scope.launch { delay(900); notes.forEach { sampler.noteOff(it) } }
         }
         Log.d(TAG, "hints: the app plays ${notes.map { noteName(it) }}")
-        say("Your turn.")
+        say(com.bigpapituna.sharpears.engine.hints.HintPlan.YOUR_TURN)
     }
     /**
      * Pup's Playground: the group waited on goes by ("Good try, let's keep going", said over the mic if it listens): its
@@ -443,7 +444,7 @@ fun PlayerScreen(
         val s = mic.noiseWatch.check(now) ?: return
         Log.d(TAG, "noise watch: offer (${s.noise} noise, ${s.painted} painted in the last minute, pause=${s.pauseListening})")
         noiseOffer = s
-        voice.speak(NOISE_LINE, deferrable = false)
+        voice.speakOverMic(NoiseWatch.line(kid))
     }
     fun pause() { stallEnd("paused"); hintsEnd(); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
@@ -999,7 +1000,7 @@ fun PlayerScreen(
                 onStop = { mic.wrongPaintOff = true; noiseOffer = null; Log.d(TAG, "noise watch: wrong keys off for this session") },
                 // Session only: the mic goes off for this song; the "mic on" setting is not touched.
                 onPause = if (offer.pauseListening && mode == Mode.WAIT) ({ noiseOffer = null; micOn = false; Log.d(TAG, "noise watch: listening paused") }) else null,
-                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                modifier = Modifier.align(Alignment.Center).padding(16.dp), kid = kid,
             )
         }
         if (chordsOn && chords != null) ChordLabel(chords, position, song.preferFlats, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))

@@ -123,14 +123,8 @@ fun TreatJarView(notes: Int, modifier: Modifier = Modifier, shown: Int = TreatJa
     }
 }
 
-/** What the pup says about the jar: nothing to count for kids, the notes left for grown-ups. Never a nag. */
-fun jarLine(notes: Int, kid: Boolean, treats: Int): String = when {
-    TreatJar.full(notes) -> if (kid) "The jar is full! Tip it for me?" else "The jar is full. Tip it and I get a treat."
-    notes == 0 && treats > 0 -> "Yum. Every note you play drops another crumb in."
-    notes == 0 -> "Every note you play drops a crumb in my jar."
-    kid -> if (TreatJar.fraction(notes) >= 0.75f) "Almost full! A few more notes." else "Play some notes to fill it up."
-    else -> "${TreatJar.toFull(notes)} more notes and it's full."
-}
+/** What the pup says about the jar ([TreatJar.line]): nothing to count for kids, the notes left for grown-ups. */
+fun jarLine(notes: Int, kid: Boolean, treats: Int): String = TreatJar.line(notes, kid, treats)
 
 /**
  * The treat jar with the pup beside it. Tapping a full jar (or "Tip the jar") tips it: the jar swings over, the biscuits

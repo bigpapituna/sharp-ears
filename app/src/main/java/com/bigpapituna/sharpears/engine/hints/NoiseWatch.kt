@@ -54,6 +54,14 @@ class NoiseWatch(
     }
 
     private fun quiet(nowMs: Long) = nowMs - lastRight >= quietMs
+
+    companion object {
+        /** The pup's offer when the watchdog trips (shown and spoken). */
+        const val LINE = "Noisy room? I can stop painting wrong keys for now."
+        /** The same offer to a kid: no "wrong", the colours they see instead (KIDS-PLAN: nothing called wrong). */
+        const val LINE_KID = "It's noisy in here! Shall I stop the yellow and red keys for now?"
+        fun line(kid: Boolean) = if (kid) LINE_KID else LINE
+    }
     private fun first(nowMs: Long) { if (started == Long.MIN_VALUE) started = nowMs }
     private fun trim(nowMs: Long) {
         while (suspicious.isNotEmpty() && nowMs - suspicious.first() > windowMs) suspicious.removeFirst()

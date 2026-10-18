@@ -20,8 +20,7 @@ class OctaveHint(val holdMs: Long = 2_000, val windowMs: Long = 6_000) {
     /** [expected] was played [playedOctaveOffset] octaves off: +1 an octave up (try lower), -1 down (try higher). */
     data class Hint(val expected: Int, val playedOctaveOffset: Int) {
         /** The pup's line, shown and spoken. */
-        val line: String get() = if (playedOctaveOffset > 0) "That's the right note, but one octave up. Try lower."
-            else "That's the right note, but one octave down. Try higher."
+        val line: String get() = if (playedOctaveOffset > 0) UP else DOWN
     }
 
     private class Moment(val atMs: Long, val riseDb: Double, val expected: Int, val offset: Int)   // offset 0: a rival
@@ -68,6 +67,11 @@ class OctaveHint(val holdMs: Long = 2_000, val windowMs: Long = 6_000) {
     private fun add(m: Moment) { moments.addLast(m); while (moments.size > 2_000) moments.removeFirst() }
 
     companion object {
+        const val UP = "That's the right note, but one octave up. Try lower."
+        const val DOWN = "That's the right note, but one octave down. Try higher."
+        /** Every line the hints say (the voice catalog records them). */
+        val LINES = listOf(UP, DOWN, HintPlan.YOUR_TURN, NoiseWatch.LINE)
+
         /** False for a lesson song ("lesson-<id>") whose lesson uses any-of ranges ([anyOfLessons] holds the ids). */
         fun appliesTo(songId: String, anyOfLessons: Set<String>): Boolean =
             !(songId.startsWith("lesson-") && songId.removePrefix("lesson-") in anyOfLessons)

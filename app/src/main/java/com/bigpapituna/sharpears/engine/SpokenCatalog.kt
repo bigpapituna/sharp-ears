@@ -64,6 +64,8 @@ object SpokenCatalog {
             lesson.quiz.forEach { add(spokenTheory(it.prompt)); add(spokenTheory(it.explain)) }
         }
         CHEER_TITLES.forEach(::add)
+        // 2.2.1: the player's hints (the octave hint, "Your turn." after the app plays the keys, the noisy-room offer).
+        com.bigpapituna.sharpears.engine.hints.OctaveHint.LINES.forEach(::add)
         earLines().forEach(::add)
         // 2.1: the kid skin's words, the Playground's call-outs, the play corner, and Practice today said the kid way.
         kidLines().forEach(::add)
@@ -85,6 +87,9 @@ object SpokenCatalog {
         addAll(com.bigpapituna.sharpears.engine.play.PlayLines.fixed())
         addAll(com.bigpapituna.sharpears.engine.play.JamWords.spoken())
         addAll(com.bigpapituna.sharpears.engine.kid.KidLines.fixed())         // 2.2: the kid home and the finale
+        // 2.2.1: the treat jar the kid home taps, and the noisy-room offer in a kid's words.
+        addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
+        add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)
         add(RunWords.kidLessonLine(null))
         add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
         for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))
