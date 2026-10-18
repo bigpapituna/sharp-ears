@@ -21,6 +21,9 @@ import com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow
  *
  * Exercise notation, one token per note: <name><octave>:<beats>, "r" is a rest, "+" stacks a chord.
  *   "C4:1 E4:1 G4:2 r:1 C4+E4+G4:4"
+ * 2.1 adds alternatives, for the Playground's range exercises ([Token.anyOf]): "|" lists keys of which any one will do,
+ * and ".." is every key from one to the other. The first key listed is the one the app plays when it demonstrates.
+ *   "C#4|D#4:2" (either key of a two-black group), "C6|C#4..C8:2" (any key above middle C; the app plays C6)
  */
 data class Exercise(
     val right: String = "",
@@ -97,19 +100,47 @@ fun noteNumber(name: String): Int {
     return pc + 12 * (name.substring(i).toInt() + 1)
 }
 
-/** One hand's notes from exercise notation, timed at [msPerBeat]. */
-fun parseLine(spec: String, hand: Hand, msPerBeat: Double): List<Note> {
+/**
+ * One token of exercise notation: its [keys] (empty for a rest), where it starts and how long it lasts in beats, and
+ * whether the keys are alternatives ([anyOf], any one of them) rather than a chord (all of them). [text] is the token's
+ * keys as written, so a token can be written back shortened ([Exercise.bite]).
+ */
+data class Token(val keys: List<Int>, val startBeat: Double, val beats: Double, val anyOf: Boolean, val text: String) {
+    val rest get() = keys.isEmpty()
+}
+
+/** "C#4..C8": every key from the first to the second, both included. */
+private fun keyRange(spec: String): List<Int> {
+    val (a, b) = spec.split("..").map(::noteNumber)
+    require(a <= b) { "range runs down: $spec" }
+    return (a..b).toList()
+}
+
+/** A line of exercise notation as tokens, in order. */
+fun parseTokens(spec: String): List<Token> {
     var beat = 0.0
-    val out = mutableListOf<Note>()
+    val out = mutableListOf<Token>()
     for (tok in spec.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }) {
         val (names, len) = tok.split(':').let { it[0] to it[1].toDouble() }
-        if (names != "r") names.split('+').forEach { n ->
-            out += Note(noteNumber(n), (beat * msPerBeat).toLong(), (len * msPerBeat * 0.92).toLong(), hand, 80)
+        val anyOf = '|' in names || ".." in names
+        require(!(anyOf && '+' in names)) { "a token is a chord or alternatives, not both: $tok" }
+        val keys = when {
+            names == "r" -> emptyList()
+            anyOf -> names.split('|').flatMap { if (".." in it) keyRange(it) else listOf(noteNumber(it)) }.distinct()
+            else -> names.split('+').map(::noteNumber)
         }
+        keys.forEach { require(it in 21..108) { "$tok: ${noteName(it)} is off the piano" } }
+        out += Token(keys, beat, len, anyOf, names)
         beat += len
     }
     return out
 }
+
+/** One hand's notes from exercise notation, timed at [msPerBeat]. Alternatives give a note per key, all at once. */
+fun parseLine(spec: String, hand: Hand, msPerBeat: Double): List<Note> = parseTokens(spec).flatMap { t -> t.notes(hand, msPerBeat) }
+
+private fun Token.notes(hand: Hand, msPerBeat: Double) =
+    keys.map { Note(it, (startBeat * msPerBeat).toLong(), (beats * msPerBeat * 0.92).toLong(), hand, 80) }
 
 /**
  * Which hands-apart tip a two-hand song should show, from the hands it has been played through with:
@@ -124,12 +155,23 @@ fun handsTip(twoHands: Boolean, done: Set<Practice>, playedThrough: Boolean): St
     else -> "together"
 }
 
+/**
+ * The exercise as a song for the player. Chords and single notes group by onset as in any song; each token of
+ * alternatives becomes its own any-of group ([OnsetGroup.anyOf]) with its demonstration key first, and must not
+ * share its moment with any other note (an any-of group is never part of a chord).
+ */
 fun Exercise.toSong(id: String, title: String): Song {
     val msPerBeat = 60_000 / bpm
-    val notes = (parseLine(right, Hand.RIGHT, msPerBeat) + parseLine(left, Hand.LEFT, msPerBeat))
-        .sortedWith(compareBy({ it.startMs }, { it.midi }))
+    val tokens = parseTokens(right).map { it to Hand.RIGHT } + parseTokens(left).map { it to Hand.LEFT }
+    val plain = tokens.filter { !it.first.anyOf }.flatMap { (t, h) -> t.notes(h, msPerBeat) }
+    val choices = tokens.filter { it.first.anyOf }.map { (t, h) -> t.notes(h, msPerBeat).let { OnsetGroup(it.first().startMs, it, anyOf = true) } }
+    for (c in choices) require((plain.map { it.startMs } + (choices - c).map { it.startMs }).none { kotlin.math.abs(it - c.startMs) <= GROUP_WINDOW_MS }) {
+        "$id: alternatives at ${c.startMs} ms share their moment with other notes"
+    }
+    val notes = (plain + choices.flatMap { it.notes }).sortedWith(compareBy({ it.startMs }, { it.midi }))
+    val groups = (groupOnsets(plain) + choices).sortedBy { it.startMs }
     val end = notes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
-    return Song("lesson-$id", title, bpm, beats to 4, notes, groupOnsets(notes), emptyList(), end + 400, preferFlats = flats,
+    return Song("lesson-$id", title, bpm, beats to 4, notes, groups, emptyList(), end + 400, preferFlats = flats,
         fingering = fingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() })
 }
 

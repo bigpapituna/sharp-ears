@@ -8,12 +8,37 @@ enum class InputResult { CORRECT, GROUP_DONE, WRONG, IGNORED }
 const val EARLY_HIT_MS = 200.0
 
 /**
+ * The most keys of one any-of group the microphone is asked to listen for. The matcher's work grows with every key it
+ * listens for (measured on the JVM: about 1.5% of a desktop core per key, so 36 keys took half a core), so a bigger range
+ * is listened for through this many keys spread over it ([micKeys]). The Playground's high-and-low game, whose ranges
+ * are half the piano, hears pitch its own way (engine/playground/PitchHeight.kt).
+ */
+const val MIC_ANY_OF_LIMIT = 12
+
+/**
+ * At most [limit] of an any-of group's [keys] (demonstration key first) for the microphone: the demonstration key, then
+ * white keys spread evenly over the range. All of them when they fit.
+ */
+fun micKeys(keys: List<Int>, limit: Int = MIC_ANY_OF_LIMIT): Set<Int> {
+    if (keys.size <= limit) return keys.toSet()
+    val demo = keys.first()
+    val whites = keys.drop(1).filter { !isBlack(it) }.sorted().ifEmpty { keys.drop(1).sorted() }
+    val k = limit - 1
+    val picked = if (whites.size <= k) whites else (0 until k).map { i -> whites[(i * (whites.size - 1).toDouble() / (k - 1)).let(Math::round).toInt()] }
+    return linkedSetOf(demo) + picked
+}
+
+/**
  * Plays a song through time. Pure state machine: the UI ticks it once per frame with the real frame
  * delta and forwards the returned events to the sampler.
  *
  * Listen mode plays every note. Wait mode stops at each onset group until the player has played every
  * *required* note in it: notes of the practiced hand that are on the visible keyboard ([playable]).
  * Other notes are accompaniment and play by themselves.
+ *
+ * Any-of groups (2.1, [OnsetGroup.anyOf]: "any key above middle C") are alternatives: one of their keys completes the
+ * group, in wait mode and in Perform. Their keys count as required wherever they are (a real piano is wider than the
+ * keyboard on screen), and only the first, the demonstration key, ever sounds by itself.
  */
 class Transport(val song: Song, val playable: IntRange = 0..127) {
     var positionMs = 0.0
@@ -66,8 +91,11 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     private var nextIndex = 0                     // first note that has not started yet
     private var groupIndex = 0                    // next group that needs the player's input (wait mode)
     private val satisfied = mutableSetOf<Int>()   // keys already played for that group
+    /** Notes of any-of groups, and the ones among them that never sound by themselves (all but each group's first). */
+    private val choiceNotes: Set<Note> = song.groups.filter { it.anyOf }.flatMapTo(HashSet()) { it.notes }
+    private val silentChoices: Set<Note> = song.groups.filter { it.anyOf }.flatMapTo(HashSet()) { it.notes.drop(1) }
 
-    fun required(n: Note) = mode != Mode.LISTEN && n.midi in playable && when (practice) {
+    fun required(n: Note) = mode != Mode.LISTEN && (n.midi in playable || n in choiceNotes) && when (practice) {
         Practice.BOTH -> true
         Practice.LEFT -> n.hand == Hand.LEFT
         Practice.RIGHT -> n.hand == Hand.RIGHT
@@ -78,15 +106,44 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         get() = if (!waiting) emptyList()
         else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }.orEmpty()
 
-    /** What the microphone should listen for: the next group's required notes not yet played (wait mode only). */
+    /**
+     * What the microphone should listen for: the next group's required notes not yet played (wait mode only). For an
+     * any-of group, its keys, at most [MIC_ANY_OF_LIMIT] of them ([micKeys]).
+     */
     val listenFor: Set<Int>
         get() = if (mode == Mode.PERFORM) score?.listening(positionMs).orEmpty() else if (mode != Mode.WAIT) emptySet()
-        else song.groups.getOrNull(groupIndex)?.notes?.filter { required(it) && it.midi !in satisfied }?.map { it.midi }?.toSet().orEmpty()
+        else song.groups.getOrNull(groupIndex)?.let { g ->
+            val keys = g.notes.filter { required(it) && it.midi !in satisfied }.map { it.midi }
+            if (g.anyOf) micKeys(keys) else keys.toSet()
+        }.orEmpty()
 
-    /** All required notes of that group, including ones already played; they ring together. */
+    /** All required notes of that group, including ones already played; they ring together. An any-of group: as [listenFor]. */
     val listenGroup: Set<Int>
         get() = if (mode == Mode.PERFORM) listenFor else if (mode != Mode.WAIT) emptySet()
-        else song.groups.getOrNull(groupIndex)?.notes?.filter(::required)?.map { it.midi }?.toSet().orEmpty()
+        else song.groups.getOrNull(groupIndex)?.let { g ->
+            val keys = g.notes.filter(::required).map { it.midi }
+            if (g.anyOf) micKeys(keys) else keys.toSet()
+        }.orEmpty()
+
+    /**
+     * [listenGroup] as NoteMatcher.groups: one group for a chord, and every key on its own for an any-of group, whose
+     * keys never sound together (as one group the matcher would set their shared overtones aside and hear less).
+     */
+    val listenGroups: List<Set<Int>>
+        get() = if (nextGroup?.anyOf == true && mode == Mode.WAIT) listenGroup.map { setOf(it) } else listOf(listenGroup)
+
+    /** The next group that needs the player's input (wait mode), whether or not the song has reached it yet. */
+    val nextGroup: OnsetGroup? get() = if (mode == Mode.LISTEN) null else song.groups.getOrNull(groupIndex)
+
+    /**
+     * Keys to show or play as a hint for the group being waited for: its notes still to play, or for an any-of group
+     * only its demonstration key (playing every alternative would be a cluster).
+     */
+    val hintKeys: List<Int>
+        get() = if (!waiting) emptyList() else song.groups.getOrNull(groupIndex)?.let { g ->
+            val keys = g.notes.filter { required(it) && it.midi !in satisfied }.map { it.midi }
+            if (g.anyOf) keys.take(1) else keys
+        }.orEmpty()
 
     /**
      * Where the current run starts: the top, the last seek, or where the hands or mode last changed. Notes
@@ -169,6 +226,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         while (nextIndex < song.notes.size && song.notes[nextIndex].startMs < end) {
             val n = song.notes[nextIndex++]
             if (required(n)) continue                 // the player plays these
+            if (n in silentChoices) continue          // an any-of group sounds only its demonstration key
             _sounding.removeAll { it.midi == n.midi } // re-strike: the sampler restarts the key
             _sounding += n
             events += NoteEvent.On(n.midi, n.velocity)
@@ -198,10 +256,18 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
         if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
         val need = g.notes.filter(::required).map { it.midi }.toSet()
-        if (midi !in need) { log.wrong(midi, need - satisfied); troubles.wrongAt += g.startMs.toDouble(); return InputResult.WRONG }
-        satisfied += midi
-        val slack = if (need.size >= 4) chordSlack else 0
-        if (need.count { it !in satisfied } > slack) return InputResult.CORRECT
+        if (midi !in need) {
+            // A slip is charged to the nearest note it was reaching for; no single key of an any-of group was the one.
+            log.wrong(midi, if (g.anyOf) emptyList() else need - satisfied)
+            troubles.wrongAt += g.startMs.toDouble()
+            return InputResult.WRONG
+        }
+        // A chord needs every note (less the mic's slack); one key of an any-of group is enough.
+        if (!g.anyOf) {
+            satisfied += midi
+            val slack = if (need.size >= 4) chordSlack else 0
+            if (need.count { it !in satisfied } > slack) return InputResult.CORRECT
+        }
         satisfied.clear()
         waiting = false
         log.groupDone()
