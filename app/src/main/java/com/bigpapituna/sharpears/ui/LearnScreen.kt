@@ -68,6 +68,8 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.CoursePath
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_ID
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
+import com.bigpapituna.sharpears.engine.kid.KidPages
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.ui.world.PlaceScene
 import com.bigpapituna.sharpears.engine.CourseLesson
@@ -120,9 +122,11 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
     val mapped = world != null && path.levels.first().id == PLAYGROUND_ID && !path.isExtra(path.levels.first())
     val rows = remember(open, next, mapped) {
         path.levels.flatMap { level ->
-            val body = if (mapped && level.id == PLAYGROUND_ID) Place.entries.flatMapIndexed { p, place ->
-                val four = level.lessons.drop(p * 4).take(4)
-                listOf(PathRow.Scene(level, place, four)) + four.filter { it.id == open }.map { PathRow.Card(it) }
+            // 2.2: each Playground page is one scene with its lessons as the stops (engine/playground/Pages.kt).
+            val page = PLAYGROUND_PAGES.firstOrNull { it.levelId == level.id }.takeIf { mapped }
+            val body = if (page != null) {
+                val onPage = page.lessonIds.mapNotNull { id -> level.lessons.firstOrNull { it.id == id } }
+                listOf(PathRow.Scene(level, KidPages.worldPlace(page), onPage)) + onPage.filter { it.id == open }.map { PathRow.Card(it) }
             } else level.lessons.flatMapIndexed { i, l -> listOfNotNull(PathRow.Stop(level, l, i), PathRow.Card(l).takeIf { open == l.id }) }
             listOf(PathRow.Banner(level)) + body + PathRow.Trophy(level)
         }
@@ -157,7 +161,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
             }
         }
         items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"
-            is PathRow.Trophy -> "t-${r.level.id}"; is PathRow.Scene -> "s-${r.place.name}" } }) { r ->
+            is PathRow.Trophy -> "t-${r.level.id}"; is PathRow.Scene -> "s-${r.level.id}" } }) { r ->
             when (r) {
                 is PathRow.Banner -> UnitBanner(r.level, r.level.lessons.count { done(it.id) }, current = r.level.lessons.any { it == next },
                     number = path.levels.indexOf(r.level) + 1, extra = path.isExtra(r.level))
@@ -168,10 +172,11 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     }
                 }
                 is PathRow.Scene -> PlaceScene(r.place, world!!.state, Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    stop = { n ->
-                        r.lessons.getOrNull((n - 1) % 4)?.let { l ->
+                    stops = r.lessons.size,
+                    stop = { i ->
+                        r.lessons.getOrNull(i)?.let { l ->
                             val state = when { done(l.id) -> StopState.DONE; l == next -> StopState.NEXT; else -> StopState.LATER }
-                            MapStop(l, n, state) { open = if (open == l.id) null else l.id }
+                            MapStop(l, i + 1, state) { open = if (open == l.id) null else l.id }
                         }
                     })
                 is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next) { open = null; onOpen(r.lesson) }

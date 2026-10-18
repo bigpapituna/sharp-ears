@@ -20,6 +20,12 @@ import com.bigpapituna.sharpears.engine.play.QuestEvent
 import com.bigpapituna.sharpears.engine.world.Reward
 import com.bigpapituna.sharpears.data.PlayStore
 import com.bigpapituna.sharpears.data.WorldStore
+import com.bigpapituna.sharpears.data.KidStore
+import com.bigpapituna.sharpears.engine.kid.Finale
+import com.bigpapituna.sharpears.engine.kid.KidMap
+import com.bigpapituna.sharpears.engine.kid.KidPages
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
+import com.bigpapituna.sharpears.ui.kid.StickerPage
 import com.bigpapituna.sharpears.ui.world.LocalWorld
 import com.bigpapituna.sharpears.ui.world.LocalPupOutfit
 import com.bigpapituna.sharpears.ui.world.WorldTab
@@ -152,7 +158,9 @@ private fun QuietWrongKeys(mic: MicInput) = androidx.compose.runtime.DisposableE
 private sealed interface Screen {
     /** The five tabs. [chordsTab], [inject] and [game] only matter for Chords, [practiceTab] for Practice. */
     data class Home(val tab: HomeTab = HomeTab.SONGS, val chordsTab: ChordsTab = ChordsTab.PLAY, val inject: String? = null,
-                    val game: GameStart = GameStart(), val practiceTab: PracticeTab = PracticeTab.SCALES) : Screen
+                    val game: GameStart = GameStart(), val practiceTab: PracticeTab = PracticeTab.SCALES,
+                    /** A kid's home (2.2) after a page's finale: the map opens at that page's end and rolls on to the next stone. */
+                    val kidFrom: String? = null) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
@@ -175,13 +183,20 @@ private sealed interface Screen {
     data class World(val back: Screen, val tab: WorldTab = WorldTab.WORLD) : Screen
     /** The play corner (2.1): the Jam, Pup says or Clap along. [hint] is the quest's line for the Jam ("find all the Cs"). */
     data class Play(val toy: Toy, val back: Screen, val hint: String? = null) : Screen
+    /** A kid's songs (2.2, the kid home's Songs button): only the songs played by colour, big tiles. */
+    data class KidSongs(val back: Screen) : Screen
+    /** A kid's stickers (2.2, My stickers): the album, dress-up, records and paws as pages. */
+    data class KidStickers(val back: Screen, val page: StickerPage = StickerPage.ALBUM) : Screen
+    /** A Playground page's finale (2.2): fireworks, the album page, the certificate, then on along the path. */
+    data class Finale(val pageId: String) : Screen
 }
 
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.World -> 1
-    is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play -> 2
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.World, is Screen.KidSongs, is Screen.KidStickers -> 1
+    is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play,
+    is Screen.Finale -> 2
 }
 
 /** The player is always dark, like a video; everything else follows the system. */
@@ -287,6 +302,8 @@ class MainActivity : ComponentActivity() {
         Juice.world = world
         WorldSounds.on = prefs.sound
         val playStore = PlayStore(this, profile.id)
+        // The kid home's memory (2.2): each lesson's best stars, the finales played (kept for grown-ups too, never shown).
+        val kidStore = KidStore(this, profile.id)
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
         val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader)
@@ -295,6 +312,7 @@ class MainActivity : ComponentActivity() {
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
         val theory = TheoryStore(this, profile.id)     // one store for the Learn card and the academy, so the card updates
         val micCheck = micCheckExercise()
+        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) kidDebugSeed(intent, prefs, kidStore, progress, bedtime)
 
         // Debug builds accept extras to open a screen directly:
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
@@ -320,6 +338,11 @@ class MainActivity : ComponentActivity() {
         //   --es screen skin --es view lane|wrong|recap|goodbye|asleep|paws|bite ...   (the kid skin's demo, ui/skin/SkinDemo.kt)
         //   --es screen motion [--es demo celebrate|cheer|pup|keys]   (the motion demo over home)
         //   --es lesson playground-<n> [--ei step n] [--es inject synth:...|claps:400,1150|dyn:60/-20,60/-8@1600~1500]
+        //   2.2, the kid home (open as a kid with --es profile <id>):
+        //   --es screen kidsongs | kidstickers [--es page album|dress|records|paws] | finale [--es page garden]
+        //   --es kidseed <page>:<n>|road|reset   (marks the page's first n lessons done with stars; road: every page walked and
+        //       its finale played; reset: the Playground's lessons, stars and finales forgotten) [--ez sleepy true] (today's goal
+        //       reached and said goodnight to, so the map shows the pup asleep)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -361,6 +384,10 @@ class MainActivity : ComponentActivity() {
             route == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
             route == "world" -> Screen.World(Screen.Home(HomeTab.YOU),
                 WorldTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: WorldTab.WORLD)
+            route == "kidsongs" -> Screen.KidSongs(Screen.Home())
+            route == "kidstickers" -> Screen.KidStickers(Screen.Home(),
+                StickerPage.entries.firstOrNull { it.name.equals(intent.getStringExtra("page"), ignoreCase = true) } ?: StickerPage.ALBUM)
+            route == "finale" -> Screen.Finale(intent.getStringExtra("page") ?: PLAYGROUND_PAGES.first().id)
             route == "jam" || route == "pupsays" || route == "clap" ->
                 Screen.Play(when (route) { "jam" -> Toy.JAM; "pupsays" -> Toy.PUP_SAYS; else -> Toy.CLAP }, Screen.Home(), intent.getStringExtra("hint"))
             // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
@@ -383,7 +410,7 @@ class MainActivity : ComponentActivity() {
         // the first Playground game (Back from it goes to the Learn path).
         val opening = when {
             newKid && first == Screen.Home() && !startDaily ->
-                path.next { prefs.lessonDone(it) }?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
+                KidMap.next(path, prefs::lessonDone, kidStore.finales())?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
             !progress.onboardingDone && first == Screen.Home() && !startDaily -> Screen.Onboarding
             else -> first
         }
@@ -456,14 +483,22 @@ class MainActivity : ComponentActivity() {
                         Log.d(TAG, "bedtime: goodnight after $after")
                         return true
                     }
-                    // A course lesson finished: progress, today's quest, and the pup's world (a sticker; the egg laid or hatched).
-                    fun lessonDone(l: CourseLesson): Reward {
+                    // A kid finished a Playground page's last lesson (2.2): its finale plays when they leave the lesson.
+                    var pendingFinale by remember { mutableStateOf<String?>(null) }
+                    // A course lesson finished: progress, today's quest, its stars on the stone, and the pup's world (a sticker from
+                    // the lesson's page; the egg laid or hatched).
+                    fun lessonDone(l: CourseLesson, stars: Int): Reward {
                         prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id))
                         quest(QuestEvent.LessonDone(l.id))
-                        val place = l.id.takeIf { it.startsWith("playground-") }?.removePrefix("playground-")?.toIntOrNull()
-                            ?.let { com.bigpapituna.sharpears.engine.world.Place.ofPlaygroundLesson(it) }
-                        return world.lessonComplete(l.id, place)
+                        kidStore.recordStars(l.id, stars)
+                        if (profile.isKid) Finale.trigger(l.id, kidStore.finales())?.let { page ->
+                            pendingFinale = page.id
+                            Log.d(TAG, "kid: ${l.id} ends ${page.id}, its finale is next")
+                        }
+                        return world.lessonComplete(l.id, KidPages.dropPlace(l.id))
                     }
+                    // Where Songs is: the kid's own list for a kid, the Songs tab for a grown-up.
+                    fun songsScreen(back: Screen = Screen.Home()): Screen = if (profile.isKid) Screen.KidSongs(back) else Screen.Home(HomeTab.SONGS)
                     fun todayPlan(): SessionPlan {
                         val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
@@ -561,19 +596,29 @@ class MainActivity : ComponentActivity() {
                                 chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
                         }
                         is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                            BackHandler { voice.stop(); screen = s.back }
                             val l = s.lesson
-                            val next = path.after(l)
+                            // A kid (2.2): "one more" is the next stone on the map; a page's last lesson, finished the first time,
+                            // leads to the page's finale instead (and today's goodbye waits until after it).
+                            val finaleAhead = profile.isKid && remember(l.id) { Finale.trigger(l.id, kidStore.finales()) != null }
+                            val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales())
+                                else path.after(l)
+                            val leave = {
+                                val f = pendingFinale
+                                if (f != null) { pendingFinale = null; voice.stop(); screen = Screen.Finale(f) } else screen = s.back
+                            }
+                            BackHandler { voice.stop(); leave() }
                             androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
                                 midiScript = s.midiScript, startScene = s.scene,
                                 onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
-                                onDone = { lessonDone(l) },
-                                onNext = next?.let { n -> { screen = Screen.Lesson(n, s.back) } },
-                                onBack = { screen = s.back },
-                                onSongs = { voice.stop(); screen = Screen.Home(HomeTab.SONGS) },
+                                onDone = { stars -> lessonDone(l, stars) },
+                                onNext = if (finaleAhead) leave else next?.let { n -> { screen = Screen.Lesson(n, s.back) } },
+                                onBack = leave,
+                                onSongs = { voice.stop(); screen = songsScreen() },
                                 onJam = { voice.stop(); screen = Screen.Play(Toy.JAM, Screen.Home()) },
-                                next = next) }
+                                next = next,
+                                finishLabel = if (finaleAhead) "Hooray!" else null,
+                                holdGoodnight = finaleAhead) }
                         }
                         is Screen.Daily -> {
                             val part = s.plan.parts[s.index]
@@ -611,10 +656,10 @@ class MainActivity : ComponentActivity() {
                                     BackHandler { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
                                         onStep = {}, onSong = null,
-                                        onDone = { lessonDone(l) },
+                                        onDone = { stars -> lessonDone(l, stars) },
                                         onNext = null,
                                         onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) },
-                                        onSongs = { voice.stop(); finishDaily(s, s.done + part); screen = Screen.Home(HomeTab.SONGS) },
+                                        onSongs = { voice.stop(); finishDaily(s, s.done + part); screen = songsScreen() },
                                         onJam = { voice.stop(); finishDaily(s, s.done + part); screen = Screen.Play(Toy.JAM, Screen.Home()) }) }
                                 }
                                 is SessionPart.Loop, is SessionPart.Song -> {
@@ -720,7 +765,62 @@ class MainActivity : ComponentActivity() {
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
                                 onBack = { screen = s.back }, guardToken = gate::guard)
                         }
-                        is Screen.Home -> {
+                        is Screen.Home -> if (current.isKid) {
+                            // A kid's home (2.2) is the pup's world: one screen, no tabs (ui/kid/KidHome.kt).
+                            val home = s.copy(kidFrom = null)
+                            val pv = prefs.version.intValue
+                            val kv = kidStore.version.intValue
+                            val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales()) }
+                            val today = remember { java.time.LocalDate.now() }
+                            val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
+                                bedtime.oneMoreOn, today)
+                            val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
+                            var corner by remember { mutableStateOf(false) }
+                            // After the last page's finale the pup says it once: the big kids' road is open.
+                            val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
+                            // A finale left waiting (its lesson was left another way): it plays now.
+                            LaunchedEffect(pendingFinale) { pendingFinale?.let { pendingFinale = null; screen = Screen.Finale(it) } }
+                            com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
+                                onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
+                                onToy = { t -> screen = Screen.Play(t, home) },
+                                onSongs = { screen = Screen.KidSongs(home) },
+                                onStickers = { screen = Screen.KidStickers(home) },
+                                onQuestTask = { t ->
+                                    Log.d(TAG, "quest: open ${t.opens} for ${t.kind} (kid home)")
+                                    screen = when (t.opens) {
+                                        "jam" -> Screen.Play(Toy.JAM, home, hint = "Can you find all the Cs?")
+                                        "pupsays" -> Screen.Play(Toy.PUP_SAYS, home)
+                                        "songs" -> Screen.KidSongs(home)
+                                        else -> home
+                                    }
+                                },
+                                onGrownUps = { gate.guard { corner = true } },
+                                say = { voice.speak(it, interrupt = true) },
+                                from = s.kidFrom, roadLine = roadLine, onRoadSaid = { kidStore.roadSaid = true },
+                                // The garden's jar and egg, as on the world screen: a full jar is tipped for the pup; the pup says
+                                // what the egg and an unfilled jar are about.
+                                onJar = {
+                                    if (world.tip()) { WorldSounds.munch(); voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.YUM, interrupt = true) }
+                                    else voice.speak(com.bigpapituna.sharpears.ui.world.jarLine(world.state.jar, kid = true, world.state.treats), interrupt = true)
+                                },
+                                onEgg = { voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.EGG, interrupt = true) },
+                                grownUps = if (!corner) null else com.bigpapituna.sharpears.ui.kid.GrownUpCorner(roster.profiles, current.id,
+                                    onSettings = { corner = false; screen = Screen.Settings(home) },
+                                    onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
+                                    onSwitch = { id -> corner = false; profiles.switchTo(id) }),
+                                onGrownUpsClosed = { corner = false },
+                                // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
+                                grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
+                                    fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
+                                    com.bigpapituna.sharpears.ui.family.GrownUpOffer(current.name,
+                                        onSwitch = { gate.guard {
+                                            answered()
+                                            Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
+                                            profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
+                                        } },
+                                        onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                } })
+                        } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
                             val lv = lessons.version.intValue
                             val due = remember(lv, lessons.songPacks.value) {
@@ -839,13 +939,34 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        is Screen.KidSongs -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            com.bigpapituna.sharpears.ui.kid.KidSongsScreen(songs, repo, onSong = { openSong(it, back = s) }, onBack = { screen = s.back })
+                        }
+                        is Screen.KidStickers -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            com.bigpapituna.sharpears.ui.kid.KidStickersScreen(world, songs, onBack = { screen = s.back }, start = s.page,
+                                onSong = { openSong(it, back = s) })
+                        }
+                        is Screen.Finale -> {
+                            val page = PLAYGROUND_PAGES.firstOrNull { it.id == s.pageId }
+                            if (page == null) LaunchedEffect(Unit) { screen = Screen.Home() }
+                            else {
+                                // Played once: the path walks on past the page from now on (engine/kid/KidMap.next).
+                                LaunchedEffect(page.id) { kidStore.finalePlayed(page.id) }
+                                com.bigpapituna.sharpears.ui.kid.FinaleScreen(page, current.name, world.state.album.page(KidPages.worldPlace(page)),
+                                    com.bigpapituna.sharpears.engine.kid.LessonStars.ofPage(page.lessonIds, kidStore::stars), Finale.after(page),
+                                    say = { voice.speak(it) }, sound = prefs.sound,
+                                    onDone = { voice.stop(); screen = Screen.Home(kidFrom = page.id); maybeGoodnight("the ${page.id} finale") })
+                            }
+                        }
                     }
                     }
                     }
                     if (goodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         com.bigpapituna.sharpears.ui.skin.Goodbye(current.name,
                             remember { com.bigpapituna.sharpears.engine.family.PawWeek.of(progress.practiceLog(), java.time.LocalDate.now()) },
-                            onSongs = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Home(HomeTab.SONGS) },
+                            onSongs = { voice.stop(); goodbye = false; dailyDone = null; screen = songsScreen() },
                             onClose = { voice.stop(); goodbye = false; dailyDone = null },
                             onJam = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Play(Toy.JAM, Screen.Home()) },
                             say = { voice.speak(it, interrupt = true) })
@@ -887,6 +1008,43 @@ class MainActivity : ComponentActivity() {
             }
             }
         } }
+    }
+
+    /**
+     * Debug builds (2.2): --es kidseed <page>:<n> marks a page's first n lessons done with stars (3, 2, 3, 1, ...) and
+     * forgets its finale; road marks every page walked and its finale played; reset forgets the Playground's lessons,
+     * stars and finales. --ez sleepy true reaches today's goal and says goodnight (the map shows the pup asleep);
+     * --ez awake true lets a grown-up's one more lesson through today (the map awake whatever was played).
+     */
+    private fun kidDebugSeed(intent: android.content.Intent, prefs: Prefs, kid: KidStore, progress: ProgressStore,
+                             bedtime: com.bigpapituna.sharpears.ui.skin.BedtimeStore) {
+        val stars = intArrayOf(3, 2, 3, 1, 3, 2, 2, 3, 1, 3, 2, 3)
+        intent.getStringExtra("kidseed")?.let { spec ->
+            val all = PLAYGROUND_PAGES.flatMap { it.lessonIds }
+            when (spec) {
+                "reset" -> { all.forEach(prefs::forgetLessonDone); kid.debugForget() }
+                "road" -> PLAYGROUND_PAGES.forEach { p ->
+                    p.lessonIds.forEachIndexed { i, id -> prefs.markLessonDone(id); kid.recordStars(id, stars[i % stars.size]) }
+                    kid.finalePlayed(p.id)
+                }
+                else -> {
+                    val page = PLAYGROUND_PAGES.firstOrNull { it.id == spec.substringBefore(":") } ?: PLAYGROUND_PAGES.first()
+                    val n = spec.substringAfter(":", "0").toIntOrNull() ?: 0
+                    page.lessonIds.forEach(prefs::forgetLessonDone)
+                    kid.debugForget(lessonIds = page.lessonIds, pageIds = listOf(page.id))
+                    page.lessonIds.take(n).forEachIndexed { i, id -> prefs.markLessonDone(id); kid.recordStars(id, stars[i % stars.size]) }
+                }
+            }
+            Log.d(TAG, "kid debug: seeded $spec")
+        }
+        val today = java.time.LocalDate.now()
+        if (intent.getBooleanExtra("sleepy", false)) {
+            val need = progress.goalMinutes * 60 - progress.secondsToday(today)
+            if (need > 0) prefs.addPractice(today, need)
+            bedtime.goodnightOn = today; bedtime.oneMoreOn = null
+            Log.d(TAG, "kid debug: today's goal reached, goodnight said")
+        }
+        if (intent.getBooleanExtra("awake", false)) { bedtime.oneMoreOn = today; Log.d(TAG, "kid debug: lessons open today") }
     }
 
     override fun onPause() {

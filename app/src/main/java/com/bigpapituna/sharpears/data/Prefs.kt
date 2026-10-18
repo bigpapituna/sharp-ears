@@ -111,6 +111,8 @@ class Prefs(context: Context, val profileId: String) {
     /** Learn course: lessons finished (exercise played through, or marked done). */
     fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
     fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }
+    /** Debug routes only (2.2, the kid home's seed): the lesson as never finished. */
+    fun forgetLessonDone(id: String) = edit { remove("lesson:$id") }
 
     /** Chord games: best score (out of 10) per game and level, or -1 before the first full round. */
     fun gameBest(game: String, level: Int) = p.getInt("game:$game:$level", -1)

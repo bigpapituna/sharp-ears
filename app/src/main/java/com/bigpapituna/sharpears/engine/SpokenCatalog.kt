@@ -84,6 +84,7 @@ object SpokenCatalog {
         addAll(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.CALL_OUTS)
         addAll(com.bigpapituna.sharpears.engine.play.PlayLines.fixed())
         addAll(com.bigpapituna.sharpears.engine.play.JamWords.spoken())
+        addAll(com.bigpapituna.sharpears.engine.kid.KidLines.fixed())         // 2.2: the kid home and the finale
         add(RunWords.kidLessonLine(null))
         add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
         for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))
