@@ -33,7 +33,16 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private val inFlight = mutableSetOf<String>()
     private var nextId = 0
 
-    private val natural: NaturalVoice = NaturalVoice(context) { main.post { speaking.value = inFlight.isNotEmpty() || natural.busy } }
+    private val natural: NaturalVoice = NaturalVoice(context) { main.post { settle(inFlight.isNotEmpty() || natural.busy) } }
+
+    /** A line is being said over the listening mic ([speakOverMic]): it never holds the mic, which is deaf meanwhile. */
+    private var overMic = false
+
+    /** The voice is (or is not) talking now; a line said over the mic lets the mic hear again when it ends. */
+    private fun settle(now: Boolean) {
+        speaking.value = now
+        if (!now && overMic) { overMic = false; mic.deafWhileSpeaking(false) }
+    }
 
     /** The Kokoro model is on the phone (else only the recorded lines use the natural voice). */
     val naturalModelInstalled get() = natural.modelInstalled
@@ -50,8 +59,8 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         if (prefs.voice && prefs.naturalVoice) natural.warmUp()   // loads in the background while the first screen opens
     }
 
-    /** The voice is talking through the speaker: the mic should not start yet. */
-    val holdsMic get() = speaking.value && !mic.headphonesOn()
+    /** The voice is talking through the speaker: the mic should not start yet. Lines said over the mic do not hold it. */
+    val holdsMic get() = speaking.value && !mic.headphonesOn() && !overMic
 
     private fun canSpeak() = !mic.listening || mic.headphonesOn()
 
@@ -70,13 +79,27 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         lines.forEachIndexed { i, l -> say(l, flush = interrupt && i == 0) }
     }
 
+    /**
+     * Says [text] now although the mic is listening (2.1.1: the Playground's call-outs between rounds and the "Let me
+     * show you" of a demo): the mic is deaf while the line plays (the phone's speaker is next to it) and hears again
+     * shortly after it ends. With the mic off, or headphones on, it is an ordinary line.
+     */
+    fun speakOverMic(text: String) {
+        if (!enabled) { Log.d(TAG, "voice: (off) $text"); return }
+        if (!mic.listening || mic.headphonesOn()) { speak(text); return }
+        overMic = true
+        mic.deafWhileSpeaking(true)
+        Log.d(TAG, "voice: over the mic, deaf meanwhile: $text")
+        say(text, flush = false)
+    }
+
     fun stop() {
         queue.clear()
         beforeReady.clear()
         tts?.stop()
         natural.stop()
         inFlight.clear()
-        speaking.value = false
+        settle(false)
         Log.d(TAG, "voice: stop")
     }
 
@@ -190,7 +213,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
             ready = true
             Log.d(TAG, "voice: engine ready (${t.defaultEngine}, language result $lang)")
             val waiting = beforeReady.toList(); beforeReady.clear()
-            speaking.value = false
+            settle(false)
             waiting.forEach { (text, flush) -> speak(text, interrupt = flush) }
             engineReady.value = true
         }
@@ -208,7 +231,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private fun finished(id: String, how: String) = main.post {
         val removed = inFlight.remove(id)
         if (removed && how != "done") Log.d(TAG, "voice: $id $how")
-        speaking.value = inFlight.isNotEmpty() || natural.busy
+        settle(inFlight.isNotEmpty() || natural.busy)
         if (removed && inFlight.isEmpty()) Log.d(TAG, "voice: finished")
     }
 }

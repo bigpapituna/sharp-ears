@@ -37,6 +37,8 @@ class MicInput(private val context: Context) {
         const val RATE = 48_000
         /** Space for stuck-moment clips (WAV, ~5.6 MB a minute); the oldest are deleted past it. */
         const val STALL_BUDGET = 250L * 1024 * 1024
+        /** The mic stays deaf this long after a line said over it ends. */
+        const val VOICE_TAIL_MS = 300L
     }
 
     private val prefs = context.getSharedPreferences("mic", Context.MODE_PRIVATE)
@@ -104,7 +106,7 @@ class MicInput(private val context: Context) {
     private val octave = com.bigpapituna.sharpears.engine.hints.OctaveHint()
     private fun sampleMs(sample: Long) = sample * 1000 / RATE
     init {
-        matcher.noise = { s -> if (System.nanoTime() >= deafUntil) _noise.tryEmit(s) }
+        matcher.noise = { s -> if (!deaf) _noise.tryEmit(s) }
         matcher.candidates = { c -> synchronized(octave) { octave.candidate(sampleMs(c.sample), c) } }
     }
 
@@ -119,8 +121,35 @@ class MicInput(private val context: Context) {
      * Ignore what the mic hears for [ms] (the app is playing a note through the speaker as a hint: the mic must not
      * take it for the player's). The matcher keeps listening so nothing is stale afterwards; its events are dropped.
      */
-    fun deafFor(ms: Long) { deafUntil = System.nanoTime() + ms * 1_000_000; Log.d(TAG, "mic: deaf for $ms ms") }
+    fun deafFor(ms: Long) { deafUntil = maxOf(deafUntil, System.nanoTime() + ms * 1_000_000); Log.d(TAG, "mic: deaf for $ms ms") }
     @Volatile private var deafUntil = 0L
+
+    /**
+     * Deaf while the voice says a line over the listening mic ([Voice.speakOverMic], 2.1.1: the Playground's call-outs
+     * and demos), and [VOICE_TAIL_MS] after it ends (the room rings on). Set by the voice; a line that never reports its
+     * end is cut off by [voiceDeafLimit].
+     */
+    fun deafWhileSpeaking(on: Boolean) {
+        val now = System.nanoTime()
+        if (on) { voiceDeaf = true; voiceDeafLimit = now + 8_000_000_000L }
+        else if (voiceDeaf) { voiceDeaf = false; deafUntil = maxOf(deafUntil, now + VOICE_TAIL_MS * 1_000_000) }
+    }
+    @Volatile private var voiceDeaf = false
+    @Volatile private var voiceDeafLimit = 0L
+
+    /** Whether what the mic hears is being dropped now (a hint note, a demo, a line over the mic). */
+    val deaf: Boolean get() {
+        val now = System.nanoTime()
+        if (voiceDeaf && now > voiceDeafLimit) voiceDeaf = false
+        return now < deafUntil || voiceDeaf
+    }
+
+    /**
+     * Deaf now or within the last [ms] (for readers of [rawFrames] that decide late, like the pitch tracker, whose note
+     * started while the phone was playing).
+     */
+    fun deafWithin(ms: Long): Boolean = deaf || System.nanoTime() - lastDeafNanos < ms * 1_000_000
+    @Volatile private var lastDeafNanos = Long.MIN_VALUE / 2
 
     /**
      * Raw input for whoever reads the audio itself (the Playground's clap counter and pitch tracker, Clap along, the
@@ -325,7 +354,8 @@ class MicInput(private val context: Context) {
         // reference taken outside would append to a closed file (EBADF at the end of every recording).
         synchronized(this) { writer?.append(buf, n) }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
-        val deaf = System.nanoTime() < deafUntil
+        val deaf = this.deaf
+        if (deaf) lastDeafNanos = System.nanoTime()
         for (e in matcher.process(buf, n)) {
             if (deaf) continue
             when (e) {
