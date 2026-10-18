@@ -110,6 +110,8 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 /** The course in this person's order (2.1): a kid's starts in the Playground, a grown-up's at Basics. */
                 path: CoursePath = CoursePath("basics")) {
     val next = path.next(done)
+    val kid = com.bigpapituna.sharpears.ui.family.isKid()
+    val reader = com.bigpapituna.sharpears.ui.family.reader()
     var open by remember { mutableStateOf<String?>(null) }
     // A kid walks the Playground through the pup's world (the places drawn from their own stickers).
     val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
@@ -134,13 +136,15 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(top = 20.dp, bottom = 12.dp)) {
                         Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-                        Text("${path.counted.count { done(it.id) }} of ${path.counted.size} lessons", style = MaterialTheme.typography.bodySmall,
+                        // A kid's path has no count to keep up with (the map and its ticks say it).
+                        if (!kid) Text("${path.counted.count { done(it.id) }} of ${path.counted.size} lessons", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Pup(Pose.LEARNING, size = 64.dp)
                 }
-                // Beside the course: practice that is never "done" (new music, new rounds each time).
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Beside the course: practice that is never "done" (new music, new rounds each time). Not before a kid
+                // can read: the cards are words, and the pup's world below is the whole path for them.
+                if (!kid || reader) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     theory?.invoke(Modifier.pressScale())
                     SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
                         earStreak.takeIf { it > 0 }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)

@@ -33,4 +33,13 @@ class SessionWordsTest {
         assertEquals("The next lesson on your path. About 5 min.", SessionWords.about(lesson))
         assertEquals("Chords from your daily review, one at a time. About 4 min.", SessionWords.about(chords))
     }
+
+    @Test fun kidRowsHaveNoNumbers() {
+        listOf(lesson, loop, song, chords).forEach { p ->
+            val row = SessionWords.kidRow(p)
+            assertEquals("$row has a number", false, row.any { it.isDigit() })
+        }
+        assertEquals("A lesson: Sit, then shape your hand", SessionWords.kidRow(lesson))
+        assertEquals("You did it all, Mia! See you tomorrow.", SessionWords.kidSessionDone("Mia"))
+    }
 }

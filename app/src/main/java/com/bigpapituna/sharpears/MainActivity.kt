@@ -456,11 +456,14 @@ class MainActivity : ComponentActivity() {
                     fun todayPlan(): SessionPlan {
                         val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         val next = path.next { prefs.lessonDone(it) }
+                        // A kid's session is short (KIDS-PLAN 3.9): the next game or lesson and a whole song, no chord
+                        // review and no bar on a loop.
                         val song = continueMeta()?.let { m ->
                             val minutes = runCatching { repo.load(m).durationMs / 60_000.0 }.getOrDefault(3.0)
-                            SessionSong(m.id, m.title, minutes, prefs.troubleBars(m.id).firstOrNull())
+                            SessionSong(m.id, m.title, minutes, if (profile.isKid) null else prefs.troubleBars(m.id).firstOrNull())
                         }
-                        return planSession(queue.filterIsInstance<LessonItem.ChordItem>().map { it.id }, next?.let { it.id to it.title }, song)
+                        val chords = if (profile.isKid) emptyList() else queue.filterIsInstance<LessonItem.ChordItem>().map { it.id }
+                        return planSession(chords, next?.let { it.id to it.title }, song)
                     }
                     fun startDaily() {
                         val plan = todayPlan()
@@ -476,7 +479,8 @@ class MainActivity : ComponentActivity() {
                         prefs.saveDailySummary(java.time.LocalDate.now(), summary)
                         progress.record(ProgressEvent.DailySession(done.size))
                         Log.d(TAG, "daily: $summary")
-                        voice.speak("Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
+                        voice.speak(if (profile.isKid) com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(profile.name)
+                            else "Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
                         dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), PracticeStats.streak(prefs.practice(), java.time.LocalDate.now()))
                         screen = Screen.Home()
                     }
@@ -720,12 +724,16 @@ class MainActivity : ComponentActivity() {
                                                 onMic = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                                 onToday = ::startDaily,
                                             ),
-                                            practice = remember(pv) { PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
+                                            // The week in minutes, for grown-ups (a kid's home has no numbers).
+                                            practice = remember(pv, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
                                             today = remember(pv, lv, lessons.songPacks.value) {
                                                 val plan = todayPlan()
                                                 // Debug --ez emptyToday true: the panel with nothing due (for screenshots).
-                                                TodayPanel(plan.aboutLabel, if (debuggable && intent.getBooleanExtra("emptyToday", false)) emptyList() else plan.parts.map { it.row },
-                                                    prefs.dailySummary(java.time.LocalDate.now()))
+                                                val kid = current.isKid
+                                                TodayPanel(if (kid) com.bigpapituna.sharpears.engine.SessionWords.KID_TODAY else plan.aboutLabel,
+                                                    if (debuggable && intent.getBooleanExtra("emptyToday", false)) emptyList()
+                                                    else plan.parts.map { if (kid) com.bigpapituna.sharpears.engine.SessionWords.kidRow(it) else it.row },
+                                                    prefs.dailySummary(java.time.LocalDate.now())?.let { if (kid) com.bigpapituna.sharpears.engine.SessionWords.KID_DONE_TODAY else it })
                                             },
                                             goal = remember(pv, progress.version.intValue, current.isKid) {
                                                 val st = progress.streak()
@@ -815,7 +823,12 @@ class MainActivity : ComponentActivity() {
                             say = { voice.speak(it, interrupt = true) })
                     }
                     if (!goodbye) dailyDone?.let { (parts, min, streak) ->
-                        com.bigpapituna.sharpears.ui.Celebration("Done for today!",
+                        // A kid's session ends on the pup, not on numbers.
+                        if (current.isKid) com.bigpapituna.sharpears.ui.Celebration("Done for today!",
+                            com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(current.name), emptyList(),
+                            primary = "Continue", onPrimary = { dailyDone = null },
+                            pose = com.bigpapituna.sharpears.ui.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound })
+                        else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
                             listOf(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
                                 com.bigpapituna.sharpears.ui.Stat("$min min", "Practice"),

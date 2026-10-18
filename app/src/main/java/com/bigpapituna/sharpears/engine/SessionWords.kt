@@ -95,6 +95,23 @@ object SessionWords {
         }
     }
 
+    /** A kid's row in the Practice today panel: what the part is, no counts, bars or minutes. */
+    fun kidRow(part: SessionPart): String = when (part) {
+        is SessionPart.Chords -> "Chords to find"
+        is SessionPart.Lesson -> "A lesson: ${part.title}"
+        is SessionPart.Loop -> "The tricky bit of ${part.title}"
+        is SessionPart.Song -> "${part.title}, the notes wait for you"
+    }
+
+    /** The Practice today panel's headline for a kid, in place of "About 10 min". */
+    const val KID_TODAY = "Today with the pup"
+
+    /** The panel's line once a kid's session is done (the grown-up's names minutes). */
+    const val KID_DONE_TODAY = "Done for today. The pup is proud of you!"
+
+    /** The celebration line after a kid's Practice today, said with the name (generated on the phone). */
+    fun kidSessionDone(name: String?): String = RunWords.named("You did it all{name}! See you tomorrow.", name)
+
     /** The line on the paw calendar: grown-ups get the count, kids the idea. */
     fun pawLine(practisedDays: Int, kid: Boolean): String = when {
         kid -> if (practisedDays == 0) "Play today to stamp a paw." else "A paw for every day you play."
