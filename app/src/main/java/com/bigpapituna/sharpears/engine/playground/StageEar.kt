@@ -29,10 +29,20 @@ object StageKeys {
     val FENCES: Set<Int> = setOf(66, 68, 70, 78, 80, 82)
     /** Every C from C2 to C6. */
     val CS: Set<Int> = setOf(36, 48, 60, 72, 84)
+    /** Every key of pitch class [pc] from octave 2 to 6 (the concert hall's letter hunts: every D, every E...). */
+    fun letter(pc: Int): Set<Int> = (2..6).map { 12 * (it + 1) + pc }.toSet()
+    /** The C position, C4 to G4: the copy games and the soft and loud tune (2.2) listen for these. */
+    val FIVE: Set<Int> = setOf(60, 62, 64, 65, 67)
+    /** The pond's first chord, C4 E4 G4: one group, so its keys' shared partials never count against each other. */
+    val C_CHORD: Set<Int> = setOf(60, 64, 67)
     /** Soft and loud: the white keys from A3 to G4 and the dog house between them; the game grades the rise. */
     val SOFT_LOUD: Set<Int> = setOf(57, 59, 60, 61, 62, 63, 64, 65, 67)
 
-    fun forHunt(hunt: Hunt): Set<Int> = when (hunt) { Hunt.DOG_HOUSE -> DOG_HOUSES; Hunt.FENCE -> FENCES; Hunt.C -> CS }
+    fun forHunt(hunt: Hunt): Set<Int> = when (hunt) {
+        Hunt.DOG_HOUSE -> DOG_HOUSES
+        Hunt.FENCE -> FENCES
+        else -> letter(hunt.pitchClasses.single())
+    }
 }
 
 /** Where a stage's sound came from, the surest first. */
@@ -66,12 +76,24 @@ data class StageSound(val atMs: Long, val by: HeardBy, val midi: Int? = null, va
  * are the same sound (a second key of a chord, the onset of a strike) and give nothing. The pitch tracker counts only
  * at [pitchClarity] or clearer. Times are any forward clock (the stage's uptime; the tests' own).
  */
-class StageEar(val mergeMs: Long = 300, val pitchClarity: Double = 0.9) {
+class StageEar(val mergeMs: Long = 300, val pitchClarity: Double = 0.9, val chords: Boolean = false) {
     private var pending: StageSound? = null
     private var decidedAt = Long.MIN_VALUE / 2
+    /** [chords]: when each key was last struck. */
+    private val struckAt = HashMap<Int, Long>()
 
-    /** The matcher confirmed [midi]. */
+    /**
+     * The matcher confirmed [midi]. With [chords] (2.2, the pond's chord) every key of a chord is a sound of its own:
+     * only the same key again within [mergeMs] is the same strike.
+     */
     fun strike(midi: Int, riseDb: Double, atMs: Long): List<StageSound> {
+        if (chords) {
+            if (struckAt[midi]?.let { atMs - it < mergeMs } == true) return emptyList()
+            struckAt[midi] = atMs
+            pending = null
+            decidedAt = atMs
+            return listOf(StageSound(atMs, HeardBy.MATCHER, midi, riseDb = riseDb, final = true))
+        }
         if (atMs - decidedAt < mergeMs) return emptyList()
         pending = null
         decidedAt = atMs
@@ -135,6 +157,12 @@ enum class MissWhy {
     OTHER_GROUP,
     /** The C hunt: another key. */
     NOT_C,
+    /** A letter hunt (D, E, F, G): another key. */
+    NOT_LETTER,
+    /** A copy game or a tune: not the next note. */
+    OTHER_NOTE,
+    /** The chord: a key that is not one of its three. */
+    NOT_CHORD,
     /** Soft and loud: loud in a soft round (he woke up). */
     TOO_LOUD,
     /** Soft and loud: not loud enough in a loud round. */
@@ -175,7 +203,7 @@ object HighLowJudge {
 }
 
 /**
- * The key hunts (lessons 2 and 3): a key of the hunted group. The matcher listens for [StageKeys.forHunt]; a named key
+ * The key hunts (the garden's lessons 2 and 3, the concert hall's letters): a key of the hunted group. The matcher listens for [StageKeys.forHunt]; a named key
  * of the same group in another octave counts too (any dog house will do), handed to the round as the listened-for key
  * of its pitch class nearest to it. A named white key in a black-key hunt is [MissWhy.WHITE_KEY] (the pup points at the
  * black ones); a pitch-tracker guess is never a find, only heard.
@@ -191,6 +219,7 @@ object HuntJudge {
         }
         return Answer.Miss(when {
             hunt == Hunt.C -> MissWhy.NOT_C
+            hunt.letter != null -> MissWhy.NOT_LETTER
             !isBlack(key) -> MissWhy.WHITE_KEY
             else -> MissWhy.OTHER_GROUP
         }, key)

@@ -40,10 +40,10 @@ class StageSoundsTest {
         return room
     }
 
-    private fun heard(audio: FloatArray, expected: Set<Int>, strict: Boolean): List<MicEvent> {
+    private fun heard(audio: FloatArray, expected: Set<Int>, strict: Boolean, groups: List<Set<Int>> = expected.map { setOf(it) }): List<MicEvent> {
         val m = NoteMatcher()
         m.strictKeys = strict
-        m.expected = expected; m.groups = expected.map { setOf(it) }
+        m.expected = expected; m.groups = groups
         val out = ArrayList<MicEvent>()
         var i = 0
         while (i < audio.size) { val n = minOf(512, audio.size - i); out += m.process(audio.copyOfRange(i, i + n)); i += n }
@@ -69,10 +69,13 @@ class StageSoundsTest {
     }
 
     @Test fun noSoundIsEverAKeyOrAWrongKeyOnTheStagesAndTheJam() {
-        val sets = listOf(StageKeys.HIGH_LOW, StageKeys.DOG_HOUSES, StageKeys.FENCES, StageKeys.CS, StageKeys.SOFT_LOUD, Jam().micNotes())
+        // 2.2: the concert hall's letters, the C position (the copy games, the soft and loud tune) and the pond's chord, one group.
+        val sets = listOf(StageKeys.HIGH_LOW, StageKeys.DOG_HOUSES, StageKeys.FENCES, StageKeys.CS, StageKeys.SOFT_LOUD, Jam().micNotes()).map { it to it.map { k -> setOf(k) } } +
+            listOf(2, 4, 5, 7).map { StageKeys.letter(it).let { set -> set to set.map { k -> setOf(k) } } } +
+            listOf(StageKeys.FIVE to StageKeys.FIVE.map { setOf(it) }, StageKeys.C_CHORD to listOf(StageKeys.C_CHORD))
         val bad = mutableListOf<String>()
-        for (s in sounds) for (gain in listOf(0.0, -12.0, -24.0)) for (set in sets) {
-            val ev = heard(load(s, gain), set, strict = true)
+        for (s in sounds) for (gain in listOf(0.0, -12.0, -24.0)) for ((set, groups) in sets) {
+            val ev = heard(load(s, gain), set, strict = true, groups = groups)
             if (ev.any { it is MicEvent.Strike || it is MicEvent.Wrong }) bad += "$s at $gain dB with ${set.map(::noteName)} was heard as $ev"
         }
         assertTrue(bad.joinToString("; "), bad.isEmpty())

@@ -532,7 +532,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             !strongEnough(f, nowP, beforeP, riseDb, cfg) -> Reject.TOO_FAINT
             strictKeys && fresh(f.note.take(2)) < STRICT_LOW_SHARE * noteFresh -> Reject.NO_LOW_PARTIALS
             strictKeys && riseDb < loudestDb(windowFor(midi)) + 3.0 - STRICT_LEVEL_DB -> Reject.TOO_FAINT
-            strictKeys && lowerNoteUnder(midi, f, buf, rate, factor, noteFresh, cfg) -> Reject.LOWER_NOTE
+            strictKeys && lowerNoteUnder(midi, chord, f, buf, rate, factor, noteFresh, cfg) -> Reject.LOWER_NOTE
             else -> null
         }
         val tr = trace
@@ -581,15 +581,19 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
      * Its candidates are the fundamentals p/h of those partials (p = 1, 2, 3; h = p + 1 .. 9, less the octave and twelfth
      * below, which every strike is checked for); each is probed at its own first three partials where they are not
      * this note's partials. All of them rising, with fresh power of [STRICT_LOWER_RATIO] times this note's fresh rise,
-     * means the lower note was struck and this one is only its overtone.
+     * means the lower note was struck and this one is only its overtone. A lower note of the same [chord] group is meant
+     * to sound with it (2.2, the pond's C chord: G4's 2nd partial is C4's 3rd, and C4 is struck with it), so it explains
+     * nothing; with a key alone in its group (every stage before 2.2, the Jam) nothing changes.
      */
-    private fun lowerNoteUnder(midi: Int, f: Probe, buf: FloatArray, rate: Int, factor: Int, noteFresh: Double, cfg: MatcherConfig): Boolean {
-        val (freqs, ranges) = lowerProbes.getOrPut(midi to factor) { buildLowerProbes(midi, factor) }
+    private fun lowerNoteUnder(midi: Int, chord: Set<Int>, f: Probe, buf: FloatArray, rate: Int, factor: Int, noteFresh: Double, cfg: MatcherConfig): Boolean {
+        val (freqs, ranges, roots) = lowerProbes.getOrPut(midi to factor) { buildLowerProbes(midi, factor) }
         if (freqs.isEmpty()) return false
+        val mates = chord.filter { it != midi }.map(::midiFreq)
         val now = DoubleArray(freqs.size); val before = DoubleArray(freqs.size)
         powers(freqs, buf, rate, buf.size, now)
         powers(freqs, buf, rate, buf.size - window, before)
-        for (r in ranges) {
+        for ((k, r) in ranges.withIndex()) {
+            if (mates.any { kotlin.math.abs(it - roots[k]) < roots[k] * 0.01 }) continue
             // Every probe of the lower note must rise: a real lower note lifts all of its first partials, while notes of
             // a chord can land on some of a phantom's (C4 and G4 are the 2nd and 3rd partials of a C3 nobody played).
             if (r.any { i -> now[i] < cfg.riseRatio * before[i] }) continue
@@ -603,9 +607,9 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         return false
     }
 
-    /** Per key and band: the lower-note probes (frequencies) and, per candidate fundamental, its slice of them. */
-    private val lowerProbes = HashMap<Pair<Int, Int>, Pair<DoubleArray, List<IntRange>>>()
-    private fun buildLowerProbes(midi: Int, factor: Int): Pair<DoubleArray, List<IntRange>> {
+    /** Per key and band: the lower-note probes (frequencies) and, per candidate fundamental, its slice of them and its frequency. */
+    private val lowerProbes = HashMap<Pair<Int, Int>, Triple<DoubleArray, List<IntRange>, DoubleArray>>()
+    private fun buildLowerProbes(midi: Int, factor: Int): Triple<DoubleArray, List<IntRange>, DoubleArray> {
         val nyq = 0.45 * sampleRate / factor
         val tolerance = 1.5 * sampleRate / windowFor(midi)
         val own = (1..16).map { partialFreq(midi, it) }
@@ -616,14 +620,15 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             val g = partialFreq(midi, p) / h
             if (roots.none { kotlin.math.abs(it - g) < g * 0.01 }) roots += g
         }
-        val freqs = ArrayList<Double>(); val ranges = ArrayList<IntRange>()
+        val freqs = ArrayList<Double>(); val ranges = ArrayList<IntRange>(); val kept = ArrayList<Double>()
         for (g in roots) {
             val probes = (1..3).map { g * it }.filter { it in 70.0..nyq && !mine(it) }
             if (probes.size < 2) continue
             ranges += freqs.size until freqs.size + probes.size
             freqs += probes
+            kept += g
         }
-        return freqs.toDoubleArray() to ranges
+        return Triple(freqs.toDoubleArray(), ranges, kept.toDoubleArray())
     }
 
     /** The loudest hop (dBFS, mean square) of the last [span] samples, at most the hop ring's length (about 340 ms). */

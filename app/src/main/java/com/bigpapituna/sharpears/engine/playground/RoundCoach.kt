@@ -93,30 +93,61 @@ class RoundCoach(
     /** The round's answer was heard: done. */
     fun found() { phase = Phase.DONE }
 
+    /**
+     * Part of the round's answer was heard (a note of a phrase, 2.2): the round goes on listening and the quiet stretch
+     * starts again from [nowMs]. Tries stay as they are.
+     */
+    fun progress(nowMs: Long) { if (phase == Phase.LISTEN) quietFrom = nowMs }
+
     private fun letGo(): Cue.LetGo { phase = Phase.DONE; return Cue.LetGo(round) }
 }
 
 /**
- * A Playground stage's rounds: the step's exercise in wait mode (its report is what the lesson grades), one round per
- * group, each begun by the [coach] [gapMs] after the last one ended (the pup's call-out between rounds). The stage on
- * screen feeds [tick], [found] and [miss] and draws what they return; PlaygroundFlowTest drives it the same way.
+ * A Playground stage's rounds: the step's exercise in wait mode (its report is what the lesson grades), each round begun
+ * by the [coach] [gapMs] after the last one ended (the pup's call-out between rounds). The stage on screen feeds [tick],
+ * [found] and [miss] and draws what they return; PlaygroundFlowTest drives it the same way.
+ *
+ * A round is one group (a key, an any-of group or a chord), or with [phrases] (2.2: the copy games and the soft and loud
+ * tune) a phrase: the notes between two rests of the exercise, played in order. The coach shows a phrase whole and
+ * listens for its notes one after another; each note heard is progress ([RoundCoach.progress]), its last note finds the
+ * round, and a let go plays the rest of the phrase in for the kid.
  */
-class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = RoundCoach(), val gapMs: Long = 1_400) {
+class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = RoundCoach(), val gapMs: Long = 1_400, phrases: Boolean = false) {
     val transport = Transport(song).apply { mode = Mode.WAIT; this.practice = practice }
-    /** Rounds to play (groups with a required note). */
-    val rounds = song.groups.count { g -> g.notes.any(transport::required) }
+    /** The groups to play (those with a required note), in order. */
+    private val required: List<OnsetGroup> = song.groups.filter { g -> g.notes.any(transport::required) }
+    /** The round each required group belongs to: its own, or its phrase's (a rest in the exercise ends a phrase). */
+    private val roundOf: IntArray = if (!phrases) IntArray(required.size) { it } else {
+        val gaps = silences(song)
+        var r = 0
+        IntArray(required.size) { i -> if (i > 0 && gaps.any { it > required[i - 1].startMs && it < required[i].startMs }) r++; r }
+    }
+    /** Rounds to play: groups, or phrases. */
+    val rounds = if (required.isEmpty()) 0 else roundOf.last() + 1
     /** Rounds let go after three tries, by index: each shows one star. */
     val letGo = mutableListOf<Int>()
+    /** Groups done so far, found or let go. */
+    val groupsDone get() = transport.log.groups
     /** Rounds done so far, found or let go. */
-    val done get() = transport.log.groups
-    /** The round being played (or waited for). */
+    val done get() = if (groupsDone >= required.size) rounds else roundOf[groupsDone]
+    /** The group being played (or waited for). */
     val current: OnsetGroup? get() = transport.nextGroup
+    /** The groups of the round being played, in order (one, unless rounds are phrases). */
+    val roundGroups: List<OnsetGroup> get() = if (groupsDone >= required.size) emptyList()
+        else required.filterIndexed { i, _ -> roundOf[i] == roundOf[groupsDone] }
+    /** How many groups of the round being played are done (a phrase's notes so far). */
+    val doneInRound: Int get() = if (groupsDone >= required.size) 0 else (0 until groupsDone).count { roundOf[it] == roundOf[groupsDone] }
     var started = false; private set
     /** The song has run out after its last round: the run's report is ready. */
     val ended get() = started && !transport.playing
     private var beginAt = 0L
 
     fun start(nowMs: Long) { transport.play(); started = true; beginAt = nowMs }
+
+    /** Whether the group being played begins its round (always, with a group a round). */
+    private fun atRoundStart() = groupsDone >= required.size || groupsDone == 0 || roundOf[groupsDone - 1] != roundOf[groupsDone]
+    /** Whether the group being played ends its round. */
+    private fun atRoundEnd() = groupsDone >= required.size - 1 || roundOf[groupsDone + 1] != roundOf[groupsDone]
 
     /**
      * Real time moves on by [dtMs] to [nowMs]: the transport ticks (its note events go to the sampler), the next round
@@ -126,7 +157,7 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
         if (!started) return emptyList<NoteEvent>() to null
         val events = transport.tick(dtMs)
         val idle = coach.phase == RoundCoach.Phase.IDLE || coach.phase == RoundCoach.Phase.DONE
-        if (idle && nowMs >= beginAt && current != null && transport.playing) {
+        if (idle && nowMs >= beginAt && current != null && transport.playing && atRoundStart()) {
             // The song waits for each round; between rounds the time is only pacing, so jump to the next one.
             val g = current!!
             val ahead = g.startMs - transport.positionMs
@@ -138,12 +169,23 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
         return events to cue
     }
 
-    /** The keys the round's demo plays: its notes (an any-of group's first, its demonstration key). */
-    fun demoKeys(): List<Int> = current?.let { g -> if (g.anyOf) listOf(g.notes.first().midi) else g.notes.filter(transport::required).map { it.midi } }.orEmpty()
+    /**
+     * The keys the round's demo plays: its notes (an any-of group's first, its demonstration key; a chord's every key),
+     * or a phrase's notes in order from its first (shown whole; the kid goes on from where they are).
+     */
+    fun demoKeys(): List<Int> = roundGroups.let { gs ->
+        if (gs.size > 1) gs.map(::demoKey)
+        else current?.let { g -> if (g.anyOf) listOf(g.notes.first().midi) else g.notes.filter(transport::required).map { it.midi } }.orEmpty()
+    }
+
+    private fun demoKey(g: OnsetGroup) = if (g.anyOf) g.notes.first().midi else g.notes.first(transport::required).midi
+
+    /** The key the round waits for now: the group's demonstration key (in a phrase, its next note). */
+    fun expectedKey(): Int? = current?.let(::demoKey)
 
     /** What [answer] did with a round's answer. */
     sealed interface Outcome {
-        /** The round is done: [key] went to the transport. */
+        /** The group is done: [key] went to the transport (in a phrase the round may go on). */
         data class Found(val key: Int, val result: InputResult) : Outcome
         /** A try; [cue] is the let go when it was the last. */
         data class Missed(val cue: RoundCoach.Cue?) : Outcome
@@ -159,10 +201,13 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
         else -> Outcome.Ignored
     }
 
-    /** The round's answer was heard: [key] goes to the transport (a key of the round's group, else its first). */
+    /**
+     * The group's answer was heard: [key] goes to the transport (a key of the group, else its first). The round is done
+     * at its last group; a phrase's earlier notes are progress.
+     */
     fun found(key: Int, nowMs: Long): InputResult {
         if (coach.phase != RoundCoach.Phase.LISTEN) return InputResult.IGNORED
-        coach.found()
+        if (atRoundEnd()) coach.found() else coach.progress(nowMs)
         return settle(nowMs, key)
     }
 
@@ -173,22 +218,44 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
         return cue
     }
 
-    /** Skip ahead to the round being played, whatever the coach says (the stage was left mid-round, a debug jump). */
+    /**
+     * Plays the group waited for into the transport: [key] found (with a chord's other keys, which the stage heard with
+     * it), or null, let go, and with it the rest of its round. The next round begins [gapMs] after a round ends.
+     */
     private fun settle(nowMs: Long, key: Int?): InputResult {
-        val g = current ?: return InputResult.IGNORED
-        val keys = g.notes.filter(transport::required).map { it.midi }
-        if (key == null) letGo += done
-        val play = key?.takeIf { it in keys } ?: keys.firstOrNull() ?: return InputResult.IGNORED
-        if (!transport.waiting) transport.tick((g.startMs - transport.positionMs).coerceAtLeast(0.0) / transport.speed)
-        var r = transport.noteInput(play)
-        // A chord round (none in the stages today) needs every note: a let go plays them all.
-        if (key == null) for (k in keys.drop(1)) if (r == InputResult.CORRECT) r = transport.noteInput(k)
-        beginAt = nowMs + gapMs
+        if (current == null) return InputResult.IGNORED
+        val round = done
+        if (key == null) letGo += round
+        var r = InputResult.IGNORED
+        do {
+            val g = current ?: break
+            val keys = g.notes.filter(transport::required).map { it.midi }
+            val play = key?.takeIf { it in keys } ?: keys.firstOrNull() ?: break
+            if (!transport.waiting) transport.tick((g.startMs - transport.positionMs).coerceAtLeast(0.0) / transport.speed)
+            r = transport.noteInput(play)
+            // A chord needs every note: one found was heard whole (the stage's judge collected it); a let go plays them all.
+            for (k in keys) if (k != play && r == InputResult.CORRECT) r = transport.noteInput(k)
+        } while (key == null && groupsDone < required.size && roundOf[groupsDone] == round)
+        if (groupsDone >= required.size || roundOf[groupsDone] != round) beginAt = nowMs + gapMs
         return r
     }
 
     /** The run's report (wait mode: groups and wrong keys). */
     fun report(): Report = transport.report()
+
+    private companion object {
+        /** Where the song falls silent (a rest in the exercise): a moment inside each gap between notes, in ms. */
+        fun silences(song: Song): List<Long> {
+            val out = ArrayList<Long>()
+            var end = Long.MIN_VALUE
+            for (n in song.notes.sortedBy { it.startMs }) {
+                // A note sounds for 92% of its length (Exercise notation); a gap longer than that tail is a rest.
+                if (end != Long.MIN_VALUE && n.startMs > end + 50) out += end + 25
+                end = maxOf(end, n.startMs + (n.durationMs / 0.92).toLong())
+            }
+            return out
+        }
+    }
 }
 
 /**
@@ -197,7 +264,8 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
  * round of a stage does. Grown-up lessons keep their "Try again".
  */
 object StepRetry {
-    fun isPlayground(lessonId: String) = lessonId.startsWith("playground-")
+    /** Every lesson of every Playground page (the garden, the pond, the concert hall). */
+    fun isPlayground(lessonId: String) = isPlaygroundLesson(lessonId)
 
     /** After [fails] tries of a step that did not pass: let it go now. */
     fun letGo(lessonId: String, fails: Int): Boolean = isPlayground(lessonId) && fails >= PLAYGROUND_TRIES

@@ -17,16 +17,20 @@ import java.io.File
  * the pitch tracker on the raw audio, both through a StageEar, each decided sound judged by the stage. On PianoSynth,
  * every key of every stage's set advances its round, a key outside the set is never taken for one in it (nor for the
  * other side of middle C), and no key on the piano goes unanswered. On Roy's real scale recording (session-155837, local
- * only), the same holds for the notes he played.
+ * only), the same holds for the notes he played. 2.2 adds the pages' stages: the letter hunts (in the hunts' loop), the
+ * copy games and the soft and loud tune (the C position) and the pond's chord (one group, every key its own sound).
  */
 class StageHearingTest {
     private val fs = 48_000
 
-    /** Every sound [audio] gave the stage: matcher and pitch tracker through a StageEar, decided (times in ms of audio). */
-    private fun hear(audio: FloatArray, keys: Set<Int>): List<StageSound> {
-        val m = NoteMatcher(fs).apply { strictKeys = true; expected = keys; groups = keys.map { setOf(it) } }
+    /**
+     * Every sound [audio] gave the stage: matcher and pitch tracker through a StageEar, decided (times in ms of audio).
+     * [groups] as the stage groups its keys (each its own by default); [chords]: the ear lets every key of a chord through.
+     */
+    private fun hear(audio: FloatArray, keys: Set<Int>, groups: List<Set<Int>> = keys.map { setOf(it) }, chords: Boolean = false): List<StageSound> {
+        val m = NoteMatcher(fs).apply { strictKeys = true; expected = keys; this.groups = groups }
         val pitch = PitchHeight(fs)
-        val ear = StageEar()
+        val ear = StageEar(chords = chords)
         val out = ArrayList<StageSound>()
         var noiseAt = -1L
         m.noise = { s -> noiseAt = s }
@@ -93,6 +97,62 @@ class StageHearingTest {
         assertTrue(problems.joinToString("\n"), problems.isEmpty())
     }
 
+    /** The copy games and the soft and loud tune: each key of the C position is heard as itself; no other key passes for one. */
+    @Test fun theCPositionOnPianoSynth() {
+        val problems = mutableListOf<String>()
+        var named = 0
+        for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
+            val heard = hear(key(k, gain), StageKeys.FIVE)
+            if (heard.isEmpty()) { problems += "${noteName(k)} at $gain dB: nothing at all"; continue }
+            val s = heard.first()
+            if (k in StageKeys.FIVE && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${noteName(k)}: heard as $s"
+            if (s.by == HeardBy.NAMED) named++
+            for (want in StageKeys.FIVE) {
+                val a = NoteJudge.judge(s, want)
+                if (a is Answer.Found && Math.floorMod(k - want, 12) != 0) problems += "${noteName(k)} at $gain dB passed for ${noteName(want)} ($s)"
+                if (k == want && a !is Answer.Found) problems += "${noteName(k)} at $gain dB was not itself ($s)"
+            }
+        }
+        println("the C position: $named keys outside it named")
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
+    }
+
+    /** A tune played one note after another, as a kid copies the frogs: every note heard once, in order. */
+    @Test fun aTuneIsHeardNoteByNote() {
+        val tune = listOf(60, 62, 64, 60, 67, 64, 67, 64)
+        val audio = PianoSynth.render(tune.mapIndexed { i, k -> SynthNote(k, 1000.0 + i * 650, 520.0) }, 1000.0 + tune.size * 650 + 1500, noiseDb = -66.0)
+        val heard = hear(audio, StageKeys.FIVE)
+        assertEquals(heard.toString(), tune, heard.map { it.midi })
+        assertTrue(heard.zip(tune).all { (s, k) -> NoteJudge.judge(s, k) == Answer.Found(k) })
+    }
+
+    /** The pond's chord: C, E and G together are found at two levels, rolled a little too; no single key and no other chord ever is. */
+    @Test fun theChordOnPianoSynth() {
+        val chord = StageKeys.C_CHORD
+        fun judge(notes: List<Pair<Int, Double>>, gain: Double): List<Answer> {
+            val audio = PianoSynth.render(notes.map { (k, at) -> SynthNote(k, at, 900.0, gainDb = gain) }, notes.maxOf { it.second } + 2000.0, noiseDb = -66.0)
+            val j = ChordJudge(chord)
+            return hear(audio, chord, listOf(chord), chords = true).map(j::judge)
+        }
+        val problems = mutableListOf<String>()
+        for (gain in listOf(-14.0, -26.0)) {
+            for (roll in listOf(0.0, 40.0, 150.0)) {
+                val a = judge(listOf(60 to 1000.0, 64 to 1000.0 + roll, 67 to 1000.0 + 2 * roll), gain)
+                if (a.none { it is Answer.Found }) problems += "C E G rolled $roll ms at $gain dB: $a"
+            }
+            for (k in 21..108) {
+                val a = judge(listOf(k to 1000.0), gain)
+                if (a.any { it is Answer.Found }) problems += "${noteName(k)} alone at $gain dB found the chord"
+            }
+            for (other in listOf(listOf(60, 64, 69), listOf(60, 65, 69), listOf(59, 62, 67), listOf(62, 65, 69), listOf(48, 52, 55), listOf(72, 76, 79),
+                    listOf(60, 64), listOf(64, 67), listOf(60, 67))) {
+                val a = judge(other.map { it to 1000.0 }, gain)
+                if (a.any { it is Answer.Found }) problems += "${other.map(::noteName)} at $gain dB found the chord: $a"
+            }
+        }
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
+    }
+
     @Test fun softAndLoudGradesEveryKeyOfItsSet() {
         for (k in StageKeys.SOFT_LOUD) for (gain in listOf(-8.0, -20.0, -32.0)) {
             val s = hear(key(k, gain), StageKeys.SOFT_LOUD).first()
@@ -152,6 +212,19 @@ class StageHearingTest {
             if (midi != 60 && (midi > 60) != wantHigh && a.any { it is Answer.Found }) { wrongSide++; problems += "high and low: ${noteName(midi)} found a ${if (wantHigh) "high" else "low"} round ($sounds)" }
         }
         println("high and low on Roy's scale: ${hl.count { it.second.isNotEmpty() }} of ${hl.size} notes answered, $wrongSide on the wrong side")
+        // The copy games and the soft and loud tune: every C position note found as itself, nothing else passing for one.
+        val five = perNote(StageKeys.FIVE)
+        for ((midi, sounds) in five) for (want in StageKeys.FIVE) {
+            val a = sounds.map { NoteJudge.judge(it, want) }
+            if (midi == want && a.none { it is Answer.Found }) problems += "C position: ${noteName(midi)} was not found ($sounds)"
+            if (Math.floorMod(midi - want, 12) != 0 && a.any { it is Answer.Found }) problems += "C position: ${noteName(midi)} passed for ${noteName(want)} ($sounds)"
+        }
+        println("the C position on Roy's scale: ${five.count { it.first in StageKeys.FIVE && it.second.any { s -> s.midi == it.first } }} of ${five.count { it.first in StageKeys.FIVE }} found")
+        // The chord's keys one at a time: each heard as itself, never the chord.
+        val chord = StageKeys.C_CHORD
+        val chordNotes = perNote(chord)
+        val j = ChordJudge(chord)
+        if (chordNotes.flatMap { it.second }.map(j::judge).any { it is Answer.Found }) problems += "the chord was found in a scale"
         val sl = perNote(StageKeys.SOFT_LOUD)
         val graded = sl.count { (midi, s) -> midi in StageKeys.SOFT_LOUD && s.any { it.midi == midi && it.riseDb != null } }
         println("soft and loud on Roy's scale: $graded of ${sl.count { it.first in StageKeys.SOFT_LOUD }} of its keys graded")

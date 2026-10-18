@@ -52,7 +52,17 @@ import com.bigpapituna.sharpears.engine.playground.Answer
 import com.bigpapituna.sharpears.engine.playground.Hunt
 import com.bigpapituna.sharpears.engine.playground.HuntJudge
 import com.bigpapituna.sharpears.engine.playground.MissWhy
+import com.bigpapituna.sharpears.engine.playground.PageLines
+import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
+import com.bigpapituna.sharpears.engine.playground.RoundCoach
+import com.bigpapituna.sharpears.engine.playground.pageOf
+import com.bigpapituna.sharpears.engine.skin.NoteColours
+import com.bigpapituna.sharpears.ui.family.LocalProfile
+import com.bigpapituna.sharpears.ui.skin.colourNotesOn
+import com.bigpapituna.sharpears.ui.skin.drawAnimal
+import com.bigpapituna.sharpears.ui.skin.inkOn
+import com.bigpapituna.sharpears.ui.skin.noteColour
 import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.engine.playground.huntPlaceOf
 import com.bigpapituna.sharpears.engine.playground.huntPlaces
@@ -74,7 +84,10 @@ private val HouseRoof = Color(0xFFC8693A)
 /**
  * Lessons 2 and 3, the key hunts: a big keyboard (the two octaves from middle C) where the pup points
  * at a dog house (two black keys), a fence (three) or a C, and each one found lights up and stays lit: a little house
- * over the dog house, a picket fence over the fence, a badge over the C. Each round is shown first: the app plays the
+ * over the dog house, a picket fence over the fence, a badge over the C. 2.2, the concert hall's letters: the same hunt
+ * for every D, E, F and G (and C); each round's letter is called out first ("Find a G!", "Find a teal goat key!" before
+ * reading), its badge wears the key's colour with the letter or the animal, and a key that is not it gets where the
+ * letter lives ("F is just left of the fence."). Each round is shown first: the app plays the
  * place the pup points at while it glows. The note matcher listens for that kind of place in the two octaves around
  * middle C (StageKeys); one in another octave is named by its wrong-key search and counts too, a white key makes the pup
  * say "That one's white" while the place glows hard (HuntJudge), and any other sound gets a ring on the keys and a
@@ -85,6 +98,10 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
     val ex = step.exercise ?: return
     val scope = rememberCoroutineScope()
     val still = reducedMotion()
+    val reader = LocalProfile.current.reader
+    val colours = colourNotesOn()
+    // The 2.2 pages call each round's letter; the garden's hunts point without words, as they always did.
+    val calls = pageOf(lessonId)?.place != Place.GARDEN
     val found = remember { mutableStateListOf<List<Int>>() }
     var burst by remember { mutableIntStateOf(0) }
     var tiltSeq by remember { mutableIntStateOf(0) }
@@ -111,7 +128,7 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             missLine = { a, run -> when (a.why) {
                 MissWhy.WHITE_KEY -> PlaygroundLines.WHITE_KEY
                 MissWhy.OTHER_GROUP -> if (huntOf(run) == Hunt.DOG_HOUSE) "Look for two black keys." else "Look for three black keys."
-                MissWhy.NOT_C -> "C is just left of the dog house."
+                MissWhy.NOT_C, MissWhy.NOT_LETTER -> huntOf(run)?.letter?.let { PageLines.where(it, reader) }
                 else -> null
             } },
             onFound = { key ->
@@ -125,8 +142,12 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             },
             onMiss = { a ->
                 tiltSeq++
-                if (a.why == MissWhy.WHITE_KEY || a.why == MissWhy.NOT_C || a.why == MissWhy.OTHER_GROUP) nudge = SystemClock.uptimeMillis() + 2600
+                if (a.why == MissWhy.WHITE_KEY || a.why == MissWhy.NOT_C || a.why == MissWhy.NOT_LETTER || a.why == MissWhy.OTHER_GROUP)
+                    nudge = SystemClock.uptimeMillis() + 2600
             },
+            // The letter is called before the round's demo, so the demo waits a little longer for it.
+            coach = { if (calls) RoundCoach(demoMs = 2_800) else RoundCoach() },
+            prompt = { run -> if (calls) huntOf(run)?.letter?.let { PageLines.find(it, reader) } else null },
         )
         runRef[0] = st.run
         val run = st.run
@@ -143,8 +164,8 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             else -> when (hunt) {
                 Hunt.DOG_HOUSE -> "Find a dog house!"
                 Hunt.FENCE -> "Find a fence!"
-                Hunt.C -> "Find a C!"
                 null -> null
+                else -> PageLines.find(hunt.letter!!, reader)
             }
         })
         val clock = rememberInfiniteTransition(label = "hunt")
@@ -163,7 +184,8 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             val allFound = { m: Int -> found.any { m in it } }
             val demo = st.demoKeys
             BigKeys(low, high, "Piano keys from ${noteName(low)} to ${noteName(high)}. " + when (hunt) {
-                    Hunt.DOG_HOUSE -> "Find a group of two black keys"; Hunt.FENCE -> "Find a group of three black keys"; Hunt.C -> "Find a C"; null -> "Every one is found"
+                    Hunt.DOG_HOUSE -> "Find a group of two black keys"; Hunt.FENCE -> "Find a group of three black keys"; null -> "Every one is found"
+                    else -> "Find a ${hunt.letter}"
                 }, Modifier.fillMaxWidth().height((roomH * 0.52f).coerceIn(150.dp, 300.dp)),
                 fill = { m -> when {
                     m in demo -> PupGold
@@ -178,7 +200,7 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
                     st.tap(m)
                 },
                 overlay = { g ->
-                    for (place in found) decoration(g, place, measurer)
+                    for (place in found) decoration(g, place, measurer, reader, colours)
                     if (target != null && !finished) pointer(g, target, p)
                 })
         }
@@ -189,8 +211,11 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
 /** Where the decorations sit: in the room above the keys, centred over [keys]. */
 private fun span(g: PianoGeometry, keys: List<Int>) = keys.map { g.rect(it) }.let { rs -> rs.minOf { it.left } to rs.maxOf { it.right } }
 
-/** What a found place wears: a house over a dog house, a fence over a fence, a badge over a C. */
-private fun DrawScope.decoration(g: PianoGeometry, keys: List<Int>, measurer: androidx.compose.ui.text.TextMeasurer) {
+/**
+ * What a found place wears: a house over a dog house, a fence over a fence, a badge over a letter's key (in the key's
+ * colour with its letter, or its animal before reading, when colour notes are on).
+ */
+private fun DrawScope.decoration(g: PianoGeometry, keys: List<Int>, measurer: androidx.compose.ui.text.TextMeasurer, reader: Boolean, colours: Boolean) {
     val (l, r) = span(g, keys)
     val base = g.top - 6.dp.toPx()
     val cx = (l + r) / 2
@@ -216,12 +241,19 @@ private fun DrawScope.decoration(g: PianoGeometry, keys: List<Int>, measurer: an
             for (y in listOf(base - 8.dp.toPx(), base - 19.dp.toPx())) drawRoundRect(Color(0xFFD9C7B0), Offset(l - 4.dp.toPx(), y - 2.dp.toPx()),
                 Size(r - l + 8.dp.toPx(), 4.dp.toPx()), CornerRadius(2.dp.toPx()))
         }
-        else -> {                                                      // a C: a badge with its letter
+        else -> {                                                      // a letter: a badge with its letter or animal
+            val m = keys.first()
             val c = Offset(cx, base - 16.dp.toPx())
-            drawCircle(Cream, 14.dp.toPx(), c)
-            drawCircle(Accent, 14.dp.toPx(), c, style = Stroke(2.5.dp.toPx()))
-            val t = measurer.measure("C", TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color(0xFF3A2A20)))
-            drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+            val face = if (colours) noteColour(m) else Cream
+            val ink = if (colours) inkOn(m) else Color(0xFF3A2A20)
+            drawCircle(face, 14.dp.toPx(), c)
+            drawCircle(if (colours) Color.Black.copy(alpha = 0.35f) else Accent, 14.dp.toPx(), c, style = Stroke(2.5.dp.toPx()))
+            val animal = NoteColours.animal(m)
+            if (!reader && colours && animal != null) drawAnimal(animal, c, 20.dp.toPx(), ink, face)
+            else {
+                val t = measurer.measure(NoteColours.letter(m), TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = ink))
+                drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+            }
         }
     }
 }

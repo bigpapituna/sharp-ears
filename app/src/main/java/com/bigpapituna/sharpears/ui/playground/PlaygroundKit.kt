@@ -124,6 +124,8 @@ enum class Painted(val res: Int) {
     CLAPPING(R.drawable.pup_clapping), POINTING(R.drawable.pup_pointing), HEAD_TILT(R.drawable.pup_head_tilt),
     DANCING(R.drawable.pup_dancing), CROWN(R.drawable.pup_crown), GREAT_JOB(R.drawable.pup_great_job),
     LISTENING(R.drawable.pup_listening),
+    /** 2.2: curled up on his cushion (the pond's chord: he settles on it). */
+    RESTING(R.drawable.pup_resting),
 }
 
 /**
@@ -219,8 +221,8 @@ internal class StageRun(val rounds: StageRounds) {
  */
 @Composable
 internal fun rememberStageRun(exercise: Exercise, id: String, deps: LessonDeps, sound: () -> Boolean, coach: () -> RoundCoach = { RoundCoach() },
-                              onCue: (RoundCoach.Cue) -> Unit, onEnded: (Report) -> Unit): StageRun {
-    val run = remember(exercise, id) { StageRun(StageRounds(exercise.toSong(id, id), exercise.practice, coach())) }
+                              phrases: Boolean = false, onCue: (RoundCoach.Cue) -> Unit, onEnded: (Report) -> Unit): StageRun {
+    val run = remember(exercise, id) { StageRun(StageRounds(exercise.toSong(id, id), exercise.practice, coach(), phrases = phrases)) }
     val ended by rememberUpdatedState(onEnded)
     val cueTo by rememberUpdatedState(onCue)
     val soundNow by rememberUpdatedState(sound)
@@ -333,12 +335,19 @@ internal class StageState(val run: StageRun, val fx: StageFx) {
         private set
     var demoKeys by mutableStateOf<List<Int>>(emptyList())
         internal set
+    /** Which of [demoKeys] the demo is playing now (a phrase's notes sound one after another), or null. */
+    var demoIndex by mutableStateOf<Int?>(null)
+        internal set
     var nudgeUntil by mutableLongStateOf(0L)
         internal set
     var listening by mutableStateOf(false)
         internal set
 
     internal fun say(text: String, ms: Long = 2200) { line = text; lineMs = ms; lineSeq++ }
+
+    /** Shows [text] and says it over the mic (the mic deaf while it plays), as the call-outs between rounds are. */
+    fun call(text: String) = onCall(text)
+    internal var onCall: (String) -> Unit = { say(it) }
 
     /** A key touched on screen: certain, like a key the matcher confirmed. */
     fun tap(midi: Int, riseDb: Double? = null) = feed(StageSound(SystemClock.uptimeMillis(), HeardBy.MATCHER, midi, riseDb = riseDb, final = true))
@@ -354,6 +363,10 @@ internal class StageState(val run: StageRun, val fx: StageFx) {
  * pop for a key found and the ding at the end, lets a round go after three tries ("Good try, let's keep going"), and
  * keeps a stuck moment for tuning (sounds and no key for 8 s). The game is [judge] (what a decided sound means for the
  * round) and its lines, [foundLine] and [missLine] (a miss is said the first time in a round, shown after).
+ *
+ * 2.2: [prompt] is said at the start of a round's demo when it changes (the letter hunts name each letter); with
+ * [phrases] a round is a phrase (StageRounds), its demo [demoGapMs] a note; [groups] are how the matcher groups the
+ * keys (each its own by default; the chord as one) and [chords] lets every key of a chord through the ear.
  */
 @Composable
 internal fun rememberStage(
@@ -368,6 +381,11 @@ internal fun rememberStage(
     onMiss: (Answer.Miss) -> Unit = {},
     onLetGo: () -> Unit = {},
     coach: () -> RoundCoach = { RoundCoach() },
+    prompt: (StageRun) -> String? = { null },
+    phrases: Boolean = false,
+    demoGapMs: Long = 260,
+    groups: ((Set<Int>) -> List<Set<Int>>)? = null,
+    chords: Boolean = false,
 ): StageState {
     val scope = rememberCoroutineScope()
     val fx = remember { StageFx() }
@@ -382,6 +400,8 @@ internal fun rememberStage(
     val demoNow by rememberUpdatedState(demoKeys)
     val velocityNow by rememberUpdatedState(velocity)
     val letGoNow by rememberUpdatedState(onLetGo)
+    val promptNow by rememberUpdatedState(prompt)
+    val lastPrompt = remember { arrayOfNulls<String>(1) }
     fun handle(cue: RoundCoach.Cue) {
         val st = holder[0] ?: return
         when (cue) {
@@ -389,6 +409,8 @@ internal fun rememberStage(
                 val ks = demoNow(st.run)
                 val vel = velocityNow(st.run)
                 if (!cue.again) { clips.reset(now(), keysNow(st.run).map(::noteName)); clipMark[0] = mic.clipMark() }
+                val said = if (cue.again) null else promptNow(st.run)?.takeIf { it != lastPrompt[0] }
+                if (!cue.again) lastPrompt[0] = promptNow(st.run)
                 scope.launch {
                     val lead = when {
                         cue.first -> { sayOver(PlaygroundLines.LET_ME_SHOW); 1300L }
@@ -396,15 +418,23 @@ internal fun rememberStage(
                         else -> 0L
                     }
                     delay(lead)
+                    // A round that asks for something new says so first (2.2: "Find a G!").
+                    if (said != null) { sayOver(said); delay(1300) }
                     st.demoKeys = ks
                     Log.d(TAG, "playground: demo ${ks.map(::noteName)} at velocity $vel")
                     // The phone plays the keys: the mic must not take them for the kid's.
-                    mic.deafFor(ks.size * 260L + 900)
+                    mic.deafFor(ks.size * demoGapMs + 900)
                     // Each key the phone plays rings gold on the keys as it sounds (with the sound off, the rings alone show it).
-                    for (k in ks) { if (deps.prefs.sound) deps.sampler.noteOn(k, vel); fx.ripple(k, PupGold, fill = true); delay(260) }
+                    // A phrase's notes each ring for their own beat; a chord's or a single key's ring together.
+                    for ((i, k) in ks.withIndex()) {
+                        if (phrases) ks.forEach { deps.sampler.noteOff(it) }
+                        if (deps.prefs.sound) deps.sampler.noteOn(k, vel); fx.ripple(k, PupGold, fill = true)
+                        st.demoIndex = i
+                        delay(demoGapMs)
+                    }
                     delay(650)
                     ks.forEach { deps.sampler.noteOff(it) }
-                    st.demoKeys = emptyList()
+                    st.demoKeys = emptyList(); st.demoIndex = null
                 }
             }
             is RoundCoach.Cue.Listen -> if (cue.first) sayOver(PlaygroundLines.YOUR_TURN)
@@ -416,8 +446,9 @@ internal fun rememberStage(
             }
         }
     }
-    val run = rememberStageRun(exercise, id, deps, sound = { false }, coach = coach, onEnded = onEnded, onCue = ::handle)
+    val run = rememberStageRun(exercise, id, deps, sound = { false }, coach = coach, phrases = phrases, onEnded = onEnded, onCue = ::handle)
     val st = remember(run) { StageState(run, fx).also { holder[0] = it } }
+    st.onCall = ::sayOver
 
     fun answer(s: StageSound) {
         if (!s.final || run.phase != RoundCoach.Phase.LISTEN) return
@@ -427,7 +458,8 @@ internal fun rememberStage(
                 onFound(a.key)              // before the round moves on: the stage still knows which round it was
                 run.found(a.key, now())
                 clips.reset(now()); clipMark[0] = mic.clipMark()
-                mic.deafFor(250); WorldSounds.stagePop()
+                // The pop for a round found (a phrase's notes in between go by quietly: the next may come at once).
+                if (!phrases || run.rounds.doneInRound == 0) { mic.deafFor(250); WorldSounds.stagePop() }
                 foundLine(run, a.key)?.let { sayOver(it) }
                 if (run.finished) end(mic)
             }
@@ -450,7 +482,8 @@ internal fun rememberStage(
         if (!s.final && (s.by == HeardBy.ONSET || s.by == HeardBy.PITCH)) st.say(PlaygroundLines.I_HEARD_YOU, ms = 1000)
     }
     st.onFeed = { s -> heard(s); answer(s) }
-    st.listening = rememberStageEar(mic, voice, run.started && !run.ended, inject, keys(run)) { s ->
+    val heardKeys = keys(run)
+    st.listening = rememberStageEar(mic, voice, run.started && !run.ended, inject, heardKeys, groups?.invoke(heardKeys), chords) { s ->
         heard(s)
         answer(s)
     }
@@ -478,13 +511,14 @@ private fun end(mic: MicInput) {
 /**
  * The microphone as a stage hears (2.1.1): started while [active] once the voice has let go of it (or, in a debug
  * build, the [inject]ed audio instead, once), then kept on: lines said meanwhile go over it, deaf ([Voice.speakOverMic]).
- * The note matcher listens for [keys], each its own group, with strict keys; the pitch tracker reads the raw audio for a
- * guess. Every report goes through a [StageEar] and comes out in [onSound] on the main thread, one per moment (shown at
- * once, then decided). Returns whether it is listening.
+ * The note matcher listens for [keys], each its own group (or as [groups] says: the pond's chord is one), with strict
+ * keys; the pitch tracker reads the raw audio for a guess. Every report goes through a [StageEar] ([chords]: every key
+ * of a chord is its own sound) and comes out in [onSound] on the main thread, one per moment (shown at once, then
+ * decided). Returns whether it is listening.
  */
 @Composable
-internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inject: String?, keys: Set<Int>,
-                              onSound: (StageSound) -> Unit): Boolean {
+internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inject: String?, keys: Set<Int>, groups: List<Set<Int>>? = null,
+                              chords: Boolean = false, onSound: (StageSound) -> Unit): Boolean {
     val context = LocalContext.current
     val injected = remember { mutableStateOf(false) }
     // Waits for the voice once (the step's instruction), then stays on while the stage is active.
@@ -494,7 +528,8 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
     LaunchedEffect(can, holds) { if (can && !holds) began = true }
     val listen = can && began
     val listenNow by rememberUpdatedState(listen)
-    val ear = remember { StageEar() }
+    val ear = remember(chords) { StageEar(chords = chords) }
+    val grouping = groups ?: keys.map { setOf(it) }
     val tracker = remember { PitchHeight() }
     val pitches = remember { MutableSharedFlow<com.bigpapituna.sharpears.engine.playground.Heard>(extraBufferCapacity = 16) }
     val emit by rememberUpdatedState(onSound)
@@ -506,7 +541,7 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
         // The pitch tracker decides about 120 ms after a note began: one that began while the phone played is dropped.
         val removeRaw = mic.rawFrames.add { chunk -> tracker.process(chunk, chunk.size).forEach { if (!mic.deafWithin(400)) pitches.tryEmit(it) } }
         mic.matcher.strictKeys = true
-        mic.matcher.expected = keys; mic.matcher.groups = keys.map { setOf(it) }
+        mic.matcher.expected = keys; mic.matcher.groups = grouping
         val spec = inject?.takeIf { !injected.value }?.let { debugInjection(context, it) }
         when {
             spec != null -> { injected.value = true; mic.startInjection(spec); Log.d(TAG, "playground: mic injecting $spec") }
@@ -520,7 +555,7 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
             ear.clear()
         }
     }
-    LaunchedEffect(keys, listen) { if (listen) { mic.matcher.expected = keys; mic.matcher.groups = keys.map { setOf(it) } } }
+    LaunchedEffect(keys, grouping, listen) { if (listen) { mic.matcher.expected = keys; mic.matcher.groups = grouping } }
     LaunchedEffect(mic) {
         mic.events.collect { e ->
             if (!listenNow) return@collect

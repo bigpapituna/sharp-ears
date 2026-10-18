@@ -2,9 +2,12 @@ package com.bigpapituna.sharpears.engine.playground
 
 import com.bigpapituna.sharpears.engine.OnsetGroup
 
-/** What a key hunt round asks for (lessons 2 and 3): a dog house (two black keys), a fence (three), or a C. */
-enum class Hunt(val pitchClasses: Set<Int>) {
-    DOG_HOUSE(setOf(1, 3)), FENCE(setOf(6, 8, 10)), C(setOf(0));
+/**
+ * What a key hunt round asks for: a dog house (two black keys), a fence (three), or a C (the garden's lessons 2 and 3);
+ * 2.2, the concert hall's letters: a D, an E, an F or a G, each with its [letter].
+ */
+enum class Hunt(val pitchClasses: Set<Int>, val letter: Char? = null) {
+    DOG_HOUSE(setOf(1, 3)), FENCE(setOf(6, 8, 10)), C(setOf(0), 'C'), D(setOf(2), 'D'), E(setOf(4), 'E'), F(setOf(5), 'F'), G(setOf(7), 'G');
 
     companion object {
         /** The hunt a set of keys stands for (any octave), or null when it is none of them. */
