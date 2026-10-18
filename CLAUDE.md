@@ -235,6 +235,41 @@ and the Jam's chord confetti came with no sound and no words.
   of a C-E-G chord, so mic chords will mostly show as keys bursting, not confetti); the sounds' pitchlessness through
   the Fold's speaker and mic. The clips Roy's next session saves are meant for exactly this.
 
+## 2.2 kid home (2026-10-18, branch `kidhome`, emulator-5558 Fold only; version not bumped, the integrator does)
+Roy, after 2.1 with the kids: the kid experience was "all over the place" (the grown-up app with a skin). A kid now gets
+one screen; grown-ups keep 2.1 unchanged. How it fits together and what to check after merging the pages branch:
+ui/kid/INTEGRATION.md.
+- One screen for kids (ui/kid/KidHome.kt, chosen in MainActivity's `Screen.Home` by `isKid`): the Playground's pages one
+  under the other as their scenes, a stone per lesson on a winding trail, the pup standing on the next stone with "Let's
+  go!" (tap him, the bubble or the stone), the egg and the jar in the garden, Pup's quest as a signpost he points at,
+  the gate to the big kids' road at the end of the last scene. Three big buttons: Play (a sheet: Jam, Pup says, Clap
+  along), Songs (only colour songs: easy, the app's own, white keys only; 19 of 39; big tiles, no stats), My stickers
+  (album, dress-up, records, paws as pages). A small whistle top right asks the parent gate, then: who's playing,
+  Settings, Microphone setup. Grown-up mode is still offered once after Beginner, at the top of the map.
+- Stars on every stone: a lesson's stars from its graded steps (engine/kid/LessonStars over engine/skin/Stars; a step let
+  go counts one), the best kept per profile (data/KidStore.kt, file "kid", in ProgressFiles.NAMES); a kid's lesson
+  finish shows them over the drop. Stones ahead of the pup sleep ("This one first!"), skipped ones behind him stay open.
+- The finale (ui/kid/Finale.kt, Certificate.kt): a page's last lesson finished the first time leads ("Hooray!") to
+  night and fireworks, the pup bowing, "<Name> finished the garden!" said on the phone, the page's album page, a
+  certificate sent through Share.files, and where the path goes on. The map then rolls to the next page's first stone;
+  after the last page the pup says "You're ready for the big kids' road!", the road opens below the gate and Basics'
+  first lesson is the next stone (kid skin as before). All from PLAYGROUND_PAGES (engine/kid/KidMap, Finale).
+- Pages: CoursePath treats every page's level as the Playground (kids walk them in page order before Basics, grown-ups
+  have them as extras); BIG_KID_LESSONS shortens only the pages it names. WorldAnchors.lesson(n)/stops follow the pages,
+  twelve stops per scene in three winding rows (engine/world/Trail.kt; the pond's trail is a boardwalk); a lesson drops
+  its page's place's sticker (Place.ofPlaygroundLesson is unused now).
+- Goodbye on the kid home: once today's goal is reached the pup yawns and sleeps on his stone ("Zzz. New games
+  tomorrow!"), Play, Songs and My stickers stay open, a stone opens the asleep screen (a grown-up's one more). A page's
+  finale holds the goodbye until after it.
+- Voice: 16 new kid lines recorded (2354); lines with a name are made on the phone.
+- Debug: `--es screen kidsongs | kidstickers [--es page album|dress|records|paws] | finale [--es page garden]`,
+  `--es kidseed <page>:<n>|road|reset`, `--ez sleepy true`, `--ez awake true` (with `--es profile <id>`), and
+  `--es screen worlddemo --es part trail` (every scene's twelve stops numbered).
+- Tests: 728 JVM (702 before; ProfilesStoreTest's file list gains "kid"), lint 0 errors. Screenshots:
+  app/build/screens/kid-*.png (not committed).
+- Not proven: no kid has seen it; the pond and the hall exist only as layouts until the pages branch lands; frame time of
+  the map on the Fold (emulator only, swiftshader).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

@@ -17,6 +17,12 @@ Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phon
   along, Send to someone, Pup's quest and Duet.
 - Voice: every fixed line recorded (318 kid lines at 0.85); lines with a name are made on the phone.
 
+2.2 (2026-10-18, branch `kidhome`): a kid's home is one screen, the pup's world (no tabs, wall, Practice today or quest
+card): the Playground's pages as scenes with a stone per lesson and its best stars, the pup on the next stone, the quest
+as a signpost, Play, Songs (colour songs only) and My stickers at the bottom, a whistle for the grown-ups' corner behind
+the gate. Each page ends in a finale (fireworks, the album page, a certificate to send) and the last one opens the big
+kids' road into Basics. Grown-ups keep 2.1. See CLAUDE.md, 2.2 kid home, and ui/kid/INTEGRATION.md.
+
 Not yet:
 
 - Tested with real kids in a real room. The clap counter, the high-and-low and key-hunt pitch tracker, soft and loud,
@@ -29,7 +35,8 @@ Not yet:
 - The per-kid report in the parent corner (minutes, lessons, where they got stuck) and take-turns in the ear games
   (Pup says has turns; the ear games do not).
 - Frame timing on the Fold itself with the profile build (emulator numbers only so far).
-- A second Playground page, by design (section 9).
+- A second Playground page, by design (section 9). 2.2: the pond and the concert hall pages are being written on the
+  `pages` branch; the kid home draws whatever PLAYGROUND_PAGES holds.
 
 Written 2026-10-18. Status at writing: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
 phone and one piano, in a room with talking, on visits (so short sessions, new kids set up in seconds).
