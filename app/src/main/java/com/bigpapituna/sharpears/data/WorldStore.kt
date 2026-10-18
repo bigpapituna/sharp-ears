@@ -50,7 +50,7 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     }
 
     /**
-     * A course lesson finished: a sticker (a Playground lesson passes its [place], see [Place.ofPlaygroundLesson]),
+     * A course lesson finished: a sticker (a Playground lesson passes its page's [place], KidPages.dropPlace),
      * the egg hatching or laid. Show the returned [Reward] (ui/world DropReveal).
      */
     fun lessonComplete(lessonId: String, place: Place? = null): Reward {

@@ -194,4 +194,45 @@ class KidMapTest {
         assertEquals("Mia finished the concert hall!", KidLines.finished("Mia", pages[2]))
         assertEquals("You finished the garden!", KidLines.finished(" ", pages[0]))
     }
+
+    /** The merged pages (2.2): every lesson drops its own page's stickers, by its page, never by its number. */
+    @Test fun theRealPagesDropTheirOwnPlacesStickers() {
+        val want = mapOf("garden" to Place.GARDEN, "pond" to Place.POND, "hall" to Place.CONCERT)
+        PLAYGROUND_PAGES.forEach { page ->
+            page.lessonIds.forEach { id ->
+                assertEquals(id, want.getValue(page.id), KidPages.dropPlace(id))
+                assertEquals(id, page, com.bigpapituna.sharpears.engine.playground.pageOf(id))
+            }
+        }
+        assertEquals(Place.POND, KidPages.dropPlace("pond-1"))
+        assertEquals(Place.CONCERT, KidPages.dropPlace("hall-12"))
+        assertNull("outside the Playground the album picks", KidPages.dropPlace("sit"))
+    }
+
+    /**
+     * The real map walked lesson by lesson, the way the kid home does it (the next stone, its finale on a page's last
+     * lesson): a pre-reader walks all three pages whole; a reader the garden's short list, then the pond and the hall
+     * whole. Either way the map's next stone is the course path's next lesson, and the hall's finale opens the road.
+     */
+    @Test fun theRealMapFollowsTheCoursePathForReadersAndPreReaders() {
+        for (reader in listOf(false, true)) {
+            val path = CoursePath(PLAYGROUND_ID, bigKid = reader)
+            val done = mutableSetOf<String>(); val finales = mutableSetOf<String>(); val walk = mutableListOf<String>()
+            while (true) {
+                val m = KidMap.build(path, { it in done }, { 2 }, finales)
+                val next = m.next!!
+                assertEquals(path.next { it in done }?.id, next)
+                if (KidPages.pageOf(next) == null) { assertTrue(m.roadOpen); assertEquals("sit", next); break }
+                assertFalse(m.roadOpen)
+                assertEquals(StoneState.NEXT, m.stone(next)?.state)
+                walk += next; done += next
+                Finale.trigger(next, finales)?.let { finales += it.id }
+            }
+            val pond = PLAYGROUND_PAGES[1].lessonIds; val hall = PLAYGROUND_PAGES[2].lessonIds
+            val garden = if (reader) BIG_KID_LESSONS else PLAYGROUND_PAGES[0].lessonIds
+            assertEquals("reader=$reader", garden + pond + hall, walk)
+            assertEquals(PLAYGROUND_PAGES.map { it.id }.toSet(), finales)
+            assertEquals(listOf(12, 12, 12), KidMap.build(path, { false }, { 0 }, emptySet()).pages.map { it.stones.size })
+        }
+    }
 }

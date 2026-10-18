@@ -1,8 +1,9 @@
 package com.bigpapituna.sharpears.engine.world
 
 /**
- * The three places of the pup's world, in the order the Playground walks them: the garden (lessons 1 to 4), the
- * pond (5 to 8) and the concert hall (9 to 12). Each has ten stickers and its own page in the album.
+ * The three places of the pup's world, in the order the Playground walks them (2.2: one per page, the garden, the pond
+ * and the concert hall; a lesson's place is its page's, engine/kid/KidPages.dropPlace). Each has ten stickers and its
+ * own page in the album.
  */
 enum class Place(val id: String, val title: String, /** "in the pond": the end of "7 of 10 in the pond". */ val inThe: String) {
     GARDEN("garden", "Garden", "in the garden"),
@@ -13,9 +14,6 @@ enum class Place(val id: String, val title: String, /** "in the pond": the end o
 
     companion object {
         fun byId(id: String?): Place? = entries.firstOrNull { it.id == id }
-
-        /** The place a Playground lesson belongs to by its number (1..12), or null outside the Playground. */
-        fun ofPlaygroundLesson(n: Int): Place? = when (n) { in 1..4 -> GARDEN; in 5..8 -> POND; in 9..12 -> CONCERT; else -> null }
     }
 }
 

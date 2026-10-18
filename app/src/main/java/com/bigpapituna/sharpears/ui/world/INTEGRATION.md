@@ -67,15 +67,15 @@ Juice.onStrike(midi, riseDb, sound = soundAllowed())
 **A course lesson finished** (MainActivity, both `onDone = { prefs.markLessonDone(l.id); progress.record(...) }`):
 
 ```kotlin
-val place = playgroundNumber(l)?.let(Place::ofPlaygroundLesson)    // garden 1-4, pond 5-8, concert 9-12; null elsewhere
-val reward = world.lessonComplete(l.id, place)                       // a sticker; the egg hatches or is laid
+val place = KidPages.dropPlace(l.id)              // 2.2: the lesson's page's place (garden, pond, concert hall); null elsewhere
+val reward = world.lessonComplete(l.id, place)    // a sticker; the egg hatches or is laid
 ```
 
 Show it in LessonScreen's finish `Celebration` (skin team's file) through the new slots:
 
 ```kotlin
 Celebration(..., reward = { DropReveal(reward, cardWidth = 120.dp) },
-    oneMore = nextLesson?.let { n -> { OneMoreButton(world.preview(placeOf(n)), onClick = onNext!!, title = n.title) } })
+    oneMore = nextLesson?.let { n -> { OneMoreButton(world.preview(KidPages.dropPlace(n.id)), onClick = onNext!!, title = n.title) } })
 ```
 
 `DropReveal` flips each card in (lesson sticker first, then the egg's, hatching), plays the rarity's jingle and
