@@ -12,6 +12,14 @@ Output: app/src/main/res/raw/<name>.wav
     munch           the pup eats the treats (0.7 s)
     egg_crack       the mystery egg cracks (0.35 s)
     pop             a sticker lands in the album, an item goes on the pup (0.22 s)
+
+2.1.1, sounds that play while the microphone listens (the Playground's stages, the Jam), so none has a pitch: shaped
+noise only, its bands wider than a semitone, so the note matcher never takes one for a key (StageSoundsTest plays each
+through it with every key expected):
+    stage_pop       a key found in a stage: a soft puff (0.09 s)
+    stage_ding      a stage's rounds all done: a bright shimmer of noise bands, a ding without a note (0.6 s)
+    jam_whoosh      a chord or a rainbow in the Jam: noise swept upward (0.6 s)
+
     python -I scripts/gen_jingles.py
 """
 import math
@@ -181,9 +189,58 @@ def pop():
     return out
 
 
+def band(seconds, centre, q, decay, gain, seed, attack=0.002, sweep_to=None, swell=False):
+    """Noise through a two-pole band-pass (bandwidth centre / q), decaying, or swelling up and down; the centre can
+    sweep (log) to [sweep_to] over the sound. No sine anywhere: a band of noise has no pitch the matcher can lock on."""
+    r = random.Random(seed)
+    n = int(RATE * seconds)
+    out = []
+    y1 = y2 = x1 = x2 = 0.0
+    for i in range(n):
+        t = i / RATE
+        f = centre if sweep_to is None else centre * (sweep_to / centre) ** (t / seconds)
+        w = 2 * math.pi * f / RATE
+        alpha = math.sin(w) / (2 * q)
+        b0, b2 = alpha, -alpha
+        a0, a1, a2 = 1 + alpha, -2 * math.cos(w), 1 - alpha
+        x = r.uniform(-1, 1)
+        y = (b0 * x + b2 * x2 - a1 * y1 - a2 * y2) / a0
+        x2, x1 = x1, x
+        y2, y1 = y1, y
+        env = math.sin(math.pi * t / seconds) ** 1.5 if swell else math.exp(-t / decay) * min(1.0, t / attack)
+        out.append(gain * y * env)
+    return out
+
+
+def stage_pop():
+    out = silence(0.09)
+    mix(out, noise_burst(0.09, 0.012, 2200, 1.0, seed=31), 0.0)
+    mix(out, band(0.07, 900, 1.2, 0.015, 0.8, seed=32), 0.0)
+    return out
+
+
+def stage_ding():
+    out = silence(0.6)
+    # Three bright bands of noise, each half an octave wide or more (so no semitone stands out of it, which is what the
+    # matcher looks for in a key), dying away at different speeds: a shimmer, like a cymbal touched. A puff of broadband
+    # noise for the strike.
+    for k, (c, d, g) in enumerate([(3300, 0.3, 1.0), (5400, 0.22, 0.75), (8200, 0.15, 0.55)]):
+        mix(out, band(0.6, c, 2.0, d, g, seed=40 + k), 0.0)
+    mix(out, noise_burst(0.03, 0.006, 6000, 0.6, seed=45, high=True), 0.0)
+    return out
+
+
+def jam_whoosh():
+    out = silence(0.6)
+    mix(out, band(0.6, 500, 0.9, 0.0, 1.0, seed=51, sweep_to=5200, swell=True), 0.0)
+    mix(out, band(0.6, 1000, 0.8, 0.0, 0.5, seed=52, sweep_to=9000, swell=True), 0.0)
+    return out
+
+
 def main():
     for name, fn in [("tick", tick), ("jingle_common", jingle_common), ("jingle_rare", jingle_rare), ("jingle_shiny", jingle_shiny),
-                     ("chime_star", chime_star), ("munch", munch), ("egg_crack", egg_crack), ("pop", pop)]:
+                     ("chime_star", chime_star), ("munch", munch), ("egg_crack", egg_crack), ("pop", pop),
+                     ("stage_pop", stage_pop), ("stage_ding", stage_ding), ("jam_whoosh", jam_whoosh)]:
         write(name, fn())
 
 

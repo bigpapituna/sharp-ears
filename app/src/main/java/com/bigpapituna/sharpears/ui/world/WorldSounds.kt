@@ -13,7 +13,8 @@ import com.bigpapituna.sharpears.engine.world.Rarity
 
 /**
  * The world's sounds (res/raw, from scripts/gen_jingles.py) through one SoundPool for the whole app: the tick on
- * every note, a jingle per rarity, a chime per star, the pup munching, the egg cracking, a pop. Loaded once, on
+ * every note, a jingle per rarity, a chime per star, the pup munching, the egg cracking, a pop, and (2.1.1) the
+ * pitchless pop, ding and whoosh of the stages and the Jam. Loaded once, on
  * first use; nothing plays while [on] is false (the integrator follows the app's Sound setting), and callers that
  * run with the microphone listening pass their own gate (see Juice.onStrike).
  */
@@ -31,7 +32,8 @@ object WorldSounds {
             AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         ).build()
         val app = context.applicationContext
-        for (res in listOf(R.raw.tick, R.raw.jingle_common, R.raw.jingle_rare, R.raw.jingle_shiny, R.raw.chime_star, R.raw.munch, R.raw.egg_crack, R.raw.pop)) {
+        for (res in listOf(R.raw.tick, R.raw.jingle_common, R.raw.jingle_rare, R.raw.jingle_shiny, R.raw.chime_star, R.raw.munch, R.raw.egg_crack, R.raw.pop,
+                R.raw.stage_pop, R.raw.stage_ding, R.raw.jam_whoosh)) {
             ids[res] = p.load(app, res, 1)
         }
         pool = p
@@ -60,6 +62,16 @@ object WorldSounds {
     fun munch() = play(R.raw.munch, 0.9f, what = "munch")
     fun crack() = play(R.raw.egg_crack, 0.9f, what = "egg crack")
     fun pop(rate: Float = 1f) = play(R.raw.pop, 0.7f, rate, what = "pop")
+
+    // 2.1.1: sounds with no pitch, made to play while the microphone listens (the Playground's stages, the Jam); the
+    // note matcher never takes them for a key (StageSoundsTest). They still make a loudness jump: callers keep the mic
+    // deaf for a moment (MicInput.deafFor) so it is not shown as a sound the kid made.
+    /** A key found in a stage: a soft puff. */
+    fun stagePop() = play(R.raw.stage_pop, 0.8f, what = "stage pop")
+    /** A stage's rounds all done: a shimmer, a ding with no note. */
+    fun ding() = play(R.raw.stage_ding, 0.75f, what = "ding")
+    /** A chord or a rainbow in the Jam. */
+    fun whoosh() = play(R.raw.jam_whoosh, 0.7f, what = "whoosh")
 
     /** Whole steps up from G5: each star a little brighter than the one before. */
     private val STAR_RATES = floatArrayOf(1f, 1.1225f, 1.2599f)
