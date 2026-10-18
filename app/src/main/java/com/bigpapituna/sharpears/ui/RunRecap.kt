@@ -104,10 +104,15 @@ private class RecapMotion(private val still: Boolean) {
  *
  * 2.1: every recap leads with one to three stars (engine/skin/Stars), landing one by one with a chime. Grown-ups keep
  * everything above under them. A kid sees no number at all (no ring, no chips, no XP, no "Loop bar 3"): the stars,
- * the pup, and the kid words from RunWords with their name; three stars are the party.
+ * the pup, and the kid words from RunWords with their name; three stars are the party. Then the sticker the run
+ * dropped ([RunEnd.reward], the world's reveal), "Play it again" with a peek at the next drop ([nextDrop]) and "Send to
+ * someone" (the run replayed plus a card, ui/play/ShareConcert). [say] speaks the pup's words: a kid hears them with
+ * their name on every recap, a grown-up on a new best only.
  */
 @Composable
-fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, onReplay: () -> Unit) {
+fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, onLoop: (TroubleSpot) -> Unit, onClose: () -> Unit, onReplay: () -> Unit,
+             songTitle: String? = null, run: com.bigpapituna.sharpears.engine.RunRecording? = null,
+             nextDrop: com.bigpapituna.sharpears.engine.world.NextDrop? = null, say: ((String) -> Unit)? = null) {
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     val m = remember(e) { RecapMotion(still) }
@@ -142,6 +147,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     }
     val title = RunWords.headline(who.kind, r, e.wrongKeys, e.newBest, seed)
     val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.name, seed = seed)
+    // The pup says it, name and all (made on the phone, since names are never recorded): kids every time, grown-ups on a best.
+    LaunchedEffect(e) {
+        if (say == null) return@LaunchedEffect
+        delay(if (still) 200 else 700)
+        if (kid) say("$title $line") else if (party) say("${title.trimEnd('!', '.')}, ${who.name}!")
+    }
+    val stickerRes = e.reward?.drops?.firstOrNull()?.sticker?.let { com.bigpapituna.sharpears.data.WorldStore.stickerRes(it) }
     val stats = buildList {
         if (r != null) { add(Stat("${r.good}", "Good")); add(Stat("${r.ok}", "OK")); add(Stat("${r.miss}", "Missed")); add(Stat("${r.longestStreak}", "Streak")) }
         else add(Stat("${e.wrongKeys}", if (e.wrongKeys == 1) "Wrong note" else "Wrong notes"))
@@ -168,13 +180,26 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     })
                 Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(max = 420.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) })
+                e.duetLine?.let {
+                    Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 420.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) })
+                }
+            }
+            // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up).
+            val drop: @Composable ColumnScope.() -> Unit = {
+                e.reward?.let { rw ->
+                    Column(Modifier.fillMaxWidth().slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (kid) 132.dp else 116.dp)
+                        com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle })
+                    }
+                }
             }
             // The stars lead; they start landing as the headline pops (kids get them bigger, and nothing else).
             val starRow: @Composable ColumnScope.() -> Unit = {
                 StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) 72.dp else 48.dp,
                     sampler = sampler, startDelayMs = if (still) 0L else 420L)
             }
-            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { starRow() } } else { {
+            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { starRow(); drop() } } else { {
                 starRow()
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.slideIn(m.rest, 0)) {
@@ -187,6 +212,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     }
                 }
                 if (e.xpGained != null) XpLine(e.xpGained, e.xpBar, m.xp, Modifier.slideIn(m.rest, stats.size + 1))
+                drop()
                 // The quieter way on: a hard bar on a loop.
                 TroubleSpots.line(e.spots)?.let { loops ->
                     Column(Modifier.slideIn(m.rest, stats.size + 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -197,17 +223,23 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     }
                 }
             } }
-            // Play again, always in view; the run played back and Close beside it.
+            // Play again, always in view (with a peek at its drop: "one more"); the run played back, sent, and Close.
             val actions: @Composable () -> Unit = {
-                FlowRow(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                    ChunkyButton(onClick = onAgain, modifier = Modifier.widthIn(min = 180.dp)) {
-                        Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Play again")
+                Column(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (nextDrop != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = onAgain, title = songTitle, label = "Play it again",
+                        delayMs = if (still) 0L else 1400L)
+                    FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                        if (nextDrop == null) ChunkyButton(onClick = onAgain, modifier = Modifier.widthIn(min = 180.dp)) {
+                            Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text("Play again")
+                        }
+                        if (e.canReplay) SmallPill("Hear my run", R.drawable.ic_play_arrow, onReplay)
+                        if (songTitle != null && (run != null || e.reward != null))
+                            com.bigpapituna.sharpears.ui.play.ShareConcertButton(run, songTitle, stars, stickerRes = stickerRes)
+                        TextButton(onClick = onClose) { Text("Close") }
                     }
-                    if (e.canReplay) SmallPill("Hear my run", R.drawable.ic_play_arrow, onReplay)
-                    TextButton(onClick = onClose) { Text("Close") }
                 }
             }
             if (wide) Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,

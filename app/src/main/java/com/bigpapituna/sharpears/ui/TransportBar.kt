@@ -79,6 +79,8 @@ data class BarState(
     val backing: Boolean? = null,
     /** Semitones the song is moved (-6..6). */
     val transpose: Int = 0,
+    /** Duet (2.1): null hides the pill (one profile, or not a library song), "" offers it, a label says it is on. */
+    val duet: String? = null,
 )
 
 class BarActions(
@@ -103,6 +105,8 @@ class BarActions(
     val onFlag: (() -> Unit)? = null,
     /** A new transpose, in semitones. */
     val onTranspose: (Int) -> Unit = {},
+    /** Duet: pick a partner (or stop the duet when one runs). */
+    val onDuet: () -> Unit = {},
 )
 
 /**
@@ -169,6 +173,7 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 Text(s.auto?.let { "Auto $it%" } ?: s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
                     color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             }
+            s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
             s.chords?.let { Toggle("Chords", it, a.onChords) }
             Toggle("Metronome", s.metronome, a.onMetronome)
             s.backing?.let { Toggle("Backing", it, a.onBacking) }

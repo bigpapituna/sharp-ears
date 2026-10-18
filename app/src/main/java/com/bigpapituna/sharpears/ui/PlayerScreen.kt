@@ -102,6 +102,15 @@ import com.bigpapituna.sharpears.ui.hints.NOISE_LINE
 import com.bigpapituna.sharpears.ui.hints.NoiseSheet
 import com.bigpapituna.sharpears.ui.hints.OctaveArrow
 import com.bigpapituna.sharpears.ui.hints.PointingHand
+import com.bigpapituna.sharpears.engine.skin.KeyboardSize
+import com.bigpapituna.sharpears.engine.play.Duet
+import com.bigpapituna.sharpears.engine.play.QuestEvent
+import com.bigpapituna.sharpears.engine.skin.Stars
+import com.bigpapituna.sharpears.data.PlayStore
+import com.bigpapituna.sharpears.data.ProgressStore
+import com.bigpapituna.sharpears.ui.motion.Juice
+import com.bigpapituna.sharpears.ui.skin.rememberWrongFlash
+import com.bigpapituna.sharpears.ui.world.LocalWorld
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -125,6 +134,8 @@ data class PlayerStart(
     val beatLines: Boolean = false,
     /** Debug: MIDI input played from the first Play (MidiDevices.debugPlay). */
     val midiScript: String? = null,
+    /** Two people, one hand each (2.1, engine/play/Duet): both hands are played and both get the run. */
+    val duet: Duet? = null,
 )
 
 /**
@@ -173,8 +184,12 @@ fun PlayerScreen(
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
     val labels = embedded?.labels ?: true
-
-    val range = remember(song) { fitRange(song.notes) }
+    // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
+    val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+    val kid = profile.isKid
+    // Kids get big keys: just the octave the notes need, about twice as wide (REGULAR is exactly fitRange).
+    val keySize = KeyboardSize.forKid(kid)
+    val range = remember(song, keySize) { keySize.rangeOf(song.notes) }
     // Chord names follow a transpose: the bars are labelled again from the moved notes.
     val chords = remember(song, chordTrack) {
         if (chordTrack == null || transpose == 0) chordTrack
@@ -185,7 +200,10 @@ fun PlayerScreen(
     var playing by remember { mutableStateOf(false) }
     var speed by remember { mutableDoubleStateOf(1.0) }
     var mode by remember { mutableStateOf(start.mode) }
-    var practice by remember { mutableStateOf(start.practice) }
+    // A duet plays both hands, one person each; the hand chooser is locked meanwhile.
+    var duet by remember { mutableStateOf(start.duet) }
+    var pickingDuet by remember { mutableStateOf(false) }
+    var practice by remember { mutableStateOf(if (start.duet != null) Practice.BOTH else start.practice) }
     var micOn by remember { mutableStateOf(start.mic || start.inject != null) }
     var loopStart by remember { mutableStateOf<Double?>(null) }
     var loopEnd by remember { mutableStateOf<Double?>(null) }
@@ -193,18 +211,18 @@ fun PlayerScreen(
     val touched = remember { mutableStateMapOf<Int, Color>() }
     val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
-    var wrongFlash by remember { mutableIntStateOf(0) }           // bumps on each wrong note (light off)
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
+    val wrongs = rememberWrongFlash(slow = start.lightSlow)
     val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
-    // Who is playing: the mic offset and the report tag follow the profile; hint timings are theirs.
-    val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
     LaunchedEffect(profile.id, profile.kind, profile.micOffsetDb) { mic.forProfile(profile.isKid, profile.micOffsetDb) }
     // Hint escalation while wait mode is stuck (glow, the hand points, the app plays it), and the octave hint.
     val hintPlan = remember(profile.hintSeconds) { HintPlan(profile.hintSeconds) }
     var hintStep by remember { mutableStateOf(HintStep.NONE) }
     var hintLine by remember { mutableStateOf<String?>(null) }     // the pup's hint line over the lane
     var octaveShown by remember { mutableStateOf<OctaveHint.Hint?>(null) }
-    val octaveOn = remember(song.id, anyOfLessons) { OctaveHint.appliesTo(song.id, anyOfLessons) }
+    // Not where any key of a range will do ("any key above C4"): there the octave is the point.
+    val octaveOn = remember(song, anyOfLessons) { OctaveHint.appliesTo(song.id, anyOfLessons) && song.groups.none { it.anyOf } }
     // Wrong keys shown so far (ids for onWrongKey); the room-noise watchdog's offer.
     var wrongKeys by remember { mutableIntStateOf(0) }
     var noiseOffer by remember { mutableStateOf<NoiseWatch.Suggestion?>(null) }
@@ -227,6 +245,8 @@ fun PlayerScreen(
     var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val world = LocalWorld.current
+    val everyone = com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all.orEmpty()
     // Touch keys buzz (right: a tick, wrong: a double tap); the mic and MIDI never do, the phone may be on a stand.
     val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
     var touchRun by remember { mutableStateOf(false) }             // this run was played on the touch keys
@@ -367,7 +387,7 @@ fun PlayerScreen(
      * speaker it is deaf meanwhile, so it does not take the phone's note for the player's.
      */
     fun playHint() {
-        val notes = transport.expected.map { it.midi }
+        val notes = transport.hintKeys                        // an any-of group: only its demonstration key
         if (notes.isEmpty()) return
         if (prefs.sound) {
             if (micOn && !mic.headphonesOn()) mic.deafFor(1_700)
@@ -381,6 +401,7 @@ fun PlayerScreen(
     fun showWrongKey(played: Int, nearest: Int?, distance: Int?) {
         val k = WrongKey(played, nearest, distance, (++wrongKeys).toLong())
         Log.d(TAG, "wrong key ${noteName(played)}" + (nearest?.let { " near ${noteName(it)}, $distance away, ${if (k.slip) "yellow" else "red"}" } ?: ""))
+        distance?.let { wrongs.show(com.bigpapituna.sharpears.engine.skin.WrongKey(played, it)) }
         onWrongKey(k)
     }
     /** Asks the room-noise watchdog; the pup offers once per session. */
@@ -422,7 +443,8 @@ fun PlayerScreen(
     }
     fun wrongFeedback() {
         // In Perform only a miss breaks the streak (the bar's "Streak N"), so a wrong key leaves the combo standing.
-        if (prefs.feedbackLight) { lights.wrong(breaksCombo = transport.mode != Mode.PERFORM); Log.d(TAG, "light wrong") } else { wrongFlash++; Log.d(TAG, "redFlash") }
+        // The key itself glows yellow or red either way ([wrongs], from showWrongKey); no red border any more.
+        if (prefs.feedbackLight) { lights.wrong(breaksCombo = transport.mode != Mode.PERFORM); Log.d(TAG, "light wrong") }
     }
     /** The run as played so far, kept in memory and in files/runs (library songs). */
     fun keepRun() {
@@ -432,7 +454,10 @@ fun PlayerScreen(
         runs.save(r)
     }
     fun keyReleased(midi: Int) { if (transport.playing) recorder.off(midi, transport.positionMs) }
-    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80): InputResult {
+    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80, riseDb: Double = Juice.DEFAULT_RISE): InputResult {
+        // Juice on every note, whatever it was: the pups hop to its pitch, a soft tick (the sampler's sound rule, so it
+        // never feeds the mic), a crumb in the treat jar.
+        Juice.onStrike(midi, riseDb, sound = soundAllowed())
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         // Perform: a note that raised the "good" count was on time (Perfect), any other right note was OK (Good).
         val good0 = transport.score?.recap()?.good ?: 0
@@ -460,7 +485,8 @@ fun PlayerScreen(
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             }
-            InputResult.IGNORED -> {}
+            // Listen mode, a count-in, a key between groups: no grade, a soft glow up its column.
+            InputResult.IGNORED -> if (prefs.feedbackLight) lights.touch(midi, handColor(handOf(midi)))
         }
         version++
         return result
@@ -531,20 +557,46 @@ fun PlayerScreen(
         fun xp(gained: Int?) = gained?.takeIf { it > 0 }
         fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
         val timeMs = transport.runRealMs.toLong()
+        // A run the player played (not one the app played in Listen) drops a sticker and counts for today's quest.
+        val played = transport.mode != Mode.LISTEN
+        val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
+        if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), kid)
+            .forEach { Log.d(TAG, "quest: ${it.kind} done by ${song.id}") }
+        // A duet: the partner gets the whole run too (their own best and first completion), and today's quest.
+        val partner = duet?.partnerOf(profile.id)?.let { id -> everyone.firstOrNull { it.id == id } }
+        fun creditPartner(accuracy: Int?) {
+            val p = partner ?: return
+            val partnerPrefs = Prefs(context, p.id)
+            val before = partnerPrefs.progress(meta.id)
+            if (accuracy != null && transport.scoreFromMs <= 0.0 && accuracy > 0) partnerPrefs.saveScore(meta.id, accuracy) else partnerPrefs.markCompleted(meta.id)
+            ProgressStore(context, partnerPrefs).record(Duet.partnerRun(meta.id, accuracy, before.bestAccuracy.takeIf { it >= 0 }, before.completed))
+            PlayStore(context, p.id).recordQuest(QuestEvent.SongFinished(meta.id), p.isKid)
+            com.bigpapituna.sharpears.data.WorldStore(context, p.id).songComplete(meta.id, accuracy)
+            Log.d(TAG, "duet: ${p.id} credited for ${song.id} (accuracy=$accuracy)")
+        }
+        val duetLine = partner?.let { p ->
+            val stars = Stars.of(run, transport.report().wrongKeys)
+            val left = if (duet?.leftId == profile.id) profile.name else p.name
+            val right = if (duet?.leftId == profile.id) p.name else profile.name
+            Duet.recapLine(left, right, stars)
+        }
         if (run != null) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
-            recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null, timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar())
+            creditPartner(r.accuracy)
+            recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null, timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(),
+                reward = reward, duetLine = duetLine)
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
+            if (played) creditPartner(null)
             if (transport.mode == Mode.WAIT) {
                 recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null,
-                    timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar())
+                    timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(), reward = reward, duetLine = duetLine)
                 if (touchRun) haptics.success()
             }
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
@@ -575,7 +627,7 @@ fun PlayerScreen(
                         answerKey.key(System.currentTimeMillis(), e.midi, e.midi in transport.listenFor)
                         tail("keyboard ${noteName(e.midi)}")
                     }
-                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi, velocity = e.velocity) }
+                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi, velocity = e.velocity, riseDb = Juice.riseOf(e.velocity)) }
                 }
                 is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
             }
@@ -597,10 +649,12 @@ fun PlayerScreen(
     // The mic waits while the voice talks through the speaker (it would hear the phone).
     val voiceHolds = voice.holdsMic
     val replaying = replay != null
-    DisposableEffect(micOn, mode, visible, voiceHolds, embedded == null || playing, replaying) {
+    // The full player listens between runs too, except while a run's recap is up (the pup talks then).
+    val between = (embedded == null && recap == null) || playing
+    DisposableEffect(micOn, mode, visible, voiceHolds, between, replaying) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
         // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && (embedded == null || playing) && !replaying) {
+        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
@@ -610,7 +664,8 @@ fun PlayerScreen(
     LaunchedEffect(version, micOn) {
         transport.chordSlack = if (micOn) 1 else 0
         mic.matcher.expected = if (micOn) transport.listenFor else emptySet()
-        mic.matcher.group = transport.listenGroup
+        // A chord is one group; an any-of group's keys each their own (they never sound together).
+        mic.matcher.groups = transport.listenGroups
     }
     LaunchedEffect(mic) {
         mic.events.collect { e ->
@@ -623,7 +678,7 @@ fun PlayerScreen(
                     stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     mic.noiseWatch.right(android.os.SystemClock.elapsedRealtime())
-                    keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0)
+                    keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
                     val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(e.riseDb)} dB"
@@ -631,6 +686,7 @@ fun PlayerScreen(
                     stallWatch.heard(System.currentTimeMillis(), what)
                     val paint = mic.paintsWrongKeys
                     if (paint) {
+                        Juice.onStrike(e.midi, e.riseDb, sound = soundAllowed())
                         wrongFeedback()
                         showWrongKey(e.midi, e.nearest, e.distance)
                         val now = android.os.SystemClock.elapsedRealtime()
@@ -805,8 +861,11 @@ fun PlayerScreen(
             status = when {
                 mode != Mode.PERFORM -> ""
                 position < transport.anchorMs -> if (playing) "Get ready" else ""
+                kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
-            }),
+            },
+            duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
+                ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(
             onBack = onBack,
             onPlayPause = { if (playing) pause() else play() },
@@ -814,7 +873,8 @@ fun PlayerScreen(
             onRamp = { autoOn = false; ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent }; Log.d(TAG, "ramp on at 50%") },
             onAuto = { ramp = null; autoOn = true; setSpeed(autoPercent / 100.0); Log.d(TAG, "auto speed on at $autoPercent%") },
             onMode = ::setMode,
-            onPractice = { practice = it; transport.practice = it; version++; Log.d(TAG, "hands=$it") },
+            onPractice = { if (duet == null) { practice = it; transport.practice = it; version++; Log.d(TAG, "hands=$it") } },
+            onDuet = { if (duet != null) { duet = null; Log.d(TAG, "duet: off") } else { if (playing) pause(); pickingDuet = true } },
             onSeek = { seek(it) },
             onLoop = {
                 when {
@@ -878,15 +938,16 @@ fun PlayerScreen(
             hideBefore = if (position < transport.runFromMs) transport.runFromMs else null,
             lights = lights,
             beatMs = if (start.beatLines || prefs.beatLines) metro.beatMs else null, beatsPerBar = metro.beatsPerBar,
+            wrong = wrongs,
         )
         // Perform count-in: the beats of the bar near the hit line, the current one bright.
         if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
             BeatCounter(metro.beatsPerBar, metro.beatInBar(position), Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
         // The pup: ready during the count-in, a high-five after a hard passage comes good.
         if (showHighFive) PupSays(Pose.GREAT_JOB, "High five!", Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
-        else if (hintLine != null) PupSays(Pose.LEARNING, hintLine!!, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).widthIn(max = 420.dp))
+        else if (hintLine != null) PupSays(Pose.LEARNING, hintLine!!, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).widthIn(max = 420.dp), idle = false)
         else if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
-            Pup(Pose.GET_READY, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp)
+            Pup(Pose.GET_READY, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp, idle = false)
         // Before the first Play: a quiet hint, nothing else.
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
@@ -908,9 +969,25 @@ fun PlayerScreen(
             // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
             Dialog(onDismissRequest = { recap = null },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-                RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { recap = null; seek(0.0); play() }, onLoop = ::loopBar,
+                RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
                     onClose = { recap = null },
-                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") })
+                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
+                    songTitle = meta?.title ?: song.title, run = lastRun,
+                    // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
+                    nextDrop = remember(r) { if (r.reward != null) world?.previewSong() else null },
+                    say = { line -> voice.speak(line, interrupt = true) })
+            }
+        }
+        if (pickingDuet) Dialog(onDismissRequest = { pickingDuet = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            SharpEarsTheme(dark = androidx.compose.foundation.isSystemInDarkTheme()) {
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    com.bigpapituna.sharpears.ui.play.DuetPicker(onStart = { d ->
+                        pickingDuet = false; duet = d
+                        practice = Practice.BOTH; transport.practice = Practice.BOTH; version++
+                        Log.d(TAG, "duet: ${d.leftId} left, ${d.rightId} right on ${song.id}")
+                    }, onCancel = { pickingDuet = false })
+                }
             }
         }
     }
@@ -925,8 +1002,6 @@ fun PlayerScreen(
             putAll(held)
             putAll(flashes)
         }
-        var wrongVisible by remember { mutableStateOf(false) }
-        LaunchedEffect(wrongFlash) { if (wrongFlash > 0) { wrongVisible = true; delay(150); wrongVisible = false } }
         val keyLabels = remember(prefs.version.intValue, range) { if (labels) keyLabels(prefs.keyLabels, range) else emptyMap() }
         // The ghost hand plays the part the player is asked for (everything in Listen). Hidden when labels are
         // (from memory, sight-reading): showing the next finger would give the notes away.
@@ -948,11 +1023,13 @@ fun PlayerScreen(
                     }
                 },
                 onNoteOff = { m -> Log.d(TAG, "NoteOff ${noteName(m)} midi=$m src=touch"); touched.remove(m); sampler.noteOff(m); keyReleased(m) },
-                modifier = Modifier.fillMaxSize().then(if (wrongVisible) Modifier.border(4.dp, Bad) else Modifier),
+                modifier = Modifier.fillMaxSize(),
                 pulsing = remember(expected) { expected.associate { it.midi to handColor(it.hand) } },
                 // The key the song waits for shows its suggested finger.
                 labels = if (labels && prefs.fingerNumbers) keyLabels + expected.mapNotNull { n -> fingers[n]?.let { n.midi to "$it" } } else keyLabels,
                 sheen = !playing,
+                keySize = keySize,
+                wrong = wrongs,
             )
             com.bigpapituna.sharpears.ui.motion.GhostHand(ghost, { position }, range.first, range.last, Modifier.matchParentSize(),
                 visible = labels && prefs.ghostHand && prefs.version.intValue >= 0 && hintStep < HintStep.POINT)
@@ -960,7 +1037,10 @@ fun PlayerScreen(
             if (hintStep >= HintStep.GLOW && expected.isNotEmpty())
                 KeyGlow(remember(expected) { expected.associate { it.midi to handColor(it.hand) } }, range.first, range.last, Modifier.matchParentSize())
             if (hintStep >= HintStep.POINT) {
-                val n = expected.filter { it.hand == Hand.RIGHT }.minByOrNull { it.midi } ?: expected.minByOrNull { it.midi }
+                // An any-of group points at its demonstration key, not the lowest of the range.
+                val hint = remember(expected) { transport.hintKeys.toSet() }
+                val pool = expected.filter { it.midi in hint }
+                val n = pool.filter { it.hand == Hand.RIGHT }.minByOrNull { it.midi } ?: pool.minByOrNull { it.midi }
                 if (n != null) PointingHand(n.midi, n.hand == Hand.RIGHT, range.first, range.last, Modifier.matchParentSize())
             }
             octaveShown?.let { OctaveArrow(it.expected, it.playedOctaveOffset, range.first, range.last, Modifier.matchParentSize()) }
@@ -992,10 +1072,11 @@ fun PlayerScreen(
                     embedded.ramp && !(playing && position >= transport.anchorMs) -> "Ramp $rampPercent%"
                     mode != Mode.PERFORM || !playing -> ""
                     position < transport.anchorMs -> "Get ready"
+                    kid -> ""                                      // no numbers for kids
                     else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
                 })
             Lane(Modifier.fillMaxWidth().weight(1f))
-            Keys(Modifier.fillMaxWidth().weight(0.45f))
+            Keys(Modifier.fillMaxWidth().weight(keySize.heightShare))
             if (pedalGrade != null) PedalStrip(pedalGrade, position, song.durationMs, pedalDown, Modifier.fillMaxWidth().height(28.dp))
         }
         return
@@ -1063,7 +1144,8 @@ fun PlayerScreen(
             Bar()
             HandsTipRow()
             Lane(Modifier.fillMaxWidth().weight(1f))
-            Keys(Modifier.fillMaxWidth().weight(if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
+            // Kids' big keys take more of the stage; grown-ups' as before (a smaller share on a tall screen).
+            Keys(Modifier.fillMaxWidth().weight(if (kid) keySize.heightShare else if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
         }
     }
 }
@@ -1073,7 +1155,11 @@ fun PlayerScreen(
  * took in real time ([timeMs]) and the XP it earned with the level bar (library songs only), shown by [RunRecap].
  */
 data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<TroubleSpot>, val wrongKeys: Int = 0, val canReplay: Boolean = false,
-                  val timeMs: Long = 0, val xpGained: Int? = null, val xpBar: XpBar? = null)
+                  val timeMs: Long = 0, val xpGained: Int? = null, val xpBar: XpBar? = null,
+                  /** The sticker (and the medal) this run dropped in the pup's world; null outside library songs. */
+                  val reward: com.bigpapituna.sharpears.engine.world.Reward? = null,
+                  /** A duet's line naming both players ("Mia and Theo, two stars together"). */
+                  val duetLine: String? = null)
 
 /** Key labels from the setting: every C with its octave, or every white key's letter as well. */
 private fun keyLabels(setting: KeyLabels, range: IntRange): Map<Int, String> = when (setting) {
