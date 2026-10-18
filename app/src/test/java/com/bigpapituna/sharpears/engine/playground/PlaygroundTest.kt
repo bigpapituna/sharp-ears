@@ -38,7 +38,10 @@ class PlaygroundTest {
         }
         // Four places, four lessons each; the big-kid path is five of them.
         assertEquals(12, PLAYGROUND_PLACES.size)
-        assertEquals(listOf(Place.GARDEN, Place.POND, Place.CONCERT_HALL).flatMap { p -> List(4) { p } }, lessons.map { PLAYGROUND_PLACES.getValue(it.id) })
+        // The first page is the garden; later pages (pond, concert hall) bring their own twelve lessons each.
+        assertEquals(List(12) { Place.GARDEN }, lessons.map { PLAYGROUND_PLACES.getValue(it.id) })
+        assertEquals(lessons.map { it.id }, PLAYGROUND_PAGES.first().lessonIds)
+        assertEquals(PLAYGROUND_PAGES.first(), pageOf("playground-12"))
         assertTrue(BIG_KID_LESSONS.all { id -> lessons.any { it.id == id } })
     }
 
