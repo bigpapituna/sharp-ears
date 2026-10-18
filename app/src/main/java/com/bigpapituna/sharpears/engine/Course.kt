@@ -220,9 +220,8 @@ private const val LISTEN_FIRST = "Listen first. Watch the notes fall and hear ho
 private const val YOUR_TURN = "Your turn. The notes wait for you, with letters and finger numbers to guide you."
 private const val FROM_MEMORY = "Once more, from memory. The letters and finger numbers are hidden now."
 
-// Opening phrases of the library songs, so song lessons can be heard and tried before the whole piece.
-private val TWINKLE = Exercise(right = "C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2",
-    left = "C3:4 F3:2 C3:2 F3:2 C3:2 G2:2 C3:2", bpm = 80.0, phraseEnd = 8.0)
+// Opening phrases of the library songs, so song lessons can be heard and tried before the whole piece (Twinkle's is in
+// Exercises.kt, shared with the Playground).
 private val MINUET = Exercise(right = "D5:1 G4:0.5 A4:0.5 B4:0.5 C5:0.5 D5:1 G4:1 G4:1 E5:1 C5:0.5 D5:0.5 E5:0.5 F#5:0.5 G5:1 G4:1 G4:1",
     left = "G3+B3:3 A3:3 B3:3 C4:3", bpm = 96.0, practice = Practice.RIGHT, beats = 3)
 private val ELISE = Exercise(right = "E5:0.5 D#5:0.5 E5:0.5 D#5:0.5 E5:0.5 B4:0.5 D5:0.5 C5:0.5 A4:1.5 r:0.5 C4:0.5 E4:0.5 A4:0.5 B4:1.5 r:0.5 E4:0.5 G#4:0.5 B4:0.5 C5:2",
@@ -249,19 +248,19 @@ private val RHYTHM = listOf(
         scene("Before you play, the app counts you in with two bars of clicks, and the numbers 1, 2, 3, 4 appear above the keys.",
             lane("C4:1 C4:1 C4:1 C4:1", bpm = 72, countIn = 2), Mood.LISTEN),
         scene("Start on the next 1.", rhythm(4, "4:1 5:1 6:1 7:1", bars = 2, bpm = 72, loops = 1), Mood.POINT)),
-        pattern = "C4:1 C4:1 C4:1 C4:1 C4:1 C4:1 C4:1 C4:1",
+        pattern = QUARTERS_PATTERN,
         tune = "C4:1 E4:1 G4:1 E4:1 F4:1 D4:1 E4:1 C4:1", bpm = 72.0, count = "1, 2, 3, 4"),
     rhythmLesson("rhythm-halves", "Half and whole notes", "Hold through two beats and four.", listOf(
         scene("A half note lasts two beats and a whole note four.", rhythm(4, "0:2 2:2 4:4", bars = 2, bpm = 76, loops = 1)),
         scene("Keep counting while the key stays down, and let it go only on the next note.", lane("C4:2 C4:2 C4:4", bpm = 76), Mood.LISTEN)),
-        pattern = "C4:2 C4:2 C4:4 C4:1 C4:1 C4:2 C4:4",
+        pattern = HALVES_PATTERN,
         tune = "E4:2 D4:2 C4:4 E4:1 F4:1 G4:2 E4:4", bpm = 76.0, count = "1, 2, 3, 4"),
     rhythmLesson("rhythm-eighths", "Eighth notes", "Two notes in one beat: 1 and 2 and.", listOf(
         scene("An eighth note is half a beat.", valueTree(4, bpm = 80)),
         scene("Count the beats with an and between them: 1 and 2 and 3 and 4 and.",
             rhythm(4, "0:0.5 0.5:0.5 1:0.5 1.5:0.5 2:0.5 2.5:0.5 3:0.5 3.5:0.5", sub = 2, bpm = 66), Mood.LISTEN),
         scene("The second eighth falls on the and.", rhythm(4, "0:1 1:0.5 1.5:0.5 2:1 3:0.5 3.5:0.5", sub = 2, bpm = 66), Mood.POINT)),
-        pattern = "C4:1 C4:0.5 C4:0.5 C4:1 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:0.5 C4:2",
+        pattern = EIGHTHS_PATTERN,
         tune = "C4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 D4:0.5 C4:0.5 D4:0.5 E4:0.5 F4:0.5 G4:2", bpm = 66.0, count = "1 and 2 and 3 and 4 and"),
     rhythmLesson("rhythm-dotted", "Dotted quarter and eighth", "Long, short: the lilt of many tunes.", listOf(
         scene("A dot makes a note half as long again: a dotted quarter lasts one and a half beats.",
@@ -388,15 +387,8 @@ private const val RAMP_TEXT = "Now in time, starting at half speed. Each clean p
 
 /** Five fingers up and down twice, both hands an octave apart, in the five-finger position on [root]. */
 private fun fiveFinger(id: String, key: String, notes: List<String>, blackKeys: String): CourseLesson {
-    val pattern = listOf(0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1)
-    val flats = notes.any { it.endsWith("b") }
-    // Each finger's key from the root upward (a C after B is in the next octave).
-    fun fingerKeys(octave: Int): List<String> {
-        var prev = noteNumber("${notes[0]}$octave") - 1
-        return notes.map { n -> var m = noteNumber("${n}0"); while (m <= prev) m += 12; prev = m; noteName(m, flats) }
-    }
-    fun line(octave: Int) = fingerKeys(octave).let { k -> pattern.joinToString(" ") { "${k[it]}:1" } + " ${k[0]}:4" }
-    val ex = Exercise(right = line(4), left = line(3), bpm = 100.0, flats = flats)
+    fun fingerKeys(octave: Int) = fiveFingerKeys(notes, octave)
+    val ex = fiveFingerExercise(notes)
     // The pictures: the right hand's keys for fingers 1 to 5, the left hand's (thumb on the top note), up and back.
     val r = fingerKeys(4); val l = fingerKeys(3)
     val rs = r.joinToString(" "); val ls = l.reversed().joinToString(" ")
@@ -541,17 +533,8 @@ private fun songLesson(id: String, title: String, summary: String, idea: List<Sc
     song = song)
 
 // Opening phrases (four bars) of the repertoire songs, written in the same notation as scripts/gen_songs.py.
-// MARY_X and BUNS_X live in Exercises.kt: the Playground reuses them.
-private val ROW_X = Exercise(right = "C4:1.5 C4:1.5 C4:1 D4:0.5 E4:1.5 E4:1 D4:0.5 E4:1 F4:0.5 G4:3",
-    left = "C3:3 C3:3 C3:3 C3:3", bpm = 84.0, beats = 3)
-private val LONDON_X = Exercise(right = "G4:0.75 A4:0.25 G4:0.5 F4:0.5 E4:0.5 F4:0.5 G4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 F4:0.5 G4:1",
-    left = "C3:2 C3:2 G2:2 C3:2", bpm = 96.0, beats = 2)
-private val YANKEE_X = Exercise(right = "C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 D4:1 G3:1 C4:1 C4:1 D4:1 E4:1 C4:1 B3:3",
-    left = "C3:4 C3:2 G2:2 C3:4 C3:2 G2:2", bpm = 100.0)
-private val MACDONALD_X = Exercise(right = "C4:1 C4:1 C4:1 G3:1 A3:1 A3:1 G3:2 E4:1 E4:1 D4:1 D4:1 C4:4",
-    left = "C3:4 F3:2 C3:2 C3:2 G2:2 C3:4", bpm = 96.0)
-private val LIGHTLY_X = Exercise(right = "G4:1 E4:1 E4:2 F4:1 D4:1 D4:2 C4:1 D4:1 E4:1 F4:1 G4:1 G4:1 G4:2",
-    left = "C3:2 G3:2 G2:2 D3:2 C3:2 G3:2 G2:2 D3:2", bpm = 92.0)
+// MARY_X, BUNS_X and the phrases the Playground pages reuse (Row, London Bridge, Yankee Doodle, Old MacDonald, Lightly Row)
+// live in Exercises.kt.
 private val WEWISH_X = Exercise(right = "G4:1 G4:0.5 A4:0.5 G4:0.5 F#4:0.5 E4:1 E4:1 E4:1 A4:1 A4:0.5 B4:0.5 A4:0.5 G4:0.5 F#4:1 D4:1 D4:1",
     left = "G2:1 B2+D3:2 C3:1 E3+G3:2 D3:1 F#3+A3:2 D3:1 F#3+A3:2", bpm = 108.0, beats = 3)
 private val EINE_X = Exercise(right = "G4:1 r:0.5 D4:0.5 G4:1 r:0.5 D4:0.5 G4:0.5 D4:0.5 G4:0.5 B4:0.5 D5:2 C5:1 r:0.5 A4:0.5 C5:1 r:0.5 A4:0.5 C5:0.5 A4:0.5 F#4:0.5 A4:0.5 D5:2",
@@ -805,7 +788,7 @@ val COURSE: List<CourseLevel> by lazy { listOf(
                 memory(FROM_MEMORY, e))
         },
         run {
-            val e = Exercise(left = "C3:1 D3:1 E3:1 F3:1 G3:1 F3:1 E3:1 D3:1 C3:2", bpm = 70.0, practice = Practice.LEFT)
+            val e = LEFT_HAND_WALK
             lesson("fingers-left", "The left hand mirrors it", "Little finger on C, thumb on G.",
                 read(
                     scene("In the left hand the thumb sits highest.", fingers(right = ""), Mood.POINT),
