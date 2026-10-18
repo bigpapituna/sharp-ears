@@ -18,6 +18,7 @@ no analytics and no tracking. Everything it keeps stays on your device.
 The app asks for microphone access so it can hear which piano notes you play. The microphone is used only while you
 have it switched on in a song, lesson, chord or ear training game, or the tuner, and the app is on screen. The sound is analysed on your device
 to detect notes and is then discarded. It is never recorded, saved or sent anywhere.
+The private build can keep recordings, and sharing them or switching sending on is only ever started by you, from Microphone setup.
 
 You can refuse or withdraw microphone access at any time in your device settings. The app still works with on-screen
 keys or a MIDI keyboard.

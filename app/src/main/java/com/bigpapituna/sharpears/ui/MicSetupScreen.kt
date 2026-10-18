@@ -2,6 +2,20 @@ package com.bigpapituna.sharpears.ui
 
 import android.Manifest
 import android.util.Log
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.bigpapituna.sharpears.data.StuckShare
+import java.text.SimpleDateFormat
+import java.util.Date
+import androidx.compose.ui.platform.LocalLocale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -180,25 +194,93 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 }
             }
             var stuck by remember { mutableIntStateOf(mic.stalls().size) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            // Zipping for Share stuck moments: files packed so far out of the total, or null when idle.
+            var packing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+            var shareError by remember { mutableStateOf<String?>(null) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (stuck == 0) "No stuck moments saved." else "$stuck stuck moment${if (stuck == 1) "" else "s"} saved for review.",
                     style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                if (stuck > 0) TextButton(onClick = { mic.deleteStalls(); stuck = mic.stalls().size }) {
+                if (stuck > 0) TextButton(enabled = packing == null, onClick = {
+                    val files = mic.stallFiles()
+                    shareError = null
+                    packing = 0 to files.size
+                    scope.launch {
+                        val zip = runCatching {
+                            withContext(Dispatchers.IO) {
+                                StuckShare.zip(context, files) { done -> scope.launch { packing = done to files.size } }
+                            }
+                        }
+                        packing = null
+                        zip.onSuccess { Log.d(TAG, "mic: sharing ${it.name} (${it.length() / 1024} KB)"); StuckShare.share(context, it) }
+                            .onFailure { Log.d(TAG, "mic: share zip failed (${it.message})"); shareError = "Could not pack them: ${it.message}" }
+                    }
+                }, modifier = Modifier.semantics { contentDescription = "Share stuck moments" }) { Text("Share") }
+                if (stuck > 0) TextButton(enabled = packing == null, onClick = { mic.deleteStalls(); stuck = mic.stalls().size }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             }
+            if (stuck > 0) {
+                // What a share would hold: every file in the folder (clips, reports, flags, crash reports).
+                val files = remember(stuck) { mic.stallFiles() }
+                val newest = remember(stuck) { mic.stalls().lastOrNull()?.lastModified() }
+                val mb = files.sumOf { it.length() } / 1_048_576.0
+                Text(buildString {
+                    if (newest != null) append("Newest ").append(SimpleDateFormat("MMM d, yyyy, HH:mm", LocalLocale.current.platformLocale).format(Date(newest))).append(". ")
+                    append(if (mb < 0.1) "Less than 0.1 MB" else "%.1f MB".format(mb)).append(" in ${files.size} file${if (files.size == 1) "" else "s"}.")
+                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            packing?.let { (done, total) ->
+                Text("Packing $done of $total files", style = MaterialTheme.typography.bodySmall)
+                LinearProgressIndicator(progress = { if (total == 0) 0f else done / total.toFloat() }, modifier = Modifier.fillMaxWidth())
+            }
+            shareError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Bad) }
             // Sending them on: stuck moments, flags, crashes and the weekly summary become issues in the private repo.
             val rep = mic.reporter
+            var hasToken by remember { mutableStateOf(rep.hasToken) }
             var send by remember { mutableStateOf(rep.enabled) }
+            var editToken by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Send them for review", style = MaterialTheme.typography.titleMedium)
-                    Text(if (!rep.hasToken) "Not set up on this phone yet (scripts\\set-report-token.ps1 on the PC)."
+                    Text(if (!hasToken) "Not set up on this phone yet. Tap Set up and paste a GitHub token."
                         else "On Wi-Fi, each goes to your private GitHub repo with its clip, where fixes are prepared. ${rep.pending()} waiting.",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                Switch(checked = send, enabled = rep.hasToken, onCheckedChange = { send = it; rep.enabled = it; if (it) rep.flush() },
+                Switch(checked = send, enabled = hasToken, onCheckedChange = { send = it; rep.enabled = it; if (it) rep.flush() },
                     modifier = Modifier.semantics { contentDescription = "Send stuck moments for review" })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { editToken = true }) { Text(if (hasToken) "Set up (change)" else "Set up") }
+                if (hasToken) TextButton(onClick = { rep.clearToken(); hasToken = false; send = rep.enabled }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            if (editToken) {
+                // The typed value lives only in this dialog and then in the app's private preferences; never logged or shown.
+                var token by remember { mutableStateOf("") }
+                AlertDialog(
+                    onDismissRequest = { editToken = false },
+                    title = { Text("GitHub token") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("A fine-grained GitHub token for your sharp-ears repo with Contents and Issues read and write. " +
+                                "It stays in this app's private storage.", style = MaterialTheme.typography.bodyMedium)
+                            OutlinedTextField(token, { token = it }, label = { Text("GitHub token") }, singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                                modifier = Modifier.fillMaxWidth())
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(enabled = token.isNotBlank(), onClick = {
+                            rep.setToken(token); token = ""; editToken = false
+                            hasToken = rep.hasToken; send = rep.enabled; rep.flush()
+                        }) { Text("Save") }
+                    },
+                    dismissButton = { TextButton(onClick = { token = ""; editToken = false }) { Text("Cancel") } },
+                )
             }
         }
 

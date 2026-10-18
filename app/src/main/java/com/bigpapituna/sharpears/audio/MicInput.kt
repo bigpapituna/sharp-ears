@@ -284,6 +284,8 @@ class MicInput(private val context: Context) {
 
     /** Stuck moments saved for review (each a .wav clip and a .txt report). */
     fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+    /** Everything in the stalls folder (clips, reports, flags, crashes, summaries, sent markers), for sharing. */
+    fun stallFiles(): List<File> = stallDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
     private fun stallDir() = File(context.getExternalFilesDir(null), "stalls")
 
     /**

@@ -18,8 +18,8 @@ import java.util.concurrent.Executors
  * files/stalls) to Roy's private GitHub repo: each clip goes to the "reports" branch and each report becomes an
  * issue, labelled by kind, where the repo's review workflow and the daily check-in pick it up.
  *
- * Off until a token is set (scripts/set-report-token.ps1 writes it into this app's private storage; it is never
- * in the code) and the switch in Microphone setup is on. Only on Wi-Fi or another unmetered network.
+ * Off until a token is set (in Microphone setup, or scripts/set-report-token.ps1 from the PC; either way it lives only
+ * in this app's private storage, never in the code, a log or a report) and the switch in Microphone setup is on. Only on Wi-Fi or another unmetered network.
  */
 class Reporter(private val context: Context) {
     private val prefs = context.getSharedPreferences("reports", Context.MODE_PRIVATE)
@@ -30,7 +30,18 @@ class Reporter(private val context: Context) {
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", true) && hasToken
         set(v) { prefs.edit().putBoolean("enabled", v).apply() }
-    private val repo get() = prefs.getString("repo", null) ?: "bigpapituna/sharp-ears"
+    private val repo get() = prefs.getString("repo", null) ?: DEFAULT_REPO
+
+    /** Stores a token typed in Microphone setup and switches sending on. The value itself is never logged. */
+    fun setToken(token: String) {
+        val e = prefs.edit().putString("token", token.trim()).putBoolean("enabled", true)
+        if (prefs.getString("repo", null) == null) e.putString("repo", DEFAULT_REPO)
+        e.apply()
+        Log.d(TAG, "reports: token set in the app")
+    }
+
+    /** Forgets the token; sending stays off until a new one is set. */
+    fun clearToken() { prefs.edit().remove("token").apply(); Log.d(TAG, "reports: token removed") }
 
     /** Reports saved but not yet sent. */
     fun pending(): Int = reports().count { !sentMarker(it).exists() }
@@ -152,4 +163,6 @@ class Reporter(private val context: Context) {
     }
 
     private fun stamp() = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+
+    private companion object { const val DEFAULT_REPO = "bigpapituna/sharp-ears" }
 }
