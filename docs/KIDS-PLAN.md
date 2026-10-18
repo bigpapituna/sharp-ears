@@ -1,6 +1,34 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-Written 2026-10-18. Status: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
+## Status (2026-10-18, 2.1.0 integrated on branch `family`)
+
+Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
+
+- Profiles (up to eight), the picker, the new-kid flow, per-profile files and backup, the parent gate, the family wall
+  with paw prints, latest sticker and the crown of the day, grown-up mode offered once after Beginner.
+- The kid skin: colour notes with animals, letters for readers, bites, stars without numbers, kid words, big keys,
+  slower speech (0.85) with the name said on recaps, hint escalation at 4, 8 and 12 s, the goodnight at the daily goal
+  and the paw calendar, the pup's head tilt on a wrong key.
+- Pup's Playground: all twelve lessons with their stages (flying pup, key hunts, drum, nap, concert), first on a kid's
+  path and drawn on the pup's world; an extra unit for grown-ups.
+- For everyone: juice on every note, the living pup, sticker drops with the rare floor, the mystery egg, the album,
+  the dog house, garden, pond and concert audience, the treat jar, dress-up, the records shelf, "one more", jingles,
+  wrong keys shown yellow or red, the room-noise offer, the octave hint, Jam, Pup says for one to three players, Clap
+  along, Send to someone, Pup's quest and Duet.
+- Voice: every fixed line recorded (318 kid lines at 0.85); lines with a name are made on the phone.
+
+Not yet:
+
+- Tested with real kids in a real room. The clap counter, the high-and-low and key-hunt pitch tracker, soft and loud,
+  the Jam's chord ear and the kid mic offset are tuned on synthetic audio only.
+- Real art: stickers, accessories, the dog house, jar and egg are placeholders (scripts/gen_stickers.py, code-drawn);
+  Gemini art drops in under the same names.
+- The per-kid report in the parent corner (minutes, lessons, where they got stuck) and take-turns in the ear games
+  (Pup says has turns; the ear games do not).
+- Frame timing on the Fold itself with the profile build (emulator numbers only so far).
+- A second Playground page, by design (section 9).
+
+Written 2026-10-18. Status at writing: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
 phone and one piano, in a room with talking, on visits (so short sessions, new kids set up in seconds).
 
 ## 1. The question: a separate kids' section, or universal lessons?
