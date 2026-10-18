@@ -20,8 +20,12 @@ data class MatcherConfig(
      * a quarter-tone, the jumping partials must hold this many times the power a quarter-tone up or down.
      */
     val sharpRatio: Double = 2.0,   // synthetic piano scores ~5; loose until real fixtures say otherwise
-    /** Odd partials (1st, 3rd, 5th) must carry at least this share of the rise; an octave above has none there. */
-    val oddRatio: Double = 0.15,
+    /**
+     * Odd partials (1st, 3rd, 5th) must carry at least this share of the rise; an octave above has none there.
+     * Roy's piano through the Fold's mic: a real E4 carried 8% (weak fundamental, strong 2nd partial) and was
+     * refused at 0.15 six times in a row; a real octave-up (A5 for A4) carried 0.02%. 0.04 sits between them.
+     */
+    val oddRatio: Double = 0.04,
     /** A broadband loudness jump of this many dB is a strike; with no expected note in it, it is a wrong note. */
     val wrongOnsetDb: Double = 7.0,
     val refractoryMs: Double = 120.0,

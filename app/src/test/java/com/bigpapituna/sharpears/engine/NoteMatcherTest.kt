@@ -67,6 +67,13 @@ class NoteMatcherTest {
         }
     }
 
+    /** Roy's E4 through the Fold mic: a thin fundamental under strong even partials (here an octave struck with it). */
+    @Test fun noteWithAThinFundamentalStillCounts() {
+        val audio = PianoSynth.render(listOf(SynthNote(64, 500.0, gainDb = -24.0), SynthNote(76, 500.0)), 2000.0)
+        assertEquals(listOf(64), strikes(listen(audio) { setOf(64) }).map(::midiOf))
+        assertEquals("the old threshold refused it", 0, strikes(listen(audio, MatcherConfig(oddRatio = 0.15)) { setOf(64) }).size)
+    }
+
     private class PhraseResult(val missed: List<String>, val early: List<String>, val wrongs: Int, val medianMs: Int?)
 
     /** The opening of Für Elise, both hands, with the expected set advancing like wait mode. */
