@@ -99,8 +99,9 @@ data class XpBar(val from: Float, val to: Float, val caption: String? = null)
  * with a bar filling ([xpBar] for real level progress; without it the bar simply fills). The pup wiggles when
  * tapped. Covers the screen until [onPrimary] or [onSecondary]. With animations off everything is in place at once.
  *
- * World slots (ui/world/INTEGRATION.md): [reward] sits under the stats (the drop reveal), [oneMore] above the main
- * button (the next lesson with a preview of its drop). With either the pup is a little smaller and the middle scrolls.
+ * World slots (ui/world/INTEGRATION.md): [reward] sits under the stats (the drop reveal), [oneMore] at the bottom (the
+ * next lesson with a preview of its drop, and its own big button; [primary] then becomes a plain text button under
+ * it). With either the pup is a little smaller and the middle scrolls above the buttons.
  */
 /**
  * How many Celebrations are on screen now (integration): the level-up overlay waits while this is above zero, so a
@@ -188,8 +189,11 @@ fun Celebration(
         if (reward != null && rest.value > 0.3f) Box(Modifier.padding(top = 4.dp)) { reward() }
     }
     val bottom: @Composable ColumnScope.() -> Unit = {
-        oneMore?.let { Box(Modifier.padding(bottom = 10.dp)) { it() } }
-        ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
+        // "One more" brings its own big button; then the way out is the quieter one.
+        if (oneMore != null) {
+            oneMore()
+            TextButton(onClick = onPrimary, modifier = Modifier.padding(top = 6.dp)) { Text(primary) }
+        } else ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
         if (secondary != null && onSecondary != null) TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
     }
     val bottomMotion = Modifier.graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f }

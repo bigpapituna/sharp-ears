@@ -66,6 +66,9 @@ import kotlin.math.sin
 private val Biscuit = Color(0xFFE1A85E)
 private val BiscuitDeep = Color(0xFFC88A44)
 private val Lid = Color(0xFFE38E5A)
+private const val TIP_DEG = 115f
+private val LIFT_X = 40.dp
+private val LIFT_Y = 50.dp
 
 /** One bone-shaped biscuit centred on [c], [len] long, turned [deg]. */
 fun DrawScope.drawBiscuit(c: Offset, len: Float, deg: Float, alpha: Float = 1f) {
@@ -174,12 +177,16 @@ fun TreatJarPanel(world: WorldStore, modifier: Modifier = Modifier) {
     Column(modifier.widthIn(max = 560.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SpeechBubble(if (pouring > 0 || pup.poseFor(Pose.WEAR_BASE) == Pose.TREAT) "Crunch! Thank you." else jarLine(state.jar, kid, state.treats),
             style = MaterialTheme.typography.titleMedium)
-        BoxWithConstraints(Modifier.fillMaxWidth().height(200.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(214.dp)) {
             val jarW = 130.dp
+            val jarH = 165.dp
             val pupSize = 170.dp
-            Box(Modifier.offset(x = 12.dp, y = 30.dp).size(jarW, 165.dp).graphicsLayer {
-                transformOrigin = TransformOrigin(0.92f, 0.95f)
-                rotationZ = 112f * tip.value + 6f * wobble.value * sin(wobble.value * 9f)
+            // Tipping lifts the jar up and over toward the pup and turns it until its mouth points at him.
+            Box(Modifier.offset(x = 12.dp, y = 30.dp).size(jarW, jarH).graphicsLayer {
+                transformOrigin = TransformOrigin.Center
+                translationX = LIFT_X.toPx() * tip.value
+                translationY = -LIFT_Y.toPx() * tip.value
+                rotationZ = TIP_DEG * tip.value + 6f * wobble.value * sin(wobble.value * 9f)
             }.clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = ::go)
                 .semantics { role = Role.Button }) {
                 TreatJarView(state.jar, Modifier.fillMaxSize(), shown = if (pouring > 0) 0 else TreatJar.biscuits(state.jar))
@@ -189,7 +196,11 @@ fun TreatJarPanel(world: WorldStore, modifier: Modifier = Modifier) {
             if (pouring > 0) {
                 // The biscuits arc from the jar's mouth to the pup, one after another.
                 Canvas(Modifier.fillMaxSize()) {
-                    val from = Offset(12.dp.toPx() + jarW.toPx() * 1.05f, 30.dp.toPx() + 30.dp.toPx())
+                    // The tipped jar's mouth: its centre moved by the lift, then half its height along the turn.
+                    val a = Math.toRadians(TIP_DEG.toDouble())
+                    val cx = 12.dp.toPx() + jarW.toPx() / 2f + LIFT_X.toPx()
+                    val cy = 30.dp.toPx() + jarH.toPx() / 2f - LIFT_Y.toPx()
+                    val from = Offset(cx + (jarH.toPx() * 0.45f * sin(a)).toFloat(), cy - (jarH.toPx() * 0.45f * kotlin.math.cos(a)).toFloat())
                     val to = Offset(size.width - 8.dp.toPx() - pupSize.toPx() * 0.42f, size.height - pupSize.toPx() * 0.52f)
                     for (i in 0 until pouring) {
                         val k = ((pour.value * 1.6f - i * 0.03f)).coerceIn(0f, 1f)

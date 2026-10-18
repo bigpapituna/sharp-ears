@@ -123,6 +123,8 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                                 reward = { DropReveal(reward, cardWidth = 120.dp) },
                                 oneMore = { OneMoreButton(world.preview(), onClick = onClose, title = "Hot Cross Buns") })
                         }
+                        // The whole world screen scrolls by itself, so it is not put in the demo's scrolling column.
+                        "screen" -> WorldScreen(world, songs, onBack = onClose)
                         else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             when (part) {
@@ -133,7 +135,6 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                                     if (place == null || place == Place.GARDEN) Text(houseLine(world.state.unique), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 "map" -> WorldMap(world.state)
-                                "screen" -> Box(Modifier.fillMaxSize()) { WorldScreen(world, songs, onBack = onClose) }
                                 "jar" -> TreatJarPanel(world)
                                 "egg" -> Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                                     EggView(EggLook.CLOSED, Modifier.size(90.dp, 116.dp))
