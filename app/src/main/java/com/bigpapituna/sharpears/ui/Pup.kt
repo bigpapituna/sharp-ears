@@ -442,9 +442,21 @@ fun Pup(
 /** One pose's image, feet on the ground (bottom-aligned), with the outfit over the base pose. */
 @Composable
 private fun PoseImage(pose: Pose, outfit: Outfit, alpha: () -> Float) {
+    // A hat or headphones reach above the base image (Wear.box tops below 0). Where the box has no room over his head
+    // (a tight tile, a 44 dp pup in a row), he and his outfit shrink together, feet down, so nothing pokes out of it.
+    val above = if (pose == Pose.WEAR_BASE && !outfit.isEmpty) -minOf(0f, outfit.items.minOf { Wear.box(it).top }) else 0f
+    val fit = Modifier.fillMaxSize().graphicsLayer {
+        this.alpha = alpha()
+        if (above > 0f) {
+            val k = minOf(size.width / Wear.BASE_W, size.height / Wear.BASE_H)
+            val free = size.height - Wear.BASE_H * k
+            val s = if (above * k <= free) 1f else size.height / (Wear.BASE_H * k + above * k)
+            scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0.5f, 1f)
+        }
+    }
     Image(painterResource(pose.res), contentDescription = null, contentScale = ContentScale.Fit, alignment = Alignment.BottomCenter,
-        modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha() })
-    if (pose == Pose.WEAR_BASE && !outfit.isEmpty) Canvas(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha() }) {
+        modifier = fit)
+    if (pose == Pose.WEAR_BASE && !outfit.isEmpty) Canvas(fit) {
         // The image's own pixels onto the box, the way ContentScale.Fit with BottomCenter places it.
         val k = minOf(size.width / Wear.BASE_W, size.height / Wear.BASE_H)
         translate((size.width - Wear.BASE_W * k) / 2f, size.height - Wear.BASE_H * k) { scale(k, Offset.Zero) { drawOutfit(outfit) } }
@@ -566,9 +578,11 @@ fun SpeechBubble(line: String, modifier: Modifier = Modifier, style: TextStyle =
 @Composable
 fun PupSays(pose: Pose, line: String, modifier: Modifier = Modifier, size: Dp = 72.dp,
             onTap: (() -> Unit)? = null, sleepyAfterMs: Long? = null, style: TextStyle? = null,
-            controller: PupController? = null, bounce: BounceSize = BounceSize.SMALL) =
+            controller: PupController? = null, bounce: BounceSize = BounceSize.SMALL,
+            /** False where the pose is the message (a "not quite", a pointing pup): no idle acts, no sleep. */
+            idle: Boolean = true) =
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Pup(pose, size = size, onTap = onTap, sleepyAfterMs = sleepyAfterMs, controller = controller, bounce = bounce)
+        Pup(pose, size = size, onTap = onTap, sleepyAfterMs = sleepyAfterMs, controller = controller, bounce = bounce, idle = idle)
         SpeechBubble(line, Modifier.weight(1f, fill = false), style ?: MaterialTheme.typography.titleMedium)
     }
 

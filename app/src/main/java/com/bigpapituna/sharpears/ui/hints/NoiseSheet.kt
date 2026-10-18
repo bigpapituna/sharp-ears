@@ -32,7 +32,7 @@ const val NOISE_LINE = "Noisy room? I can stop painting wrong keys for now"
 fun NoiseSheet(onKeep: () -> Unit, onStop: () -> Unit, onPause: (() -> Unit)?, modifier: Modifier = Modifier) {
     Column(modifier.widthIn(max = 560.dp).background(StageRaised, RoundedCornerShape(20.dp)).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.Start) {
-        PupSays(Pose.LISTENING, NOISE_LINE, size = 64.dp)
+        PupSays(Pose.LISTENING, NOISE_LINE, size = 64.dp, idle = false)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ChunkyButton(onClick = onKeep) { Text("Keep showing") }
             ChunkyButton(onClick = onStop) { Text("Stop for this session") }

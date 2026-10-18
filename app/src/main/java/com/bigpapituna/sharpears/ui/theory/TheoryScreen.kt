@@ -360,7 +360,7 @@ private fun StopRow(lesson: TheoryLesson, number: Int, wind: Float, state: StopS
         }
         if (state == StopState.NEXT) {
             val right = wind < 0f
-            Pup(Pose.GET_READY, size = 96.dp, modifier = Modifier.offset(x = x + if (right) 130.dp else (-130).dp, y = 8.dp).graphicsLayer { if (right) scaleX = -1f })
+            Pup(Pose.GET_READY, size = 96.dp, idle = false, modifier = Modifier.offset(x = x + if (right) 130.dp else (-130).dp, y = 8.dp).graphicsLayer { if (right) scaleX = -1f })
         }
     }
 }

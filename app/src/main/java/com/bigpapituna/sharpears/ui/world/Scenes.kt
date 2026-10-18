@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -96,6 +98,9 @@ object WorldAnchors {
     /** The stops of [place], in order. */
     fun stops(place: Place): List<Anchor> = stops.getValue(place).map { (x, y) -> Anchor(place, x, y) }
 
+    /** The smiling sun sticker, and where it sits at dusk: setting behind the far hills, its size a share of the width. */
+    const val SUN = "garden-2"
+    val SUNSET = Anchor(Place.GARDEN, 0.62f, 0.34f) to 0.15f
     val HOUSE = Anchor(Place.GARDEN, 0.28f, 0.40f)
     val JAR = Anchor(Place.GARDEN, 0.555f, 0.47f)
     val EGG = Anchor(Place.GARDEN, 0.74f, 0.47f)
@@ -198,9 +203,14 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier, s
             Pup(Pose.PRACTICING, size = w * 0.26f, bounce = BounceSize.SMALL, modifier = Modifier.centerAt(a.x, a.y))
         }
         items.forEach { s ->
-            val (a, k) = WorldAnchors.item(s)
+            // At dusk the smiling sun is setting: low over the far hills, its lower part gone behind them (not up in the
+            // sky beside the moon and the stars).
+            val setting = night && s.id == WorldAnchors.SUN
+            val (a, k) = if (setting) WorldAnchors.SUNSET else WorldAnchors.item(s)
             val tap = if (onSticker == null) Modifier else Modifier.clickable(role = Role.Button) { onSticker(s) }
-            StickerImage(s, Modifier.centerAt(a.x, a.y).size(w * k).then(tap).semantics { contentDescription = s.name })
+            val sunset = if (!setting) Modifier else Modifier.drawWithContent { clipRect(bottom = size.height * 0.6f) { this@drawWithContent.drawContent() } }
+            StickerImage(s, Modifier.centerAt(a.x, a.y).size(w * k).then(sunset).then(tap).semantics { contentDescription = s.name },
+                tilt = if (setting) 0f else s.tilt(), shadow = !setting)
         }
         if (place == Place.CONCERT) Scenery.audience(owned).forEachIndexed { i, s ->
             val a = WorldAnchors.seat(i)

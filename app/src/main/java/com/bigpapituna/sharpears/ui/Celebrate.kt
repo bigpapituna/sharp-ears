@@ -44,6 +44,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -155,7 +156,7 @@ fun Celebration(
     val px = with(LocalDensity.current) { 320.dp.toPx() }
     val middle: @Composable ColumnScope.() -> Unit = {
         Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
-            Pup(pose, size = pupSize, onTap = {}, modifier = Modifier.graphicsLayer {
+            Pup(pose, size = pupSize, onTap = {}, idle = false, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
                 val s = 0.4f + 0.6f * rise.value
                 scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)
@@ -202,7 +203,8 @@ fun Celebration(
         Confetti(title, Modifier.fillMaxSize())
         if (compact) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             // With a reward or "one more" there is more to show: the middle scrolls above the buttons, never under them.
-            Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp, vertical = 12.dp),
+            val scroll = rememberScrollState()
+            Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxWidth().fadeBottom(scroll).verticalScroll(scroll).padding(horizontal = 28.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), content = middle)
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 16.dp).then(bottomMotion),
                 horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
@@ -214,6 +216,18 @@ fun Celebration(
         }
     }
 }
+
+/** While more of a scrolling middle waits below, its last line fades out instead of being cut off flat. */
+private fun Modifier.fadeBottom(scroll: androidx.compose.foundation.ScrollState) =
+    this.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.drawWithContent {
+        drawContent()
+        if (scroll.value < scroll.maxValue) {
+            val h = 36.dp.toPx()
+            drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - h, endY = size.height),
+                topLeft = Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h),
+                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+        }
+    }
 
 /**
  * Behind and around the pup: for a new best a slow sunburst and a ring of stars that fly out, and in front of
@@ -359,7 +373,7 @@ fun CheerBar(cheer: Cheer, title: String, line: String?, button: String, modifie
             ChunkyButton(onClick = onButton, modifier = Modifier.fillMaxWidth()) { Text(button) }
         }
         // The pup pops up over the top edge of the bar.
-        Pup(if (good) Pose.GREAT_JOB else Pose.MISTAKE, size = 96.dp, onTap = {}, modifier = Modifier.padding(start = 12.dp).graphicsLayer {
+        Pup(if (good) Pose.GREAT_JOB else Pose.MISTAKE, size = 96.dp, onTap = {}, idle = false, modifier = Modifier.padding(start = 12.dp).graphicsLayer {
             val p = peek.value
             translationY = (1f - p) * size.height * 0.6f
             val s = 0.6f + 0.4f * p

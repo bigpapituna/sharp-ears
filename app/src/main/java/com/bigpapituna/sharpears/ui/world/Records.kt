@@ -87,7 +87,7 @@ fun RecordsShelf(bests: Map<String, Int>, songs: List<SongMeta>, modifier: Modif
     val arts = rememberSongArts(shown.mapNotNull { byId[it.songId] })
     Column(modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (shown.isEmpty()) {
-            PupSays(Pose.POINTING, if (kid) "Play a whole song in Perform and win your first record." else "Finish a song in Perform at 60% or more for your first record.", size = 84.dp)
+            PupSays(Pose.POINTING, if (kid) "Play a whole song in Perform and win your first record." else "Finish a song in Perform at 60% or more for your first record.", size = 84.dp, idle = false)
             return@Column
         }
         PupSays(Pose.CROWN, "${shown.size} ${if (shown.size == 1) "record" else "records"} on the shelf: ${medalLine(bests.filterKeys { it in byId })}.", size = 84.dp)
