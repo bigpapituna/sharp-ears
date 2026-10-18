@@ -285,6 +285,7 @@ class MainActivity : ComponentActivity() {
             }
             debuggable && intent.getStringExtra("screen") == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
             debuggable && intent.getStringExtra("screen") == "learn" -> Screen.Home(HomeTab.LEARN)
+            debuggable && intent.getStringExtra("screen") == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
             debuggable && intent.getStringExtra("screen") == "profile" -> Screen.Home(HomeTab.YOU)
             debuggable && intent.getStringExtra("screen") == "onboarding" -> Screen.Onboarding
             debuggable && intent.getStringExtra("screen") == "practice" -> Screen.Home(HomeTab.PRACTICE,
