@@ -251,7 +251,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                     ClapPhase.COUNT_IN -> listOf("One", "Two", "Three", "Four")[Math.floorMod(beatNow, 4)]
                     ClapPhase.PLAYING -> if (bursts.lastOrNull()?.second == true) "On the boom!" else "Clap, clap!"
                     ClapPhase.DONE -> if (credited.size * 2 >= beats) "What a drummer you are!" else "I heard you! Now right on the boom."
-                    ClapPhase.NOTHING_HEARD -> "I could not hear the claps."
+                    // What the pup says next: he asks again by himself, or lets it go after the last silent try.
+                    ClapPhase.NOTHING_HEARD -> if (ClapTries.after(attempt, heard = false) == ClapTries.Next.LET_GO) PlaygroundLines.LET_GO else PlaygroundLines.CLAP_AGAIN
                 })
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

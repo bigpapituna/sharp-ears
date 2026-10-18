@@ -432,7 +432,8 @@ internal fun rememberStage(
                 if (run.finished) end(mic)
             }
             is Answer.Miss -> {
-                a.key?.let { k -> fx.wrong(k, keys(run).minByOrNull { abs(it - k) }) }
+                // Yellow or red against what the round wanted (its demo keys): a neighbour of them is a slip, the other side far.
+                a.key?.let { k -> fx.wrong(k, demoNow(run).filter { it != k }.minByOrNull { abs(it - k) }) }
                 clips.sound(now(), "${s.by.name.lowercase()} ${a.key?.let(::noteName) ?: "?"}: ${a.why.name.lowercase()}")
                 onMiss(a)
                 val first = run.rounds.coach.tries == 0
