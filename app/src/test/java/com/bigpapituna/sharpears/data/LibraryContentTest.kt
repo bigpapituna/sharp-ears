@@ -118,4 +118,24 @@ class LibraryContentTest {
             assertTrue("$id: the last section ends with the song", song.sections.last().endMs == song.durationMs)
         }
     }
+
+    /**
+     * 2.2.1 QA: a song is spelled the same in the library and in the lessons that teach it. The pond's lesson said
+     * "Twinkle, Twinkle, Little Star" (as the library says "Row, Row, Row Your Boat") and Songs said "Twinkle Twinkle
+     * Little Star". A library title's "(opening)" or "(easy)" is the library's own.
+     */
+    @Test fun lessonsSpellTheLibrarysSongTitles() {
+        @Suppress("UNCHECKED_CAST")
+        val songs = (com.bigpapituna.sharpears.engine.MiniJson.read(index) as Map<String, Any?>)["songs"] as List<Map<String, Any?>>
+        fun bare(t: String) = t.replace(Regex(" \\([^)]*\\)$"), "")
+        fun key(t: String) = bare(t).lowercase().filter { it.isLetterOrDigit() }
+        val library = songs.map { bare(it["title"] as String) }.associateBy(::key)
+        var named = 0
+        for (lesson in com.bigpapituna.sharpears.engine.COURSE.flatMap { it.lessons }) {
+            val title = library[key(lesson.title)] ?: continue
+            named++
+            assertEquals("lesson ${lesson.id}", title, lesson.title)
+        }
+        assertTrue("lessons named after songs: $named", named >= 10)
+    }
 }
