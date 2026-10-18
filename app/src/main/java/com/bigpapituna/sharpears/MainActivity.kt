@@ -651,6 +651,9 @@ class MainActivity : ComponentActivity() {
                     // Debug: --es screen motion [--es demo celebrate|cheer|pup|keys] (Team E's effects, ui/motion/MotionDemo.kt).
                     var motionDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "motion") }
                     if (motionDemo) com.bigpapituna.sharpears.ui.motion.MotionDemo(intent.getStringExtra("demo"), sampler) { motionDemo = false }
+                    // Debug: --es screen play [--es demo jam|pupsays|clap|duet|quest] (the Play team's screens, ui/play/PlayDemo.kt).
+                    var playDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "play") }
+                    if (playDemo) com.bigpapituna.sharpears.ui.play.PlayDemo(intent.getStringExtra("demo"), mic, midi, sampler, voice, { prefs.sound }) { playDemo = false }
                     importError?.let { msg ->
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
                             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
