@@ -147,15 +147,28 @@ class KidMapTest {
         assertEquals(KidLines.ROAD, KidLines.onward(Finale.After.Road))
     }
 
-    @Test fun theRealGardenLeadsToBasics() {
+    /** The real pages, however many there are: each page's finale leads to the next page, the last one to Basics. */
+    @Test fun theRealPagesLeadOnToBasics() {
         val path = CoursePath(PLAYGROUND_ID)
-        val garden = PLAYGROUND_PAGES.first()
-        assertEquals("garden", Finale.trigger(garden.lastLessonId, emptySet())?.id)
-        val walked = garden.lessonIds.toSet()
-        val m = KidMap.build(path, { it in walked }, { 2 }, setOf(garden.id))
-        assertEquals(COURSE.first { it.id == "basics" }.lessons.first().id, m.next)
-        assertTrue(m.roadOpen)
-        if (PLAYGROUND_PAGES.size == 1) assertEquals(Finale.After.Road, Finale.after(garden))
+        var walked = emptySet<String>()
+        var finales = emptySet<String>()
+        PLAYGROUND_PAGES.forEachIndexed { i, page ->
+            assertEquals(page.id, Finale.trigger(page.lastLessonId, finales)?.id)
+            walked = walked + page.lessonIds
+            finales = finales + page.id
+            val m = KidMap.build(path, { it in walked }, { 2 }, finales)
+            val nextPage = PLAYGROUND_PAGES.getOrNull(i + 1)
+            if (nextPage != null) {
+                assertEquals(Finale.After.NextPage(nextPage), Finale.after(page))
+                assertEquals(nextPage.lessonIds.first(), m.next)
+                assertEquals(i + 1, m.nextPage)
+                assertFalse(m.roadOpen)
+            } else {
+                assertEquals(Finale.After.Road, Finale.after(page))
+                assertEquals(COURSE.first { it.id == "basics" }.lessons.first().id, m.next)
+                assertTrue(m.roadOpen)
+            }
+        }
     }
 
     @Test fun theKidHomesLinesAreInTheVoiceCatalogWithoutNames() {

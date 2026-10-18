@@ -49,11 +49,14 @@ Three things to know:
 
 ## After merging `pages` and `kidhome`: check
 
-1. Conflicts likely in `engine/SpokenCatalog.kt` (`kidLines()`: keep the pages' loop over every page's lessons and the
-   `KidLines.fixed()` line), `engine/CoursePath.kt` if the pages branch touched it (keep this one's page-driven version),
-   `engine/playground/PlaygroundTest.kt` (places per page), `MainActivity.kt` (lesson done: `KidPages.dropPlace`).
-2. `.\gradlew.bat :app:testDebugUnitTest`: `KidMapTest.theRealGardenLeadsToBasics` and `MapAnchorsTest.theRealPagesAnchor...`
-   run on the real pages; with three pages `Finale.after(garden)` is the pond. `SpokenCatalogTest` lists the new lines.
+1. A trial merge of `pages` (at f2bb6bf) into `kidhome` (done in this worktree and aborted, nothing committed) conflicts
+   in three files only: `engine/CoursePath.kt` (take kidhome's: it is page-driven and gives the same order and the same
+   big-kid rule as the pages branch's `isPlaygroundLevel` version, and its extra constructor parameter has a default, so
+   the pages branch's CoursePathTest runs unchanged), `CLAUDE.md` and `docs/KIDS-PLAN.md` (keep both sections).
+   `engine/SpokenCatalog.kt` merges by itself.
+2. `.\gradlew.bat :app:testDebugUnitTest`: with kidhome's CoursePath the merged tree compiled and ran 756 tests, all
+   green after `KidMapTest.theRealPagesLeadOnToBasics` stopped assuming one page. It and `MapAnchorsTest.theRealPages...`
+   walk the real pages: the garden's finale leads to the pond, the pond's to the hall, the hall's to Basics.
 3. Render the new kid lines: `.\gradlew.bat :app:testDebugUnitTest --tests "*SpokenCatalogTest*"`, then
    `C:\dev\voice-tools\venv\Scripts\python -I scripts\render_voice.py` (the pond's and the hall's lessons, "You finished
    the pond!", "Next stop, the concert hall!").
