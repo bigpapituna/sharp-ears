@@ -56,6 +56,15 @@ import com.bigpapituna.sharpears.engine.feedbackLine
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.toSong
+import com.bigpapituna.sharpears.engine.Exercise
+import com.bigpapituna.sharpears.engine.RunWords
+import com.bigpapituna.sharpears.engine.family.PawWeek
+import com.bigpapituna.sharpears.engine.skin.Bedtime
+import com.bigpapituna.sharpears.engine.skin.Bites
+import com.bigpapituna.sharpears.ui.family.LocalParentGate
+import com.bigpapituna.sharpears.ui.family.profile
+import com.bigpapituna.sharpears.ui.skin.Goodbye
+import com.bigpapituna.sharpears.ui.skin.rememberBedtimeStore
 import com.bigpapituna.sharpears.ui.theory.SceneBar
 import com.bigpapituna.sharpears.ui.theory.SceneControls
 import com.bigpapituna.sharpears.ui.theory.ScenePreview
@@ -73,6 +82,13 @@ class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput,
  * then on. An exercise step shows the pup with its instruction (read aloud) over the embedded player and completes
  * itself when its run ends (a Perform step at its pass mark); then the feedback line is spoken and the next step
  * opens. The lesson is done when its last step completes. [inject] (debug) feeds the mic for the step opened first.
+ *
+ * Kids (2.1, docs/KIDS-PLAN.md section 3) get bites: a reading step shows its first scene, then a "More?" pill for the
+ * rest; an exercise is cut at its phrase end ([phraseEnd], beats; null plays it all) and one run passes (a Perform step
+ * at two stars, a ramp as one run at three quarters speed); feedback is the pup's kid words with their name, never a
+ * number; one main button per screen (no Back or scene controls in the bottom row). When a kid's daily goal is reached
+ * the lesson ends on the goodbye (ui/skin/Goodbye) and new lessons wait for tomorrow ([onSongs] and [onJam] stay open).
+ * Grown-ups see none of this.
  */
 @Composable
 fun LessonScreen(
@@ -82,7 +98,13 @@ fun LessonScreen(
     /** Debug (--ei scene n): the scene a reading step opened first starts on. */
     startScene: Int = 0,
     onStep: (Int) -> Unit, onSong: (() -> Unit)?, onDone: () -> Unit, onNext: (() -> Unit)?, onBack: () -> Unit,
+    /** Where a kid's bite of an exercise ends, in beats (null: the whole exercise). The playground team's phraseEnd. */
+    phraseEnd: (Exercise) -> Double? = Bites::phraseEndBeats,
+    /** The goodbye's ways on: the songs, and the Jam. Null: Back. */
+    onSongs: (() -> Unit)? = null, onJam: (() -> Unit)? = null,
 ) {
+    val who = profile()
+    val kid = who.isKid
     val (level, _) = ALL.first { it.second == lesson }
     var index by remember { mutableIntStateOf(startStep.coerceIn(0, lesson.steps.lastIndex)) }
     var feedback by remember { mutableStateOf<String?>(null) }
@@ -102,8 +124,27 @@ fun LessonScreen(
     val xpAtOpen = remember { progress?.xp ?: 0 }
     var xpAtEnd by remember { mutableIntStateOf(0) }
     var tookSecs by remember { mutableStateOf(0L) }
-    val step = lesson.steps[index]
+    // The step as this person plays it: a kid's is cut to a bite.
+    val step = remember(index, kid) { lesson.steps[index].let { if (kid) Bites.kidStep(it, it.exercise?.let(phraseEnd)) else it } }
     val last = index == lesson.steps.lastIndex
+    // Bedtime (kids only): the goodbye once today's goal is reached; a lesson opened after it finds the pup asleep.
+    val bedtime = rememberBedtimeStore()
+    val gate = LocalParentGate.current
+    val today = remember { java.time.LocalDate.now() }
+    var asleep by remember { mutableStateOf(kid && progress != null &&
+        !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today)) }
+    var goodnight by remember { mutableStateOf(false) }
+    val week = remember(goodnight, asleep) { PawWeek.of(progress?.practiceLog() ?: emptyMap(), today) }
+    // A kid's reading step: one scene, then "More?" for the rest.
+    var more by remember(index) { mutableStateOf(false) }
+    // After today's goodbye the pup is asleep: nothing of the lesson starts (no voice, no player) unless a grown-up says.
+    if (asleep) {
+        LaunchedEffect(Unit) { deps.voice.stop(); Log.d(TAG, "bedtime: ${lesson.id} asleep") }
+        Goodbye(who.name, week, onSongs = { (onSongs ?: onBack)() }, onClose = onBack, onJam = onJam, asleep = true,
+            onOneMore = { gate.guard { bedtime.oneMoreOn = today; asleep = false; Log.d(TAG, "bedtime: a grown-up allowed one more lesson") } },
+            say = { deps.voice.speak(it, interrupt = true) })
+        return
+    }
     val voice = deps.voice
     val context = androidx.compose.ui.platform.LocalContext.current
     val clicks = remember { runCatching { com.bigpapituna.sharpears.audio.Clicks(context) }.getOrNull() }
@@ -111,14 +152,19 @@ fun LessonScreen(
     // A reading step plays its scenes; the pup says each caption as it comes (queued behind a feedback line after
     // an automatic advance).
     val reading = step.kind == StepKind.READ && step.scenes.isNotEmpty() && !finished
-    val scenes = if (reading) key(index) {
-        rememberScenePlayback(step.scenes, deps.sampler, clicks, voice, start = if (index == startStep) startScene else 0,
-            tag = "lesson ${lesson.id} step ${index + 1}", interruptFirst = !advancedByItself)
+    val bite = kid && !more && step.scenes.size > 1
+    val scenes = if (reading) key(index, more) {
+        rememberScenePlayback(if (bite) step.scenes.take(Bites.scenesShown(step.scenes.size, kid = true, more = false)) else step.scenes,
+            deps.sampler, clicks, voice, start = if (kid && more) 1 else if (index == startStep) startScene else 0,
+            tag = "lesson ${lesson.id} step ${index + 1}" + if (bite) " (bite)" else "", interruptFirst = !advancedByItself || more)
     } else null
+    // "More?" appears once the first scene has played.
+    val firstSceneDone = scenes?.let { pb -> remember(pb) { androidx.compose.runtime.derivedStateOf { pb.fraction() >= 1f } }.value } ?: false
 
     // Read each exercise step out as it opens. After an automatic advance the feedback line is already queued, so no interrupt.
     LaunchedEffect(index) {
-        Log.d(TAG, "lesson ${lesson.id} step ${index + 1}/${lesson.steps.size} ${step.kind}")
+        Log.d(TAG, "lesson ${lesson.id} step ${index + 1}/${lesson.steps.size} ${step.kind}" +
+            if (kid) " kid" + (step.exercise?.let { e -> if (e != lesson.steps[index].exercise) " bite ${Bites.beats(e.right).coerceAtLeast(Bites.beats(e.left))} beats" else "" } ?: "") else "")
         onStep(index)
         if (step.scenes.isEmpty()) voice.speak(step.text.replace("\n\n", " "), interrupt = !advancedByItself)
         advancedByItself = false
@@ -133,13 +179,15 @@ fun LessonScreen(
             onDone()
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
-            voice.speak("Lesson complete.")
+            voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
         } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
-        val passed = s.passed(report)
-        // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake.
+        val passed = if (kid) Bites.kidPassed(s, report) else s.passed(report)
+        // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake (a kid: the pup's
+        // words with their name, no numbers).
         val line = if (s.kind == StepKind.LISTEN) null
+            else if (kid) RunWords.kidStepLine(passed, last, who.name).let { com.bigpapituna.sharpears.engine.Feedback(it, it) }
             else if (s.kind.needsMidi) (report.extraScore ?: 0).let { score ->
                 val what = if (s.kind == StepKind.PEDAL) "Pedal changes in time" else "Notes at the right loudness"
                 val text = "$what: $score percent. " + if (passed) (if (last) "Passed." else "Passed. On to the next step.") else "You need ${s.exercise?.pass ?: 80}. Play it again."
@@ -151,9 +199,9 @@ fun LessonScreen(
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed feedback=\"${line?.text}\"")
         feedback = line?.text
         line?.let { voice.speak(it.spoken) }
-        if (s.kind != StepKind.LISTEN) reaction = if (passed) Pose.GREAT_JOB else Pose.MISTAKE
+        if (s.kind != StepKind.LISTEN) reaction = if (passed) Pose.GREAT_JOB else if (kid) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
-        if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, "Not quite", line?.text); return }
+        if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text); return }
         // Passing a step that took a few tries earns the high-five.
         val highFive = fails >= 2
         if (highFive) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
@@ -169,7 +217,7 @@ fun LessonScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to lessons") }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text("${level.title}, lesson ${ALL.indexOfFirst { it.second == lesson } + 1}", style = MaterialTheme.typography.labelLarge,
+                    if (!kid) Text("${level.title}, lesson ${ALL.indexOfFirst { it.second == lesson } + 1}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
@@ -195,9 +243,18 @@ fun LessonScreen(
             } else if (scenes != null) {
                 // The explainer: the scene bar, the pup with the scene's caption, the stage.
                 Column(Modifier.weight(1f).semantics { contentDescription = step.text }) {
-                    if (step.scenes.size > 1) SceneBar(step.scenes.size, scenes.index, scenes::fraction)
+                    if (scenes.scenes.size > 1) SceneBar(scenes.scenes.size, scenes.index, scenes::fraction)
                     PupSays(scenes.scene.mood.pose(), scenes.scene.caption, Modifier.padding(top = 12.dp, bottom = 12.dp).heightIn(min = 72.dp), size = 72.dp)
                     SceneStage(scenes, Modifier.weight(1f), roomier = true)
+                    // A kid's bite: the rest of the step only if they ask.
+                    if (bite) androidx.compose.animation.AnimatedVisibility(firstSceneDone,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.7f),
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)) {
+                        OutlinedButton(onClick = { Log.d(TAG, "lesson ${lesson.id} step ${index + 1} more"); more = true }) {
+                            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp)); Text("More?")
+                        }
+                    }
                     if (last && onSong != null) ChunkyButton(onClick = { voice.stop(); onSong() }, Modifier.padding(top = 12.dp)) {
                         Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.size(6.dp)); Text("Open the song")
@@ -232,7 +289,7 @@ fun LessonScreen(
                                     beatLines = ex.beatLines),
                                 onBack = onBack,
                                 onFinished = { exerciseEnded(step, it) },
-                                embedded = Embedded(stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP,
+                                embedded = Embedded(if (kid) kidStateLabel(step) else stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP,
                                     special = step.kind.takeIf { it.needsMidi }),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                             )
@@ -243,13 +300,13 @@ fun LessonScreen(
         }
         Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (finished && onNext != null) OutlinedButton(onClick = onBack) { Text("All lessons") }
-            // Back steps through the scenes of a reading step first, then to the step before.
-            if (!finished && (index > 0 || (scenes?.index ?: 0) > 0)) OutlinedButton(onClick = {
+            if (finished && onNext != null && !kid) OutlinedButton(onClick = onBack) { Text("All lessons") }
+            // Back steps through the scenes of a reading step first, then to the step before. A kid gets one button only.
+            if (!kid && !finished && (index > 0 || (scenes?.index ?: 0) > 0)) OutlinedButton(onClick = {
                 val sc = scenes
                 if (sc != null && sc.index > 0) sc.go(sc.index - 1) else { go(index - 1); run++ }
             }) { Text("Back") }
-            if (scenes != null) SceneControls(scenes, voice, "lesson ${lesson.id}:")
+            if (scenes != null && !kid) SceneControls(scenes, voice, "lesson ${lesson.id}:")
             Spacer(Modifier.weight(1f))
             when {
                 finished -> onNext?.let { ChunkyButton(onClick = it) { Text("Next lesson") } } ?: ChunkyButton(onClick = onBack) { Text("Done") }
@@ -266,17 +323,44 @@ fun LessonScreen(
             if (cheer == Cheer.GOOD) complete() else { feedback = null; run++ }
         })
     }
-    if (finished) Celebration(
-        "Lesson complete!", lesson.summary,
-        listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(tookSecs / 60, tookSecs % 60), "Time"),
-            Stat("$retries", if (retries == 1) "Retry" else "Retries")),
-        primary = if (onNext != null) "Next lesson" else "Done", onPrimary = { voice.stop(); (onNext ?: onBack)() },
-        secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
-        sampler = deps.sampler.takeIf { deps.prefs.sound },
-        xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
-        xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
-    )
+    // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
+    val bedtimeNow = kid && finished && progress != null &&
+        Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)
+    if (finished && !goodnight) {
+        if (kid) Celebration(
+            RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
+            primary = when { bedtimeNow -> "Goodnight, pup"; onNext != null -> "Next lesson"; else -> "Done" },
+            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else (onNext ?: onBack)() },
+            sampler = deps.sampler.takeIf { deps.prefs.sound },
+        ) else Celebration(
+            "Lesson complete!", lesson.summary,
+            listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(tookSecs / 60, tookSecs % 60), "Time"),
+                Stat("$retries", if (retries == 1) "Retry" else "Retries")),
+            primary = if (onNext != null) "Next lesson" else "Done", onPrimary = { voice.stop(); (onNext ?: onBack)() },
+            secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
+            sampler = deps.sampler.takeIf { deps.prefs.sound },
+            xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
+            xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
+        )
     }
+    // The goodbye after the lesson that reached the goal: shown once today.
+    if (goodnight) {
+        LaunchedEffect(Unit) { voice.stop(); bedtime.goodnightOn = today; Log.d(TAG, "bedtime: goodnight after ${lesson.id}") }
+        Goodbye(who.name, week, onSongs = { voice.stop(); (onSongs ?: onBack)() }, onClose = { voice.stop(); onBack() },
+            onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) })
+    }
+    }
+}
+
+/** A kid's version of the bar label: what to do, no tempo or pass mark. */
+private fun kidStateLabel(step: Step): String = when (step.kind) {
+    StepKind.LISTEN -> "Listen"
+    StepKind.PLAY -> "Your turn"
+    StepKind.FROM_MEMORY -> "From memory"
+    StepKind.PERFORM, StepKind.RAMP -> "Play along"
+    StepKind.PEDAL -> "Pedal with each chord"
+    StepKind.DYNAMICS -> "Soft, then loud"
+    StepKind.READ -> ""
 }
 
 /** What the MIDI-needed state shows: a keyboard plugged in, sending the pedal and how hard each key is struck. */
