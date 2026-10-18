@@ -10,7 +10,8 @@ object PlayLines {
         // Pup says, one player.
         add("Your turn!"); add("Your turn."); add("Listen first, then copy me."); add("Wait for it. Your turn. Tap ready at the keys.")
         add("Your turn. Tap ready at the keys.")
-        for (n in 1..20) {
+        // A pattern starts at PupSaysGame.START notes, so there is never a "1 notes" to record.
+        for (n in PupSaysGame.START..20) {
             val yes = when (n % 3) { 0 -> "Yes! $n notes."; 1 -> "You copied all $n."; else -> "That's it, $n notes!" }
             add(yes); add("$yes Now one more.")
             add("That was your last try. Your best: $n notes!")
