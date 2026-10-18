@@ -23,8 +23,8 @@ class KidSongsTest {
         assertFalse("an import is never a kid song, even easy", KidSongs.isKidSong(song("mine", cde, imported = true)))
         assertFalse("not on the phone", KidSongs.isKidSong(song("gone", cde, available = false)))
         assertFalse("no notes read", KidSongs.isKidSong(song("empty", emptyList())))
-        val order = listOf(song("b", cde), song("x", cde + 61), song("a", cde))
-        assertEquals("the library's order is kept", listOf("b", "a"), KidSongs.pick(order).map { it.id })
+        val order = listOf(song("b", cde), song("x", cde + 61), song("a", cde), song("buns", listOf(64, 62, 60, 64)))
+        assertEquals("the simplest first, then the library's order", listOf("buns", "b", "a"), KidSongs.pick(order).map { it.id })
     }
 
     @Test fun theOpeningIsTheMelodysFirstNotesTopOfEachChord() {

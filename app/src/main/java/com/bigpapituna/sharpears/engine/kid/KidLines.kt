@@ -17,6 +17,8 @@ object KidLines {
     const val ROAD = "You're ready for the big kids' road!"
     /** The bubble while lessons sleep after today's goodbye (songs and play stay open). */
     const val ASLEEP = "Shh, the pup is asleep. Play and songs are open!"
+    /** The bubble over the sleeping pup (the voice says [ASLEEP]). */
+    const val ASLEEP_SHORT = "Zzz. New games tomorrow!"
 
     /** The signpost by the pup: Pup's quest as stars still to find today ([found] of three). */
     fun signpost(found: Int): String = when (found) {
@@ -24,6 +26,14 @@ object KidLines {
         1 -> "Two more stars to find today!"
         2 -> "One more star to find today!"
         else -> "All three stars found today!"
+    }
+
+    /** The same in a few words, for the pup's bubble on the map (the voice says the whole line when the signpost is tapped). */
+    fun signpostShort(found: Int): String = when (found) {
+        0 -> "Three stars to find!"
+        1 -> "Two more stars!"
+        2 -> "One more star!"
+        else -> "All three stars!"
     }
 
     /** The finale's headline and its first spoken line: "Mia finished the garden!" ("You finished ..." with no name). */
@@ -38,8 +48,8 @@ object KidLines {
 
     /** Every line here without a name, for the voice catalog. */
     fun fixed(pages: List<PlaygroundPage> = PLAYGROUND_PAGES): List<String> = buildList {
-        add(LETS_GO); add(THIS_ONE_FIRST); add(ROAD); add(ASLEEP)
-        (0..3).forEach { add(signpost(it)) }
+        add(LETS_GO); add(THIS_ONE_FIRST); add(ROAD); add(ASLEEP); add(ASLEEP_SHORT)
+        (0..3).forEach { add(signpost(it)); add(signpostShort(it)) }
         pages.forEach { p -> add(finished(null, p)); add(onward(Finale.after(p, pages))) }
     }.distinct()
 }

@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.data
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.kid.LessonStars
 
@@ -28,7 +29,7 @@ class KidStore(context: Context, val profileId: String, private val log: (String
     fun recordStars(lessonId: String, stars: Int): Int {
         val before = stars(lessonId)
         val best = LessonStars.best(before, stars)
-        if (best != before) { p.edit().putInt(STARS + lessonId, best).apply(); version.intValue++ }
+        if (best != before) { p.edit { putInt(STARS + lessonId, best) }; version.intValue++ }
         log("kid: $lessonId $stars stars, best $best" + if (best > before && before > 0) " (up from $before)" else "")
         return best
     }
@@ -39,7 +40,7 @@ class KidStore(context: Context, val profileId: String, private val log: (String
     /** [pageId]'s finale played: it does not play again, and the path walks on past the page. */
     fun finalePlayed(pageId: String) {
         if (pageId in finales()) return
-        p.edit().putBoolean(FINALE + pageId, true).apply()
+        p.edit { putBoolean(FINALE + pageId, true) }
         version.intValue++
         log("kid: finale of $pageId played")
     }
@@ -47,18 +48,18 @@ class KidStore(context: Context, val profileId: String, private val log: (String
     /** The pup said "You're ready for the big kids' road!" (once, after the last page's finale). */
     var roadSaid: Boolean
         get() = p.getBoolean(ROAD_SAID, false)
-        set(v) { p.edit().putBoolean(ROAD_SAID, v).apply(); version.intValue++ }
+        set(v) { p.edit { putBoolean(ROAD_SAID, v) }; version.intValue++ }
 
     /** Debug routes only: forget the finales and stars of [lessonIds] (or everything), to walk a page again. */
     fun debugForget(lessonIds: Collection<String>? = null, pageIds: Collection<String>? = null) {
-        val e = p.edit()
-        if (lessonIds == null && pageIds == null) e.clear()
-        else {
-            lessonIds?.forEach { e.remove(STARS + it) }
-            pageIds?.forEach { e.remove(FINALE + it) }
-            if (pageIds != null) e.remove(ROAD_SAID)
+        p.edit {
+            if (lessonIds == null && pageIds == null) clear()
+            else {
+                lessonIds?.forEach { remove(STARS + it) }
+                pageIds?.forEach { remove(FINALE + it) }
+                if (pageIds != null) remove(ROAD_SAID)
+            }
         }
-        e.apply()
         version.intValue++
         log("kid: debug forget ${lessonIds?.size ?: "all"} lessons, pages ${pageIds ?: "all"}")
     }

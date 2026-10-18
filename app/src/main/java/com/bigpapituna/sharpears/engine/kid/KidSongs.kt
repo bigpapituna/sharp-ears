@@ -8,13 +8,14 @@ data class SongFacts(val id: String, val title: String, val difficulty: String, 
 /**
  * The kid's songs (2.2): only the songs a kid can play by colour, every note one colour and one animal. That is an easy
  * song from the app's own library, played on white keys only (a black key is two colours striped, which a colour
- * reader cannot follow), and on the phone. The library's own order is kept (the nursery tunes come first there).
+ * reader cannot follow), and on the phone. The simplest come first (the fewest different keys: Hot Cross Buns before
+ * Ode to Joy), then the library's own order.
  */
 object KidSongs {
     fun isKidSong(s: SongFacts): Boolean =
         s.available && !s.imported && s.difficulty == "easy" && s.keys.isNotEmpty() && s.keys.all { NoteColours.white(it) != null }
 
-    fun pick(songs: List<SongFacts>): List<SongFacts> = songs.filter(::isKidSong)
+    fun pick(songs: List<SongFacts>): List<SongFacts> = songs.filter(::isKidSong).sortedBy { it.keys.distinct().size }
 
     /**
      * The tune's opening for its tile, as keys to colour: the first [n] onsets of the right hand ([melody] as start ms
