@@ -232,7 +232,7 @@ internal fun rememberPlaygroundRun(exercise: Exercise, id: String, deps: LessonD
 
 /**
  * The microphone while a stage listens: started while [active] once the voice has let go of it (or, in a debug build,
- * the [inject]ed audio instead, once). [raw] gets every chunk on the audio thread (MicInput.tap; ClapCounter and
+ * the [inject]ed audio instead, once). [raw] gets every chunk on the audio thread (MicInput.rawFrames; ClapCounter and
  * PitchHeight read it there); the note matcher is asked for [keys], each on its own, and [onStrike] hears its strikes
  * on the main thread. Returns whether it is listening, so the stage can keep the app's own sound out of it.
  */
@@ -245,7 +245,7 @@ internal fun rememberListening(mic: MicInput, voice: Voice, active: Boolean, inj
     val strike by rememberUpdatedState(onStrike)
     DisposableEffect(listen) {
         if (!listen) return@DisposableEffect onDispose {}
-        mic.tap = raw
+        val removeRaw = raw?.let { r -> mic.rawFrames.add { chunk -> r(chunk, chunk.size) } }
         mic.matcher.expected = keys; mic.matcher.groups = keys.map { setOf(it) }
         val spec = inject?.takeIf { !injected.value }?.let { debugInjection(context, it) }
         when {
@@ -254,7 +254,7 @@ internal fun rememberListening(mic: MicInput, voice: Voice, active: Boolean, inj
             mic.start() -> Log.d(TAG, "playground: mic listening for ${keys.map(::noteName)}")
             else -> Log.d(TAG, "playground: mic could not start")
         }
-        onDispose { mic.tap = null; mic.stop(); mic.matcher.expected = emptySet(); mic.matcher.groups = emptyList() }
+        onDispose { removeRaw?.invoke(); mic.stop(); mic.matcher.expected = emptySet(); mic.matcher.groups = emptyList() }
     }
     LaunchedEffect(keys, listen) { if (listen) { mic.matcher.expected = keys; mic.matcher.groups = keys.map { setOf(it) } } }
     LaunchedEffect(mic) {

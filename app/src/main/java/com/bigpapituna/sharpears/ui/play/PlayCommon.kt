@@ -40,25 +40,25 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.noteName
-import com.bigpapituna.sharpears.engine.play.NoteColours
+import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.onScreen
 
 /**
  * Where a Play screen gets raw mic audio (Clap along's clap counter, the Jam's chord ear): a registration that takes
- * a sink, or null to let go. The detector team adds `MicInput.rawFrames: ((FloatArray) -> Unit)?`; until then
- * [MicInput.frameTap] bridges the existing `MicInput.tap`. The integrator passes `FrameTap { mic.rawFrames = it }`.
+ * a sink, or null to let go. Screens get it from [MicInput.frameTap].
  */
 fun interface FrameTap {
     fun register(sink: ((FloatArray) -> Unit)?)
 }
 
-/** Raw frames from the existing tuner tap (one listener at a time; the tuner is never open together with a Play screen). */
-fun MicInput.frameTap(): FrameTap = FrameTap { sink ->
-    tap = sink?.let { s -> { samples: FloatArray, count: Int -> s(if (count == samples.size) samples.copyOf() else samples.copyOf(count)) } }
+/** Raw frames from [MicInput.rawFrames]: registering a sink replaces this tap's last one, null removes it. */
+fun MicInput.frameTap(): FrameTap {
+    var remove: (() -> Unit)? = null
+    return FrameTap { sink -> remove?.invoke(); remove = sink?.let { rawFrames.add(it) } }
 }
 
-/** A key's Boomwhacker colour as a Compose colour. */
-fun noteColour(midi: Int) = Color(NoteColours.argb(midi))
+/** A key's Boomwhacker colour as a Compose colour (the skin's table; a black key is the blend of its neighbours). */
+fun noteColour(midi: Int) = Color(NoteColours.blend(midi))
 
 /** One of the pup's pose images (res/drawable-nodpi/pup_*.webp), decorative: the words beside him say what he means. */
 @Composable

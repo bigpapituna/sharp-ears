@@ -71,7 +71,10 @@ class MicInput(private val context: Context) {
         get() = prefs.getBoolean("wrongFlash", true)
         set(v) { prefs.edit().putBoolean("wrongFlash", v).apply() }
 
-    /** "Stop for this session" from the room-noise watchdog: no wrong keys painted until the app closes. Never stored. */
+    /**
+     * "Stop for this session" from the room-noise watchdog: no wrong keys painted until the app closes or someone else
+     * starts playing ([forProfile] clears it: the next player may be in a quieter room). Never stored.
+     */
     @Volatile var wrongPaintOff = false
     /** Whether a wrong key the mic hears is painted now: the setting, unless this session turned it off. */
     val paintsWrongKeys get() = wrongFlash && !wrongPaintOff
@@ -83,7 +86,8 @@ class MicInput(private val context: Context) {
      * [micOffsetDb] (Profile.micOffsetDb, +3 for kids) makes the matcher that much easier. Call it whenever the
      * profile opens or changes; the stored sensitivity setting is untouched.
      */
-    fun forProfile(kid: Boolean, micOffsetDb: Double) {
+    fun forProfile(kid: Boolean, micOffsetDb: Double, newSession: Boolean = false) {
+        if (newSession && wrongPaintOff) { wrongPaintOff = false; Log.d(TAG, "mic: wrong keys painted again (new player)") }
         profileKind = com.bigpapituna.sharpears.engine.StallWatch.profileKind(kid)
         matcher.offsetDb = micOffsetDb
         Log.d(TAG, "mic: profile $profileKind, offset $micOffsetDb dB")
@@ -119,11 +123,23 @@ class MicInput(private val context: Context) {
     @Volatile private var deafUntil = 0L
 
     /**
-     * Raw input for the clap counter (playground and play teams): called on the audio thread with each chunk as it
-     * is read (512 frames at 48 kHz, mono floats -1..1), before note matching. The array is reused for the next chunk,
-     * so copy what you keep, and return fast: the capture loop waits for you. Null (the default) costs nothing.
+     * Raw input for whoever reads the audio itself (the Playground's clap counter and pitch tracker, Clap along, the
+     * Jam's chord ear): each sink is called on the audio thread with each chunk as it is read (512 frames at 48 kHz,
+     * mono floats -1..1), before note matching. The array is reused for the next chunk, so copy what you keep, and
+     * return fast: the capture loop waits for you. No sinks (the default) costs nothing.
+     *
+     * Several can listen at once (a screen leaving and the next one arriving overlap for the length of the transition),
+     * so it is a list: [RawFrames.add] returns the call that removes that sink again.
      */
-    @Volatile var rawFrames: ((FloatArray) -> Unit)? = null
+    val rawFrames = RawFrames()
+
+    /** The sinks of [rawFrames]; safe to add and remove from any thread while the audio thread calls them. */
+    class RawFrames {
+        private val sinks = java.util.concurrent.CopyOnWriteArrayList<(FloatArray) -> Unit>()
+        fun add(sink: (FloatArray) -> Unit): () -> Unit { sinks += sink; return { sinks -= sink } }
+        val isEmpty get() = sinks.isEmpty()
+        internal fun send(chunk: FloatArray) { for (s in sinks) s(chunk) }
+    }
 
     var micAddress: String?
         get() = prefs.getString("micAddress", null)
@@ -304,7 +320,7 @@ class MicInput(private val context: Context) {
 
     private fun handle(buf: FloatArray, n: Int) {
         tap?.invoke(buf, n)
-        rawFrames?.invoke(if (n == buf.size) buf else buf.copyOf(n))
+        if (!rawFrames.isEmpty) rawFrames.send(if (n == buf.size) buf else buf.copyOf(n))
         // The writer is read inside the lock: stopRecording() nulls and closes it under the same lock, and a stale
         // reference taken outside would append to a closed file (EBADF at the end of every recording).
         synchronized(this) { writer?.append(buf, n) }

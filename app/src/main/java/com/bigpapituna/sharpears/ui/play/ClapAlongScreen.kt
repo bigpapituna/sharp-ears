@@ -51,7 +51,7 @@ import com.bigpapituna.sharpears.audio.Clicks
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.engine.play.ClapAlong
-import com.bigpapituna.sharpears.engine.play.ClapCounter
+import com.bigpapituna.sharpears.engine.playground.ClapCounter
 import com.bigpapituna.sharpears.engine.play.ClapSpeed
 import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.PupGold
@@ -133,9 +133,15 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
         val modeNow by rememberUpdatedState(mode)
         DisposableEffect(clapping && micState == MicState.LISTENING) {
             if (clapping && micState == MicState.LISTENING) {
+                // When each clap began, on the sample clock: the moment the first chunk arrived (less its own length)
+                // plus the clap's sample index. Arrival time minus a confirmation delay would wobble with the audio thread.
                 val counter = ClapCounter(MicInput.RATE)
-                // A clap is confirmed CONFIRM_MS after it starts, and the frame reached us a buffer late (about 20 ms).
-                frames.register { chunk -> repeat(counter.process(chunk)) { heard.trySend(nowMs() - ClapCounter.CONFIRM_MS - 20) } }
+                var firstMs = -1L
+                counter.listener = { clap -> heard.trySend(firstMs + clap.atSample * 1000 / counter.sampleRate) }
+                frames.register { chunk ->
+                    if (firstMs < 0) firstMs = nowMs() - chunk.size * 1000L / counter.sampleRate
+                    counter.process(chunk)
+                }
             }
             onDispose { frames.register(null) }
         }

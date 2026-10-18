@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.engine.play
 
+import com.bigpapituna.sharpears.engine.skin.NoteColours
+
 /**
  * The Jam: no goal, no score. Every note the mic hears does something, and this decides what: its colour bursts
  * from the key, the pup bounces higher the higher the note, three or more notes within [CHORD_MS] (a chord) throw
@@ -49,7 +51,7 @@ class Jam(val low: Int = LOW, val high: Int = HIGH) {
     fun strike(midi: Int, atMs: Long): List<Effect> {
         notes++
         val out = ArrayList<Effect>(4)
-        out += Effect.Burst(midi, NoteColours.argb(midi))
+        out += Effect.Burst(midi, NoteColours.blend(midi).toInt())
         out += Effect.Bounce(bounceHeight(midi))
 
         // A chord: notes whose strikes all fall within CHORD_MS of the first one. Confetti once per chord.

@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.engine.play
 import com.bigpapituna.sharpears.engine.PianoSynth
 import com.bigpapituna.sharpears.engine.SynthNote
 import com.bigpapituna.sharpears.engine.play.ClapAlong.Verdict
+import com.bigpapituna.sharpears.engine.playground.ClapCounter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -13,6 +14,7 @@ import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
 
+/** Clap along's judging, and the one clap counter (engine/playground, lesson 7's) against the Play team's synthetic claps. */
 class ClapTest {
     private val rate = 48_000
 

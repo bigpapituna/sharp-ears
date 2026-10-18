@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.engine.play
 
 import com.bigpapituna.sharpears.engine.PianoSynth
 import com.bigpapituna.sharpears.engine.SynthNote
+import com.bigpapituna.sharpears.engine.skin.NoteColours
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -12,21 +13,19 @@ import org.junit.Test
 class JamTest {
     private fun Jam.play(vararg notes: Pair<Int, Long>) = notes.flatMap { (m, t) -> strike(m, t) }
 
-    @Test fun boomwhackerColoursForTheWhiteKeysAndHalfwayForTheBlack() {
-        val names = listOf(60, 62, 64, 65, 67, 69, 71).map { NoteColours.name(it) }
-        assertEquals(listOf("red", "orange", "yellow", "green", "teal", "blue", "purple"), names)
-        assertEquals(7, NoteColours.WHITE.toSet().size)
-        assertEquals(NoteColours.argb(60), NoteColours.argb(72))                 // every C is red, in any octave
-        assertEquals(NoteColours.argb(36), NoteColours.argb(84))
-        assertEquals(NoteColours.mix(NoteColours.argb(60), NoteColours.argb(62)), NoteColours.argb(61))
-        assertEquals("red orange", NoteColours.name(61))
-        assertEquals(0xFF, NoteColours.argb(66) ushr 24)                         // opaque
+    /** One colour table for the app (engine/skin/NoteColours): the Jam's bursts are the lane's and the keys' colours. */
+    @Test fun burstsUseTheSkinColours() {
+        val jam = Jam()
+        assertEquals(NoteColours.colour(60).toInt(), (jam.strike(60, 0)[0] as Jam.Effect.Burst).argb)
+        assertEquals((jam.strike(72, 5_000)[0] as Jam.Effect.Burst).argb, (jam.strike(84, 10_000)[0] as Jam.Effect.Burst).argb)   // every C is red
+        assertEquals(NoteColours.blend(61).toInt(), (jam.strike(61, 15_000)[0] as Jam.Effect.Burst).argb)       // black: the blend
+        assertEquals(0xFF, (jam.strike(66, 20_000)[0] as Jam.Effect.Burst).argb ushr 24)                       // opaque
     }
 
     @Test fun everyNoteBurstsInItsColourAndBouncesThePupByPitch() {
         val jam = Jam()
         val fx = jam.strike(64, 0)
-        assertEquals(Jam.Effect.Burst(64, NoteColours.argb(64)), fx[0])
+        assertEquals(Jam.Effect.Burst(64, NoteColours.colour(64).toInt()), fx[0])
         val heights = (60..72).map { jam.bounceHeight(it) }
         assertTrue(heights.zipWithNext().all { (a, b) -> b > a })
         assertEquals(Jam.MIN_BOUNCE, heights.first(), 1e-6f)
