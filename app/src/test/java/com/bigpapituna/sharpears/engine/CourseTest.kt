@@ -19,10 +19,13 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(70, ids.size)
-        assertEquals(listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"), COURSE.map { it.id })
+        assertEquals(82, ids.size)
+        assertEquals(listOf("playground", "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
+            COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
-            assertTrue("${lesson.id} has 3 to 6 steps", lesson.steps.size in 3..6)
+            // Playground lessons are games for small children: as short as a read and one game.
+            val steps = if (lesson.id.startsWith("playground-")) 2..7 else 3..6
+            assertTrue("${lesson.id} has $steps steps", lesson.steps.size in steps)
             assertEquals("${lesson.id} starts by reading", StepKind.READ, lesson.steps.first().kind)
             assertTrue("${lesson.id} has something to play", lesson.steps.any { it.exercise != null })
             if (lesson.songId != null) assertEquals("${lesson.id} ends by opening its song", StepKind.READ, lesson.steps.last().kind)
@@ -38,8 +41,10 @@ class CourseTest {
                     Practice.RIGHT -> assertTrue(lesson.id, song.notes.any { it.hand == Hand.RIGHT })
                     Practice.BOTH -> {}
                 }
+                // Alternatives ("any key above middle C") are not fingered: any finger will do.
                 val f = Fingering.of(song)
-                assertTrue("${lesson.id} fingering", song.notes.all { f[it] in 1..5 })
+                val choices = song.groups.filter { it.anyOf }.flatMap { it.notes }.toSet()
+                assertTrue("${lesson.id} fingering", song.notes.filter { it !in choices }.all { f[it] in 1..5 })
             }
         }
     }

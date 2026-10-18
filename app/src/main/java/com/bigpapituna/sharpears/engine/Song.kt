@@ -4,8 +4,13 @@ enum class Hand { LEFT, RIGHT }
 
 data class Note(val midi: Int, val startMs: Long, val durationMs: Long, val hand: Hand, val velocity: Int)
 
-/** Notes struck together (a chord or a two-hand strike). Wait mode advances one group at a time. */
-data class OnsetGroup(val startMs: Long, val notes: List<Note>)
+/**
+ * Notes struck together (a chord or a two-hand strike). Wait mode advances one group at a time.
+ * [anyOf] (2.1, the Playground's range exercises): the notes are alternatives, not a chord. Any one of them completes
+ * the group ("any key above middle C", "either key of the two-black group"); the first note is the one the app plays
+ * when it demonstrates. Plain groups (every library song and lesson) keep needing all their notes.
+ */
+data class OnsetGroup(val startMs: Long, val notes: List<Note>, val anyOf: Boolean = false)
 
 data class Section(val name: String, val startMs: Long, val endMs: Long)
 
@@ -30,8 +35,11 @@ data class Song(
  */
 fun Song.transposed(semitones: Int): Song {
     if (semitones == 0) return this
-    val moved = notes.map { it.copy(midi = (it.midi + semitones).coerceIn(21, 108)) }
-    return copy(notes = moved, groups = groupOnsets(moved), preferFlats = flatKey(moved))
+    fun move(n: Note) = n.copy(midi = (n.midi + semitones).coerceIn(21, 108))
+    val moved = notes.map(::move)
+    // Any-of groups are not chords, so they keep their own grouping (regrouping would make every alternative required).
+    val groups = if (groups.none { it.anyOf }) groupOnsets(moved) else groups.map { g -> g.copy(notes = g.notes.map(::move)) }
+    return copy(notes = moved, groups = groups, preferFlats = flatKey(moved))
 }
 
 /**
