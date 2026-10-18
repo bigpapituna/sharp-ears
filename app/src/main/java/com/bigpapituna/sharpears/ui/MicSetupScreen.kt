@@ -159,15 +159,15 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         })
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Show wrong notes heard by the mic", style = MaterialTheme.typography.titleMedium)
-                Text("Experimental. Talking or TV in the room can set it off.", style = MaterialTheme.typography.bodySmall)
+                Text("Show wrong keys heard by the mic", style = MaterialTheme.typography.titleMedium)
+                Text("A key you hit lights yellow next to the right one and red further away. Only clear piano strikes count, so talking should not set it off.", style = MaterialTheme.typography.bodySmall)
             }
             Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; Log.d(TAG, "mic wrongFlash=$it") },
-                modifier = Modifier.semantics { contentDescription = "Show wrong notes heard by the mic" })
+                modifier = Modifier.semantics { contentDescription = "Show wrong keys heard by the mic" })
         }
         if (wrongFlash) {
-            Text("Wrong-note trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
-            Text("Raise it if correct notes flash red.", style = MaterialTheme.typography.bodySmall)
+            Text("Wrong-key trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
+            Text("Raise it if right notes light up as wrong.", style = MaterialTheme.typography.bodySmall)
             Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
                 mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
             })

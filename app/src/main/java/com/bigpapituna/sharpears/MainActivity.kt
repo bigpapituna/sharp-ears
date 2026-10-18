@@ -799,7 +799,7 @@ class MainActivity : ComponentActivity() {
                                         kid = current.isKid,
                                         // The pup's world in one card: the garden, and a way into the album, dress-up and the records.
                                         world = { com.bigpapituna.sharpears.ui.world.WorldCard(world, onOpen = { tab -> screen = Screen.World(s, tab) }) },
-                                        paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = true) })
+                                        paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = current.isKid) })
                                 }
                             }
                         }
