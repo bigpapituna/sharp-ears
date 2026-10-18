@@ -184,6 +184,16 @@ class PlaygroundTest {
         assertTrue("$secs", secs.values.all { it in 100..250 })
     }
 
+    /** The kid bite cut the "whole song" steps back to their first phrase; they play whole now. */
+    @Test fun theWholeSongStepsPlayWhole() {
+        for ((n, title) in listOf(5 to "Hot Cross Buns", 8 to "Mary Had a Little Lamb")) {
+            val last = lessons[n - 1].steps.last()
+            assertEquals(title, lessons[n - 1].title)
+            assertNull("$title: no phrase end, so a kid plays it all", last.exercise!!.phraseEnd)
+            assertEquals(last, com.bigpapituna.sharpears.engine.skin.Bites.kidStep(last))
+        }
+    }
+
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     /**

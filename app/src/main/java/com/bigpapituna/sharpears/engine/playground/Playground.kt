@@ -186,7 +186,7 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
         listen("Listen to the start of the song. The band plays along.", BUNS_X.copy(practice = Practice.RIGHT).bite()),
         play("Your turn: hot cross buns, hot cross buns.", BUNS_X.copy(practice = Practice.RIGHT).bite()),
         memory("Once more, all by yourself. The names are hidden now.", BUNS_X.copy(practice = Practice.RIGHT).bite()),
-        play("Now the whole song. In the middle the notes go quick: one a penny, two a penny.", BUNS_X.copy(practice = Practice.RIGHT))),
+        play("Now the whole song. In the middle the notes go quick: one a penny, two a penny.", BUNS_X.copy(practice = Practice.RIGHT, phraseEnd = null))),
 
     lesson(6, "Copy the pup", "The pup plays a little tune. Play it back by ear.",
         read(
@@ -220,7 +220,7 @@ val PLAYGROUND: CourseLevel = CourseLevel(PLAYGROUND_ID, "Pup's Playground", "Tw
         listen("Listen to the start of the song.", MARY_X.copy(practice = Practice.RIGHT).bite()),
         play("Your turn: Mary had a little lamb.", MARY_X.copy(practice = Practice.RIGHT).bite()),
         memory("Once more, all by yourself. The names are hidden now.", MARY_X.copy(practice = Practice.RIGHT).bite()),
-        play("Now the whole line: little lamb, little lamb.", MARY_X.copy(practice = Practice.RIGHT))),
+        play("Now the whole line: little lamb, little lamb.", MARY_X.copy(practice = Practice.RIGHT, phraseEnd = null))),
 
     lesson(9, "Left paw", "Your left hand joins in on a low C.",
         read(
