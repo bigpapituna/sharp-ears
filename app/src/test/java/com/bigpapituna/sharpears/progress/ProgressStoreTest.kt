@@ -59,7 +59,7 @@ private class FakeContext : ContextWrapper(null) {
 
 class ProgressStoreTest {
     private val context: Context = FakeContext()
-    private val prefs = Prefs(context)
+    private val prefs = Prefs(context, "owner")
     private val store = ProgressStore(context, prefs)
 
     private fun at(day: LocalDate, hour: Int = 12) = LocalDateTime.of(day, LocalTime.of(hour, 0))

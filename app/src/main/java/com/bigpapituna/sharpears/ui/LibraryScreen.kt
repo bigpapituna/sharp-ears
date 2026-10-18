@@ -79,7 +79,9 @@ private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "H
  */
 @Composable
 fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
-                  today: TodayPanel? = null, goal: GoalState? = null) {
+                  today: TodayPanel? = null, goal: GoalState? = null,
+                  /** The family wall (ui/family/FamilyWall.kt) under the pup; null on a phone with one profile. */
+                  family: (@Composable () -> Unit)? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     val pose = when {
         today?.summary != null -> Pose.RESTING
@@ -105,6 +107,7 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
                     onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000)
             }
         }
+        family?.let { wall -> item(key = "family") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp)) { wall() } } }
         // "Practice today" is the one raised panel; Continue sits under it as a plain row.
         if (today != null) {
             item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }

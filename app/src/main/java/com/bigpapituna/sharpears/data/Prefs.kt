@@ -14,10 +14,11 @@ enum class KeyLabels { OFF, C_ONLY, ALL }
 
 /**
  * Progress and settings in one SharedPreferences file (PLAN 5.9). Keys are per song id; no migrations in v1.
- * [version] bumps on every write so screens that read progress recompose.
+ * [version] bumps on every write so screens that read progress recompose. One file per profile since 2.1
+ * ("progress" for the owner, "progress.<id>" for everyone else, see [ProgressFiles.fileFor]).
  */
-class Prefs(context: Context) {
-    private val p = context.getSharedPreferences("progress", Context.MODE_PRIVATE)
+class Prefs(context: Context, val profileId: String) {
+    private val p = context.getSharedPreferences(ProgressFiles.fileFor("progress", profileId), Context.MODE_PRIVATE)
     val version = mutableIntStateOf(0)
 
     fun progress(id: String) = SongProgress(p.getLong("pos:$id", 0), p.getBoolean("done:$id", false), p.getInt("best:$id", -1),

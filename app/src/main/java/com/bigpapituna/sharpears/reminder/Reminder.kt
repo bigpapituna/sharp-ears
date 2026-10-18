@@ -19,13 +19,15 @@ import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.SongRepository
 import com.bigpapituna.sharpears.engine.LessonItem
 import com.bigpapituna.sharpears.engine.ReminderPlan
+import com.bigpapituna.sharpears.engine.family.Profile
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
  * The daily practice reminder. One inexact alarm (setAndAllowWhileIdle, so no exact-alarm permission) for the
  * next time; when it goes off the receiver posts the notification and sets tomorrow's. Boot and app start set it
- * again, since alarms do not survive a restart.
+ * again, since alarms do not survive a restart. Since 2.1 the reminder is the phone owner's: one alarm per phone, set
+ * from the owner's Settings and read from the owner's files (other profiles do not see it).
  */
 object Reminder {
     private const val CHANNEL = "practice"
@@ -34,8 +36,11 @@ object Reminder {
     private fun pending(context: Context) = PendingIntent.getBroadcast(context, 0,
         Intent(context, ReminderReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-    /** Sets the next alarm when the reminder is on, cancels it when off. */
-    fun schedule(context: Context, prefs: Prefs = Prefs(context)) {
+    private fun ownerPrefs(context: Context) = Prefs(context, Profile.OWNER_ID)
+
+    /** Sets the next alarm when the owner's reminder is on, cancels it when off. */
+    fun schedule(context: Context) {
+        val prefs = ownerPrefs(context)
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         if (!prefs.reminderOn) { alarms.cancel(pending(context)); Log.d(TAG, "reminder: off"); return }
         val at = ReminderPlan.next(LocalDateTime.now(), prefs.reminderMinutes)
@@ -53,8 +58,8 @@ object Reminder {
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Practice reminder", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "A daily nudge to practise, at the time set in Settings."
         })
-        val prefs = Prefs(context)
-        val lessons = LessonStore(context)
+        val prefs = ownerPrefs(context)
+        val lessons = LessonStore(context, Profile.OWNER_ID)
         val due = runCatching {
             lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).count { it is LessonItem.ChordItem }
         }.getOrDefault(0)

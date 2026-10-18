@@ -36,7 +36,8 @@ data class RecordResult(val xpGained: Int, val levelUp: LevelUp?, val unlocked: 
  * [songIds] says which library songs exist (set it when the library is loaded).
  */
 class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () -> List<String> = { emptyList() }) {
-    private val p = context.getSharedPreferences("profile", Context.MODE_PRIVATE)
+    /** The same profile as [prefs]: "profile" for the owner, "profile.<id>" for everyone else. */
+    private val p = context.getSharedPreferences(ProgressFiles.fileFor("profile", prefs.profileId), Context.MODE_PRIVATE)
 
     /** Bumps on every write, so screens that read the store recompose. */
     val version = mutableIntStateOf(0)

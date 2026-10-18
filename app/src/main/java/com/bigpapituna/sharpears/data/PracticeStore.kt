@@ -10,10 +10,10 @@ data class PracticeStat(val times: Int, val bestBpm: Int)
 /**
  * The Practice tab's own preferences (SharedPreferences file "practice"): the settings each tool was last used
  * with, and what has been practised. Stat ids: "scale:<TYPE>:<root>" and "arp:<TYPE>:<root>" (root 0 = C, per key
- * and type, hands and octaves pooled) and "warmup:<id>".
+ * and type, hands and octaves pooled) and "warmup:<id>". Per profile ("practice.<id>", [ProgressFiles.fileFor]).
  */
-class PracticeStore(context: Context) {
-    private val prefs = context.getSharedPreferences("practice", Context.MODE_PRIVATE)
+class PracticeStore(context: Context, profileId: String) {
+    private val prefs = context.getSharedPreferences(ProgressFiles.fileFor("practice", profileId), Context.MODE_PRIVATE)
 
     /** Bumped whenever a stat changes, so screens that read stats recompose. */
     val version = mutableIntStateOf(0)
