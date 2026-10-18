@@ -188,7 +188,7 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
 @Composable
 private fun Pad(label: String, color: Color, onTap: () -> Unit) {
     Box(Modifier.size(width = 120.dp, height = 56.dp).background(color.copy(alpha = 0.85f), RoundedCornerShape(28.dp))
-        .clickable(MutableInteractionSource(), indication = null, role = Role.Button, onClick = onTap), contentAlignment = Alignment.Center) {
+        .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onTap), contentAlignment = Alignment.Center) {
         Text(label, color = Color(0xFF1E1A17), fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
     }
 }

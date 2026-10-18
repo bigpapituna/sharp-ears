@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -177,7 +176,7 @@ fun TreatJarPanel(world: WorldStore, modifier: Modifier = Modifier) {
     Column(modifier.widthIn(max = 560.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SpeechBubble(if (pouring > 0 || pup.poseFor(Pose.WEAR_BASE) == Pose.TREAT) "Crunch! Thank you." else jarLine(state.jar, kid, state.treats),
             style = MaterialTheme.typography.titleMedium)
-        BoxWithConstraints(Modifier.fillMaxWidth().height(214.dp)) {
+        Box(Modifier.fillMaxWidth().height(214.dp)) {
             val jarW = 130.dp
             val jarH = 165.dp
             val pupSize = 170.dp

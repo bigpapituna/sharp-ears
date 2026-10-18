@@ -221,7 +221,7 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
             } else {
                 // The pad: a tap is a clap, for a phone without its microphone or a child who likes tapping.
                 Box(Modifier.size(84.dp).background(Accent.copy(alpha = if (phase == ClapPhase.PLAYING || phase == ClapPhase.COUNT_IN) 0.9f else 0.35f), CircleShape)
-                    .clickable(MutableInteractionSource(), indication = null, role = Role.Button) { clap(System.nanoTime(), heardIt = false) }
+                    .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button) { clap(System.nanoTime(), heardIt = false) }
                     .semantics { contentDescription = if (listening) "Clap here, or clap your hands" else "Tap to clap" },
                     contentAlignment = Alignment.Center) {
                     Canvas(Modifier.size(44.dp)) { hands(Ink) }
