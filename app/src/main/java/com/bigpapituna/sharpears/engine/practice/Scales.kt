@@ -153,9 +153,10 @@ class Scale(val root: Int, val type: ScaleType, val octaves: Int = 1) {
         fun line(hand: Hand) = noteLine(if (upAndDown) upAndDown(hand) else ascending(hand), beatsPerNote, flats)
         val right = if (practice != Practice.LEFT) line(Hand.RIGHT) else ""
         val left = if (practice != Practice.RIGHT) line(Hand.LEFT) else ""
-        val fingers = if (practice == Practice.LEFT) "" else
-            (if (upAndDown) fingeringUpAndDown(Hand.RIGHT) else fingering(Hand.RIGHT)).joinToString(" ")
-        return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats, fingers = fingers)
+        // Both hands carry the fingers the Practice tab shows, so the player's notes, ghost hand and hints say the same.
+        fun fingers(hand: Hand) = (if (upAndDown) fingeringUpAndDown(hand) else fingering(hand)).joinToString(" ")
+        return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats,
+            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT))
     }
 
     fun title(practice: Practice) = "$name, ${handWords(practice)}, ${octaveWords(octaves)}"
@@ -259,9 +260,10 @@ class Arpeggio(val root: Int, val type: ArpeggioType, val octaves: Int = 1) {
         fun line(hand: Hand) = noteLine(if (upAndDown) upAndDown(hand) else ascending(hand), beatsPerNote, flats)
         val right = if (practice != Practice.LEFT) line(Hand.RIGHT) else ""
         val left = if (practice != Practice.RIGHT) line(Hand.LEFT) else ""
-        val fingers = if (practice == Practice.LEFT) "" else
-            (if (upAndDown) fingeringUpAndDown(Hand.RIGHT) else fingering(Hand.RIGHT)).joinToString(" ")
-        return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats, fingers = fingers)
+        // Both hands carry the fingers the Practice tab shows, so the player's notes, ghost hand and hints say the same.
+        fun fingers(hand: Hand) = (if (upAndDown) fingeringUpAndDown(hand) else fingering(hand)).joinToString(" ")
+        return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats,
+            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT))
     }
 
     fun title(practice: Practice) = "$name, ${handWords(practice)}, ${octaveWords(octaves)}"

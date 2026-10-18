@@ -1,5 +1,13 @@
 package com.bigpapituna.sharpears.engine
 
+import com.bigpapituna.sharpears.engine.practice.Arpeggio
+import com.bigpapituna.sharpears.engine.practice.ArpeggioType
+import com.bigpapituna.sharpears.engine.practice.CONTRARY_ROOTS
+import com.bigpapituna.sharpears.engine.practice.Scale
+import com.bigpapituna.sharpears.engine.practice.ScaleType
+import com.bigpapituna.sharpears.engine.practice.contraryScale
+import com.bigpapituna.sharpears.engine.practice.repeatedNotes
+import com.bigpapituna.sharpears.engine.practice.trill
 import com.bigpapituna.sharpears.engine.practice.warmupCatalog
 import com.bigpapituna.sharpears.engine.skin.Bites
 import com.bigpapituna.sharpears.engine.theory.FingerNumbersVisual
@@ -113,6 +121,45 @@ class FingersAgreeTest {
             val song = ex.toSong("t", "t")
             if (ex.fingers.isNotBlank()) assertEquals("$id right", song.notes.count { it.hand == Hand.RIGHT }, ex.fingers.split(" ").count { it.isNotBlank() })
             if (ex.leftFingers.isNotBlank()) assertEquals("$id left", song.notes.count { it.hand == Hand.LEFT }, ex.leftFingers.split(" ").count { it.isNotBlank() })
+        }
+    }
+
+    @Test fun thePracticeTabsFingersAreThePlayersFingers() {
+        for (oct in 1..2) for (root in 0..11) {
+            for (type in ScaleType.entries) {
+                val s = Scale(root, type, oct)
+                for (practice in Practice.entries) for (hand in Hand.entries) {
+                    if ((practice == Practice.RIGHT && hand == Hand.LEFT) || (practice == Practice.LEFT && hand == Hand.RIGHT)) continue
+                    assertEquals("${s.name} x$oct $practice $hand", s.fingeringUpAndDown(hand), lane(s.toExercise(practice, 70.0), hand).map { it.second })
+                }
+            }
+            for (type in ArpeggioType.entries) {
+                val a = Arpeggio(root, type, oct)
+                for (hand in Hand.entries) {
+                    val practice = if (hand == Hand.RIGHT) Practice.RIGHT else Practice.LEFT
+                    assertEquals("${a.name} x$oct $hand", a.fingeringUpAndDown(hand), lane(a.toExercise(practice, 70.0), hand).map { it.second })
+                }
+            }
+        }
+    }
+
+    @Test fun warmUpsPlayTheFingersTheyName() {
+        for (root in 0..11) {
+            // "Trill with fingers a and b": both hands trill exactly those two fingers.
+            for (a in 1..4) {
+                val t = trill(root, a, a + 1)
+                for (hand in Hand.entries) assertEquals("${t.id} $hand", setOf(a, a + 1), lane(t.exercise, hand).map { it.second }.toSet())
+            }
+            // "Play each key four times with the same finger."
+            val r = repeatedNotes(root)
+            for (hand in Hand.entries) lane(r.exercise, hand).chunked(4).forEach { four -> assertEquals("${r.id} $hand", 1, four.map { it.second }.toSet().size) }
+            // "The same finger plays in both hands."
+            if (root in CONTRARY_ROOTS) contraryScale(root).exercise.let { assertEquals("contrary $root", lane(it, Hand.RIGHT).map { n -> n.second }, lane(it, Hand.LEFT).map { n -> n.second }) }
+            // Five keys under five fingers, the hands in parallel: the left hand's little finger on the bottom key, its thumb on the top.
+            for (w in warmupCatalog(root).filter { it.id.startsWith("five-finger") || it.id.startsWith("hanon") }) {
+                val right = lane(w.exercise, Hand.RIGHT).map { it.second!! }
+                assertEquals(w.id, right.map { 6 - it }, lane(w.exercise, Hand.LEFT).map { it.second })
+            }
         }
     }
 }

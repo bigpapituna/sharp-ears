@@ -59,8 +59,16 @@ fun fiveFinger(root: Int, minor: Boolean = false): Warmup {
     return Warmup("five-finger-$root-${if (minor) "min" else "maj"}", "Five-finger pattern in $name",
         "Rest one finger on each of five neighbouring keys and walk up and back down. Keep the hand still and the fingers curved.",
         1, 50, 100,
-        Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 70.0, flats = flats, fingers = "1 2 3 4 5 4 3 2 1"))
+        Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 70.0, flats = flats, fingers = "1 2 3 4 5 4 3 2 1",
+            leftFingers = mirrored("1 2 3 4 5 4 3 2 1")))
 }
+
+/**
+ * The left hand's fingers for a pattern the hands play in parallel over the same five keys: the thumb and little finger
+ * trade places (the left hand's little finger sits on the bottom key). Without them the player worked the left hand's
+ * fingers out alone, and repeated notes in B flat changed finger halfway through a key.
+ */
+internal fun mirrored(fingers: String) = fingers.split(" ").filter { it.isNotBlank() }.joinToString(" ") { "${6 - it.toInt()}" }
 
 // ---------------------------------------------------------------------------------------------------------
 // Hanon-style runs
@@ -105,7 +113,7 @@ fun hanon(pattern: HanonPattern, root: Int = 0): Warmup {
         p.map { ranks.size - ranks.indexOf(it) }.repeatTimes(down.size) + 1).joinToString(" ")
     return Warmup("hanon-${pattern.number}-$root", "${pattern.title} in ${keyName(root)}", pattern.about, pattern.level,
         40, if (pattern.level == 2) 80 else 92,
-        Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers))
+        Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers, leftFingers = mirrored(fingers)))
 }
 
 private fun List<Int>.repeatTimes(n: Int): List<Int> = (0 until n).flatMap { this }
@@ -113,22 +121,26 @@ private fun List<Int>.repeatTimes(n: Int): List<Int> = (0 until n).flatMap { thi
 // ---------------------------------------------------------------------------------------------------------
 // Contrary motion
 
-/** Keys where both hands can start on the same note and share the textbook fingering. */
-val CONTRARY_ROOTS = listOf(0, 7, 2, 9, 4, 5)
+/**
+ * Keys where both hands can start on the same note and share the textbook fingering. Not F: its right hand crosses after
+ * B flat (1 2 3 4), its left hand coming down after D (1 2 3), so "the same finger plays in both hands" was not true.
+ */
+val CONTRARY_ROOTS = listOf(0, 7, 2, 9, 4)
 
 /** Both hands leave the tonic together, the right going up and the left down an octave, then come back. */
 fun contraryScale(root: Int): Warmup {
-    require(root in CONTRARY_ROOTS) { "contrary motion with the same fingering: C, G, D, A, E, F" }
+    require(root in CONTRARY_ROOTS) { "contrary motion with the same fingering: C, G, D, A, E" }
     val start = handRoot(root, Hand.RIGHT)
     val upSteps = MAJOR_STEPS.map { start + it } + (start + 12)
     val downSteps = listOf(start) + (6 downTo 0).map { start - 12 + MAJOR_STEPS[it] }
     val flats = root in FLAT_KEYS
     fun line(out: List<Int>) = tokens(out + out.reversed().drop(1), 1.0, flats, 2.0)
     val table = scaleTable(root, false, Hand.RIGHT)
+    val fingers = (table + table.reversed().drop(1)).joinToString(" ")
     return Warmup("contrary-$root", "Contrary motion scale in ${keyName(root)}",
         "Both hands start together on the tonic and move apart, the right up and the left down, then meet again. The same finger plays in both hands.",
         2, 50, 100,
-        Exercise(right = line(upSteps), left = line(downSteps), bpm = 70.0, flats = flats, fingers = (table + table.reversed().drop(1)).joinToString(" ")))
+        Exercise(right = line(upSteps), left = line(downSteps), bpm = 70.0, flats = flats, fingers = fingers, leftFingers = fingers))
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -168,24 +180,27 @@ fun repeatedNotes(root: Int): Warmup {
     val fingers = (listOf(1, 2, 3, 4, 5, 4, 3, 2, 1)).flatMap { f -> List(4) { f } }.joinToString(" ")
     return Warmup("repeated-$root", "Repeated notes in ${keyName(root)}",
         "Play each key four times with the same finger before moving to the next. Let the finger bounce back from the key instead of pressing down.",
-        1, 50, 90, Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers))
+        1, 50, 90, Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers, leftFingers = mirrored(fingers)))
 }
 
-/** A trill between finger [a] and finger [b] (1..5, neighbours) of the five-finger position. */
+/**
+ * A trill between finger [a] and finger [b] (1..5, neighbours) of the five-finger position, in both hands: the left
+ * hand's little finger sits on the bottom key, so its fingers [a] and [b] are the keys the right hand's [6 - a] and
+ * [6 - b] play (before, the left hand trilled the right hand's keys, which are other fingers in the left hand).
+ */
 fun trill(root: Int, a: Int, b: Int): Warmup {
     require(b == a + 1 && a in 1..4) { "trills between neighbouring fingers" }
     val offsets = listOf(0, 2, 4, 5, 7)
     val flats = root in FLAT_KEYS
     fun line(hand: Hand): String {
-        val lo = handRoot(root, hand) + offsets[a - 1]
-        val hi = handRoot(root, hand) + offsets[b - 1]
-        val notes = (0 until 8).flatMap { listOf(lo, hi) } + lo
+        fun key(finger: Int) = handRoot(root, hand) + offsets[(if (hand == Hand.RIGHT) finger else 6 - finger) - 1]
+        val notes = (0 until 8).flatMap { listOf(key(a), key(b)) } + key(a)
         return notes.mapIndexed { i, m -> "${noteName(m, flats)}:${if (i == notes.lastIndex) "2" else "0.25"}" }.joinToString(" ")
     }
     val fingers = ((0 until 8).flatMap { listOf(a, b) } + a).joinToString(" ")
     return Warmup("trill-$a$b-$root", "Trill with fingers $a and $b in ${keyName(root)}",
         "Rock between two neighbouring fingers as evenly as you can. Start slowly and keep the wrist loose.",
-        if (a <= 2) 2 else 3, 50, 100, Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers))
+        if (a <= 2) 2 else 3, 50, 100, Exercise(right = line(Hand.RIGHT), left = line(Hand.LEFT), bpm = 60.0, flats = flats, fingers = fingers, leftFingers = fingers))
 }
 
 /** The major scale, one octave up and down, hands together an octave apart: a gentle way to finish the finger work. */
