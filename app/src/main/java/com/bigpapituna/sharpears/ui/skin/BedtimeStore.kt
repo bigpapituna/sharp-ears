@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.data.ProgressFiles
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import java.time.LocalDate
@@ -27,7 +28,7 @@ class BedtimeStore(context: Context, profileId: String) {
     /** Grown-up mode was offered once Beginner was done (2.1, integrator): either answer puts the card away. */
     var grownUpOffered: Boolean
         get() = p.getBoolean("grownUpOffered", false)
-        set(v) = p.edit().putBoolean("grownUpOffered", v).apply()
+        set(v) = p.edit { putBoolean("grownUpOffered", v) }
 
     private fun day(key: String): LocalDate? = p.getLong(key, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }?.let(LocalDate::ofEpochDay)
     private fun put(key: String, v: LocalDate?) = p.edit().apply { if (v == null) remove(key) else putLong(key, v.toEpochDay()) }.apply()
