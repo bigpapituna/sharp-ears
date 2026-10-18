@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.engine
 
+import com.bigpapituna.sharpears.engine.hints.WrongKeys
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.log10
@@ -62,7 +63,35 @@ data class MatcherConfig(
     /** Notes below this fundamental are analysed at 12 kHz (170 ms windows), up to [band2BelowHz] at 24 kHz (85 ms). */
     val band4BelowHz: Double = 500.0,
     val band2BelowHz: Double = 1000.0,
-)
+    /**
+     * Look for the key behind each unexplained strike (MicEvent.Wrong names it; without one found it is noise). Off,
+     * nothing is ever called a wrong key: for screens that only listen for right notes, it saves the search.
+     */
+    val nameWrongKeys: Boolean = true,
+) {
+    /**
+     * This config made [db] easier to trigger (a kid's lighter touch, Profile.micOffsetDb): the floor a strike must
+     * rise past ([sensitivityDb]) and its margin over the room's background ([roomMarginDb]) both drop by [db]. The
+     * relative checks (fresh partials, neighbours, octaves, sharp peaks) stay as they are. The room margin never
+     * drops below [MIN_ROOM_MARGIN_DB]: Roy's false greens sat up to 7 dB over the room.
+     */
+    fun easierBy(db: Double): MatcherConfig = if (db == 0.0) this else
+        copy(sensitivityDb = sensitivityDb - db, roomMarginDb = (roomMarginDb - db).coerceAtLeast(minOf(roomMarginDb, MIN_ROOM_MARGIN_DB)))
+
+    companion object {
+        const val MIN_ROOM_MARGIN_DB = 7.5
+    }
+}
+
+/**
+ * When a wrong-key candidate is judged, in hops (10.7 ms) after the broadband jump, per analysis band (decimation
+ * factor): twice each, so its "now" window is mostly the new sound (21 and 43 ms for high notes, 43 and 85 ms for
+ * the middle, 85 and 139 ms for the bass).
+ */
+internal val WRONG_LOOKS = mapOf(1 to (2 to 4), 2 to (4 to 8), 4 to (8 to 13))
+
+/** How many keys per band and look are judged in full after the quick look at their lowest partials. */
+internal const val WRONG_FULL_LOOKS = 3
 
 sealed interface MicEvent {
     /** Sample index (since the matcher started) where the event was decided. */
@@ -73,8 +102,32 @@ sealed interface MicEvent {
         /** Credited because its octave below, in the same chord, was heard (see [NoteMatcher]). */
         val inferredFrom: Int? = null,
     ) : MicEvent
-    data class Wrong(override val sample: Long) : MicEvent
+    /**
+     * A confident strike of a key nobody asked for: a broadband attack that no expected note explains, in which one
+     * note within an octave of the expected ones passed every check a right note must pass (fresh partials, several
+     * of them, a sharp piano peak, clear of the room, no lower note under it). Talking, singing, TV and knocks find no
+     * such note and go to [NoteMatcher.noise] instead. [midi] was played; [nearest] is the expected note closest to it,
+     * [distance] semitones away (always 1..12). [slip]: a neighbour (within [WrongKeys.SLIP]), drawn yellow, not red.
+     */
+    data class Wrong(
+        override val sample: Long, val midi: Int, val nearest: Int, val distance: Int, val riseDb: Double,
+    ) : MicEvent {
+        val slip: Boolean get() = WrongKeys.isSlip(distance)
+    }
 }
+
+/** Why the matcher turned an expected note down (see [NoteMatcher.candidates]). */
+enum class Reject {
+    NOT_FRESH, ONE_PARTIAL, SMALL_JUMP, SEMITONE, SPILL,
+    /** A lower note's partials rose under it: mostly the octave below ([LOWER_OCTAVE]) or a twelfth below. */
+    LOWER_NOTE, LOWER_OCTAVE,
+    /** Its odd partials stayed quiet: only its octave above's partials rose ("higher octave?"). */
+    HIGHER_OCTAVE,
+    NOT_SHARP, TOO_FAINT,
+}
+
+/** An expected note that rose above the sensitivity floor at [sample] but was turned down for [reason]. */
+data class Candidate(val midi: Int, val sample: Long, val riseDb: Double, val reason: Reject)
 
 /**
  * Hears whether the *expected* notes were just struck, from a mono audio stream. It does not transcribe:
@@ -104,6 +157,22 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     @Volatile var groups: List<Set<Int>> = emptyList()
     /** Debug: explains rejected candidates that were loud enough. Called on the audio thread. */
     @Volatile var trace: ((String) -> Unit)? = null
+    /**
+     * Every expected note turned down although it rose above the sensitivity floor, with the reason as a value (the
+     * octave hint listens for [Reject.HIGHER_OCTAVE] and [Reject.LOWER_OCTAVE]). Called on the audio thread, several
+     * times a hop while something sounds; keep it cheap. Null costs nothing.
+     */
+    @Volatile var candidates: ((Candidate) -> Unit)? = null
+    /**
+     * A loudness jump no expected note explains and no piano note was found in (talking, TV, a knock, a cough), at
+     * this sample. The room-noise watchdog counts them. Called on the audio thread, about 150 ms after the jump.
+     */
+    @Volatile var noise: ((sample: Long) -> Unit)? = null
+    /**
+     * This person's mic offset (Profile.micOffsetDb, +3 for kids): the strike floors ([MatcherConfig.sensitivityDb] and
+     * [MatcherConfig.roomMarginDb]) are this many dB easier. Applied on top of [config], which stays the stored setting.
+     */
+    @Volatile var offsetDb: Double = 0.0
     /** Loudness of the latest hop in dBFS, for the level meter. */
     @Volatile var levelDb: Double = -120.0
         private set
@@ -163,7 +232,13 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         private set
     private var lastOnset = Long.MIN_VALUE / 2
     private var lastAttack = Long.MIN_VALUE / 2           // softer than an onset: any hammer attack
-    private val onsets = ArrayDeque<Long>()            // broadband strikes waiting to be explained
+    /** A broadband strike waiting to be explained; [midi] is the wrong note found in it so far (-1: none yet). */
+    private class Onset(val at: Long) {
+        var midi = -1; var riseDb = 0.0
+        /** Keys that passed at their band's first look; only these can be confirmed at the second. */
+        val passed = HashSet<Int>(4)
+    }
+    private val onsets = ArrayDeque<Onset>()            // broadband strikes waiting to be explained
     private val recentStrikes = ArrayDeque<Long>()
     private val lastStrike = HashMap<Int, Long>()
 
@@ -171,7 +246,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         history.fill(0f); filled = 0; pendingCount = 0; samplesProcessed = 0
         band2.reset(); band4.reset()
         hopDb.fill(0.0); onsets.clear(); recentStrikes.clear(); lastStrike.clear(); nowHistory.clear(); probes.clear()
-        roomCount = 0; roomFloorDb = -120.0
+        roomCount = 0; roomFloorDb = -120.0; wrongScan = null
         lastOnset = Long.MIN_VALUE / 2
         lastAttack = Long.MIN_VALUE / 2
     }
@@ -199,7 +274,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         samplesProcessed += hop
         band2.update(); band4.update()
         val now = samplesProcessed
-        val cfg = config
+        val cfg = effectiveConfig()
         val exp = expected
         val events = ArrayList<MicEvent>(1)
 
@@ -221,7 +296,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         if (db - db40msAgo >= cfg.attackDb && db > -75) lastAttack = now
         if (db - db40msAgo >= cfg.wrongOnsetDb && db > -70 && now - lastOnset > ms(80.0)) {
             lastOnset = now
-            onsets.addLast(now)
+            onsets.addLast(Onset(now))
         }
 
         val gs = groups
@@ -261,21 +336,98 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             events += MicEvent.Strike(midi, now, -99.0, inferredFrom = lower)
         }
 
-        // A broadband strike with no expected note around it is a wrong note.
+        // A broadband strike with no expected note around it: a wrong key when a piano note is found in it, else noise.
         while (recentStrikes.isNotEmpty() && now - recentStrikes.first() > ms(400.0)) recentStrikes.removeFirst()
-        while (onsets.isNotEmpty() && now - onsets.first() >= ms(150.0)) {
+        if (exp.isNotEmpty() && cfg.nameWrongKeys) for (o in onsets) if (o.midi < 0 && recentStrikes.none { it >= o.at - ms(60.0) }) findWrong(o, now, exp, gs, cfg)
+        while (onsets.isNotEmpty() && now - onsets.first().at >= ms(150.0)) {
             val o = onsets.removeFirst()
-            val explained = recentStrikes.any { it >= o - ms(60.0) && it <= o + ms(150.0) }
-            if (!explained && exp.isNotEmpty()) events += MicEvent.Wrong(o)
+            val explained = recentStrikes.any { it >= o.at - ms(60.0) && it <= o.at + ms(150.0) }
+            if (explained || exp.isEmpty()) continue
+            val near = if (o.midi >= 0) WrongKeys.nearest(o.midi, exp) else null
+            if (near != null) events += MicEvent.Wrong(o.at, o.midi, near, kotlin.math.abs(o.midi - near), o.riseDb)
+            else noise?.invoke(o.at)
         }
         return events
     }
 
-    /** Returns the rise in dBFS if [midi] was just struck, else null. */
-    private fun strikeRise(midi: Int, chord: Set<Int>, recent: Set<Int>, cfg: MatcherConfig): Double? {
+    /** The config in force: the stored one made [offsetDb] easier (cached; the audio thread asks every hop). */
+    private var effective: Triple<MatcherConfig, Double, MatcherConfig>? = null
+    private fun effectiveConfig(): MatcherConfig {
+        val base = config; val off = offsetDb
+        effective?.let { (b, o, e) -> if (b === base && o == off) return e }
+        return base.easierBy(off).also { effective = Triple(base, off, it) }
+    }
+
+    /**
+     * The keys a wrong note is looked for among (within [WrongKeys.REACH] of an expected note, not expected, in no
+     * group), per analysis band, with their three lowest partials' frequencies for the quick first look.
+     */
+    private class WrongScan(val exp: Set<Int>, val gs: List<Set<Int>>, val byBand: List<Triple<Int, IntArray, DoubleArray>>)
+    private var wrongScan: WrongScan? = null
+    private fun wrongScanFor(exp: Set<Int>, gs: List<Set<Int>>): WrongScan {
+        wrongScan?.let { if (it.exp == exp && it.gs == gs) return it }
+        val inGroups = gs.flatten().toSet()
+        val keys = exp.flatMap { e -> (e - WrongKeys.REACH)..(e + WrongKeys.REACH) }.distinct()
+            .filter { it in 21..108 && it !in exp && it !in inGroups }.sorted()
+        val byBand = keys.groupBy(::factorFor).map { (f, ks) ->
+            Triple(f, ks.toIntArray(), DoubleArray(ks.size * 3) { i -> partialFreq(ks[i / 3], i % 3 + 1) })
+        }
+        return WrongScan(exp, gs, byBand).also { wrongScan = it }
+    }
+
+    /**
+     * Looks for the key behind an unexplained strike [o], at two moments after the jump per band ([WRONG_LOOKS]), so
+     * the band's "now" window is mostly the new sound. A quick look first: the fresh rise at each candidate's three
+     * lowest partials, all keys of a band in one pass. Only the [WRONG_FULL_LOOKS] strongest are then judged like an
+     * expected note (same probes and checks, stricter where a right note gets slack). A key must pass at both
+     * moments: a piano string holds its pitch, a voice moves (talk glides a semitone or more between the two looks).
+     * The strongest key that passed both is it.
+     */
+    private fun findWrong(o: Onset, now: Long, exp: Set<Int>, gs: List<Set<Int>>, cfg: MatcherConfig) {
+        val k = ((now - o.at) / hop).toInt()
+        var best = -1; var bestRise = 0.0
+        val floor = Math.pow(10.0, cfg.sensitivityDb / 10)
+        for ((f, keys, freqs) in wrongScanFor(exp, gs).byBand) {
+            val looks = WRONG_LOOKS.getValue(f)
+            if (k != looks.first && k != looks.second) continue
+            val confirm = k == looks.second
+            val ready = when (f) { 1 -> filled >= 2 * window; 2 -> band2.filled >= 2 * window; else -> band4.filled >= 2 * window }
+            if (!ready) continue
+            val buf = when (f) { 1 -> history; 2 -> band2.buf; else -> band4.buf }
+            val rate = sampleRate / f
+            val nowP = DoubleArray(freqs.size); val beforeP = DoubleArray(freqs.size)
+            powers(freqs, buf, rate, buf.size, nowP)
+            powers(freqs, buf, rate, buf.size - window, beforeP)
+            val nyq = 0.45 * rate
+            val score = DoubleArray(keys.size) { i ->
+                var sum = 0.0
+                for (j in 3 * i until 3 * i + 3) if (freqs[j] in 70.0..nyq && nowP[j] >= cfg.riseRatio * beforeP[j]) sum += nowP[j] - beforeP[j]
+                sum
+            }
+            val top = keys.indices.filter { score[it] >= floor }.sortedByDescending { score[it] }.take(WRONG_FULL_LOOKS).map { keys[it] }
+            // At the second look, the keys that passed the first are judged again even if others now score higher.
+            val judge = if (confirm) (top + keys.filter { it in o.passed }).distinct() else top
+            for (c in judge) {
+                val recent = lastStrike.filter { (m, at) -> m != c && now - at < 2L * windowFor(m) }.keys
+                val rise = strikeRise(c, setOf(c), recent, cfg, wrongScan = true) ?: continue
+                if (!confirm) { o.passed += c; continue }
+                if (c !in o.passed) continue
+                if (best < 0 || rise > bestRise) { best = c; bestRise = rise }
+            }
+        }
+        if (best >= 0) { o.midi = best; o.riseDb = bestRise }
+    }
+
+    /**
+     * Returns the rise in dBFS if [midi] was just struck, else null. [wrongScan]: judging a key nobody asked for (see
+     * [findWrong]); a wrong key must be beyond doubt, so it gets no single-partial slack, and the rise under it from
+     * a lower note may be no more than [MatcherConfig.oddRatio] (a right note an octave down with a weak fundamental
+     * must never be called its octave above). Turned-down expected notes go to [candidates] and [trace].
+     */
+    private fun strikeRise(midi: Int, chord: Set<Int>, recent: Set<Int>, cfg: MatcherConfig, wrongScan: Boolean = false): Double? {
         val f = freqsFor(midi, chord, recent)
         if (f.note.size < 2) {
-            trace?.invoke("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: overtones explained by notes just played ${recent.map(::noteName)}")
+            if (!wrongScan) trace?.invoke("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: overtones explained by notes just played ${recent.map(::noteName)}")
             return null
         }
         val nowP = DoubleArray(f.all.size)
@@ -304,6 +456,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         fun nowOf(ps: List<IntArray>) = ps.sumOf { p -> nowV(p) }
         val noteFresh = fresh(f.note)
         val riseDb = 10 * log10(noteFresh + 1e-20)
+        if (riseDb < cfg.sensitivityDb) return null
         // Partials carrying a real share of the jump. Two ringing notes with nearly equal overtones beat,
         // which makes a single partial pulse; a strike lifts several partials at once.
         val freshIdx = f.note.indices.filter { i -> val a = nowV(f.note[i]); val b = beforeV(f.note[i]); a >= cfg.riseRatio * b && a - b >= 0.02 * noteFresh }
@@ -313,33 +466,52 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         // wobbling fundamental is not a strike: in Roy's scale recording a "C4" rose 6 dB at the fundamental while
         // its other partials fell 10-20 dB).
         val beforeTotal = f.note.sumOf { beforeV(it) }
-        val singleOk = freshPartials == 1 && (f.note.size <= 2 ||
+        val singleOk = !wrongScan && freshPartials == 1 && (f.note.size <= 2 ||
             (f.noteH[freshIdx[0]] == 1 && nowOf(f.note) >= beforeTotal &&
                 samplesProcessed - lastAttack <= (cfg.attackWindowMs * sampleRate / 1000).toLong()))
+        val subRatio = if (wrongScan) minOf(cfg.subRatio, cfg.oddRatio) else cfg.subRatio
+        val subRise = riseOf(f.sub)
 
-        if (riseDb < cfg.sensitivityDb) return null
         val reason = when {
-            noteFresh < 0.5 * riseOf(f.note) -> "not fresh (fresh ${db(noteFresh)} of rise ${db(riseOf(f.note))})"
-            freshPartials < 2 && !singleOk -> "only $freshPartials partial jumped and no attack (beating?)"
-            noteFresh < 0.25 * nowOf(f.note) -> "jump is small next to what is already ringing (now ${db(nowOf(f.note))})"
-            noteFresh < cfg.decoyRatio * maxOf(riseOf(f.up), riseOf(f.down)) -> "semitone neighbour (up ${db(riseOf(f.up))}, down ${db(riseOf(f.down))})"
-            noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> "spill from a ringing neighbour (up ${db(nowOf(f.up))}, down ${db(nowOf(f.down))})"
-            riseOf(f.sub) > cfg.subRatio * noteFresh -> "lower note (sub ${db(riseOf(f.sub))})"
-            fresh(f.odd) < cfg.oddRatio * noteFresh -> "no odd partials (odd ${db(fresh(f.odd))}), higher octave?"
-            !sharpEnough(f, nowP, beforeP, cfg) -> "not a sharp peak (gliding sound: voice, whistle?)"
-            !strongEnough(f, nowP, beforeP, riseDb, cfg) -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
-                "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
-            else -> {
-                trace?.invoke("accept ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
-                    "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
-                    "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} " +
-                    "attack ${(samplesProcessed - lastAttack) * 1000 / sampleRate}ms single=${freshPartials == 1} | " +
-                    f.note.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
-                    f.sub.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
-                return riseDb
-            }
+            noteFresh < 0.5 * riseOf(f.note) -> Reject.NOT_FRESH
+            freshPartials < 2 && !singleOk -> Reject.ONE_PARTIAL
+            noteFresh < 0.25 * nowOf(f.note) -> Reject.SMALL_JUMP
+            noteFresh < cfg.decoyRatio * maxOf(riseOf(f.up), riseOf(f.down)) -> Reject.SEMITONE
+            noteFresh < cfg.neighbourRatio * maxOf(nowOf(f.up), nowOf(f.down)) -> Reject.SPILL
+            subRise > subRatio * noteFresh -> if (riseOf(f.sub.subList(0, f.subOctave)) >= 0.5 * subRise) Reject.LOWER_OCTAVE else Reject.LOWER_NOTE
+            fresh(f.odd) < cfg.oddRatio * noteFresh -> Reject.HIGHER_OCTAVE
+            !sharpEnough(f, nowP, beforeP, cfg) -> Reject.NOT_SHARP
+            !strongEnough(f, nowP, beforeP, riseDb, cfg) -> Reject.TOO_FAINT
+            else -> null
         }
-        trace?.invoke("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: rise ${db(noteFresh)} dB, $reason")
+        val tr = trace
+        if (reason == null) {
+            tr?.invoke((if (wrongScan) "wrong key " else "accept ") + "${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
+                "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
+                "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} " +
+                "attack ${(samplesProcessed - lastAttack) * 1000 / sampleRate}ms single=${freshPartials == 1} | " +
+                f.note.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
+                f.sub.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
+            return riseDb
+        }
+        if (wrongScan) return null
+        candidates?.invoke(Candidate(midi, samplesProcessed, riseDb, reason))
+        if (tr != null) {
+            val why = when (reason) {
+                Reject.NOT_FRESH -> "not fresh (fresh ${db(noteFresh)} of rise ${db(riseOf(f.note))})"
+                Reject.ONE_PARTIAL -> "only $freshPartials partial jumped and no attack (beating?)"
+                Reject.SMALL_JUMP -> "jump is small next to what is already ringing (now ${db(nowOf(f.note))})"
+                Reject.SEMITONE -> "semitone neighbour (up ${db(riseOf(f.up))}, down ${db(riseOf(f.down))})"
+                Reject.SPILL -> "spill from a ringing neighbour (up ${db(nowOf(f.up))}, down ${db(nowOf(f.down))})"
+                Reject.LOWER_NOTE -> "lower note (sub ${db(subRise)})"
+                Reject.LOWER_OCTAVE -> "lower note (sub ${db(subRise)}), octave below?"
+                Reject.HIGHER_OCTAVE -> "no odd partials (odd ${db(fresh(f.odd))}), higher octave?"
+                Reject.NOT_SHARP -> "not a sharp peak (gliding sound: voice, whistle?)"
+                Reject.TOO_FAINT -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
+                    "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
+            }
+            tr("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: rise ${db(noteFresh)} dB, $why")
+        }
         return null
     }
 
@@ -377,7 +549,9 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     private class Probe(
         val all: DoubleArray,
         val note: List<IntArray>, val noteH: IntArray, val odd: List<IntArray>,
-        val up: List<IntArray>, val down: List<IntArray>, val sub: List<IntArray>,
+        val up: List<IntArray>, val down: List<IntArray>,
+        /** Lower-note probes: the first [subOctave] are the octave below's odd partials, the rest a twelfth below. */
+        val sub: List<IntArray>, val subOctave: Int,
         /** Per note partial: for each candidate, the probes a quarter-tone below and above (empty if unresolvable). */
         val sharp: List<IntArray>,
     )
@@ -386,8 +560,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     private val probes = HashMap<ProbeKey, Probe>()
     private val nowHistory = HashMap<Probe, ArrayDeque<Pair<Long, DoubleArray>>>()   // per probe: recent "now" powers
     private fun freqsFor(midi: Int, chord: Set<Int>, recent: Set<Int>): Probe {
-        // ponytail: whole cache dropped when it grows past 64 probes (chord changes); an LRU if that ever shows up in profiles
-        if (probes.size > 64) { probes.clear(); nowHistory.clear() }
+        // ponytail: whole cache dropped when it grows past 256 probes (chord changes, wrong-key candidates); an LRU if that ever shows up in profiles
+        if (probes.size > 256) { probes.clear(); nowHistory.clear() }
         return probes.getOrPut(ProbeKey(midi, chord, recent)) { buildProbe(midi, chord, recent) }
     }
 
@@ -414,8 +588,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         }.filterNot { (h, _) -> near(recentPartials, partialFreq(midi, h)) }   // may leave < 2: then no evidence yet
         val f0 = midiFreq(midi)
         // Octave below (odd partials) and a twelfth below: frequencies where only a lower note would add energy.
-        val sub = listOf(f0 / 2, 1.5 * f0, 2.5 * f0, f0 / 3, 2 * f0 / 3, 4 * f0 / 3)
-            .filter { it in 70.0..nyq && !shared(it) }.map { add(listOf(it)) }
+        val subOct = listOf(f0 / 2, 1.5 * f0, 2.5 * f0).filter { it in 70.0..nyq && !shared(it) }.map { add(listOf(it)) }
+        val sub = subOct + listOf(f0 / 3, 2 * f0 / 3, 4 * f0 / 3).filter { it in 70.0..nyq && !shared(it) }.map { add(listOf(it)) }
         val up = partialsOf(midi + 1, dropShared = true).map { it.second }
         val down = partialsOf(midi - 1, dropShared = true).map { it.second }
         val bin = sampleRate.toDouble() / factorFor(midi) / window
@@ -430,7 +604,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             note = note.map { it.second },
             noteH = note.map { it.first }.toIntArray(),
             odd = note.filter { it.first % 2 == 1 }.map { it.second },
-            up = up, down = down, sub = sub, sharp = sharp,
+            up = up, down = down, sub = sub, subOctave = subOct.size, sharp = sharp,
         )
     }
 

@@ -14,7 +14,7 @@ class FixtureTest {
     private val dir = File("src/test/resources/fixtures")
 
     data class Result(val name: String, val notes: Int, val heard: Int, val early: Int, val falseWrongs: Int,
-                      val seconds: Double, val medianLatencyMs: Int?)
+                      val seconds: Double, val medianLatencyMs: Int?, val noise: Int = 0, val slips: Int = 0)
 
     fun evaluate(wav: File, cfg: MatcherConfig = MatcherConfig()): Result {
         val audio = Wav.read(wav)
@@ -33,7 +33,8 @@ class FixtureTest {
         val m = NoteMatcher(fs, cfg)
         var gi = 0
         val pending = groups.firstOrNull()?.map { it.second }?.toMutableSet() ?: mutableSetOf()
-        var heard = 0; var early = 0; var wrongs = 0
+        var heard = 0; var early = 0; var wrongs = 0; var noise = 0; var slips = 0
+        m.noise = { noise++ }
         val latencies = mutableListOf<Double>()
         val silence = groups.isEmpty()
         var i = 0
@@ -61,13 +62,13 @@ class FixtureTest {
                         if (pending.isEmpty() && gi < groups.size) { gi++; if (gi < groups.size) pending += groups[gi].map { it.second } }
                     }
                     // A wrong-note flash during the recording is false: the player played the truth notes.
-                    is MicEvent.Wrong -> wrongs++
+                    is MicEvent.Wrong -> { wrongs++; if (e.slip) slips++ }
                 }
             }
             i += n
         }
         return Result(wav.nameWithoutExtension, truth.size, heard, early, wrongs, audio.samples.size / fs.toDouble(),
-            latencies.sorted().getOrNull(latencies.size / 2)?.toInt())
+            latencies.sorted().getOrNull(latencies.size / 2)?.toInt(), noise, slips)
     }
 
     /** The harness itself: a synthetic fixture (C major scale up, one wrong-free pass) must score fully. */
@@ -96,17 +97,25 @@ class FixtureTest {
             if (!hasTruth && !w.name.startsWith("silence")) {
                 // A live session without MIDI: nothing to score against. Report what the matcher would trigger on.
                 val r = evaluate(w)
-                println("%-24s no MIDI truth: %d note strikes and %d wrong-note flashes in %.0f s with C3/C4/E4/G4/C5 expected (report only)".format(r.name, r.early, r.falseWrongs, r.seconds))
+                println("%-24s no MIDI truth: %d note strikes, %d wrong-key flashes (%d slips), %d noise in %.0f s with C3/C4/E4/G4/C5 expected (report only)".format(r.name, r.early, r.falseWrongs, r.slips, r.noise, r.seconds))
                 continue
             }
             val r = evaluate(w)
-            // Mic wrong-note flashes are off by default (MicInput.wrongFlash), so only false note strikes count.
+            // With MIDI truth every wrong-key flash is false: the player played the truth notes.
             val falsePer30s = r.early / (r.seconds / 30)
             val rate = if (r.notes == 0) 1.0 else r.heard.toDouble() / r.notes
-            println("%-24s %3d/%3d heard (%3.0f%%), %d false strikes, %d would-be wrong flashes, %.1f s, median latency %s ms"
-                .format(r.name, r.heard, r.notes, rate * 100, r.early, r.falseWrongs, r.seconds, r.medianLatencyMs))
+            println("%-24s %3d/%3d heard (%3.0f%%), %d false strikes, %d would-be wrong flashes (%d slips), %d noise, %.1f s, median latency %s ms"
+                .format(r.name, r.heard, r.notes, rate * 100, r.early, r.falseWrongs, r.slips, r.noise, r.seconds, r.medianLatencyMs))
             if (rate < 0.9 || falsePer30s > 1.0) failures += r.name
+            // Wrong keys show by default now, so false ones count too. Roy's scale in a room with talking: 57 before
+            // wrong keys were named (any loudness jump was one), 0 since (MicEvent.Wrong needs a piano note found).
+            WRONG_FLASH_CEILING[r.name]?.let { max -> if (r.falseWrongs > max) failures += "${r.name} (${r.falseWrongs} wrong flashes, at most $max)" }
         }
-        assertTrue("fixtures below the plan's bar (90% heard, <= 1 false strike per 30 s): $failures", failures.isEmpty())
+        assertTrue("fixtures below the plan's bar (90% heard, <= 1 false strike per 30 s, wrong flashes): $failures", failures.isEmpty())
+    }
+
+    private companion object {
+        /** Most false wrong-key flashes allowed per recording with truth (session-155837 was 57 before naming, 0 after). */
+        val WRONG_FLASH_CEILING = mapOf("session-155837" to 2)
     }
 }
