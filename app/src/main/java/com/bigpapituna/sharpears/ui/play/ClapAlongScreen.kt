@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -179,11 +180,14 @@ internal fun ClapAlongContent(
             FilterChip(selected = mode == ClapMode.TAP, onClick = { onMode(ClapMode.TAP) }, label = { Text("Tap") })
             FilterChip(selected = mode == ClapMode.CLAP, onClick = { onMode(ClapMode.CLAP) }, label = { Text("Clap") })
         }
-        SpeechBubble(line, Modifier.padding(start = 8.dp))
+        // The pup drums and talks from beside his drum (the bubble's tail points at him).
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            PupPicture(R.drawable.pup_drumming, 190.dp, Modifier.graphicsLayer {
-                val s = squash(); scaleY = s; scaleX = 2f - s; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-            })
+            Row(Modifier.widthIn(max = 600.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PupPicture(R.drawable.pup_drumming, 190.dp, Modifier.graphicsLayer {
+                    val s = squash(); scaleY = s; scaleX = 2f - s; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                })
+                SpeechBubble(line, Modifier.weight(1f, fill = false))
+            }
         }
         BeatDots(dots)
         // The drum: a big pad. It flashes the pup's gold on every beat and green on a clap in time, then fades back

@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -106,14 +107,17 @@ fun PupSaysScreen(
 /** Who takes turns: the player now, and up to two more from the phone's profiles. */
 @Composable
 internal fun WhoPlays(me: Profile, others: List<Profile>, picked: List<String>, onToggle: (String) -> Unit, onStart: () -> Unit, onExit: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().verticalScroll(rememberScrollState())
-        .padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ExitPill(onExit)
-        Text("Pup says", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        PupSays(Pose.WELCOME, if (picked.isEmpty()) "I play a tune, you copy it. Just you, or take turns?"
-            else "Taking turns: ${(listOf(me.name) + others.filter { it.id in picked }.map { it.name }).joinToString(", ")}.")
-        PeoplePicker(others, picked, max = PupSaysGame.MAX_PLAYERS - 1, onToggle = onToggle)
-        ChunkyButton(onStart, Modifier.fillMaxWidth()) { Text(if (picked.isEmpty()) "Just me" else "Take turns") }
+    // One readable column, centred on a wide screen (the Fold's inner screen), with the exit pill at the top left.
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+        Column(Modifier.align(Alignment.TopCenter).widthIn(max = 600.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp).padding(top = 76.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Pup says", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            PupSays(Pose.WELCOME, if (picked.isEmpty()) "I play a tune, you copy it. Just you, or take turns?"
+                else "Taking turns: ${(listOf(me.name) + others.filter { it.id in picked }.map { it.name }).joinToString(", ")}.")
+            PeoplePicker(others, picked, max = PupSaysGame.MAX_PLAYERS - 1, onToggle = onToggle)
+            ChunkyButton(onStart, Modifier.fillMaxWidth()) { Text(if (picked.isEmpty()) "Just me" else "Take turns") }
+        }
+        ExitPill(onExit, Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
     }
 }
 
