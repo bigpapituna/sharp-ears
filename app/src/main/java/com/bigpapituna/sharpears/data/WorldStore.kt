@@ -169,6 +169,18 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
             R.drawable.sticker_concert_1, R.drawable.sticker_concert_2, R.drawable.sticker_concert_3, R.drawable.sticker_concert_4,
             R.drawable.sticker_concert_5, R.drawable.sticker_concert_6, R.drawable.sticker_concert_7, R.drawable.sticker_concert_8,
             R.drawable.sticker_concert_9, R.drawable.sticker_concert_10,
+            R.drawable.sticker_workshop_1, R.drawable.sticker_workshop_2, R.drawable.sticker_workshop_3, R.drawable.sticker_workshop_4,
+            R.drawable.sticker_workshop_5, R.drawable.sticker_workshop_6, R.drawable.sticker_workshop_7, R.drawable.sticker_workshop_8,
+            R.drawable.sticker_workshop_9, R.drawable.sticker_workshop_10,
+            R.drawable.sticker_treehouse_1, R.drawable.sticker_treehouse_2, R.drawable.sticker_treehouse_3, R.drawable.sticker_treehouse_4,
+            R.drawable.sticker_treehouse_5, R.drawable.sticker_treehouse_6, R.drawable.sticker_treehouse_7, R.drawable.sticker_treehouse_8,
+            R.drawable.sticker_treehouse_9, R.drawable.sticker_treehouse_10,
+            R.drawable.sticker_nightsky_1, R.drawable.sticker_nightsky_2, R.drawable.sticker_nightsky_3, R.drawable.sticker_nightsky_4,
+            R.drawable.sticker_nightsky_5, R.drawable.sticker_nightsky_6, R.drawable.sticker_nightsky_7, R.drawable.sticker_nightsky_8,
+            R.drawable.sticker_nightsky_9, R.drawable.sticker_nightsky_10,
+            R.drawable.sticker_fair_1, R.drawable.sticker_fair_2, R.drawable.sticker_fair_3, R.drawable.sticker_fair_4,
+            R.drawable.sticker_fair_5, R.drawable.sticker_fair_6, R.drawable.sticker_fair_7, R.drawable.sticker_fair_8,
+            R.drawable.sticker_fair_9, R.drawable.sticker_fair_10,
         )
     }
 }

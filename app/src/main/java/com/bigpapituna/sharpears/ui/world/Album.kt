@@ -55,7 +55,10 @@ import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /** Each place's colour in the album and on its world tab: pastel, like the scenes. */
-fun Place.colour(): Color = when (this) { Place.GARDEN -> Color(0xFF7DBE74); Place.POND -> Color(0xFF6FAFE0); Place.CONCERT -> Color(0xFFD97C8C) }
+fun Place.colour(): Color = when (this) {
+    Place.GARDEN -> Color(0xFF7DBE74); Place.POND -> Color(0xFF6FAFE0); Place.CONCERT -> Color(0xFFD97C8C)
+    Place.WORKSHOP -> Color(0xFFE0A866); Place.TREEHOUSE -> Color(0xFF8FB560); Place.NIGHT_SKY -> Color(0xFF7C80D0); Place.FAIR -> Color(0xFFE79AC2)
+}
 
 /** What the pup says over the album. */
 fun albumLine(a: Album): String = when {
@@ -66,8 +69,8 @@ fun albumLine(a: Album): String = when {
 
 /**
  * The sticker album: the pup holding a sticker with how many are in, then a page per place with its stickers in
- * order and the gaps showing ("7 of 10 in the pond"). Tapping a sticker (or a gap) opens it big. Not lazy: three
- * pages of ten fit any scroll the integrator puts it in.
+ * order and the gaps showing ("7 of 10 in the pond"). Tapping a sticker (or a gap) opens it big. Not lazy: seven
+ * pages of ten (2.3) still fit any scroll the integrator puts it in.
  */
 @Composable
 fun AlbumView(album: Album, modifier: Modifier = Modifier, showPup: Boolean = true) {

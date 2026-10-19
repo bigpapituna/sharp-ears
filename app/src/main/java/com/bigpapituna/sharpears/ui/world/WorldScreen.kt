@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,7 +107,8 @@ private fun WorldTabBody(world: WorldStore) {
     val s = world.state
     var place by rememberSaveable { mutableStateOf(Place.GARDEN) }
     var open by remember { mutableStateOf<com.bigpapituna.sharpears.engine.world.AlbumSlot?>(null) }
-    Row(Modifier.widthIn(max = 720.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Seven places since 2.3: the chips scroll sideways.
+    Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Place.entries.forEach { p ->
             FilterChip(selected = place == p, onClick = { place = p },
                 label = { Text("${p.title}  ${p.sceneLabel(s)}", maxLines = 1) },

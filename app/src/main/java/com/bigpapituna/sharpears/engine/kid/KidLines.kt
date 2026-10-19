@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.engine.kid
 
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
 import com.bigpapituna.sharpears.engine.playground.PlaygroundPage
+import com.bigpapituna.sharpears.engine.playground.Place as PagePlace
 
 /**
  * What the pup says on the kid home and in the finale (2.2). Same rules as the kid skin's words: short, warm, second
@@ -41,19 +42,25 @@ object KidLines {
     }
 
     /** The finale's headline and its first spoken line: "Mia finished the garden!" ("You finished ..." with no name). */
-    fun finished(name: String?, page: PlaygroundPage): String =
-        "${name?.trim()?.takeIf { it.isNotEmpty() } ?: "You"} finished ${KidPages.inSentence(page)}!"
+    fun finished(name: String?, page: PlaygroundPage): String = finished(name, page.title)
+
+    private fun finished(name: String?, title: String) = "${name?.trim()?.takeIf { it.isNotEmpty() } ?: "You"} finished ${KidPages.inSentence(title)}!"
 
     /** The finale's second line: where the path goes on. */
     fun onward(after: Finale.After): String = when (after) {
-        is Finale.After.NextPage -> "Next stop, ${KidPages.inSentence(after.page)}!"
+        is Finale.After.NextPage -> nextStop(after.page.title)
         Finale.After.Road -> ROAD
     }
+
+    private fun nextStop(title: String) = "Next stop, ${KidPages.inSentence(title)}!"
 
     /** Every line here without a name, for the voice catalog. */
     fun fixed(pages: List<PlaygroundPage> = PLAYGROUND_PAGES): List<String> = buildList {
         add(LETS_GO); add(THIS_ONE_FIRST); add(ROAD); add(ASLEEP); add(ASLEEP_SHORT); add(YUM); add(EGG)
         (0..3).forEach { add(signpost(it)); add(signpostShort(it)) }
         pages.forEach { p -> add(finished(null, p)); add(onward(Finale.after(p, pages))) }
+        // 2.3: every place a page can be, whichever pages this build has, so the lines are recorded before a page lands
+        // (the treehouse and the night sky come from another branch) and whatever order the pages end up in.
+        PagePlace.entries.forEach { add(finished(null, it.title)); add(nextStop(it.title)) }
     }.distinct()
 }

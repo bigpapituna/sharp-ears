@@ -1,14 +1,18 @@
 package com.bigpapituna.sharpears.engine.world
 
 /**
- * The three places of the pup's world, in the order the Playground walks them (2.2: one per page, the garden, the pond
- * and the concert hall; a lesson's place is its page's, engine/kid/KidPages.dropPlace). Each has ten stickers and its
- * own page in the album.
+ * The places of the pup's world, in the order the Playground walks them (2.2: one per page, the garden, the pond and the
+ * concert hall; a lesson's place is its page's, engine/kid/KidPages.dropPlace; 2.3: the workshop, the treehouse, the
+ * night sky and the fair). Each has ten stickers and its own page in the album.
  */
 enum class Place(val id: String, val title: String, /** "in the pond": the end of "7 of 10 in the pond". */ val inThe: String) {
     GARDEN("garden", "Garden", "in the garden"),
     POND("pond", "Pond", "in the pond"),
-    CONCERT("concert", "Concert hall", "in the concert hall");
+    CONCERT("concert", "Concert hall", "in the concert hall"),
+    WORKSHOP("workshop", "Workshop", "in the workshop"),
+    TREEHOUSE("treehouse", "Treehouse", "in the treehouse"),
+    NIGHT_SKY("nightsky", "Night sky", "in the night sky"),
+    FAIR("fair", "Fair", "at the fair");
 
     val stickers: List<Sticker> get() = Stickers.of(this)
 
@@ -39,12 +43,20 @@ data class Sticker(val place: Place, val n: Int, val name: String, val rarity: R
     val resName: String get() = "sticker_${place.id}_$n"
 }
 
-/** The 30 stickers: per place six common, three rare and one shiny. */
+/**
+ * The 70 stickers: per place six common, three rare and one shiny. 2.3's places have creatures too (the squirrel, the
+ * owls, the sleeping cat), but they are not [Sticker.animal]: the concert hall's audience is the garden's and the pond's
+ * animals, nine seats drawn in its scene.
+ */
 object Stickers {
     private fun s(p: Place, n: Int, name: String, r: Rarity = Rarity.COMMON, animal: Boolean = false) = Sticker(p, n, name, r, animal)
     private val G = Place.GARDEN
     private val P = Place.POND
     private val C = Place.CONCERT
+    private val W = Place.WORKSHOP
+    private val T = Place.TREEHOUSE
+    private val N = Place.NIGHT_SKY
+    private val F = Place.FAIR
 
     val ALL: List<Sticker> = listOf(
         s(G, 1, "Red tulip"),
@@ -77,6 +89,46 @@ object Stickers {
         s(C, 8, "Flowers"),
         s(C, 9, "Ticket"),
         s(C, 10, "Fireworks", Rarity.SHINY),
+        s(W, 1, "Hammer"),
+        s(W, 2, "Saw"),
+        s(W, 3, "Tuning fork", Rarity.SHINY),
+        s(W, 4, "Glue pot"),
+        s(W, 5, "Ruler"),
+        s(W, 6, "Piano key", Rarity.RARE),
+        s(W, 7, "Screwdriver"),
+        s(W, 8, "Paintbrush"),
+        s(W, 9, "Toolbox", Rarity.RARE),
+        s(W, 10, "Work lamp", Rarity.RARE),
+        s(T, 1, "Acorn"),
+        s(T, 2, "Squirrel", Rarity.RARE),
+        s(T, 3, "Owl", Rarity.RARE),
+        s(T, 4, "Rope swing"),
+        s(T, 5, "Leaf"),
+        s(T, 6, "Bird's nest", Rarity.RARE),
+        s(T, 7, "Ladder"),
+        s(T, 8, "Lantern"),
+        s(T, 9, "Pinecone"),
+        s(T, 10, "Kite", Rarity.SHINY),
+        s(N, 1, "Moon"),
+        s(N, 2, "Comet", Rarity.RARE),
+        s(N, 3, "Night owl"),
+        s(N, 4, "Firefly"),
+        s(N, 5, "Telescope", Rarity.RARE),
+        s(N, 6, "Planet", Rarity.RARE),
+        s(N, 7, "Shooting star", Rarity.SHINY),
+        s(N, 8, "Sleepy cloud"),
+        s(N, 9, "Paper lantern"),
+        s(N, 10, "Sleeping cat"),
+        s(F, 1, "Balloon"),
+        s(F, 2, "Fair ticket"),
+        s(F, 3, "Popcorn"),
+        s(F, 4, "Carousel horse", Rarity.RARE),
+        s(F, 5, "Candy floss"),
+        s(F, 6, "Ferris wheel", Rarity.SHINY),
+        s(F, 7, "Prize ribbon"),
+        s(F, 8, "Teddy bear", Rarity.RARE),
+        s(F, 9, "Juggling balls"),
+        s(F, 10, "Rosette", Rarity.RARE),
     )
 
     private val byId = ALL.associateBy { it.id }

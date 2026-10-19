@@ -180,10 +180,27 @@ class KidMapTest {
         assertEquals("All three stars found today!", KidLines.signpost(5))
     }
 
+    /**
+     * 2.3: every place a page can be has its finale lines in the catalog, whichever pages this build has (the treehouse and
+     * the night sky land from another branch), so they are recorded once and in the voice whatever the pages' order.
+     */
+    @Test fun everyPlacesFinaleLinesAreListed() {
+        val fixed = KidLines.fixed()
+        for (title in listOf("the workshop", "the treehouse", "the night sky", "the fair", "the pond", "the concert hall")) {
+            assertTrue(title, "You finished $title!" in fixed)
+            assertTrue(title, "Next stop, $title!" in fixed)
+        }
+        assertEquals(PagePlace.entries.size, PagePlace.entries.map { KidPages.worldPlace(it) }.toSet().size)
+    }
+
     @Test fun pagesMapToTheirScenesAndDropPlaces() {
         assertEquals(Place.GARDEN, KidPages.worldPlace(PagePlace.GARDEN))
         assertEquals(Place.POND, KidPages.worldPlace(PagePlace.POND))
         assertEquals(Place.CONCERT, KidPages.worldPlace(PagePlace.CONCERT_HALL))
+        assertEquals(Place.WORKSHOP, KidPages.worldPlace(PagePlace.WORKSHOP))
+        assertEquals(Place.TREEHOUSE, KidPages.worldPlace(PagePlace.TREEHOUSE))
+        assertEquals(Place.NIGHT_SKY, KidPages.worldPlace(PagePlace.NIGHT_SKY))
+        assertEquals(Place.FAIR, KidPages.worldPlace(PagePlace.FAIR))
         assertEquals(Place.POND, KidPages.dropPlace("p-3", pages))
         assertNull(KidPages.dropPlace("b-1", pages))
         assertEquals(1 to 2, KidPages.locate("p-3", pages))

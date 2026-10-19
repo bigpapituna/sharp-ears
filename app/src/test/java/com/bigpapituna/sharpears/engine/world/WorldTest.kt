@@ -110,7 +110,7 @@ class WorldTest {
         assertEquals(2, pond.slots[1].doubles)
         assertEquals("1 of 10 in the garden", a.page(Place.GARDEN).line)
         assertEquals("0 of 10 in the concert hall", a.page(Place.CONCERT).line)
-        assertEquals("8 of 30 stickers", a.line)
+        assertEquals("8 of 70 stickers", a.line)
         assertFalse(a.complete)
         assertTrue(Album.of(Stickers.ALL.associate { it.id to 1 }).complete)
     }

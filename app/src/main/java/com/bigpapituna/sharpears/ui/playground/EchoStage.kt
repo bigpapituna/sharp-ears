@@ -81,7 +81,11 @@ private const val TUNE_GAP_MS = 450L
 @Composable
 internal fun EchoStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
-    val pond = pageOf(lessonId)?.place != Place.CONCERT_HALL
+    // The singers: frogs at the pond, spotlights on a stage (the hall, the workshop, the fair), lanterns in the treehouse and
+    // under the night sky (2.3).
+    val place = pageOf(lessonId)?.place ?: Place.POND
+    val pond = place == Place.POND || place == Place.GARDEN
+    val lanterns = place == Place.TREEHOUSE || place == Place.NIGHT_SKY
     val scope = rememberCoroutineScope()
     val still = reducedMotion()
     var tiltSeq by remember { mutableIntStateOf(0) }
@@ -136,7 +140,7 @@ internal fun EchoStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
-        Canvas(Modifier.fillMaxSize()) { if (pond) pondWater(if (still) 0.3f else drift) else hallStage(0.66f) }
+        Canvas(Modifier.fillMaxSize()) { if (pond) pondWater(if (still) 0.3f else drift) else placeBackdrop(place, if (still) 0.3f else drift, 0.66f) }
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             // The pup and what he says, then the tune's singers across the stage, then the keys.
@@ -152,7 +156,7 @@ internal fun EchoStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
             }
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 key(tune) {
-                    Singers(tune, playing = if (demo.isNotEmpty()) st.demoIndex else null, answered = answered, pond = pond,
+                    Singers(tune, playing = if (demo.isNotEmpty()) st.demoIndex else null, answered = answered, pond = pond, lanterns = lanterns,
                         waiting = run.phase == RoundCoach.Phase.LISTEN && copied == null, pulse = if (still) 0.5f else pulse,
                         modifier = Modifier.fillMaxWidth().heightIn(max = (roomH * 0.32f).coerceAtLeast(72.dp)))
                 }
@@ -176,7 +180,8 @@ internal fun EchoStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
  * next one breathes.
  */
 @Composable
-private fun Singers(tune: List<Int>, playing: Int?, answered: Int, pond: Boolean, waiting: Boolean, pulse: Float, modifier: Modifier = Modifier) {
+private fun Singers(tune: List<Int>, playing: Int?, answered: Int, pond: Boolean, waiting: Boolean, pulse: Float, modifier: Modifier = Modifier,
+                    lanterns: Boolean = false) {
     val colours = colourNotesOn()
     Row(modifier.semantics { contentDescription = "${tune.size} notes, $answered played back" }, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.Bottom) {
@@ -194,6 +199,7 @@ private fun Singers(tune: List<Int>, playing: Int?, answered: Int, pond: Boolean
                     if (lit) drawCircle(Brush.radialGradient(listOf(colour.copy(alpha = 0.75f), Color.Transparent), c, size.width * 0.62f), size.width * 0.62f, c)
                     if (next) drawCircle(Color.White.copy(alpha = 0.25f + 0.35f * pulse), size.width * 0.44f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
                     if (pond) lilyPad(Offset(size.width / 2, size.height * 0.88f), size.width * 0.48f, tilt = (i % 2) * 6f - 3f)
+                    else if (lanterns) lantern(Offset(size.width / 2, size.height * 0.42f), size.width * 0.24f, colour, if (lit) 1f else 0.15f)
                     else spotlight(Offset(size.width / 2, size.height * 0.18f), size.width * 0.26f, colour, if (lit) 1f else 0.08f, size.height * 0.98f)
                 }
                 if (pond) Image(painterResource(R.drawable.sticker_pond_1), contentDescription = null,

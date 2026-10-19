@@ -93,6 +93,105 @@ internal fun DrawScope.pondWater(t: Float) {
     }
 }
 
+/**
+ * 2.3: the backdrop a stage draws for the page it is on, dark like every stage: the pond's water, the concert hall's
+ * stage, the workshop's warm planks, the treehouse's leaves and deck, the night sky's hill under the stars, the fair's
+ * lights and bunting. The garden's stages draw their own (nothing here). [t] 0..1 loops, for what drifts.
+ */
+internal fun DrawScope.placeBackdrop(place: Place, t: Float = 0.3f, floorFrom: Float = 0.7f) {
+    when (place) {
+        Place.GARDEN -> {}
+        Place.POND -> pondWater(t)
+        Place.CONCERT_HALL -> hallStage(floorFrom)
+        Place.WORKSHOP -> workshopRoom(floorFrom)
+        Place.TREEHOUSE -> treeDeck(t, floorFrom)
+        Place.NIGHT_SKY -> nightHill(t)
+        Place.FAIR -> fairLights(t)
+    }
+}
+
+private val PlankLight = Color(0xFF4A3322)
+private val PlankDark = Color(0xFF33231A)
+
+/** The workshop after hours: warm planks up the wall, a lamp's glow, floorboards from [floorFrom] down. */
+internal fun DrawScope.workshopRoom(floorFrom: Float = 0.7f) {
+    drawRect(Brush.verticalGradient(listOf(PlankLight, PlankDark)))
+    val n = (size.width / 34.dp.toPx()).toInt().coerceAtLeast(6)
+    for (k in 1 until n) drawLine(Color.Black.copy(alpha = 0.22f), Offset(size.width * k / n, 0f), Offset(size.width * k / n, size.height), 1.5.dp.toPx())
+    val lamp = Offset(size.width * 0.5f, size.height * 0.05f)
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFD58A).copy(alpha = 0.22f), Color.Transparent), lamp, size.maxDimension * 0.55f), size.maxDimension * 0.55f, lamp)
+    val floorY = size.height * floorFrom
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF6B4A2E), Color(0xFF4A321F)), floorY, size.height), Offset(0f, floorY), Size(size.width, size.height - floorY))
+    for (k in 0 until 4) {
+        val y = floorY + (size.height - floorY) * k / 4f
+        drawLine(Color.Black.copy(alpha = 0.25f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+    }
+}
+
+/** Up in the treehouse at dusk: leaves across the top, the trunk at one side, the deck's planks underfoot. */
+internal fun DrawScope.treeDeck(t: Float, floorFrom: Float = 0.7f) {
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF1C2E24), Color(0xFF2A2A1E))))
+    drawRect(Brush.horizontalGradient(listOf(Color(0xFF4A3424), Color(0xFF5E4430), Color(0xFF4A3424)), 0f, size.width * 0.07f), size = Size(size.width * 0.07f, size.height))
+    for (k in 0 until 9) {
+        val c = Offset(size.width * (k / 8f), size.height * (0.02f + 0.05f * ((k * 5) % 3)))
+        val r = size.width * (0.09f + 0.02f * (k % 3))
+        val sway = sin((t * 2 * PI + k).toFloat()) * 3.dp.toPx()
+        drawCircle(if (k % 2 == 0) Color(0xFF2E5634) else Color(0xFF3A6A3E), r, c + Offset(sway, 0f))
+    }
+    val floorY = size.height * floorFrom
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF7A5536), Color(0xFF5A3D27)), floorY, size.height), Offset(0f, floorY), Size(size.width, size.height - floorY))
+    val n = (size.width / 30.dp.toPx()).toInt().coerceAtLeast(6)
+    for (k in 1 until n) drawLine(Color.Black.copy(alpha = 0.25f), Offset(size.width * k / n, floorY), Offset(size.width * k / n, size.height), 1.dp.toPx())
+}
+
+/** Under the night sky: the deep sky, the moon and stars (the nap's night), a dark hill rising at the bottom. */
+internal fun DrawScope.nightHill(t: Float) {
+    night(t)
+    val hill = Path().apply {
+        moveTo(0f, size.height * 0.86f); quadraticTo(size.width * 0.45f, size.height * 0.70f, size.width, size.height * 0.82f)
+        lineTo(size.width, size.height); lineTo(0f, size.height); close()
+    }
+    drawPath(hill, Brush.verticalGradient(listOf(Color(0xFF1D4550), Color(0xFF122E38)), size.height * 0.7f, size.height))
+}
+
+/** The fair at dusk: a violet sky, bunting along the top, a string of warm bulbs, a striped tent edge at each side. */
+internal fun DrawScope.fairLights(t: Float) {
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF2A1F44), Color(0xFF3B2340))))
+    val w = size.width
+    val stripe = w * 0.035f
+    for (side in listOf(0, 1)) for (k in 0 until 3) {
+        val x = if (side == 0) k * stripe else w - (k + 1) * stripe
+        drawRect(if (k % 2 == 0) Color(0xFF8E2F2A) else Color(0xFFCFC2AE), Offset(x, 0f), Size(stripe, size.height))
+    }
+    val flags = listOf(Color(0xFF7DB8FF), Color(0xFFFCD860), Color(0xFFE0605A), Color(0xFF7CC173))
+    val n = (w / 26.dp.toPx()).toInt().coerceAtLeast(6)
+    for (k in 0 until n) {
+        val x = w * (k + 0.5f) / n
+        val y = 4.dp.toPx() + 6.dp.toPx() * sin(PI.toFloat() * (k + 0.5f) / n)
+        val tri = Path().apply { moveTo(x - 8.dp.toPx(), y); lineTo(x + 8.dp.toPx(), y); lineTo(x, y + 14.dp.toPx()); close() }
+        drawPath(tri, flags[k % flags.size].copy(alpha = 0.85f))
+    }
+    for (k in 0 until n + 1) {
+        val c = Offset(w * k / n, size.height * 0.62f + 8.dp.toPx() * sin(PI.toFloat() * k / n))
+        val on = 0.6f + 0.4f * sin(((t * 6f + k * 0.37f) * 2 * PI).toFloat())
+        drawCircle(Color(0xFFFFE3A0).copy(alpha = 0.18f * on), 10.dp.toPx(), c)
+        drawCircle(Color(0xFFFFF1C8).copy(alpha = 0.5f + 0.5f * on), 2.5.dp.toPx(), c)
+    }
+}
+
+/** A paper lantern hung at [c], [r] across, glowing in [colour] by [on] (0..1): the treehouse's and the night sky's singers. */
+internal fun DrawScope.lantern(c: Offset, r: Float, colour: Color, on: Float) {
+    drawLine(Color(0xFF8A7A6A), Offset(c.x, 0f), Offset(c.x, c.y - r), 1.5.dp.toPx())
+    if (on > 0.1f) drawCircle(Brush.radialGradient(listOf(colour.copy(alpha = 0.55f * on), Color.Transparent), c, r * 3f), r * 3f, c)
+    drawRoundRect(Color(0xFF3A2A20), Offset(c.x - r * 0.45f, c.y - r * 1.12f), Size(r * 0.9f, r * 0.22f), CornerRadius(r * 0.08f))
+    drawOval(lerpColour(Color(0xFF5A4A40), colour, 0.35f + 0.65f * on), Offset(c.x - r, c.y - r * 0.95f), Size(r * 2f, r * 1.9f))
+    for (k in -1..1) drawArc(Color.Black.copy(alpha = 0.18f), 90f, 180f, false, Offset(c.x - r * (0.3f + 0.3f * (k + 1)), c.y - r * 0.95f),
+        Size(r * (0.6f + 0.6f * (k + 1)), r * 1.9f), style = Stroke(1.dp.toPx()))
+    drawRoundRect(Color(0xFF3A2A20), Offset(c.x - r * 0.4f, c.y + r * 0.9f), Size(r * 0.8f, r * 0.2f), CornerRadius(r * 0.08f))
+}
+
+private fun lerpColour(a: Color, b: Color, f: Float) = androidx.compose.ui.graphics.lerp(a, b, f.coerceIn(0f, 1f))
+
 /** A lily pad around [c], [r] wide, with its notch and a vein or two. */
 internal fun DrawScope.lilyPad(c: Offset, r: Float, tilt: Float = 0f) {
     rotate(tilt, c) {
@@ -145,17 +244,17 @@ internal fun DrawScope.spotlight(c: Offset, r: Float, colour: Color, on: Float, 
 }
 
 /**
- * Who listens: the pond's frogs and ducks, or the concert hall's animals the kid collected (the world's audience; the
- * pond's friends sit in when none are collected yet). [cheer] makes them bounce. Decorative.
+ * Who listens: the pond's frogs and ducks, or anywhere else (the concert hall, the workshop, 2.3's places) the animals the
+ * kid collected (the world's audience; the pond's friends sit in when none are collected yet). [cheer] makes them bounce.
+ * Decorative.
  */
 @Composable
 internal fun Audience(place: Place, modifier: Modifier = Modifier, size: Dp = 40.dp, cheer: Boolean = false, max: Int = 8) {
     val world = LocalWorld.current
     val friends = remember(place) { listOf(Stickers.ALL.first { it.id == "pond-1" }, Stickers.ALL.first { it.id == "pond-2" }) }
-    val seats: List<Sticker> = when (place) {
-        Place.CONCERT_HALL -> world?.state?.history?.owned?.let(WorldScenery::audience)?.takeIf { it.isNotEmpty() } ?: friends
-        else -> friends
-    }.let { s -> List(minOf(max, if (place == Place.CONCERT_HALL) maxOf(s.size, 2) else max)) { s[it % s.size] } }
+    val pond = place == Place.POND || place == Place.GARDEN
+    val seats: List<Sticker> = (if (pond) friends else world?.state?.history?.owned?.let(WorldScenery::audience)?.takeIf { it.isNotEmpty() } ?: friends)
+        .let { s -> List(minOf(max, if (!pond) maxOf(s.size, 2) else max)) { s[it % s.size] } }
     val still = reducedMotion()
     val clock = rememberInfiniteTransition(label = "audience")
     val bob by clock.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(if (cheer) 700 else 2600, easing = LinearEasing)), label = "bob")

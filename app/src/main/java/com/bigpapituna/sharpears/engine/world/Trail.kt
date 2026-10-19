@@ -24,6 +24,12 @@ object Trail {
         Place.GARDEN -> floatArrayOf(0.615f, 0.755f, 0.895f)
         Place.POND -> floatArrayOf(0.585f, 0.725f, 0.865f)
         Place.CONCERT -> floatArrayOf(0.48f, 0.615f, 0.75f)
+        // 2.3: the workshop's floorboards under the bench and the piano being built; the ground under the big tree; the
+        // hill under the night sky; the fair's midway in front of the tents (its page is four stones: the first row).
+        Place.WORKSHOP -> floatArrayOf(0.615f, 0.755f, 0.895f)
+        Place.TREEHOUSE -> floatArrayOf(0.60f, 0.74f, 0.88f)
+        Place.NIGHT_SKY -> floatArrayOf(0.60f, 0.74f, 0.88f)
+        Place.FAIR -> floatArrayOf(0.67f, 0.80f, 0.93f)
     }
 
     /** The row heights for [count] stops: three rows, or more squeezed between the same top and bottom for a longer page. */

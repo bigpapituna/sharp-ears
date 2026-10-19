@@ -8,9 +8,9 @@ import java.io.File
 
 class DropsTest {
     @Test fun catalogueHasTenPerPlaceSixThreeOne() {
-        assertEquals(30, Stickers.ALL.size)
-        assertEquals(30, Stickers.ALL.map { it.id }.toSet().size)
-        assertEquals(30, Stickers.ALL.map { it.name }.toSet().size)
+        assertEquals("ten per place, seven places (2.3)", 70, Stickers.ALL.size)
+        assertEquals(70, Stickers.ALL.map { it.id }.toSet().size)
+        assertEquals(70, Stickers.ALL.map { it.name }.toSet().size)
         for (p in Place.entries) {
             assertEquals((1..10).toList(), p.stickers.map { it.n })
             assertEquals(6, Stickers.of(p, Rarity.COMMON).size)
@@ -107,29 +107,29 @@ class DropsTest {
     @Test fun theAlbumFillsAndNewIsTrueOnlyForGaps() {
         var h = DropHistory()
         var drops = 0
-        while (h.unique < 30 && drops < 2000) {
+        while (h.unique < Stickers.ALL.size && drops < 4000) {
             val d = Drops.roll(21L, h)
             assertEquals(h.count(d.sticker.id) == 0, d.isNew)
             h = h.after(d)
             drops++
         }
-        assertEquals(30, h.unique)
+        assertEquals(Stickers.ALL.size, h.unique)
         assertTrue("took $drops drops", drops < 600)
         assertEquals(drops, h.total)
         assertEquals(drops, h.rolls)
     }
 
     /** How long a whole album takes, on average over many profiles (the pace the INTEGRATION notes give). */
-    @Test fun aFullAlbumTakesAboutFiftyDrops() {
+    @Test fun aFullAlbumTakesAboutAHundredDrops() {
         val runs = (1L..60L).map { seed ->
             var h = DropHistory(); var n = 0
-            while (h.unique < 30) { h = h.after(Drops.roll(seed, h)); n++ }
+            while (h.unique < Stickers.ALL.size) { h = h.after(Drops.roll(seed, h)); n++ }
             n
         }
         val mean = runs.average()
         println("drops to a full album: mean ${"%.1f".format(mean)}, min ${runs.min()}, max ${runs.max()}")
-        // About 53 (31 to 123): the three shinies are the long pole (6.6% of drops each time).
-        assertTrue("mean $mean", mean in 40.0..80.0)
+        // About 114 since 2.3's seventy stickers (53 with thirty): the seven shinies are the long pole (6.6% of drops each time).
+        assertTrue("mean $mean", mean in 90.0..150.0)
     }
 
     @Test fun rngIsStableAcrossRuns() {

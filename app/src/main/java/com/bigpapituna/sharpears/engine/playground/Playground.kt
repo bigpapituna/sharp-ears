@@ -78,8 +78,15 @@ enum class Game {
     SET_LIST,
 }
 
-/** Where a lesson sits in the pup's world (the map and the album pages). */
-enum class Place(val title: String) { GARDEN("The garden"), POND("The pond"), CONCERT_HALL("The concert hall") }
+/**
+ * Where a lesson sits in the pup's world (the map and the album pages). 2.3 adds four places, each with its scene, trail,
+ * stickers and album page (ui/world/Scenes.kt, engine/world): the workshop and the fair (part A's pages), the treehouse
+ * and the night sky (part B's).
+ */
+enum class Place(val title: String) {
+    GARDEN("The garden"), POND("The pond"), CONCERT_HALL("The concert hall"),
+    WORKSHOP("The workshop"), TREEHOUSE("The treehouse"), NIGHT_SKY("The night sky"), FAIR("The fair"),
+}
 
 /**
  * The Playground's pass mark for playing in time (lesson 7's drum and lesson 12's concert): Perform accuracy in percent.

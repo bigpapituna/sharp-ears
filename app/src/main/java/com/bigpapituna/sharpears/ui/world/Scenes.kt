@@ -103,8 +103,8 @@ object WorldAnchors {
     fun stop(place: Place, i: Int, count: Int = Trail.STOPS): Anchor? =
         Trail.stops(place, maxOf(count, i + 1)).getOrNull(i)?.let { Anchor(place, it.x, it.y) }
 
-    /** Where the gate to the big kids' road stands in [place]'s scene, when it is the last page's. */
-    fun gate(place: Place): Anchor = Trail.gate(place).let { Anchor(place, it.x, it.y) }
+    /** Where the gate to the big kids' road stands in [place]'s scene of [count] stops, when it is the last page's. */
+    fun gate(place: Place, count: Int = Trail.STOPS): Anchor = Trail.gate(place, count).let { Anchor(place, it.x, it.y) }
 
     /** The smiling sun sticker, and where it sits at dusk: setting behind the far hills, its size a share of the width. */
     const val SUN = "garden-2"
@@ -133,6 +133,27 @@ object WorldAnchors {
         "concert-4" to Triple(0.63f, 0.36f, 0.10f), "concert-5" to Triple(0.76f, 0.375f, 0.12f), "concert-6" to Triple(0.26f, 0.325f, 0.21f),
         "concert-7" to Triple(0.86f, 0.10f, 0.14f), "concert-8" to Triple(0.925f, 0.41f, 0.11f), "concert-9" to Triple(0.93f, 0.55f, 0.09f),
         "concert-10" to Triple(0.15f, 0.09f, 0.16f),
+        // 2.3. The workshop: tools on the pegboard and the bench, the tuning fork on the piano being built, the rest on
+        // the floorboards between the stones.
+        "workshop-1" to Triple(0.385f, 0.13f, 0.10f), "workshop-2" to Triple(0.235f, 0.93f, 0.11f), "workshop-3" to Triple(0.79f, 0.075f, 0.12f),
+        "workshop-4" to Triple(0.09f, 0.355f, 0.085f), "workshop-5" to Triple(0.455f, 0.255f, 0.12f), "workshop-6" to Triple(0.695f, 0.93f, 0.10f),
+        "workshop-7" to Triple(0.535f, 0.13f, 0.09f), "workshop-8" to Triple(0.20f, 0.35f, 0.095f), "workshop-9" to Triple(0.465f, 0.93f, 0.10f),
+        "workshop-10" to Triple(0.32f, 0.335f, 0.105f),
+        // The treehouse: up in the branches and on the platforms, the kite caught in the leaves, the small things on the ground.
+        "treehouse-1" to Triple(0.235f, 0.94f, 0.085f), "treehouse-2" to Triple(0.30f, 0.29f, 0.11f), "treehouse-3" to Triple(0.505f, 0.405f, 0.095f),
+        "treehouse-4" to Triple(0.90f, 0.45f, 0.11f), "treehouse-5" to Triple(0.07f, 0.09f, 0.09f), "treehouse-6" to Triple(0.22f, 0.17f, 0.11f),
+        "treehouse-7" to Triple(0.695f, 0.94f, 0.10f), "treehouse-8" to Triple(0.865f, 0.235f, 0.08f), "treehouse-9" to Triple(0.465f, 0.94f, 0.08f),
+        "treehouse-10" to Triple(0.87f, 0.075f, 0.14f),
+        // The night sky: the moon sticker over the scene's own moon, the rest in the sky and on the hill.
+        "nightsky-1" to Triple(0.80f, 0.13f, 0.16f), "nightsky-2" to Triple(0.33f, 0.10f, 0.16f), "nightsky-3" to Triple(0.10f, 0.43f, 0.095f),
+        "nightsky-4" to Triple(0.465f, 0.95f, 0.07f), "nightsky-5" to Triple(0.62f, 0.42f, 0.12f), "nightsky-6" to Triple(0.11f, 0.20f, 0.12f),
+        "nightsky-7" to Triple(0.57f, 0.20f, 0.15f), "nightsky-8" to Triple(0.36f, 0.33f, 0.12f), "nightsky-9" to Triple(0.92f, 0.32f, 0.085f),
+        "nightsky-10" to Triple(0.81f, 0.465f, 0.10f),
+        // The fair: balloons and the big wheel in the sky, a prize by the tent, the snacks on the midway between the stones.
+        "fair-1" to Triple(0.10f, 0.11f, 0.11f), "fair-2" to Triple(0.235f, 0.95f, 0.09f), "fair-3" to Triple(0.465f, 0.95f, 0.09f),
+        "fair-4" to Triple(0.51f, 0.555f, 0.10f), "fair-5" to Triple(0.695f, 0.95f, 0.09f), "fair-6" to Triple(0.68f, 0.09f, 0.16f),
+        "fair-7" to Triple(0.95f, 0.64f, 0.075f), "fair-8" to Triple(0.165f, 0.525f, 0.10f), "fair-9" to Triple(0.235f, 0.62f, 0.08f),
+        "fair-10" to Triple(0.95f, 0.85f, 0.075f),
     )
 
     /** The concert audience's seats, left to right. */
@@ -179,8 +200,9 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
                onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null,
                overlay: (@Composable BoxWithConstraintsScope.() -> Unit)? = null) {
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    // The concert hall has nothing that drifts: no clock, so its scene is painted once and never again until it changes.
-    val t = rememberSceneClock(running = place != Place.CONCERT)
+    // The concert hall and the workshop have nothing that drifts: no clock, so the scene is painted once and never again
+    // until it changes.
+    val t = rememberSceneClock(running = place.moves)
     val owned = state.history.owned
     val items = Scenery.items(place, owned)
     BoxWithConstraints(modifier.fillMaxWidth().aspectRatio(SCENE_RATIO).clip(RoundedCornerShape(20.dp))
@@ -194,7 +216,7 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
         // The bitmap lives in a remembered holder, not in drawWithCache: a recomposition of the screen around the scene
         // (the pup next to it hops, the jar fills) hands drawWithCache a new lambda, which threw the cache away and
         // painted the whole garden again into a fresh bitmap on every frame.
-        val front = remember(place, stage, night, egg) { SceneFront() }
+        val front = remember(place, stage, night, egg, stops) { SceneFront() }
         val p = remember(night) { Palette(night) }
         Spacer(Modifier.fillMaxSize().graphicsLayer().drawBehind {
             val still = front.image(this) {
@@ -202,21 +224,31 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
                     Place.GARDEN -> drawGarden(stage, night, egg)
                     Place.POND -> drawPond(night)
                     Place.CONCERT -> drawConcert(night)
+                    Place.WORKSHOP -> drawWorkshop(night)
+                    Place.TREEHOUSE -> drawTreehouse(night)
+                    Place.NIGHT_SKY -> drawNightSky(night)
+                    Place.FAIR -> drawFair(night)
                 }
-                drawTrail(trailPath(place, size), place, night)
+                drawTrail(trailPath(place, size, stops.coerceAtLeast(1)), place, night)
             }
             run {
-                val tick = if (place == Place.CONCERT) 0f else t.value      // read only where something moves
+                val tick = if (!place.moves) 0f else t.value      // read only where something moves
                 when (place) {
                     Place.GARDEN -> { skyBase(p, night, 0.45f); skyLife(p, night, tick, 0.45f) }
                     Place.POND -> { skyBase(p, night, 0.38f); skyLife(p, night, tick, 0.38f) }
-                    Place.CONCERT -> {}
+                    Place.TREEHOUSE -> { skyBase(p, night, 0.62f); skyLife(p, night, tick, 0.5f) }
+                    Place.NIGHT_SKY -> nightSkyBase(night)
+                    Place.FAIR -> { skyBase(p, night, 0.62f); skyLife(p, night, tick, 0.5f) }
+                    Place.CONCERT, Place.WORKSHOP -> {}
                 }
                 drawImage(still)
                 when (place) {
                     Place.GARDEN -> drawHouseLife(stage, HOUSE_BASE.toOffset(size), size.width * HOUSE_W, tick)
                     Place.POND -> ripples(tick)
-                    Place.CONCERT -> {}
+                    Place.TREEHOUSE -> treehouseLife(tick)
+                    Place.NIGHT_SKY -> nightSkyLife(tick)
+                    Place.FAIR -> fairLife(night, tick)
+                    Place.CONCERT, Place.WORKSHOP -> {}
                 }
             }
         })
@@ -261,7 +293,7 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
     }
 }
 
-/** The three places one under the other, garden first: the Playground's whole map. */
+/** Every place one under the other, garden first: the Playground's whole map. */
 @Composable
 fun WorldMap(state: WorldState, modifier: Modifier = Modifier, stop: (@Composable (place: Place, i: Int) -> Unit)? = null,
              onSticker: ((Sticker) -> Unit)? = null) {
@@ -276,7 +308,7 @@ fun WorldMap(state: WorldState, modifier: Modifier = Modifier, stop: (@Composabl
 
 private val Ink = WorldInk
 
-private class Palette(night: Boolean) {
+internal class Palette(night: Boolean) {
     val skyTop = if (night) Color(0xFF27304F) else Color(0xFFBFE3F7)
     val skyLow = if (night) Color(0xFF4B4466) else Color(0xFFEFF7EE)
     val hill = if (night) Color(0xFF3B5E45) else Color(0xFFB8DCA0)
@@ -290,9 +322,12 @@ private class Palette(night: Boolean) {
     val line = Ink.copy(alpha = if (night) 0.55f else 0.38f)
 }
 
-/** The trail through a place's twelve stops ([Trail.path]): in on the left, three rows winding, out past the last row's end. */
-private fun trailPath(place: Place, size: Size): Path {
-    val pts = Trail.path(place).map { Offset(it.x * size.width, it.y * size.height) }
+/**
+ * The trail through a place's [count] stops ([Trail.path]): in on the left, the rows winding, out past the last row's end
+ * (2.3: a short page, the fair's four, is one row across the scene).
+ */
+private fun trailPath(place: Place, size: Size, count: Int = Trail.STOPS): Path {
+    val pts = Trail.path(place, count).map { Offset(it.x * size.width, it.y * size.height) }
     // Catmull-Rom through the points, as cubic Beziers.
     return Path().apply {
         moveTo(pts[0].x, pts[0].y)
@@ -306,6 +341,15 @@ private fun trailPath(place: Place, size: Size): Path {
 private fun DrawScope.drawTrail(trail: Path, place: Place, night: Boolean) {
     val p = Palette(night)
     val w = size.width * 0.062f
+    // 2.3: a measuring tape across the workshop floor, log slices under the big tree, glowing stones up the night hill, a
+    // sandy midway with its little lights at the fair (ui/world/MorePlaces.kt).
+    when (place) {
+        Place.WORKSHOP -> return drawTapeTrail(trail, w, night)
+        Place.TREEHOUSE -> return drawLogTrail(trail, w, night)
+        Place.NIGHT_SKY -> return drawGlowTrail(trail, w, night)
+        Place.FAIR -> return drawMidwayTrail(trail, w, night)
+        else -> {}
+    }
     if (place == Place.POND) {
         // A boardwalk of planks across the water and the lawn: dark wood under, the planks over it with a seam between each.
         val under = if (night) Color(0xFF5E4630) else Color(0xFF9A6A44)
@@ -329,7 +373,7 @@ private fun DrawScope.drawTrail(trail: Path, place: Place, night: Boolean) {
 }
 
 /** The sky behind a scene: its gradient, and at dusk the moon. */
-private fun DrawScope.skyBase(p: Palette, night: Boolean, horizon: Float) {
+internal fun DrawScope.skyBase(p: Palette, night: Boolean, horizon: Float) {
     drawRect(Brush.verticalGradient(listOf(p.skyTop, p.skyLow), endY = size.height * horizon), size = Size(size.width, size.height * horizon + 2f))
     if (night) {
         val moon = Offset(size.width * 0.34f, size.height * 0.11f)
@@ -340,7 +384,7 @@ private fun DrawScope.skyBase(p: Palette, night: Boolean, horizon: Float) {
 }
 
 /** What moves in the sky: stars twinkling at dusk, two clouds drifting across. */
-private fun DrawScope.skyLife(p: Palette, night: Boolean, t: Float, horizon: Float) {
+internal fun DrawScope.skyLife(p: Palette, night: Boolean, t: Float, horizon: Float) {
     if (night) {
         val r = java.util.Random(11)
         repeat(26) {
@@ -362,7 +406,7 @@ private fun DrawScope.skyLife(p: Palette, night: Boolean, t: Float, horizon: Flo
     }
 }
 
-private fun DrawScope.ground(p: Palette, top: Float) {
+internal fun DrawScope.ground(p: Palette, top: Float) {
     val h = size.height; val w = size.width
     // Far hills, then the lawn with a soft wavy edge.
     val hills = Path().apply {
@@ -391,7 +435,7 @@ private fun DrawScope.ground(p: Palette, top: Float) {
     }
 }
 
-private fun DrawScope.outlined(path: Path, fill: Color, line: Float, ink: Color = Ink) {
+internal fun DrawScope.outlined(path: Path, fill: Color, line: Float, ink: Color = Ink) {
     drawPath(path, fill)
     drawPath(path, ink, style = Stroke(line, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }

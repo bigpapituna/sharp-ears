@@ -1,12 +1,14 @@
-"""Placeholder stickers (2.1, world team): the 30 subjects of art/GEMINI-BRIEF.md section C as flat shapes.
+"""Placeholder stickers (2.1, world team): the 30 subjects of art/GEMINI-BRIEF.md section C as flat shapes; 2.3 adds 40 more,
+ten for each new place (the workshop, the treehouse, the night sky, the fair).
 
 Each sticker is a few coloured shapes in the pup's style (thick dark brown outline on every shape, a soft shade on
 the lower right, a highlight on the upper left), inside a thick white die-cut border with a hairline edge, on a
 transparent 512 px square. Drawn at 4x and scaled down, so edges are smooth. The painted Gemini stickers replace
 these one for one under the same names.
 
-Output: app/src/main/res/drawable-nodpi/sticker_<place>_<n>.webp (place: garden, pond, concert; n: 1..10)
-    python -I scripts/gen_stickers.py [--sheet out.png]
+Output: app/src/main/res/drawable-nodpi/sticker_<place>_<n>.webp (place: garden, pond, concert, workshop, treehouse,
+nightsky, fair; n: 1..10)
+    python -I scripts/gen_stickers.py [--sheet out.png] [--only fair_3] [--place fair]
 The names and order match engine/world/Stickers.kt.
 """
 import argparse
@@ -530,17 +532,411 @@ def concert_10(s):  # fireworks
         s.shape(star(cx, cy, 30), WHITE, lw=5)
 
 
+# ---- 2.3: the workshop, the treehouse, the night sky and the fair (ten each) ----------------------------------------------
+
+def workshop_1(s):  # a hammer
+    s.shape(stroke([(150, 440), (330, 190)], 34), WOOD, WOOD_D, light=True)
+    head = poly([(250, 150), (350, 78), (430, 190), (330, 262)])
+    s.shape(head, SILVER, SILVER_D, light=True)
+    s.shape(poly([(250, 150), (196, 120), (176, 160), (270, 230), (300, 214)]), GREY, GREY_D)
+    s.line(stroke([(300, 120), (380, 230)], 6), SILVER_D)
+
+
+def workshop_2(s):  # a saw
+    blade = poly([(170, 160), (440, 300), (430, 360), (150, 260)])
+    s.shape(blade, SILVER, SILVER_D, light=True)
+    teeth = union(*[poly([(150 + i * 28, 262 + i * 9.6), (164 + i * 28, 300 + i * 9.6), (178 + i * 28, 266 + i * 9.6)]) for i in range(10)])
+    s.shape(teeth, SILVER_D, outline=True, lw=4)
+    handle = minus(rrect(60, 130, 210, 290, 40), ellipse(132, 208, 34, 26))
+    s.shape(handle.rotate(20, resample=Image.BICUBIC, center=(135 * S, 210 * S)), RED, RED_D, light=True)
+    s.fill(ellipse(400, 316, 8), SILVER_D)
+
+
+def workshop_3(s):  # a tuning fork, singing
+    s.shape(union(stroke([(206, 110), (206, 300)], 34), stroke([(306, 110), (306, 300)], 34), arc(256, 300, 50, 0, 180, 34)), GOLD, GOLD_D, light=True)
+    s.shape(stroke([(256, 350), (256, 450)], 30), GOLD, GOLD_D)
+    s.shape(ellipse(256, 456, 26, 16), GOLD_D)
+    for k, r in enumerate((60, 100)):
+        s.line(arc(256, 150, r + 70, 200, 250, 9), BLUE)
+        s.line(arc(256, 150, r + 70, 290, 340, 9), BLUE)
+    s.shape(star(110, 90, 26), YELLOW, outline=True, lw=5)
+    s.shape(star(410, 96, 20), YELLOW, outline=True, lw=5)
+
+
+def workshop_4(s):  # a glue pot with its brush
+    s.shape(stroke([(300, 250), (380, 70)], 18), WOOD, WOOD_D)
+    s.shape(ellipse(386, 62, 20, 26, angle=-25), CREAM, CREAM_D)
+    s.shape(union(rrect(130, 230, 382, 440, 50), ellipse(256, 440, 126, 26)), BLUE, BLUE_D, light=True)
+    s.shape(ellipse(256, 232, 126, 30), BLUE_D)
+    s.shape(ellipse(256, 236, 106, 20), CREAM, outline=False)
+    s.shape(union(ellipse(170, 238, 26, 30), stroke([(170, 250), (166, 300)], 26)), CREAM, CREAM_D)
+    s.shape(rrect(170, 316, 342, 380, 12), YELLOW, YELLOW_D)
+    s.line(stroke([(196, 348), (316, 348)], 9), ORANGE_D)
+
+
+def workshop_5(s):  # a wooden ruler
+    r = rrect(60, 200, 452, 300, 14).rotate(-20, resample=Image.BICUBIC, center=(N / 2, N / 2))
+    s.shape(r, YELLOW, YELLOW_D, light=True)
+    marks = union(*[rrect(80 + i * 23, 200, 85 + i * 23, 200 + (40 if i % 4 == 0 else 22), 2) for i in range(16)])
+    s.line(inter(marks.rotate(-20, resample=Image.BICUBIC, center=(N / 2, N / 2)), r), WOOD_D)
+
+
+def workshop_6(s):  # a piano key: white, with its black neighbour
+    s.shape(rrect(170, 70, 320, 450, 26), WHITE, WHITE_D, light=True)
+    s.shape(rrect(282, 60, 372, 300, 18), DARK, DARK_D, light=True)
+    s.fill(ellipse(240, 400, 30, 14), (236, 230, 222))
+
+
+def workshop_7(s):  # a screwdriver
+    s.shape(stroke([(250, 270), (400, 90)], 18), SILVER, SILVER_D)
+    s.shape(poly([(388, 104), (432, 50), (444, 62), (402, 116)]), SILVER_D)
+    h = union(rrect(150, 240, 250, 420, 42)).rotate(-40, resample=Image.BICUBIC, center=(200 * S, 330 * S))
+    s.shape(h, ORANGE, ORANGE_D, light=True)
+    for k in (-1, 0, 1):
+        s.line(stroke([(186 + k * 22, 300 - k * 16), (236 + k * 22, 360 - k * 16)], 7), ORANGE_D)
+
+
+def workshop_8(s):  # a paintbrush with a drop of paint
+    s.shape(stroke([(140, 430), (300, 200)], 30), RED, RED_D, light=True)
+    s.shape(poly([(286, 214), (330, 160), (360, 182), (316, 236)]), SILVER, SILVER_D)
+    s.shape(poly([(330, 160), (400, 70), (440, 96), (360, 182)]), CREAM, CREAM_D)
+    s.shape(poly([(380, 100), (420, 50), (452, 76), (414, 126)]), BLUE, BLUE_D)
+    s.shape(drop(380, 410, 30), BLUE, BLUE_D, light=True)
+
+
+def workshop_9(s):  # a toolbox
+    s.shape(arc(256, 210, 70, 180, 360, 22), GREY, GREY_D)
+    s.shape(rrect(90, 200, 422, 420, 26), RED, RED_D, light=True)
+    s.shape(rrect(90, 200, 422, 250, 18), RED_D)
+    s.shape(rrect(226, 240, 286, 280, 10), SILVER, SILVER_D)
+    s.shape(stroke([(160, 186), (200, 110)], 16), SILVER, SILVER_D)
+    s.shape(ellipse(204, 104, 20, 14, angle=-60), SILVER_D)
+    s.shape(stroke([(340, 196), (350, 120)], 14), WOOD, WOOD_D)
+
+
+def workshop_10(s):  # a work lamp, lit
+    s.fill(poly([(250, 200), (110, 420), (330, 420)]), (255, 238, 170), alpha=170)
+    s.shape(rrect(150, 420, 330, 456, 14), DARK, DARK_D)
+    s.shape(union(stroke([(240, 430), (300, 300)], 18), stroke([(300, 300), (260, 180)], 18)), GREY, GREY_D)
+    s.shape(ellipse(300, 300, 18), SILVER_D)
+    shade = poly([(200, 130), (310, 110), (330, 210), (180, 230)])
+    s.shape(shade.rotate(15, resample=Image.BICUBIC, center=(255 * S, 170 * S)), GREEN, GREEN_D, light=True)
+    s.shape(ellipse(250, 222, 50, 18, angle=10), YELLOW, YELLOW_D)
+
+
+def treehouse_1(s):  # an acorn
+    s.shape(stroke([(262, 120), (284, 70)], 18), WOOD_D)
+    s.shape(ellipse(256, 300, 112, 140), ORANGE, ORANGE_D, light=True)
+    s.shape(union(ellipse(256, 196, 140, 70), rrect(126, 180, 386, 230, 30)), WOOD, WOOD_D, light=True)
+    for x in range(150, 380, 34):
+        s.line(stroke([(x, 186), (x + 20, 220)], 6), WOOD_D)
+    s.eye(222, 300, 14); s.eye(290, 300, 14)
+    s.line(arc(256, 320, 30, 30, 150, 8))
+    s.fill(ellipse(196, 336, 18, 10), PINK); s.fill(ellipse(316, 336, 18, 10), PINK)
+
+
+def treehouse_2(s):  # a squirrel with a big tail
+    s.shape(union(ellipse(360, 230, 80, 150, angle=-20), ellipse(400, 130, 70, 60)), ORANGE, ORANGE_D, light=True)
+    s.shape(ellipse(230, 330, 100, 110), ORANGE, ORANGE_D, light=True)
+    s.shape(ellipse(220, 360, 56, 64), CREAM, outline=False)
+    s.shape(ellipse(196, 200, 78, 70), ORANGE, ORANGE_D, light=True)
+    s.shape(poly([(150, 160), (150, 100), (190, 140)]), ORANGE_D)
+    s.shape(poly([(220, 140), (240, 84), (256, 140)]), ORANGE_D)
+    s.eye(176, 196, 13)
+    s.fill(ellipse(140, 220, 12), DARK)
+    s.shape(ellipse(200, 300, 30, 40), WOOD, WOOD_D)
+    s.shape(ellipse(200, 268, 30, 12), WOOD_D)
+
+
+def treehouse_3(s):  # an owl on a branch
+    s.shape(stroke([(70, 420), (450, 400)], 26), WOOD, WOOD_D)
+    s.shape(union(ellipse(256, 270, 130, 150), poly([(150, 150), (170, 90), (210, 140)]), poly([(362, 150), (342, 90), (302, 140)])), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(256, 320, 84, 90), SAND, outline=False)
+    for x in (206, 306):
+        s.shape(ellipse(x, 220, 44), CREAM, CREAM_D)
+        s.eye(x, 222, 22)
+    s.shape(poly([(240, 254), (272, 254), (256, 290)]), ORANGE, ORANGE_D)
+    for x in (220, 290):
+        s.shape(union(*[ellipse(x + k * 14, 412, 8, 14) for k in (-1, 0, 1)]), ORANGE, ORANGE_D, lw=5)
+
+
+def treehouse_4(s):  # a rope swing on a branch
+    s.shape(stroke([(40, 90), (470, 110)], 34), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(420, 70, 40, 24, angle=-20), LEAF, LEAF_D)
+    for x in (170, 342):
+        s.line(stroke([(x, 100), (x + (0 if x < 200 else 0), 380)], 12), WOOD_D)
+        s.line(stroke([(x, 100), (x, 380)], 6), SAND)
+    s.shape(rrect(130, 370, 382, 412, 12), WOOD, WOOD_D, light=True)
+
+
+def treehouse_5(s):  # a big green leaf
+    leaf = union(ellipse(256, 240, 120, 190, angle=-30))
+    s.shape(leaf, LEAF, LEAF_D, light=True)
+    s.line(stroke([(140, 430), (330, 110)], 12), LEAF_D)
+    for t in (0.35, 0.55, 0.75):
+        x = 140 + (330 - 140) * t; y = 430 + (110 - 430) * t
+        s.line(stroke([(x, y), (x - 70, y - 30)], 7), LEAF_D)
+        s.line(stroke([(x, y), (x + 50, y + 40)], 7), LEAF_D)
+
+
+def treehouse_6(s):  # a bird's nest with three eggs
+    for x, c in ((196, SKY), (256, BLUE), (316, SKY)):
+        s.shape(ellipse(x, 250, 46, 58), c, BLUE_D, light=True)
+    nest = minus(ellipse(256, 320, 190, 110), rrect(40, 140, 470, 290, 0))
+    s.shape(union(nest, rrect(70, 290, 442, 320, 15)), WOOD, WOOD_D, light=True)
+    for k in range(7):
+        s.line(arc(256, 260 + k * 6, 170 - k * 8, 30, 150, 7), WOOD_D)
+
+
+def treehouse_7(s):  # a wooden ladder
+    for x in (170, 342):
+        s.shape(stroke([(x - 30, 456), (x + 20, 60)], 30), WOOD, WOOD_D, light=True)
+    for k in range(5):
+        y = 400 - k * 76
+        t = (456 - y) / (456 - 60)
+        s.shape(stroke([(140 + 50 * t, y), (312 + 50 * t, y)], 22), SAND, SAND_D)
+
+
+def treehouse_8(s):  # a lantern, lit
+    s.shape(arc(256, 120, 50, 180, 360, 12), DARK)
+    s.shape(ellipse(256, 280, 150), (255, 243, 204), outline=False)
+    s.shape(rrect(176, 130, 336, 166, 12), DARK, DARK_D)
+    s.shape(rrect(186, 160, 326, 390, 30), YELLOW, YELLOW_D, light=True)
+    s.line(stroke([(256, 166), (256, 388)], 8), DARK)
+    s.line(stroke([(188, 276), (324, 276)], 8), DARK)
+    s.shape(ellipse(256, 290, 22, 34), ORANGE, ORANGE_D)
+    s.shape(rrect(176, 384, 336, 420, 12), DARK, DARK_D)
+
+
+def treehouse_9(s):  # a pinecone
+    s.shape(stroke([(256, 110), (256, 60)], 16), WOOD_D)
+    s.shape(ellipse(256, 280, 120, 170), WOOD, WOOD_D, light=True)
+    for row in range(6):
+        y = 150 + row * 50
+        n = 3 if row in (0, 5) else 4
+        for k in range(n):
+            x = 256 + (k - (n - 1) / 2) * 56
+            s.shape(arc(x, y, 30, 20, 160, 9), WOOD_D, outline=False)
+
+
+def treehouse_10(s):  # a kite with a bow tail
+    kite = poly([(256, 50), (380, 190), (256, 330), (132, 190)])
+    s.shape(kite, RED, RED_D, light=True)
+    s.fill(inter(kite, poly([(256, 50), (380, 190), (256, 190)])), YELLOW)
+    s.fill(inter(kite, poly([(256, 330), (132, 190), (256, 190)])), YELLOW)
+    s.line(stroke([(256, 50), (256, 330)], 7)); s.line(stroke([(132, 190), (380, 190)], 7))
+    s.line(stroke([(256, 330), (230, 380), (290, 420), (250, 470)], 6))
+    for x, y, c in ((236, 384, BLUE), (284, 420, GREEN), (252, 462, PURPLE)):
+        s.shape(union(poly([(x - 26, y - 14), (x, y), (x - 26, y + 14)]), poly([(x + 26, y - 14), (x, y), (x + 26, y + 14)])), c, lw=5)
+
+
+def nightsky_1(s):  # a sleepy crescent moon
+    moon = minus(ellipse(256, 256, 190), ellipse(330, 210, 160))
+    s.shape(moon, YELLOW, YELLOW_D, light=True)
+    s.line(arc(150, 250, 20, 20, 160, 8))
+    s.fill(ellipse(146, 290, 16, 10), PINK)
+    s.line(arc(196, 330, 24, 40, 140, 8))
+    s.shape(star(400, 380, 32), YELLOW, outline=True, lw=5)
+
+
+def nightsky_2(s):  # a comet with its tail
+    for i, c in enumerate((PURPLE, BLUE, SKY)):
+        s.shape(stroke([(120 + i * 20, 400 - i * 40), (300, 210)], 60 - i * 16), c, outline=(i == 0), lw=LINE)
+    s.shape(star(330, 180, 110, 0.55), YELLOW, YELLOW_D, light=True)
+    s.eye(310, 170, 12); s.eye(352, 172, 12)
+    s.line(arc(330, 196, 18, 30, 150, 6))
+
+
+def nightsky_3(s):  # a night owl, one eye winking
+    s.shape(union(ellipse(256, 280, 140, 160), poly([(140, 150), (160, 80), (210, 135)]), poly([(372, 150), (352, 80), (302, 135)])), PURPLE, PURPLE_D, light=True)
+    s.shape(ellipse(256, 330, 90, 96), (210, 196, 236), outline=False)
+    s.shape(ellipse(200, 226, 48), CREAM, CREAM_D); s.eye(200, 230, 24)
+    s.shape(ellipse(312, 226, 48), CREAM, CREAM_D); s.line(arc(312, 218, 24, 20, 160, 9))
+    s.shape(poly([(240, 266), (272, 266), (256, 300)]), ORANGE, ORANGE_D)
+    s.shape(star(420, 90, 28), YELLOW, outline=True, lw=5)
+
+
+def nightsky_4(s):  # a firefly, glowing
+    s.shape(ellipse(256, 330, 150), (255, 246, 196), outline=False)
+    s.shape(ellipse(170, 200, 80, 46, angle=30), SKY, SKY_D, light=True)
+    s.shape(ellipse(342, 200, 80, 46, angle=-30), SKY, SKY_D, light=True)
+    s.shape(ellipse(256, 330, 64, 80), YELLOW, YELLOW_D, light=True)
+    s.shape(ellipse(256, 230, 56, 50), DARK, DARK_D)
+    s.fill(ellipse(236, 224, 12), (255, 255, 255)); s.fill(ellipse(276, 224, 12), (255, 255, 255))
+    s.fill(ellipse(238, 226, 6), EYE); s.fill(ellipse(278, 226, 6), EYE)
+    s.line(arc(226, 160, 34, 200, 320, 7)); s.line(arc(286, 160, 34, 220, 340, 7))
+
+
+def nightsky_5(s):  # a telescope on its stand
+    for a, b in (((256, 300), (150, 450)), ((256, 300), (362, 450)), ((256, 300), (256, 456))):
+        s.shape(stroke([a, b], 18), WOOD, WOOD_D)
+    tube = rrect(120, 170, 420, 240, 30).rotate(28, resample=Image.BICUBIC, center=(270 * S, 205 * S))
+    s.shape(tube, BLUE, BLUE_D, light=True)
+    s.shape(ellipse(392, 128, 34, 50, angle=28), GOLD, GOLD_D)
+    s.shape(ellipse(256, 282, 26), GOLD_D)
+    s.shape(star(110, 100, 30), YELLOW, outline=True, lw=5)
+
+
+def nightsky_6(s):  # a ringed planet
+    s.shape(ellipse(256, 256, 130), PINK, PINK_D, light=True)
+    s.line(arc(256, 230, 100, 200, 340, 12), (240, 150, 170))
+    s.line(arc(256, 280, 110, 20, 160, 12), (240, 150, 170))
+    ring = minus(ellipse(256, 270, 220, 60, angle=-12), ellipse(256, 262, 170, 36, angle=-12))
+    s.shape(inter(ring, rrect(0, 262, 512, 512, 0)), YELLOW, YELLOW_D)
+    s.shape(star(420, 96, 26), YELLOW, outline=True, lw=5)
+
+
+def nightsky_7(s):  # a shooting star
+    for i, c in enumerate((PINK, YELLOW, SKY)):
+        s.shape(stroke([(80, 420 - i * 46), (300, 220 - i * 30)], 40), c, outline=True, lw=6)
+    s.shape(star(330, 190, 140, 0.5), GOLD, GOLD_D, light=True)
+    s.eye(304, 180, 14); s.eye(356, 182, 14)
+    s.fill(ellipse(286, 214, 14, 9), PINK); s.fill(ellipse(376, 216, 14, 9), PINK)
+    s.line(arc(330, 206, 22, 30, 150, 7))
+
+
+def nightsky_8(s):  # a sleepy cloud
+    s.shape(union(ellipse(170, 270, 90), ellipse(270, 220, 110), ellipse(360, 276, 86), rrect(90, 270, 440, 350, 40)), WHITE, WHITE_D, light=True)
+    s.line(arc(216, 276, 22, 20, 160, 8)); s.line(arc(306, 276, 22, 20, 160, 8))
+    s.fill(ellipse(196, 316, 16, 9), PINK); s.fill(ellipse(328, 316, 16, 9), PINK)
+    s.shape(star(420, 130, 26), YELLOW, outline=True, lw=5)
+
+
+def nightsky_9(s):  # a paper lantern floating up
+    s.shape(ellipse(256, 240, 160), (255, 236, 204), outline=False)
+    body = union(ellipse(256, 230, 120, 140))
+    s.shape(body, ORANGE, ORANGE_D, light=True)
+    for x in (196, 256, 316):
+        s.line(inter(arc(x, 230, 140, 250, 290, 6), body), ORANGE_D)
+    s.shape(rrect(196, 80, 316, 110, 10), RED, RED_D)
+    s.shape(rrect(196, 352, 316, 380, 10), RED, RED_D)
+    s.line(stroke([(256, 380), (256, 450)], 8), RED_D)
+    s.shape(ellipse(256, 456, 14), YELLOW, YELLOW_D, lw=5)
+
+
+def nightsky_10(s):  # a sleeping cat curled up
+    s.shape(union(ellipse(256, 320, 170, 110), ellipse(370, 330, 70, 60)), GREY, GREY_D, light=True)
+    s.shape(stroke([(110, 360), (150, 410), (300, 430), (390, 400)], 40), GREY, GREY_D)
+    s.shape(union(ellipse(170, 280, 84, 74), poly([(110, 240), (112, 180), (160, 220)]), poly([(220, 230), (236, 172), (250, 236)])), GREY, GREY_D, light=True)
+    s.line(arc(146, 284, 16, 20, 160, 7)); s.line(arc(196, 284, 16, 20, 160, 7))
+    s.fill(ellipse(170, 306, 8, 6), PINK)
+    for k, (x, y) in enumerate(((330, 180), (380, 140), (420, 100))):
+        z = 12 + k * 4
+        s.line(stroke([(x - z, y - z), (x + z, y - z), (x - z, y + z), (x + z, y + z)], 7), PURPLE_D)
+
+
+def fair_1(s):  # a red balloon
+    s.line(stroke([(256, 330), (236, 380), (276, 420), (250, 470)], 6))
+    s.shape(union(ellipse(256, 200, 130, 150), poly([(236, 340), (276, 340), (256, 320)])), RED, RED_D, light=True)
+    s.shape(poly([(240, 352), (272, 352), (256, 336)]), RED_D)
+
+
+def fair_2(s):  # a fair ticket
+    t = rrect(80, 160, 432, 352, 20)
+    t = minus(t, ellipse(80, 256, 30)); t = minus(t, ellipse(432, 256, 30))
+    t = t.rotate(10, resample=Image.BICUBIC, center=(N / 2, N / 2))
+    s.shape(t, PINK, PINK_D, light=True)
+    s.shape(star(220, 252, 52).rotate(10, resample=Image.BICUBIC, center=(N / 2, N / 2)), YELLOW, YELLOW_D, lw=6)
+    dash = union(*[rrect(320, y, 330, y + 16, 4) for y in range(170, 350, 30)]).rotate(10, resample=Image.BICUBIC, center=(N / 2, N / 2))
+    s.line(inter(dash, t), PINK_D)
+
+
+def fair_3(s):  # a box of popcorn
+    s.shape(union(*[ellipse(x, y, 40) for x, y in ((180, 170), (236, 140), (296, 150), (346, 180), (210, 200), (290, 200))]), CREAM, CREAM_D, light=True)
+    box = poly([(150, 210), (362, 210), (330, 450), (182, 450)])
+    s.shape(box, WHITE, WHITE_D)
+    for k in range(3):
+        x0 = 150 + 70 * k + 12; x1 = x0 + 36
+        s.fill(inter(box, poly([(x0, 210), (x1, 210), (x1 - 10, 450), (x0 - 4, 450)])), RED)
+    s.line(stroke([(150, 210), (362, 210)], 6))
+
+
+def fair_4(s):  # a carousel horse on its pole
+    s.shape(stroke([(256, 40), (256, 470)], 18), GOLD, GOLD_D)
+    s.shape(union(ellipse(250, 270, 120, 70), ellipse(360, 190, 46, 60, angle=30), stroke([(330, 240), (360, 180)], 50)), WHITE, WHITE_D, light=True)
+    for x, a in ((170, 20), (210, -10), (300, 10), (330, -20)):
+        s.shape(stroke([(x, 320), (x + a, 400)], 22), WHITE, WHITE_D)
+    s.shape(union(*[ellipse(320 + k * 6, 150 + k * 20, 16, 30) for k in range(4)]), PINK, PINK_D, lw=5)
+    s.shape(rrect(200, 220, 280, 260, 12), RED, RED_D)
+    s.eye(374, 180, 10)
+    s.shape(stroke([(130, 270), (90, 330)], 22), PINK, PINK_D)
+
+
+def fair_5(s):  # candy floss on a stick
+    s.shape(stroke([(256, 300), (256, 470)], 16), SAND, SAND_D)
+    s.shape(union(ellipse(256, 180, 120, 110), ellipse(180, 220, 70), ellipse(332, 220, 70), ellipse(256, 110, 70)), PINK, PINK_D, light=True)
+    for x, y in ((210, 160), (290, 140), (250, 230), (330, 240)):
+        s.line(arc(x, y, 24, 200, 340, 6), (255, 210, 222))
+
+
+def fair_6(s):  # a ferris wheel, lit
+    s.shape(union(stroke([(256, 256), (150, 460)], 22), stroke([(256, 256), (362, 460)], 22)), SILVER, SILVER_D)
+    s.shape(arc(256, 230, 170, 0, 360, 22), PURPLE, PURPLE_D)
+    for k in range(8):
+        a = k * math.pi / 4
+        s.line(stroke([(256, 230), (256 + 168 * math.cos(a), 230 + 168 * math.sin(a))], 8), PURPLE_D)
+    for k, c in enumerate((RED, YELLOW, BLUE, GREEN, PINK, ORANGE, TEAL, RED)):
+        a = k * math.pi / 4
+        x, y = 256 + 170 * math.cos(a), 230 + 170 * math.sin(a)
+        s.shape(rrect(x - 26, y, x + 26, y + 40, 10), c, lw=5)
+    s.shape(ellipse(256, 230, 30), GOLD, GOLD_D)
+
+
+def fair_7(s):  # a prize ribbon
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 20, 260), (256 + side * 110, 460), (256 + side * 60, 430), (256 + side * 40, 470), (256 - side * 20, 270)]), BLUE, BLUE_D)
+    s.shape(ellipse(256, 200, 130), BLUE, BLUE_D, light=True)
+    s.shape(ellipse(256, 200, 90), WHITE, WHITE_D)
+    s.shape(star(256, 200, 62), GOLD, GOLD_D, lw=5)
+
+
+def fair_8(s):  # a teddy bear
+    for x in (170, 342):
+        s.shape(ellipse(x, 120, 44), WOOD, WOOD_D); s.shape(ellipse(x, 120, 22), SAND, outline=False)
+    s.shape(ellipse(256, 350, 120, 110), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(256, 370, 70, 64), SAND, outline=False)
+    for x in (140, 372):
+        s.shape(ellipse(x, 340, 40, 56, angle=(20 if x < 256 else -20)), WOOD, WOOD_D)
+    s.shape(ellipse(256, 190, 110, 96), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(256, 226, 46, 36), SAND, outline=False)
+    s.fill(ellipse(256, 210, 16, 12), DARK)
+    s.eye(214, 180, 12); s.eye(298, 180, 12)
+    s.shape(union(poly([(200, 270), (256, 290), (200, 310)]), poly([(312, 270), (256, 290), (312, 310)])), RED, RED_D, lw=5)
+
+
+def fair_9(s):  # juggling balls in the air
+    s.line(arc(256, 330, 160, 200, 340, 7), DARK)
+    for x, y, c in ((120, 300, RED), (256, 150, YELLOW), (392, 300, BLUE)):
+        s.shape(ellipse(x, y, 62), c, None, light=True)
+        s.line(arc(x, y, 50, 200, 300, 9), (255, 255, 255))
+
+
+def fair_10(s):  # a rosette for the winner
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 30, 270), (256 + side * 100, 470), (256 + side * 60, 440), (256 + side * 30, 470), (256 - side * 10, 280)]), RED, RED_D)
+    pleats = union(*[ellipse(256 + 120 * math.cos(k * math.pi / 8), 210 + 120 * math.sin(k * math.pi / 8), 36) for k in range(16)])
+    s.shape(union(pleats, ellipse(256, 210, 120)), RED, RED_D, light=True)
+    s.shape(ellipse(256, 210, 84), GOLD, GOLD_D)
+    s.shape(star(256, 210, 56), YELLOW, YELLOW_D, lw=5)
+
+
 SUBJECTS = {
     "garden": [garden_1, garden_2, garden_3, garden_4, garden_5, garden_6, garden_7, garden_8, garden_9, garden_10],
     "pond": [pond_1, pond_2, pond_3, pond_4, pond_5, pond_6, pond_7, pond_8, pond_9, pond_10],
     "concert": [concert_1, concert_2, concert_3, concert_4, concert_5, concert_6, concert_7, concert_8, concert_9, concert_10],
+    # 2.3
+    "workshop": [workshop_1, workshop_2, workshop_3, workshop_4, workshop_5, workshop_6, workshop_7, workshop_8, workshop_9, workshop_10],
+    "treehouse": [treehouse_1, treehouse_2, treehouse_3, treehouse_4, treehouse_5, treehouse_6, treehouse_7, treehouse_8, treehouse_9, treehouse_10],
+    "nightsky": [nightsky_1, nightsky_2, nightsky_3, nightsky_4, nightsky_5, nightsky_6, nightsky_7, nightsky_8, nightsky_9, nightsky_10],
+    "fair": [fair_1, fair_2, fair_3, fair_4, fair_5, fair_6, fair_7, fair_8, fair_9, fair_10],
 }
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sheet", help="also write a contact sheet of all 30 here")
+    ap.add_argument("--sheet", help="also write a contact sheet of every sticker made here")
     ap.add_argument("--only", help="one sticker, e.g. pond_3")
+    ap.add_argument("--place", help="one place's ten, e.g. fair")
     args = ap.parse_args()
     RES.mkdir(parents=True, exist_ok=True)
     made = []
@@ -548,6 +944,8 @@ def main():
         for n, fn in enumerate(fns, start=1):
             name = f"sticker_{place}_{n}"
             if args.only and args.only != f"{place}_{n}":
+                continue
+            if args.place and args.place != place:
                 continue
             s = Sticker()
             fn(s)

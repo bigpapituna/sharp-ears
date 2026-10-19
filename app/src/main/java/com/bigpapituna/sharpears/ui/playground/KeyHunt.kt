@@ -164,8 +164,10 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
         val p = if (still) 0.5f else pulse
         val measurer = rememberTextMeasurer()
 
-        // 2.2: the concert hall's letters are found on its stage.
-        if (pageOf(lessonId)?.place == Place.CONCERT_HALL) androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { hallStage(0.5f) }
+        // 2.2: the concert hall's letters are found on its stage (2.3: any later page on its own backdrop, Scenery.kt).
+        pageOf(lessonId)?.place?.takeIf { it != Place.GARDEN }?.let { place ->
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { placeBackdrop(place, 0.3f, 0.5f) }
+        }
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {

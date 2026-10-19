@@ -274,12 +274,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val pupSize = (maxHeight * 0.42f).coerceIn(110.dp, 220.dp)
-        // 2.2: the pond's water, or the hall's stage, behind the drummer.
-        when (place) {
-            Place.POND -> Canvas(Modifier.fillMaxSize()) { pondWater(0.3f) }
-            Place.CONCERT_HALL -> Canvas(Modifier.fillMaxSize()) { hallStage(0.7f) }
-            Place.GARDEN -> {}
-        }
+        // 2.2: the pond's water, or the hall's stage, behind the drummer (2.3: each page's own backdrop, Scenery.kt).
+        if (place != Place.GARDEN) Canvas(Modifier.fillMaxSize()) { placeBackdrop(place, 0.3f, 0.7f) }
         Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 // On the pond's water or the hall's curtains the dots sit on a dark pill, as the stage's line does.

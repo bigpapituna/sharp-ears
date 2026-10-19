@@ -53,7 +53,10 @@ fun oneMoreLine(next: NextDrop): String = when {
     else -> "It drops a ${next.sticker.place.short()} sticker."
 }
 
-private fun Place.short() = when (this) { Place.GARDEN -> "garden"; Place.POND -> "pond"; Place.CONCERT -> "concert hall" }
+private fun Place.short() = when (this) {
+    Place.GARDEN -> "garden"; Place.POND -> "pond"; Place.CONCERT -> "concert hall"
+    Place.WORKSHOP -> "workshop"; Place.TREEHOUSE -> "treehouse"; Place.NIGHT_SKY -> "night sky"; Place.FAIR -> "fair"
+}
 
 /**
  * "One more": the next lesson's button for the end of a celebration, with a preview of its drop: the sticker's dark

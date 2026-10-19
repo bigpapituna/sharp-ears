@@ -34,7 +34,7 @@ class WorldCopyTest {
     }
 
     @Test fun linesFitTheState() {
-        assertEquals("14 of 30. 16 still hiding.", albumLine(Album.of(Stickers.ALL.take(14).associate { it.id to 1 })))
+        assertEquals("14 of 70. 56 still hiding.", albumLine(Album.of(Stickers.ALL.take(14).associate { it.id to 1 })))
         assertEquals("37 more notes and it's full.", jarLine(163, kid = false, treats = 0))
         assertFalse("kids see no counts", jarLine(163, kid = true, treats = 0).any { it.isDigit() })
         assertTrue(jarLine(TreatJar.CAPACITY, kid = true, treats = 0).contains("Tip"))

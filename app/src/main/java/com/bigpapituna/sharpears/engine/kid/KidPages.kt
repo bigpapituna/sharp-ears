@@ -16,6 +16,10 @@ object KidPages {
         PagePlace.GARDEN -> Place.GARDEN
         PagePlace.POND -> Place.POND
         PagePlace.CONCERT_HALL -> Place.CONCERT
+        PagePlace.WORKSHOP -> Place.WORKSHOP
+        PagePlace.TREEHOUSE -> Place.TREEHOUSE
+        PagePlace.NIGHT_SKY -> Place.NIGHT_SKY
+        PagePlace.FAIR -> Place.FAIR
     }
 
     fun worldPlace(page: PlaygroundPage): Place = worldPlace(page.place)
@@ -44,5 +48,8 @@ object KidPages {
     }
 
     /** "the garden": a page's title inside a sentence ("Mia finished the garden!"). */
-    fun inSentence(page: PlaygroundPage): String = page.title.replaceFirstChar { it.lowercase() }
+    fun inSentence(page: PlaygroundPage): String = inSentence(page.title)
+
+    /** "the fair": a page or place title ("The fair") inside a sentence. */
+    fun inSentence(title: String): String = title.replaceFirstChar { it.lowercase() }
 }

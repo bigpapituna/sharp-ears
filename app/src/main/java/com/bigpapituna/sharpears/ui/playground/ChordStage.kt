@@ -41,6 +41,8 @@ import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.playground.ChordJudge
 import com.bigpapituna.sharpears.engine.playground.PageLines
+import com.bigpapituna.sharpears.engine.playground.Place
+import com.bigpapituna.sharpears.engine.playground.pageOf
 import com.bigpapituna.sharpears.engine.playground.RoundCoach
 import com.bigpapituna.sharpears.engine.playground.StageKeys
 import com.bigpapituna.sharpears.ui.Accent
@@ -138,7 +140,8 @@ internal fun ChordStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
         val roomH = maxHeight
         val pupSize = (roomH * 0.3f).coerceIn(80.dp, 150.dp)
         val keysH = (roomH * 0.38f).coerceIn(120.dp, 220.dp)
-        Canvas(Modifier.fillMaxSize()) { pondWater(if (still) 0.3f else drift) }
+        // The pond's water (2.3: on another page, its own backdrop, Scenery.kt).
+        Canvas(Modifier.fillMaxSize()) { placeBackdrop(pageOf(lessonId)?.place?.takeIf { it != Place.GARDEN } ?: Place.POND, if (still) 0.3f else drift, 0.75f) }
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {

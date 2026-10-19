@@ -192,7 +192,7 @@ fun KidHome(
                                     onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true })
                             }
                             if (i == model.pages.lastIndex) {
-                                val g = com.bigpapituna.sharpears.ui.world.WorldAnchors.gate(page.place)
+                                val g = com.bigpapituna.sharpears.ui.world.WorldAnchors.gate(page.place, page.stones.size)
                                 Gate(model.roadOpen, sizes.gate, Modifier.pinAt(w * g.x, sceneHeight(w) * g.y + sizes.gate * 0.5f, ay = 1f))
                             }
                         }
