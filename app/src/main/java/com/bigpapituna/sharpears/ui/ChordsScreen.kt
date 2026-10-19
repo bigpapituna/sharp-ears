@@ -522,7 +522,7 @@ private fun Lessons(
         ) {
             val due = today.count { mastery[it.id]?.seen == true }
             Text("Today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(if (today.isEmpty()) "All caught up" else "${today.size} chords to practice", style = MaterialTheme.typography.headlineMedium)
+            Text(if (today.isEmpty()) "All caught up" else "${com.bigpapituna.sharpears.engine.plural(today.size, "chord")} to practice", style = MaterialTheme.typography.headlineMedium)
             if (today.isEmpty()) PupSays(Pose.RESTING, "Come back tomorrow, or practice any pack below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
                 style = MaterialTheme.typography.bodyLarge)
             else Text(

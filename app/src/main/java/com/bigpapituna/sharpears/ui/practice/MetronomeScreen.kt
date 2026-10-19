@@ -244,13 +244,13 @@ fun MetronomeScreen(store: PracticeStore, modifier: Modifier = Modifier) {
         }
         AnimatedVisibility(more, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SwitchRow("Speed trainer", if (trainerOn) "Gets faster by $trainerStep every $trainerBars bars, up to $trainerMax" else "Speeds up on its own while you play", trainerOn) {
+                SwitchRow("Speed trainer", if (trainerOn) "Gets faster by $trainerStep every ${if (trainerBars == 1) "bar" else "$trainerBars bars"}, up to $trainerMax" else "Speeds up on its own while you play", trainerOn) {
                     trainerOn = it; store.putBool("metro.trainer", it)
                 }
                 if (trainerOn) {
                     Stepper("Faster by", "$trainerStep bpm", { trainerStep = (trainerStep - 1).coerceAtLeast(1); store.putInt("metro.trainer.step", trainerStep) },
                         { trainerStep = (trainerStep + 1).coerceAtMost(30); store.putInt("metro.trainer.step", trainerStep) })
-                    Stepper("Every", "$trainerBars bars", { trainerBars = (trainerBars - 1).coerceAtLeast(1); store.putInt("metro.trainer.bars", trainerBars) },
+                    Stepper("Every", com.bigpapituna.sharpears.engine.plural(trainerBars, "bar"), { trainerBars = (trainerBars - 1).coerceAtLeast(1); store.putInt("metro.trainer.bars", trainerBars) },
                         { trainerBars = (trainerBars + 1).coerceAtMost(32); store.putInt("metro.trainer.bars", trainerBars) })
                     Stepper("Up to", "$trainerMax bpm", { trainerMax = (trainerMax - 5).coerceAtLeast(MIN_BPM); store.putInt("metro.trainer.max", trainerMax) },
                         { trainerMax = (trainerMax + 5).coerceAtMost(MAX_BPM); store.putInt("metro.trainer.max", trainerMax) })

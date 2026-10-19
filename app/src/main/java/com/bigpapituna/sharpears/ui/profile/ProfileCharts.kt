@@ -145,7 +145,7 @@ fun PracticeBars(days: List<Pair<LocalDate, Int>>, goalMinutes: Int, modifier: M
     val maxSec = maxOf(days.maxOfOrNull { it.second } ?: 0, goalMinutes * 60, 60)
     val totalMin = days.sumOf { it.second } / 60
     val best = (days.maxOfOrNull { it.second } ?: 0) / 60
-    val summary = "Practice in the last 30 days: $totalMin minutes in total, best day $best minutes."
+    val summary = "Practice in the last 30 days: ${com.bigpapituna.sharpears.engine.plural(totalMin, "minute")} in total, best day ${com.bigpapituna.sharpears.engine.plural(best, "minute")}."
     Column(modifier.semantics { contentDescription = summary }) {
         Canvas(Modifier.fillMaxWidth().height(120.dp)) {
             val n = days.size.coerceAtLeast(1)
@@ -187,7 +187,7 @@ fun Heatmap(log: Map<LocalDate, Int>, today: LocalDate, goalMinutes: Int, frozen
     val weeks = 12
     val start = WeeklyGoal.weekStart(today).minusWeeks((weeks - 1).toLong())
     val active = log.count { (d, s) -> s > 0 && !d.isBefore(start) && !d.isAfter(today) }
-    val summary = "Practice calendar for the last 12 weeks: $active days with practice."
+    val summary = "Practice calendar for the last 12 weeks: ${com.bigpapituna.sharpears.engine.plural(active, "day")} with practice."
     // Squares with gaps a fifth of a square: width = 12.0 + 11 * 0.2 squares, height = 7 + 6 * 0.2.
     Canvas(modifier.fillMaxWidth().aspectRatio(14.2f / 8.2f).semantics { contentDescription = summary }) {
         val cell = size.width / 14.2f

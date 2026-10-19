@@ -108,7 +108,12 @@ class IntervalGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 10)
         if (midi != second) {
             wrongs++
             val played = midi - first
-            val what = if (played == 0) "the same note" else "${withArticle(intervalName(played))} ${if (played > 0) "up" else "down"}"
+            val what = when {
+                played == 0 -> "the same note"
+                // Past an octave there is no one name here; "an octave up" for a tenth was wrong.
+                kotlin.math.abs(played) > 12 -> "more than an octave ${if (played > 0) "up" else "down"}"
+                else -> "${withArticle(intervalName(played))} ${if (played > 0) "up" else "down"}"
+            }
             val shown = if (wrongs == 2) " Here is the note." else ""
             return ChordGame.Answer(ChordGame.Outcome.WRONG, GameLine("That was $what.$shown", "That was $what.$shown"))
         }

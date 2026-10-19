@@ -188,9 +188,10 @@ private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, ar
         Text(
             when {
                 fresh -> "An easy first song: melody in the right hand, one bass note in the left."
-                p.bestAccuracy >= 0 -> "${e.meta.composer}. Best run ${p.bestAccuracy}%."
-                p.lastPositionMs > 0 && !p.completed -> "${e.meta.composer}. Paused at ${formatTime(p.lastPositionMs.toDouble())}."
-                else -> e.meta.composer
+                // An imported song has no composer: "Imported", as its row in the list says, never a line starting ". ".
+                p.bestAccuracy >= 0 -> "${e.meta.composer.ifEmpty { "Imported" }}. Best run ${p.bestAccuracy}%."
+                p.lastPositionMs > 0 && !p.completed -> "${e.meta.composer.ifEmpty { "Imported" }}. Paused at ${formatTime(p.lastPositionMs.toDouble())}."
+                else -> e.meta.composer.ifEmpty { "Imported" }
             },
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

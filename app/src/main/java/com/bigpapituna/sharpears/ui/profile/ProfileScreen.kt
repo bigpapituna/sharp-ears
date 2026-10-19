@@ -128,7 +128,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
         }
         item(key = "heat") {
             Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
-                SectionTitle("Last 12 weeks", trailing = "${data.practicedDays.count { !it.isBefore(WeeklyGoal.weekStart(today).minusWeeks(11)) }} days")
+                SectionTitle("Last 12 weeks", trailing = com.bigpapituna.sharpears.engine.plural(data.practicedDays.count { !it.isBefore(WeeklyGoal.weekStart(today).minusWeeks(11)) }, "day"))
                 Heatmap(data.log, today, store.goalMinutes, data.streak.frozenDays)
                 HeatLegend(Modifier.padding(top = 8.dp))
             }
@@ -222,7 +222,7 @@ private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Today", style = MaterialTheme.typography.labelLarge, color = c.primary)
                 Text(if (met) "Goal met" else "${(goal * 60 - d.secondsToday + 59) / 60} min to go", style = MaterialTheme.typography.titleLarge)
-                Text(if (met) "Nice work. Every extra minute still counts." else "Open a song or a lesson to start.",
+                Text(if (met) "Nice work. Every extra minute still counts." else if (d.secondsToday > 0) "Open a song or a lesson to keep going." else "Open a song or a lesson to start.",
                     style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
                 TextButton(onClick = onEditGoal, contentPadding = PaddingValues(horizontal = 0.dp),
                     modifier = Modifier.semantics { contentDescription = "Change your daily goal, now $goal minutes" }) { Text("Change goal") }

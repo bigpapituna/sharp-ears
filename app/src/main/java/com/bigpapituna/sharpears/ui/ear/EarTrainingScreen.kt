@@ -186,7 +186,7 @@ private fun Hub(store: EarStore, onBack: () -> Unit, onGame: (EarKind, Int) -> U
 @Composable
 private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last: String?, onStart: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    val minutes = (plan.estimatedSeconds + 30) / 60
+    val minutes = plan.minutes
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.primaryContainer).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

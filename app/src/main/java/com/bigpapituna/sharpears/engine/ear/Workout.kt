@@ -18,6 +18,8 @@ data class WorkoutItem(val kind: EarKind, val level: Int, val rounds: Int) {
 data class WorkoutPlan(val day: Long, val items: List<WorkoutItem>) {
     val estimatedSeconds get() = items.sumOf { it.estimatedSeconds }
     val totalRounds get() = items.sumOf { it.rounds }
+    /** "About N minutes", rounded: what the card and the workout's first screen both say. */
+    val minutes get() = (estimatedSeconds + 30) / 60
 }
 
 /** How one game of a workout went. */

@@ -57,6 +57,9 @@ fun spokenPitch(pc: Int): String = SPOKEN_PC[((pc % 12) + 12) % 12]
 
 fun times(n: Int) = when (n) { 1 -> "once"; 2 -> "twice"; in 3..10 -> "${WORDS[n]} times"; else -> "$n times" }
 
+/** "1 day", "3 days": a count and its noun, singular for one. */
+fun plural(n: Int, one: String, many: String = one + "s") = "$n " + if (kotlin.math.abs(n) == 1) one else many
+
 /** Millisecond figures read out as words by the voice. */
 private fun spoken(text: String) = Feedback(text, text.replace(Regex("(\\d+) ms"), "$1 milliseconds"))
 
@@ -79,7 +82,7 @@ fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = tr
             else -> null
         }
         if (recap.accuracy < pass) {
-            val why = missedLine ?: timing ?: if (recap.good + recap.ok == 0) "No notes were heard in time." else "${recap.miss} notes came late or not at all."
+            val why = missedLine ?: timing ?: if (recap.good + recap.ok == 0) "No notes were heard in time." else "${plural(recap.miss, "note")} came late or not at all."
             return spoken("${recap.accuracy} percent, and you need $pass. $why Play it again.")
         }
         if (missedLine != null) return spoken("$missedLine Try that bar slowly.")
@@ -90,6 +93,6 @@ fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = tr
         r.wrongKeys == 0 -> spoken("Clean.$onward")
         missedLine != null -> spoken("$missedLine Try that bar slowly.")
         r.retries == 1 && r.missed.isNotEmpty() -> spoken("Nearly clean: one slip, on ${spokenNote(worst, flats)}.$onward")
-        else -> spoken("Nearly clean: ${r.retries} notes needed a second try.$onward")
+        else -> spoken("Nearly clean: ${plural(r.retries, "note")} needed a second try.$onward")
     }
 }

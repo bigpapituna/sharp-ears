@@ -161,7 +161,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
                 color = if (inTune) c.tertiary else c.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().semantics {
                     liveRegion = LiveRegionMode.Polite
-                    contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${r.cents.roundToInt()} cents"
+                    contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}"
                 })
         }
         Spacer(Modifier.height(4.dp))
@@ -224,7 +224,7 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
     val still = reducedMotion()
     val glow = remember { Animatable(0f) }
     LaunchedEffect(inTune) { if (inTune && !still) glow.animateTo(1f, tween(300)) else glow.snapTo(0f) }
-    Canvas(modifier.semantics { contentDescription = if (r == null) "Tuner gauge, no note" else "Needle at ${r.cents.roundToInt()} cents" }) {
+    Canvas(modifier.semantics { contentDescription = if (r == null) "Tuner gauge, no note" else "Needle at ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}" }) {
         val stroke = 16.dp.toPx()
         val top = 26.dp.toPx()
         val radius = min(size.width * 0.44f, size.height - top - 30.dp.toPx())
@@ -272,7 +272,7 @@ private fun Gauge(r: TunerReading?, modifier: Modifier = Modifier, quiet: Boolea
         om?.let { drawText(it, topLeft = Offset(nx + nm.size.width + 2.dp.toPx(), noteY + nm.size.height * 0.12f)) }
         val centsText = when {
             r == null -> if (quiet) "Waiting for the microphone" else "Listening"
-            else -> (if (r.cents >= 0.5) "+" else "") + "${r.cents.roundToInt()} cents   " + String.format(Locale.US, "%.1f Hz", r.result.freq)
+            else -> (if (r.cents >= 0.5) "+" else "") + com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent") + "   " + String.format(Locale.US, "%.1f Hz", r.result.freq)
         }
         val cm = text.measure(centsText, (if (r == null) labelStyle.copy(fontSize = 13.sp) else centsStyle).copy(color = ink))
         val cy = if (letter.isEmpty()) noteY - cm.size.height / 2f else noteY + nm.size.height / 2f + 2.dp.toPx()

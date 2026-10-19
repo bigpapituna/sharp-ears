@@ -123,7 +123,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
 private fun UpNext(plan: WorkoutPlan, index: Int, results: List<WorkoutGame>, onStart: () -> Unit, onExit: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val item = plan.items[index]
-    val line = if (index == 0) "Three quick games, about five minutes. First up: ${item.kind.title.lowerFirst()}."
+    val line = if (index == 0) "Three quick games, about ${plan.minutes} minutes. First up: ${item.kind.title.lowerFirst()}."
         else results.last().let { "${if (it.score * 2 >= it.rounds) "Nice" else "Done"}, ${it.score} of ${it.rounds}. Next up: ${item.kind.title.lowerFirst()}." }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {

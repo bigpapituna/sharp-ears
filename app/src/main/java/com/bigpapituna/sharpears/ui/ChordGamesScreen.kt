@@ -274,7 +274,7 @@ private fun GameScreen(
     if (finished) {
         Celebration(
             when { newBest -> "New best!"; game.score * 2 >= game.rounds -> "Nice playing!"; else -> "Good effort!" },
-            "${kind.title}, ${kind.levels[level].replaceFirstChar { it.lowercase() }}.",
+            "${kind.title}, ${kind.levels[level].lowerFirst()}.",
             listOf(Stat("${game.score}/${game.rounds}", "Score"), Stat("${game.bestStreak}", "Best streak")),
             primary = "Play again", onPrimary = onAgain, secondary = "Games", onSecondary = onExit,
             pose = when { newBest -> Pose.LEVEL_UP; game.score * 2 >= game.rounds -> Pose.GREAT_JOB; else -> Pose.MISTAKE },
