@@ -146,10 +146,11 @@ private val QUALITY_GROUPS = listOf(
     "More" to listOf(ChordType.SIX, ChordType.MIN6, ChordType.ADD9, ChordType.NINE),
 )
 
-/** What each note of a chord is, from the root, for the pup's line. */
-private fun intervalWord(semitones: Int) = when (semitones) {
+/** What each note of a chord is, from the root, for the pup's line (a diminished seventh's top note is its seventh, not a sixth). */
+internal fun intervalWord(semitones: Int, type: ChordType) = when (semitones) {
     2 -> "a second"; 3 -> "a minor third"; 4 -> "a major third"; 5 -> "a fourth"; 6 -> "a flat fifth"; 7 -> "a fifth"
-    8 -> "a sharp fifth"; 9 -> "a sixth"; 10 -> "a minor seventh"; 11 -> "a major seventh"; 14 -> "a ninth"; else -> "the root"
+    8 -> "a sharp fifth"; 9 -> if (type == ChordType.DIM7) "a diminished seventh" else "a sixth"; 10 -> "a minor seventh"
+    11 -> "a major seventh"; 14 -> "a ninth"; else -> "the root"
 }
 
 private fun ordinalWord(i: Int) = listOf("Root position", "First inversion", "Second inversion", "Third inversion")[i]
@@ -213,7 +214,7 @@ private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
                 Column(Modifier.weight(1f)) {
                     Text(chordTitle(chord), style = MaterialTheme.typography.displaySmall, color = Ink, maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Text(notes.joinToString("  ") { noteName(it) }, style = Numeric.merge(MaterialTheme.typography.titleSmall), color = InkDim)
+                    Text(notes.joinToString("  ") { chord.spell(it).code }, style = Numeric.merge(MaterialTheme.typography.titleSmall), color = InkDim)
                 }
                 Box(Modifier.pressScale(0.9f).size(56.dp).clip(CircleShape).background(RightHandColor)
                     .clickable(role = Role.Button) { if (job != null) stop() else play() }
@@ -229,7 +230,7 @@ private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
                 ScaleKeyboard(low, high, notes.zip(fingers).toMap(), emptyMap(), sounding + touched, dots,
                     onNoteOn = { m -> touched[m] = Hand.RIGHT; if (sound()) sampler.noteOn(m, 90) },
                     onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
-                    description = "${chord.name}: " + notes.zip(fingers).joinToString(", ") { (n, f) -> "${noteName(n)} finger $f" },
+                    description = "${chord.name}: " + notes.zip(fingers).joinToString(", ") { (n, f) -> "${chord.spell(n).code} finger $f" },
                     modifier = Modifier.fillMaxWidth().height(keyH + 16.dp))
             }
             Text("Right hand fingers, 1 is the thumb", style = MaterialTheme.typography.labelMedium, color = InkDim, modifier = Modifier.padding(start = 4.dp))
@@ -254,11 +255,11 @@ private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
             SlidingSegments((0 until chord.inversionCount).map { if (it == 0) "Root" else listOf("1st", "2nd", "3rd")[it - 1] }, inversion,
                 { inversion = it }, Modifier.padding(horizontal = 20.dp).fillMaxWidth(), height = 40.dp,
                 descriptions = (0 until chord.inversionCount).map(::ordinalWord))
-            val built = type.intervals.drop(1).joinToString(", ", transform = ::intervalWord).let { s ->
+            val built = type.intervals.drop(1).joinToString(", ") { intervalWord(it, type) }.let { s ->
                 val i = s.lastIndexOf(", "); if (i < 0) s else s.substring(0, i) + " and " + s.substring(i + 2)
             }
             PupLine(if (job != null) Pose.LISTENING else Pose.LEARNING,
-                "${chordTitle(chord)}: the root, then $built." + if (inversion > 0) " ${ordinalWord(inversion)}: ${noteName(notes.first()).dropLast(1)} is at the bottom." else "",
+                "${chordTitle(chord)}: the root, then $built." + if (inversion > 0) " ${ordinalWord(inversion)}: ${chord.toneName(notes.first())} is at the bottom." else "",
                 Modifier.padding(horizontal = 16.dp))
         }
     }

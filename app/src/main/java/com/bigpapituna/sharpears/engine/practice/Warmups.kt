@@ -53,7 +53,8 @@ private fun keyName(root: Int) = scaleRootName(root, false)
 fun fiveFinger(root: Int, minor: Boolean = false): Warmup {
     val offsets = if (minor) listOf(0, 2, 3, 5, 7) else listOf(0, 2, 4, 5, 7)
     val shape = offsets + offsets.dropLast(1).reversed()                 // up to the fifth and back to the thumb
-    val flats = if (minor) (root + 3) % 12 in FLAT_KEYS else root in FLAT_KEYS
+    // E flat minor is written in flats though its relative major (G flat or F sharp) is not in the list.
+    val flats = if (minor) flatsFor(root, ScaleType.NATURAL_MINOR) else root in FLAT_KEYS
     fun line(hand: Hand) = tokens(shape.map { handRoot(root, hand) + it }, 1.0, flats, 2.0)
     val name = scaleRootName(root, minor) + if (minor) " minor" else " major"
     return Warmup("five-finger-$root-${if (minor) "min" else "maj"}", "Five-finger pattern in $name",

@@ -55,7 +55,8 @@ fun scaleRootName(pc: Int, type: ScaleType): String = scaleRootName(pc, type.min
 /** Whether black keys of this scale are best named as flats (B flat, not A sharp). */
 fun flatsFor(root: Int, type: ScaleType): Boolean = when (type) {
     ScaleType.DORIAN -> (root - 2 + 12) % 12 in MAJOR_FLAT_KEYS
-    ScaleType.MIXOLYDIAN -> (root + 5) % 12 in MAJOR_FLAT_KEYS
+    // D flat mixolydian sits in G flat major (six flats), not F sharp.
+    ScaleType.MIXOLYDIAN -> (root + 5) % 12 in MAJOR_FLAT_KEYS || root == 1
     else -> if (type.minorFamily) root in MINOR_FLAT_KEYS else root in MAJOR_FLAT_KEYS
 }
 
@@ -155,8 +156,12 @@ class Scale(val root: Int, val type: ScaleType, val octaves: Int = 1) {
         val left = if (practice != Practice.RIGHT) line(Hand.LEFT) else ""
         // Both hands carry the fingers the Practice tab shows, so the player's notes, ghost hand and hints say the same.
         fun fingers(hand: Hand) = (if (upAndDown) fingeringUpAndDown(hand) else fingering(hand)).joinToString(" ")
+        // The notes say what the pup says: D harmonic minor's raised seventh is C#, not Db.
+        val spellings = blackKeySpellings(root, type.steps, spelledScale(root, type), flats) +
+            (type.descent?.let { blackKeySpellings(root, it, spelledScale(root, ScaleType.NATURAL_MINOR), flats) } ?: emptyMap())
         return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats,
-            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT))
+            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT),
+            spellings = spellings)
     }
 
     fun title(practice: Practice) = "$name, ${handWords(practice)}, ${octaveWords(octaves)}"
@@ -196,7 +201,8 @@ enum class ArpeggioType(val label: String, val intervals: List<Int>, val minorFa
     DIMINISHED_7("Diminished 7th", listOf(0, 3, 6, 9), true),
 }
 
-private val DOM7_FLAT_ROOTS = setOf(0, 5, 10, 3, 8, 1, 6)
+// F sharp 7 is F# A# C# E: sharps, as its title.
+private val DOM7_FLAT_ROOTS = setOf(0, 5, 10, 3, 8, 1)
 
 class Arpeggio(val root: Int, val type: ArpeggioType, val octaves: Int = 1) {
     init { require(root in 0..11 && octaves in 1..4) { "root 0..11, octaves 1..4" } }
@@ -205,7 +211,7 @@ class Arpeggio(val root: Int, val type: ArpeggioType, val octaves: Int = 1) {
         ArpeggioType.MAJOR -> root in MAJOR_FLAT_KEYS
         ArpeggioType.MINOR -> root in MINOR_FLAT_KEYS
         ArpeggioType.DOMINANT_7 -> root in DOM7_FLAT_ROOTS
-        ArpeggioType.DIMINISHED_7 -> root != 1 && root != 6
+        ArpeggioType.DIMINISHED_7 -> root != 1 && root != 6 && root != 8      // G sharp dim7 is G# B D F
     }
     val rootName get() = scaleRootName(root, type.minorFamily)
     val name get() = "$rootName ${type.label.lowercase()} arpeggio"
@@ -263,7 +269,8 @@ class Arpeggio(val root: Int, val type: ArpeggioType, val octaves: Int = 1) {
         // Both hands carry the fingers the Practice tab shows, so the player's notes, ghost hand and hints say the same.
         fun fingers(hand: Hand) = (if (upAndDown) fingeringUpAndDown(hand) else fingering(hand)).joinToString(" ")
         return Exercise(right = right, left = left, bpm = bpm, practice = practice, flats = flats,
-            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT))
+            fingers = if (practice == Practice.LEFT) "" else fingers(Hand.RIGHT), leftFingers = if (practice == Practice.RIGHT) "" else fingers(Hand.LEFT),
+            spellings = blackKeySpellings(root, type.intervals, arpeggioTones(this), flats))
     }
 
     fun title(practice: Practice) = "$name, ${handWords(practice)}, ${octaveWords(octaves)}"

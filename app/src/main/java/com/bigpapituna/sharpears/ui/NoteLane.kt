@@ -182,7 +182,7 @@ fun NoteLane(
             // A pre-reader's coloured white key carries its animal instead of a letter (black keys: nothing, the stripes say it).
             val animal = if (colours && showNames && !reader) NoteColours.animal(n.midi) else null
             val iconPx = if (animal != null) minOf(w * 0.72f, 40.dp.toPx()) else 0f
-            val labelText = label(n.midi, song.preferFlats)
+            val labelText = song.spellings[n.midi % 12] ?: label(n.midi, song.preferFlats)
             // Names shrink to fit narrow (black-key) blocks: "D#" must stay inside its column.
             val name = if (showNames && (!colours || reader)) text(labelText, namePx, ink).let { t0 ->
                 if (t0.size.width <= w - 2f) t0 else text(labelText, (namePx * (w - 2f) / t0.size.width).coerceAtLeast(7.dp.toPx()), ink)

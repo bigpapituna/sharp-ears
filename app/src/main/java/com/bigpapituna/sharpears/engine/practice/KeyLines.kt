@@ -55,6 +55,17 @@ fun spelledScale(root: Int, type: ScaleType): List<String> {
     return type.steps.zip(letterSteps(type)).map { (s, l) -> spell(rootName, l, root + s, flats) }
 }
 
+/**
+ * The black keys among spelled [names] (spoken, "C sharp") at [steps] above [root], as the player writes them ("C#"),
+ * where [flats] alone would name them otherwise: what [Scale] and [Arpeggio] exercises hand the player.
+ */
+internal fun blackKeySpellings(root: Int, steps: List<Int>, names: List<String>, flats: Boolean): Map<Int, String> =
+    steps.zip(names).mapNotNull { (s, n) ->
+        val pc = Math.floorMod(root + s, 12)
+        val written = n.replace(" sharp", "#").replace(" flat", "b")
+        if (isBlack(pc) && written.length == 2 && written != plainName(pc, flats)) pc to written else null
+    }.toMap()
+
 /** Fifths from C of a major key's pitch class, F sharp as six sharps, D flat as five flats. */
 private fun majorFifths(pc: Int) = listOf(0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5)[Math.floorMod(pc, 12)]
 

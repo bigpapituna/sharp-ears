@@ -44,6 +44,25 @@ data class Chord(val root: Int, val type: ChordType) {
         4 -> listOf(1, 2, 3, 5)
         else -> listOf(1, 2, 3, 4, 5)
     }
+
+    /**
+     * [midi], one of this chord's notes, spelled by letter from the root (its root as [rootName] writes it, or as a
+     * flat with [flats]): E major is E G# B, not E Ab B; C minor is C Eb G. A double sharp or flat comes back as the
+     * plain key (C dim7 ends on A).
+     */
+    fun spell(midi: Int, flats: Boolean? = null): com.bigpapituna.sharpears.engine.theory.Pitch {
+        val r = com.bigpapituna.sharpears.engine.theory.Pitch.of(60 + Math.floorMod(root, 12), flats ?: rootName(root).endsWith("b"))
+        val semis = midi - r.midi
+        val within = Math.floorMod(semis, 12)
+        val letters = when (within) { 0 -> 0; 1, 2 -> 1; 3, 4 -> 2; 5 -> 3; 6, 7, 8 -> 4; 9 -> if (type == ChordType.DIM7) 6 else 5; else -> 6 }
+        val plain = r.letterUp(letters + 7 * Math.floorDiv(semis, 12))
+        val accidental = midi - plain.midi
+        return if (kotlin.math.abs(accidental) < 2) plain.copy(accidental = accidental)
+        else com.bigpapituna.sharpears.engine.theory.Pitch.of(midi, r.accidental < 0)
+    }
+
+    /** The same as the chord games and the dictionary write it, without the octave: "G#", "Eb". */
+    fun toneName(midi: Int): String = spell(midi).code.dropLastWhile { it.isDigit() || it == '-' }
 }
 
 /** A chord by scale degree: semitones above the key and its quality, e.g. ii = (2, MINOR). */
@@ -92,8 +111,8 @@ private fun distance(a: List<Int>, b: List<Int>): Int =
 
 /**
  * A progression as a picture (2.0.1): its chords voice-led as the player plays them, one after another on the staff
- * and keys, each with its name and numeral. Keys with flats in their name (F, B flat, E flat, A flat, D flat) spell
- * the black keys as flats.
+ * and keys, each with its name and numeral. Keys with flats in their name (F, B flat, E flat, A flat, D flat) name
+ * the black-key roots as flats; every chord is spelled by letter from its root (C7 ends on B flat, not A sharp).
  */
 fun progressionVisual(p: Progression, key: Int): com.bigpapituna.sharpears.engine.theory.ChordVisual {
     val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
@@ -101,7 +120,7 @@ fun progressionVisual(p: Progression, key: Int): com.bigpapituna.sharpears.engin
     val flats = Math.floorMod(key, 12) in setOf(1, 3, 5, 8, 10)
     val steps = chords.mapIndexed { i, c ->
         val name = c.nameIn(flats).replace("#", "\u266F").replace(Regex("^([A-G])b"), "$1\u266D")
-        com.bigpapituna.sharpears.engine.theory.ChordStep(voicings[i].map { com.bigpapituna.sharpears.engine.theory.Pitch.of(it, flats) }, name,
+        com.bigpapituna.sharpears.engine.theory.ChordStep(voicings[i].map { c.spell(it, flats.takeIf { f -> f }) }, name,
             p.degrees[i].numeral, build = false)
     }
     val all = voicings.flatten()

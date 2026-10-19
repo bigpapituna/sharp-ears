@@ -51,6 +51,8 @@ data class Exercise(
      * only this much as a bite ([bite]); null: the exercise is one bite already.
      */
     val phraseEnd: Double? = null,
+    /** Black keys spelled against [flats], by pitch class ([Song.spellings]): a scale's or arpeggio's own letters. */
+    val spellings: Map<Int, String> = emptyMap(),
 )
 
 /**
@@ -190,7 +192,7 @@ fun Exercise.toSong(id: String, title: String): Song {
     val end = notes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
     return Song("lesson-$id", title, bpm, beats to 4, notes, groups, emptyList(), end + 400, preferFlats = flats,
         fingering = fingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() },
-        leftFingering = leftFingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() })
+        leftFingering = leftFingers.split(" ").mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() }, spellings = spellings)
 }
 
 /**

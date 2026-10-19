@@ -137,7 +137,7 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
             wrongs++
             val missing = target.type.intervals.filter { (target.root + it) % 12 !in found }
             val hint = if (wrongs >= 2 && kind == GameKind.BUILD) missing.firstOrNull()?.let { i ->
-                " The ${degreeName(i)} is ${rootName(target.root + i)}." to " The ${degreeName(i)} is ${spokenPitch(target.root + i)}."
+                " The ${degreeName(i)} is ${target.toneName(target.root + i)}." to " The ${degreeName(i)} is ${target.spell(target.root + i).spoken}."
             } else null
             val shown = if (kind == GameKind.HEAR && wrongs == 2) " Here are the notes." else ""
             val name = if (kind == GameKind.BUILD) chordTitle(target) else "the chord"
@@ -149,10 +149,10 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
         found += pc
         if (found != target.pitchClasses) {
             val i = (pc - target.root + 12) % 12
-            return Answer(Outcome.FOUND, if (kind == GameKind.BUILD) GameLine("${rootName(pc)}, the ${degreeName(i)}.", "${spokenPitch(pc)}, the ${degreeName(i)}.") else null)
+            return Answer(Outcome.FOUND, if (kind == GameKind.BUILD) GameLine("${target.toneName(pc)}, the ${degreeName(i)}.", "${target.spell(pc).spoken}, the ${degreeName(i)}.") else null)
         }
         val clean = if (kind == GameKind.BUILD) wrongs == 0 else !notesShown
-        val notes = voicing.joinToString(", ") { rootName(it) }
+        val notes = voicing.joinToString(", ") { target.toneName(it) }
         val line = when {
             kind == GameKind.BUILD && clean -> GameLine("${chordTitle(target)}: $notes. Clean.", "${chordSpoken(target)}. Clean.")
             kind == GameKind.BUILD -> GameLine("${chordTitle(target)}: $notes.", "That is ${chordSpoken(target)}.")
