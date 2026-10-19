@@ -33,6 +33,9 @@ class SpellingTest {
         assertEquals(listOf("E", "G#", "B", "D"), tones(Chord(4, ChordType.DOM7)))
         assertEquals(listOf("Bb", "D", "F", "Ab"), tones(Chord(10, ChordType.DOM7)))
         assertEquals("a double flat comes back plain", listOf("C", "Eb", "Gb", "A"), tones(Chord(0, ChordType.DIM7)))
+        // The dictionary's words for that top note: a seventh in a dim7, a sixth in a 6 chord.
+        assertEquals("a diminished seventh", com.bigpapituna.sharpears.ui.intervalWord(9, ChordType.DIM7))
+        assertEquals("a sixth", com.bigpapituna.sharpears.ui.intervalWord(9, ChordType.SIX))
         // Every chord: the spelling sounds the note it names, and the letters climb a third (or a step) at a time.
         for (root in 0..11) for (type in ChordType.entries) {
             val c = Chord(root, type)
