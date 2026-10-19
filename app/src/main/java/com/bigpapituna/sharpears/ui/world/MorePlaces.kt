@@ -424,6 +424,18 @@ internal fun DrawScope.drawFair(night: Boolean) {
         val tri = Path().apply { moveTo(a.x - w * 0.013f, a.y); lineTo(a.x + w * 0.013f, a.y); lineTo(a.x, a.y + w * 0.03f); close() }
         outlined(tri, Color(flags[k]), line * 0.6f)
     }
+    // Down on the lawn: a little ticket booth, and a queue rope on posts.
+    outlined(rr(0.78f, 0.74f, 0.88f, 0.86f, 0.006f), cream, line)
+    for (k in 0 until 3) drawRect(red, Offset(w * (0.78f + k * 0.04f), h * 0.74f), Size(w * 0.02f, h * 0.12f))
+    drawRect(Ink, Offset(w * 0.78f, h * 0.74f), Size(w * 0.10f, h * 0.12f), style = Stroke(line))
+    outlined(rr(0.795f, 0.775f, 0.865f, 0.81f, 0.004f), pick(night, 0xFF3A2E40, 0xFF241C28), line * 0.8f)
+    outlined(Path().apply { moveTo(w * 0.765f, h * 0.745f); lineTo(w * 0.83f, h * 0.70f); lineTo(w * 0.895f, h * 0.745f); close() }, gold, line)
+    for (x in listOf(0.04f, 0.16f, 0.28f)) {
+        drawLine(Ink, Offset(w * x, h * 0.86f), Offset(w * x, h * 0.80f), line * 2.2f, StrokeCap.Round)
+        drawCircle(gold, w * 0.008f, Offset(w * x, h * 0.80f))
+    }
+    for (k in 0 until 2) drawArc(red, 10f, 160f, false, Offset(w * (0.04f + k * 0.12f), h * 0.79f), Size(w * 0.12f, h * 0.04f), style = Stroke(line * 1.6f))
+
     // At dusk the bulbs glow along the tent's eaves and the carousel's rim.
     if (night) for (k in 0 until 14) {
         val c = if (k < 6) Offset(w * (0.03f + k * 0.05f), h * eave) else Offset(w * (0.34f + (k - 6) * 0.046f), h * 0.275f)
@@ -439,18 +451,9 @@ internal fun DrawScope.fairLife(night: Boolean, t: Float) {
     for (k in 0 until 4) {
         val x = w * (0.385f + k * 0.083f)
         val y = h * (0.40f + 0.035f * sin((t * 14f + k * 0.5f) * 2f * PI.toFloat()))
-        val face = if (k % 2 == 0) 1f else -1f
-        val body = Path().apply { addRoundRect(RoundRect(x - w * 0.03f, y - h * 0.018f, x + w * 0.03f, y + h * 0.018f, CornerRadius(w * 0.015f))) }
-        val legs = listOf(-0.018f, 0.018f)
-        legs.forEach { lx -> drawLine(Ink, Offset(x + w * lx, y + h * 0.012f), Offset(x + w * (lx + 0.006f * face), y + h * 0.045f), line * 1.6f, StrokeCap.Round) }
-        drawPath(body, Ink, style = Stroke(line * 2f))
-        drawPath(body, if (night) Color(0xFFD9D2C6) else Color(0xFFFFFCF4))
-        val head = Offset(x + face * w * 0.034f, y - h * 0.03f)
-        drawLine(Ink, Offset(x + face * w * 0.022f, y - h * 0.01f), head, w * 0.022f, StrokeCap.Round)
-        drawLine(if (night) Color(0xFFD9D2C6) else Color(0xFFFFFCF4), Offset(x + face * w * 0.022f, y - h * 0.01f), head, w * 0.014f, StrokeCap.Round)
-        drawLine(listOf(Color(0xFFE0605A), Color(0xFF7DB8FF), Color(0xFF7CC173), Color(0xFFAA8CDC))[k], Offset(x - face * w * 0.005f, y - h * 0.02f),
-            Offset(x + face * w * 0.012f, y - h * 0.02f), w * 0.012f, StrokeCap.Round)
-        drawCircle(Ink, w * 0.003f, head + Offset(face * w * 0.003f, -h * 0.003f))
+        val coat = if (night) Color(0xFFD9D2C6) else Color(0xFFFFFCF4)
+        carouselHorse(Offset(x, y), Size(w * 0.06f, h * 0.034f), if (k % 2 == 0) 1f else -1f, coat,
+            listOf(Color(0xFFE0605A), Color(0xFF7DB8FF), Color(0xFF7CC173), Color(0xFFAA8CDC))[k], line * 0.9f)
     }
     // The balloons, tied to a post by the strongman.
     val knot = Offset(w * 0.72f, h * 0.50f)
@@ -464,6 +467,36 @@ internal fun DrawScope.fairLife(night: Boolean, t: Float) {
         drawOval(colours[k], Offset(c.x - w * 0.02f, c.y - w * 0.026f), Size(w * 0.04f, w * 0.052f))
         drawCircle(Color.White.copy(alpha = 0.5f), w * 0.006f, c + Offset(-w * 0.008f, -w * 0.012f))
     }
+}
+
+/**
+ * A carousel horse at [c], its body [body] big, facing right ([face] 1) or left (-1): the back legs straight, the front
+ * ones lifted, a [mane] and tail in colour, a saddle; outlined [line] wide in the scenes' brown. The fair's map scene and
+ * its carousel stage both draw it.
+ */
+internal fun DrawScope.carouselHorse(c: Offset, body: Size, face: Float, coat: Color, mane: Color, line: Float) {
+    val x = c.x; val y = c.y
+    val bw = body.width; val bh = body.height
+    for ((lx, lift) in listOf(-0.32f to 0f, -0.18f to 0f, 0.22f to 1f, 0.34f to 1f)) {
+        val top = Offset(x + face * bw * lx, y + bh * 0.3f)
+        val foot = top + Offset(face * bw * 0.12f * lift, bh * (0.95f - 0.35f * lift))
+        drawLine(Ink, top, foot, line * 2.2f, StrokeCap.Round); drawLine(coat, top, foot, line * 1.2f, StrokeCap.Round)
+    }
+    drawLine(mane, Offset(x - face * bw * 0.48f, y - bh * 0.1f), Offset(x - face * bw * 0.68f, y + bh * 0.5f), line * 2f, StrokeCap.Round)
+    drawRoundRect(Ink, Offset(x - bw / 2 - line, y - bh / 2 - line), Size(bw + 2 * line, bh + 2 * line), CornerRadius(bh / 2 + line))
+    drawRoundRect(coat, Offset(x - bw / 2, y - bh / 2), body, CornerRadius(bh / 2))
+    val neck0 = Offset(x + face * bw * 0.3f, y - bh * 0.15f); val neck1 = Offset(x + face * bw * 0.5f, y - bh * 1.05f)
+    drawLine(Ink, neck0, neck1, bh * 0.62f + 2 * line, StrokeCap.Round); drawLine(coat, neck0, neck1, bh * 0.62f, StrokeCap.Round)
+    val head = Offset(x + face * bw * 0.66f, y - bh * 0.95f)
+    rotate(face * 28f, head) {
+        drawOval(Ink, Offset(head.x - bw * 0.2f - line, head.y - bh * 0.22f - line), Size(bw * 0.4f + 2 * line, bh * 0.44f + 2 * line))
+        drawOval(coat, Offset(head.x - bw * 0.2f, head.y - bh * 0.22f), Size(bw * 0.4f, bh * 0.44f))
+    }
+    drawCircle(Ink, line * 0.8f, head + Offset(face * bw * 0.02f, -bh * 0.08f))
+    drawPath(Path().apply { moveTo(neck1.x - face * bw * 0.02f, neck1.y - bh * 0.25f); lineTo(neck1.x + face * bw * 0.06f, neck1.y - bh * 0.6f)
+        lineTo(neck1.x + face * bw * 0.1f, neck1.y - bh * 0.2f); close() }, coat)
+    for (j in 0 until 3) drawCircle(mane, bh * 0.16f, Offset(neck0.x + (neck1.x - neck0.x) * (0.2f + 0.3f * j) - face * bh * 0.28f, neck0.y + (neck1.y - neck0.y) * (0.2f + 0.3f * j)))
+    drawRoundRect(mane, Offset(x - bw * 0.16f, y - bh * 0.55f), Size(bw * 0.32f, bh * 0.3f), CornerRadius(bh * 0.1f))
 }
 
 /** The fair's midway: a sandy path with little lights along its middle (glowing at dusk). */

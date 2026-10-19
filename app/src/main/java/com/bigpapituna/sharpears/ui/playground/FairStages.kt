@@ -70,6 +70,7 @@ import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.reducedMotion
 import com.bigpapituna.sharpears.ui.skin.noteColour
+import com.bigpapituna.sharpears.ui.world.carouselHorse
 import com.bigpapituna.sharpears.ui.world.WorldSounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -314,34 +315,9 @@ private fun DrawScope.carousel(turn: Float, lit: Int, bulbs: Int) {
         val s = 0.72f + 0.28f * (depth + 1) / 2
         val y = baseY - h * 0.3f + sin(a * 2 + k) * h * 0.05f
         drawLine(Color(0xFFF2B84B), Offset(x, rimY + h * 0.02f), Offset(x, baseY - h * 0.05f), 3.dp.toPx() * s)
-        val body = Size(w * 0.11f * s, h * 0.08f * s)
         val face = if (sin(a + PI.toFloat() / 2) >= 0) 1f else -1f
-        val coat = listOf(Color(0xFFFFFCF4), Color(0xFFF6EBDD), Color(0xFFFFF4E0))[k % 3]
-        val mane = listOf(Color(0xFFE0605A), Color(0xFF7DB8FF), Color(0xFF7CC173))[k % 3]
-        val line = 2.5.dp.toPx() * s
-        val bw = body.width; val bh = body.height
-        // Legs: the back two straight, the front two lifted (a prancing horse), hooves dark.
-        for ((lx, lift) in listOf(-0.32f to 0f, -0.18f to 0f, 0.22f to 1f, 0.34f to 1f)) {
-            val top = Offset(x + face * bw * lx, y + bh * 0.3f)
-            val foot = top + Offset(face * bw * 0.12f * lift, bh * (0.95f - 0.35f * lift))
-            drawLine(ink, top, foot, line * 2.2f, StrokeCap.Round); drawLine(coat, top, foot, line * 1.2f, StrokeCap.Round)
-        }
-        // The tail, the body, the neck and the head with its ear, the mane, the saddle.
-        drawLine(mane, Offset(x - face * bw * 0.48f, y - bh * 0.1f), Offset(x - face * bw * 0.68f, y + bh * 0.5f), line * 2f, StrokeCap.Round)
-        drawRoundRect(ink, Offset(x - bw / 2 - line, y - bh / 2 - line), Size(bw + 2 * line, bh + 2 * line), CornerRadius(bh / 2 + line))
-        drawRoundRect(coat, Offset(x - bw / 2, y - bh / 2), body, CornerRadius(bh / 2))
-        val neck0 = Offset(x + face * bw * 0.3f, y - bh * 0.15f); val neck1 = Offset(x + face * bw * 0.5f, y - bh * 1.05f)
-        drawLine(ink, neck0, neck1, bh * 0.62f + 2 * line, StrokeCap.Round); drawLine(coat, neck0, neck1, bh * 0.62f, StrokeCap.Round)
-        val head = Offset(x + face * bw * 0.66f, y - bh * 0.95f)
-        rotate(face * 28f, head) {
-            drawOval(ink, Offset(head.x - bw * 0.2f - line, head.y - bh * 0.22f - line), Size(bw * 0.4f + 2 * line, bh * 0.44f + 2 * line))
-            drawOval(coat, Offset(head.x - bw * 0.2f, head.y - bh * 0.22f), Size(bw * 0.4f, bh * 0.44f))
-        }
-        drawCircle(ink, line * 0.8f, head + Offset(face * bw * 0.02f, -bh * 0.08f))
-        drawPath(Path().apply { moveTo(neck1.x - face * bw * 0.02f, neck1.y - bh * 0.25f); lineTo(neck1.x + face * bw * 0.06f, neck1.y - bh * 0.6f)
-            lineTo(neck1.x + face * bw * 0.1f, neck1.y - bh * 0.2f); close() }, coat)
-        for (j in 0 until 3) drawCircle(mane, bh * 0.16f, Offset(neck0.x + (neck1.x - neck0.x) * (0.2f + 0.3f * j) - face * bh * 0.28f, neck0.y + (neck1.y - neck0.y) * (0.2f + 0.3f * j)))
-        drawRoundRect(mane, Offset(x - bw * 0.16f, y - bh * 0.55f), Size(bw * 0.32f, bh * 0.3f), CornerRadius(bh * 0.1f))
+        carouselHorse(Offset(x, y), Size(w * 0.11f * s, h * 0.08f * s), face, listOf(Color(0xFFFFFCF4), Color(0xFFF6EBDD), Color(0xFFFFF4E0))[k % 3],
+            listOf(Color(0xFFE0605A), Color(0xFF7DB8FF), Color(0xFF7CC173))[k % 3], 2.5.dp.toPx() * s)
     }
     for (k in 0 until 6) horse(k, front = false)
     drawRect(Color(0xFFE2B85A), Offset(cx - w * 0.015f, rimY), Size(w * 0.03f, baseY - rimY - h * 0.05f))

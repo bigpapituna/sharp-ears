@@ -113,6 +113,9 @@ class PickRounds(val rounds: List<PickRound>, val coach: RoundCoach = RoundCoach
 
     fun tap(p: Pick, nowMs: Long): Tap {
         val r = current ?: return Tap.Ignored
+        // A picture round can be answered while the pup is still asking (the pictures are there); a listening round
+        // waits for its sound.
+        if (coach.phase == RoundCoach.Phase.DEMO && r.sound == null) coach.tick(Long.MAX_VALUE / 4)
         if (coach.phase != RoundCoach.Phase.LISTEN) return Tap.Ignored
         if (p == r.answer) {
             coach.found()
