@@ -95,8 +95,9 @@ internal fun DrawScope.pondWater(t: Float) {
 
 /**
  * 2.3: the backdrop a stage draws for the page it is on, dark like every stage: the pond's water, the concert hall's
- * stage, the workshop's warm planks, the treehouse's leaves and deck, the night sky's hill under the stars, the fair's
- * lights and bunting. The garden's stages draw their own (nothing here). [t] 0..1 loops, for what drifts.
+ * stage, the workshop's warm planks, the treehouse's leaves, lanterns and planks, the night sky's moon, stars and
+ * constellations, the fair's lights and bunting. The garden's stages draw their own (nothing here). [t] 0..1 loops, for
+ * what drifts.
  */
 internal fun DrawScope.placeBackdrop(place: Place, t: Float = 0.3f, floorFrom: Float = 0.7f) {
     when (place) {
@@ -104,8 +105,9 @@ internal fun DrawScope.placeBackdrop(place: Place, t: Float = 0.3f, floorFrom: F
         Place.POND -> pondWater(t)
         Place.CONCERT_HALL -> hallStage(floorFrom)
         Place.WORKSHOP -> workshopRoom(floorFrom)
-        Place.TREEHOUSE -> treeDeck(t, floorFrom)
-        Place.NIGHT_SKY -> nightHill(t)
+        // The treehouse's and the night sky's own stage art (TreeSkyStages.kt), still: PlaceBackdrop moves them.
+        Place.TREEHOUSE -> treehouse((t * 2 * PI).toFloat(), floorFrom)
+        Place.NIGHT_SKY -> starrySky(t, -1f)
         Place.FAIR -> fairLights(t)
     }
 }
@@ -126,32 +128,6 @@ internal fun DrawScope.workshopRoom(floorFrom: Float = 0.7f) {
         val y = floorY + (size.height - floorY) * k / 4f
         drawLine(Color.Black.copy(alpha = 0.25f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
     }
-}
-
-/** Up in the treehouse at dusk: leaves across the top, the trunk at one side, the deck's planks underfoot. */
-internal fun DrawScope.treeDeck(t: Float, floorFrom: Float = 0.7f) {
-    drawRect(Brush.verticalGradient(listOf(Color(0xFF1C2E24), Color(0xFF2A2A1E))))
-    drawRect(Brush.horizontalGradient(listOf(Color(0xFF4A3424), Color(0xFF5E4430), Color(0xFF4A3424)), 0f, size.width * 0.07f), size = Size(size.width * 0.07f, size.height))
-    for (k in 0 until 9) {
-        val c = Offset(size.width * (k / 8f), size.height * (0.02f + 0.05f * ((k * 5) % 3)))
-        val r = size.width * (0.09f + 0.02f * (k % 3))
-        val sway = sin((t * 2 * PI + k).toFloat()) * 3.dp.toPx()
-        drawCircle(if (k % 2 == 0) Color(0xFF2E5634) else Color(0xFF3A6A3E), r, c + Offset(sway, 0f))
-    }
-    val floorY = size.height * floorFrom
-    drawRect(Brush.verticalGradient(listOf(Color(0xFF7A5536), Color(0xFF5A3D27)), floorY, size.height), Offset(0f, floorY), Size(size.width, size.height - floorY))
-    val n = (size.width / 30.dp.toPx()).toInt().coerceAtLeast(6)
-    for (k in 1 until n) drawLine(Color.Black.copy(alpha = 0.25f), Offset(size.width * k / n, floorY), Offset(size.width * k / n, size.height), 1.dp.toPx())
-}
-
-/** Under the night sky: the deep sky, the moon and stars (the nap's night), a dark hill rising at the bottom. */
-internal fun DrawScope.nightHill(t: Float) {
-    night(t)
-    val hill = Path().apply {
-        moveTo(0f, size.height * 0.86f); quadraticTo(size.width * 0.45f, size.height * 0.70f, size.width, size.height * 0.82f)
-        lineTo(size.width, size.height); lineTo(0f, size.height); close()
-    }
-    drawPath(hill, Brush.verticalGradient(listOf(Color(0xFF1D4550), Color(0xFF122E38)), size.height * 0.7f, size.height))
 }
 
 /** The fair at dusk: a violet sky, bunting along the top, a string of warm bulbs, a striped tent edge at each side. */
