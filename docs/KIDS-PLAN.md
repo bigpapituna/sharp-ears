@@ -1,6 +1,6 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-## Status (2026-10-18, 2.2.0 integrated on branch `release-2.2`, versionCode 9)
+## Status (2026-10-18, 2.3.0 integrated on branch `release-2.3`, versionCode 11)
 
 Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
 
@@ -29,6 +29,15 @@ road; a pre-reader walks all three pages, a reader the garden's short list and t
 lesson drops its own page's stickers. Grown-ups see the three pages as Extra units on Learn. Walked through on the Fold
 and phone emulators; see CLAUDE.md, 2.2.0 status.
 
+2.3.0 (2026-10-18, branch `release-2.3`): forty more kid lessons on four more pages after the concert hall, as Roy asked
+(which finger plays, how to sit and hold the hands, basic ways to use the piano, games): the workshop's twelve (sitting,
+the bubble hand, finger numbers, hand positions, wrist, arm weight, touch, the pedal, a concert), the treehouse's twelve
+(fingers that walk, tuck, stretch and hop in both hands, which finger, a concert), the night sky's twelve (a steady
+beat, ta and ti-ti, rests, the metronome, up or down, same or different, loud or quiet, fast or slow, long or short,
+happy or sad, a black-key jam, a concert) and the fair's four games (balloons, the carousel, the strongman, the photo
+booth). 76 Playground lessons on seven pages, each with its map scene, trail, ten stickers and finale, then the big
+kids' road. Grown-ups see all seven as Extra units. See CLAUDE.md, 2.3.0 status.
+
 Not yet:
 
 - Tested with real kids in a real room. The clap counter, the high-and-low and key-hunt pitch tracker, soft and loud,
@@ -43,8 +52,10 @@ Not yet:
 - Frame timing on the Fold itself with the profile build (emulator numbers only so far).
 - (Done in 2.2.0: the pond and the concert hall, twelve lessons each after the garden, then Basics. Roy asked for the
   kids' path to be comprehensive; section 9 had held them back until the first page got used. See CLAUDE.md, 2.2 pages.)
-- The kid home and the pond and hall pages on Roy's phone, with a kid at a real piano (emulators only so far), and the
-  map's frame time on the Fold itself.
+- The kid home and every page (the pond and the hall, and 2.3's workshop, treehouse, night sky and fair) on Roy's
+  phone, with a kid at a real piano (emulators only so far), and the map's frame time on the Fold itself. 2.3's new
+  thresholds (the strongman's height, the carousel's smooth run, the beat stars' quarter second, fast and slow, loud and
+  quiet) are tuned on PianoSynth only.
 
 Written 2026-10-18. Status at writing: proposal, nothing built. First testers: Roy's nieces and nephews, several kids on one
 phone and one piano, in a room with talking, on visits (so short sessions, new kids set up in seconds).

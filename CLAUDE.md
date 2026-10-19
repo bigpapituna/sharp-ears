@@ -368,16 +368,15 @@ class of error now has a JVM test that fails if it comes back:
   backup also clears the owner's 2.1+ world, play, skin and kid files; the theory explainers and the tuner's A sound
   with App sound off by design.
 
-## 2.3 part A: the workshop and the fair (2026-10-18, branch `k40a`, emulator-5558 Fold only; version not bumped)
+## 2.3 part A: the workshop and the fair (2026-10-18, branch `k40a`, emulator-5558 Fold only; merged in 2.3.0 below)
 Roy asked for forty more kid lessons: which finger plays, how to sit and hold the hands, basic ways to use the piano,
 and games. Part A is the workshop's twelve (sitting, hand shape, finger numbers, hand positions, wrist, arm weight,
 touch, pedal) and the fair's four games, plus the place work for all four new places (workshop, treehouse, night sky,
-fair). Part B (branch `k40b`) writes the treehouse's and the night sky's lessons. Merge notes:
-ui/playground/INTEGRATION.md, "2.3".
-- Path: garden, pond, hall, workshop, [treehouse, night sky from part B], fair, then Basics. engine/playground/Pages.kt
-  `PAGES` (part B adds two lines there). Workshop: `WORKSHOP_ID` "playground-workshop", `workshop-1..12`, Workshop.kt.
-  Fair: `FAIR_ID` "playground-fair", `fair-1..4`, Fair.kt. Readers walk both whole (BIG_KID_LESSONS names only the
-  garden); grown-ups see them as Extra units. COURSE is now the pages' levels then Basics (`PLAYGROUND_LEVELS + ...`).
+fair). Part B wrote the treehouse's and the night sky's lessons. ui/playground/INTEGRATION.md, "2.3", has the games.
+- Path: garden, pond, hall, workshop, treehouse, night sky, fair, then Basics (engine/playground/Pages.kt `PAGES`).
+  Workshop: `WORKSHOP_ID` "playground-workshop", `workshop-1..12`, Workshop.kt. Fair: `FAIR_ID` "playground-fair",
+  `fair-1..4`, Fair.kt. Readers walk both whole (BIG_KID_LESSONS names only the garden); grown-ups see them as Extra
+  units. COURSE is now the pages' levels then Basics (`PLAYGROUND_LEVELS + ...`).
 - The lessons (time model 104 to 159 s each):
   - workshop-1 Sit like a pianist: posture scenes (tall, room to move, feet flat), `PICK` the right sitter from a
     sloucher, a too-close one and tucked feet, then one long middle C and three Cs.
@@ -441,10 +440,10 @@ ui/playground/INTEGRATION.md, "2.3".
   who had reached Basics before 2.3 is sent back to workshop-1 by CoursePath (the road opens again once every page is
   walked); their Basics progress is kept.
 
-## 2.3 part B: the treehouse and the night sky (2026-10-18, branch `k40b`, emulator-5554 only; version not bumped)
+## 2.3 part B: the treehouse and the night sky (2026-10-18, branch `k40b`, emulator-5554 only; merged in 2.3.0 below)
 Roy asked for 40 new kid lessons: which finger to use, basic ways to use the piano and hand placement, and lessons that
 keep kids engaged. Part B is 24 of them on two new Playground pages; part A (branch `k40a`) owns the places, the world
-and its two pages (Workshop, Fair). Merge notes, page entries and the registry edit: ui/playground/INTEGRATION-B.md.
+and its two pages (Workshop, Fair).
 - Treehouse (`TREEHOUSE_ID` "playground-treehouse", treehouse-1..12, engine/playground/Treehouse.kt): fingers that move.
   Finger walk (1 2 3 and back), the left hand's walk (little finger five on C, the thumb's walk down from G), the thumb
   tuck (1 2 3, thumb under to F, three over on the way back), fingers four and five, skips (1 3 5), five fingers in G,
@@ -467,25 +466,61 @@ and its two pages (Workshop, Fair). Merge notes, page entries and the registry e
   BeatStarsStage (drum or metronome, the matcher's own delay taken off a strike), HigherLowerStage, LoudQuietStage,
   TempoStage, SkyChordStage, StarJamStage (band in the black keys' key, the mic deaf 300 ms at each band note),
   TreeSkyConcertStage, the drum game under the stars; backdrops and the painted hand over a stage in TreeSkyStages.kt.
-  The steps are marked by text in engine/playground/StageGames.kt (the Game enum is part A's file); the only edit to an
-  existing UI file is three lines in PlaygroundStage.kt. Rules: TapGames.kt, BeatGames.kt, ListenGames.kt.
-- On this branch the two levels sit at the end of COURSE (so `--es lesson` opens them); they become Playground pages at
-  the merge (until then StepRetry's let go, PlayerScreen's letGo and ANY_OF_LESSONS do not reach them). CourseTest
-  (130 lessons) and AnyOfTest were adjusted for that.
+  Rules: TapGames.kt, BeatGames.kt, ListenGames.kt. (Merged, each is a `Game` value: see 2.3.0 status.)
 - Voice: TreeSkyLines.fixed() (steps, scenes, the stages' lines) in SpokenCatalog.kidLines; 336 new lines recorded (314 at
   0.85), 2954 in the catalog; render_voice.py deleted nothing.
-- Tests: 832 JVM (797 before): TreeSkyTest (shape, copy, bubbles, no digits in kid lines, no finger claims, stage
-  marks, games, concerts, beats, jam, any-of), TreeSkyFlowTest (24 lessons, a silent and a wrong-keys kid, as merged),
-  TreeSkyHearingTest (every set on PianoSynth: positions, higher or lower, the jam, middle C; the drum, the clicks and
-  the band never a key), TreeSkyFingersTest, TapGamesTest, TreeSkyGamesTest. Time model 114 to 180 s a lesson. Lint
-  0 errors (25 warnings, all older). Screenshots of every lesson's main stage (pre-reader Mia p1, reader Leo p2):
-  app/build/screens/k40b-*.png (not committed). Debug: `--es lesson treehouse-N|night-N --ei step n --es profile p1
-  --ez awake true`.
+- Tests: 832 JVM (797 before): TreeSkyTest (shape, copy, bubbles, no digits in kid lines, no finger claims, stage marks,
+  games, concerts, beats, jam, any-of), TreeSkyFlowTest (24 lessons, a silent and a wrong-keys kid; merged into
+  PlaygroundFlowTest), TreeSkyHearingTest (every set on PianoSynth: positions, higher or lower, the jam, middle C; the
+  drum, the clicks and the band never a key), TreeSkyFingersTest, TapGamesTest, TreeSkyGamesTest. Time model 114 to 180
+  s a lesson. Lint 0 errors (25 warnings, all older). Screenshots of every lesson's main stage (pre-reader Mia p1,
+  reader Leo p2): app/build/screens/k40b-*.png (not committed). Debug: `--es lesson treehouse-N|night-N --ei step n --es
+  profile p1 --ez awake true`.
 - Not proven: everything with a real piano and a child (emulator only); the beat stars' window (250 ms) and delay
   correction on a real phone; the fast and slow grade when the matcher drops a fast note; the jam's band on a phone
   speaker. On the emulator the stages hear the host's room and speakers (the demo comes back late through the host
   mic), so rounds there get found or let go by themselves; emulator-5554 (Medium_Phone_API_37.0) froze once under the
   host's memory pressure (0.5 GB free) and was restarted.
+
+### 2.3.0 status (integrated 2026-10-19, branch `release-2.3`, versionCode 11; emulators only, not on Roy's phone yet)
+`k40a` and `k40b` merged: forty more kid lessons on four more pages, so a kid's path is the garden, the pond, the
+concert hall, the workshop, the treehouse, the night sky and the fair (76 Playground lessons, 146 in COURSE), then the
+big kids' road. Grown-ups see all seven pages as Extra units on Learn, never as the next lesson ("0 of 70 lessons").
+- Merge: COURSE is `PLAYGROUND_LEVELS + the course`; part B's two levels came off the end of COURSE and into Pages.kt as
+  `page("treehouse", TREEHOUSE, Place.TREEHOUSE, "The treehouse")` and `page("nightsky", NIGHT_SKY, Place.NIGHT_SKY,
+  "The night sky")` (part A's ids, places and titles; part B's notes said "night"). Three voice files both branches
+  recorded ("Finger two!", "Finger three!", "Finger four!", both at 0.85): part A's kept.
+- One Game registry: part B's stages are `Game` values now (`COPY`, `TAP`, `BEAT`, `HIGHER_LOWER`, `LOUD_QUIET`,
+  `TEMPO`, `SKY_CHORD`, `JAM`) drawn by PlaygroundStage next to part A's; `hasPlaygroundStage` is `step.game != null`
+  again. What a stage needs besides its exercise is kept by step text in engine/playground/StageGames.kt (as the
+  workshop's pick rounds are); `Step.on(StageGame)` sets the Game and keeps the data; part B's `Backdrop` enum is part
+  A's `Place`. The night sky's drum steps are plain `CLAP` (ClapStage draws the page's backdrop through `PlaceBackdrop`,
+  the twinkling stars). The treehouse's and the night sky's concerts are `CONCERT`: concertPlan plays each step's own
+  song (`TREEHOUSE_CONCERT`: Hot Cross Buns with both hands, Twinkle with the left hand under the band; `NIGHT_CONCERT`:
+  the shelf's Twinkle, then "Twinkle all the way"), and ConcertStage hands them to TreeSkyConcertStage (their place, the
+  step's practice, lanterns or shooting stars). placeBackdrop draws part B's treehouse and sky for those places (part
+  A's simpler deck and hill went), so every stage on those pages looks the same.
+- Fixed on the walk: the beat stars arced over the moon (the seventh star on the Fold, the seventh and eighth on a
+  phone): the beat stage's sky has no moon now (`SkyBackdrop(moon = false)`). The fair's ticket booth stood under the
+  photo booth stone, its stars on the roof: lower on the lawn now.
+- Switched on by the pages: StepRetry's let go after three tries (Perform steps, concerts), PlayerScreen's `letGo`,
+  `ANY_OF_LESSONS` = playground-1, 2, 3, hall-1, night-5, night-11 (the octave hint off there). Checked by PagesTest,
+  CoursePathTest, TreeSkyTest and PlaygroundFlowTest (the concerts let go after three tries in the walk).
+- Voice: render_voice.py on the merged tree: 3172 catalog lines (1115 kid lines at 0.85), all recorded, 0 new, 0
+  deleted.
+- Tests: 862 JVM (part A 828, part B 832, from 797; TreeSkyFlowTest folded into PlaygroundFlowTest, which walks all 76
+  lessons with a silent kid and a wrong-keys kid, part B's stages modelled; TreeSkyTime folded into PlaygroundChecks:
+  part B's lessons 114 to 180 s). FingersAgreeTest now checks the stages' exercises too. FixtureTest session-155837
+  33/33, 0 false strikes, 0 wrong flashes; StallReviewTest, StageHearingTest green. Lint 0 errors (25 warnings, all
+  older).
+- Emulator walk (5558 Fold: Mia pre-reader p1, Leo reader p2; 5554 phone: Mia p1, made with the new-kid flow): the map's
+  seven pages and the gate, treehouse-1, 3, 7, 9, 11, 12, night-1, 2, 5, 10, 11, 12, workshop-1, 3, 12 and fair-1, 4
+  opened from their stones with their stages (the other night stages by the debug route, dark); workshop-12 finished by
+  its steps, its finale ("Next stop, the treehouse!") rolling on to treehouse-1; the treehouse's finale to night-1, the
+  night sky's to fair-1, the fair's opening the road (Sit next); dark mode; the adult Learn with the seven Extra units.
+  No crash or ANR. Screenshots: app/build/screens/r23-*.png (not committed).
+- Not proven: everything on a real piano with a kid; part A's and part B's thresholds are tuned on PianoSynth only.
+  workshop-3 and Basics' fingers-right are both titled "Finger numbers" (left as part A wrote it).
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
