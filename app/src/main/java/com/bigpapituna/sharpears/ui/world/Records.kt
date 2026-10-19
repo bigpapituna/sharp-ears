@@ -90,7 +90,7 @@ fun RecordsShelf(bests: Map<String, Int>, songs: List<SongMeta>, modifier: Modif
             PupSays(Pose.POINTING, if (kid) "Play a whole song in Perform and win your first record." else "Finish a song in Perform at 60% or more for your first record.", size = 84.dp, idle = false)
             return@Column
         }
-        PupSays(Pose.CROWN, "${shown.size} ${if (shown.size == 1) "record" else "records"} on the shelf: ${medalLine(bests.filterKeys { it in byId })}.", size = 84.dp)
+        PupSays(Pose.CROWN, shelfLine(shown.size, medalLine(bests.filterKeys { it in byId }), kid), size = 84.dp)
         shown.chunked(3).forEach { row ->
             // The records stand on the board; their names hang under it.
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,3 +151,7 @@ private fun Plank() {
         drawLine(Color(0xFFB5844F), Offset(10f, size.height * 0.31f), Offset(size.width - 10f, size.height * 0.31f), 2f)
     }
 }
+
+/** The pup's line over the shelf: counts and medals for a grown-up, no numbers for a kid ("2 records: 1 gold" was). */
+internal fun shelfLine(records: Int, medals: String, kid: Boolean): String =
+    if (kid) "Look at your records on the shelf!" else "$records ${if (records == 1) "record" else "records"} on the shelf: $medals."

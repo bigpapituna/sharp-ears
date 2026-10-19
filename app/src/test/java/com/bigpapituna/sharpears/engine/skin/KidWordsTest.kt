@@ -53,8 +53,8 @@ class KidWordsTest {
             assertFalse(nameless, nameless.contains(",,") || nameless.contains(" ,") || nameless.contains(", ."))
             assertKidSafe(nameless)
         }
-        assertEquals("Every note was right, Mia. The pup wants to hear it again!", RunWords.kidLine(3, "Mia"))
-        assertEquals("Every note was right. The pup wants to hear it again!", RunWords.kidLine(3, "  "))
+        assertEquals("You played it so well, Mia. The pup wants to hear it again!", RunWords.kidLine(3, "Mia"))
+        assertEquals("You played it so well. The pup wants to hear it again!", RunWords.kidLine(3, "  "))
         assertTrue(RunWords.coaching(ProfileKind.KID, recap(1, 0, 9), 0, 4, 0.5, name = "Theo").contains("Theo"))
     }
 

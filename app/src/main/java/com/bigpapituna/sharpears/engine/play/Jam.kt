@@ -149,7 +149,7 @@ object JamWords {
 
     /** A note's caption: the letter for a reader, the colour and animal before reading. */
     fun note(midi: Int, reader: Boolean): Caption {
-        if (!reader) return NoteColours.spokenName(midi, reader = false).let { Caption(it.replaceFirstChar(Char::uppercase), it) }
+        if (!reader) return NoteColours.spokenName(midi, reader = false).replaceFirstChar(Char::uppercase).let { Caption("$it!", "$it!") }
         val letter = NoteColours.letter(midi)
         val said = SHARPS[Math.floorMod(midi, 12)] ?: letter
         return Caption("$letter!", "$said!")

@@ -39,6 +39,21 @@ class KidCopyTest {
     }
 
     /**
+     * Lines made on the spot say no more than is true and look like the rest: the record shelf told a kid "2 records on
+     * the shelf: 1 gold, 1 silver."; a three-star kid line said "Every note was right" after a 92 percent Perform run
+     * (three stars start at 90); a pre-reader's Jam caption was "The red cat key" where every other caption ends "!".
+     */
+    @Test fun madeOnTheSpotLinesKeepTheRules() {
+        val shelf = com.bigpapituna.sharpears.ui.world.shelfLine(2, "1 gold, 1 silver", kid = true)
+        assertFalse(shelf, shelf.any { it.isDigit() })
+        assertTrue(com.bigpapituna.sharpears.ui.world.shelfLine(1, "1 gold", kid = false).startsWith("1 record on"))
+        for (l in RunWords.KID_LINES[2]) assertFalse(l, Regex("every note|no mistakes|all the notes", RegexOption.IGNORE_CASE).containsMatchIn(l))
+        for (m in 60..71) for (reader in listOf(true, false)) com.bigpapituna.sharpears.engine.play.JamWords.note(m, reader).let {
+            assertTrue(it.text, it.text.endsWith("!") && it.text.first().isUpperCase())
+        }
+    }
+
+    /**
      * What lands in the lesson bubble (a scene's caption or a step's instruction) stays within four lines at a 360 dp
      * phone's width (about 30 characters a line beside the 56 dp pup): 110 characters for kids. The kid home's big-word
      * bubble takes 40.

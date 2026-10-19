@@ -183,8 +183,8 @@ class JamTest {
     @Test fun everyEventHasACaption() {
         assertEquals(JamWords.Caption("C!", "C!"), JamWords.note(60, reader = true))
         assertEquals(JamWords.Caption("F#!", "F sharp!"), JamWords.note(66, reader = true))
-        assertEquals(JamWords.Caption("The red cat key", "the red cat key"), JamWords.note(72, reader = false))
-        assertEquals("the black key between the cat and the dog", JamWords.note(61, reader = false).spoken)
+        assertEquals(JamWords.Caption("The red cat key!", "The red cat key!"), JamWords.note(72, reader = false))
+        assertEquals("The black key between the cat and the dog!", JamWords.note(61, reader = false).spoken)
         assertEquals("Two notes together!", JamWords.of(Jam.Effect.Together(listOf(60, 64)), true)?.text)
         assertEquals("Three notes! A chord!", JamWords.of(Jam.Effect.Chord(listOf(60, 64, 67)), false)?.text)
         assertEquals("Up the rainbow!", JamWords.of(Jam.Effect.Rainbow(listOf(60, 62, 64, 65, 67)), true)?.text)

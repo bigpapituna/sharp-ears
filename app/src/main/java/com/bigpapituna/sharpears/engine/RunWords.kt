@@ -76,7 +76,8 @@ object RunWords {
         listOf("Lovely playing{name}. Play it again and catch every note?",
             "So close to every star{name}. One more go?",
             "That sounded great{name}. Ready for another try?"),
-        listOf("Every note was right{name}. The pup wants to hear it again!",
+        // Three stars in Perform start at 90 percent, so no line claims every note was right.
+        listOf("You played it so well{name}. The pup wants to hear it again!",
             "That was perfect{name}! Paws in the air!",
             "You played it just right{name}. What a star!"),
     )
