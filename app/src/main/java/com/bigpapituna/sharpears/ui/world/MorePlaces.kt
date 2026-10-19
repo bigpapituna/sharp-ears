@@ -424,12 +424,12 @@ internal fun DrawScope.drawFair(night: Boolean) {
         val tri = Path().apply { moveTo(a.x - w * 0.013f, a.y); lineTo(a.x + w * 0.013f, a.y); lineTo(a.x, a.y + w * 0.03f); close() }
         outlined(tri, Color(flags[k]), line * 0.6f)
     }
-    // Down on the lawn: a little ticket booth, and a queue rope on posts.
-    outlined(rr(0.78f, 0.74f, 0.88f, 0.86f, 0.006f), cream, line)
-    for (k in 0 until 3) drawRect(red, Offset(w * (0.78f + k * 0.04f), h * 0.74f), Size(w * 0.02f, h * 0.12f))
-    drawRect(Ink, Offset(w * 0.78f, h * 0.74f), Size(w * 0.10f, h * 0.12f), style = Stroke(line))
-    outlined(rr(0.795f, 0.775f, 0.865f, 0.81f, 0.004f), pick(night, 0xFF3A2E40, 0xFF241C28), line * 0.8f)
-    outlined(Path().apply { moveTo(w * 0.765f, h * 0.745f); lineTo(w * 0.83f, h * 0.70f); lineTo(w * 0.895f, h * 0.745f); close() }, gold, line)
+    // Down on the lawn: a little ticket booth (low enough that the last stone's stars clear its roof), and a queue rope on posts.
+    outlined(rr(0.78f, 0.82f, 0.88f, 0.94f, 0.006f), cream, line)
+    for (k in 0 until 3) drawRect(red, Offset(w * (0.78f + k * 0.04f), h * 0.82f), Size(w * 0.02f, h * 0.12f))
+    drawRect(Ink, Offset(w * 0.78f, h * 0.82f), Size(w * 0.10f, h * 0.12f), style = Stroke(line))
+    outlined(rr(0.795f, 0.855f, 0.865f, 0.89f, 0.004f), pick(night, 0xFF3A2E40, 0xFF241C28), line * 0.8f)
+    outlined(Path().apply { moveTo(w * 0.765f, h * 0.825f); lineTo(w * 0.83f, h * 0.78f); lineTo(w * 0.895f, h * 0.825f); close() }, gold, line)
     for (x in listOf(0.04f, 0.16f, 0.28f)) {
         drawLine(Ink, Offset(w * x, h * 0.86f), Offset(w * x, h * 0.80f), line * 2.2f, StrokeCap.Round)
         drawCircle(gold, w * 0.008f, Offset(w * x, h * 0.80f))
