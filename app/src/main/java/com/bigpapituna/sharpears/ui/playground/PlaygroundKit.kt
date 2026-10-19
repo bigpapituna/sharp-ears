@@ -221,8 +221,8 @@ internal class StageRun(val rounds: StageRounds) {
  */
 @Composable
 internal fun rememberStageRun(exercise: Exercise, id: String, deps: LessonDeps, sound: () -> Boolean, coach: () -> RoundCoach = { RoundCoach() },
-                              phrases: Boolean = false, onCue: (RoundCoach.Cue) -> Unit, onEnded: (Report) -> Unit): StageRun {
-    val run = remember(exercise, id) { StageRun(StageRounds(exercise.toSong(id, id), exercise.practice, coach(), phrases = phrases)) }
+                              phrases: Boolean = false, onCue: (RoundCoach.Cue) -> Unit, onEnded: (Report) -> Unit, gapMs: Long = 1_400): StageRun {
+    val run = remember(exercise, id) { StageRun(StageRounds(exercise.toSong(id, id), exercise.practice, coach(), gapMs = gapMs, phrases = phrases)) }
     val ended by rememberUpdatedState(onEnded)
     val cueTo by rememberUpdatedState(onCue)
     val soundNow by rememberUpdatedState(sound)
@@ -386,6 +386,8 @@ internal fun rememberStage(
     demoGapMs: Long = 260,
     groups: ((Set<Int>) -> List<Set<Int>>)? = null,
     chords: Boolean = false,
+    /** 2.3: the pause between one round's end and the next one's demo (the pedal stage plays the tune back in it). */
+    gapMs: Long = 1_400,
 ): StageState {
     val scope = rememberCoroutineScope()
     val fx = remember { StageFx() }
@@ -446,7 +448,7 @@ internal fun rememberStage(
             }
         }
     }
-    val run = rememberStageRun(exercise, id, deps, sound = { false }, coach = coach, phrases = phrases, onEnded = onEnded, onCue = ::handle)
+    val run = rememberStageRun(exercise, id, deps, sound = { false }, coach = coach, phrases = phrases, onEnded = onEnded, onCue = ::handle, gapMs = gapMs)
     val st = remember(run) { StageState(run, fx).also { holder[0] = it } }
     st.onCall = ::sayOver
 

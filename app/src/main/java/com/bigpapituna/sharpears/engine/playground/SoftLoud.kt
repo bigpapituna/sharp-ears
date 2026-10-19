@@ -43,8 +43,18 @@ object SoftLoud {
         else -> Loudness.MEDIUM
     }
 
+    /** 2.3, the workshop's heavy arm and soft arm: loud, soft, three times (after the first note, which sets the level). */
+    val ARM_ROUNDS = listOf(Loudness.LOUD, Loudness.SOFT, Loudness.LOUD, Loudness.SOFT, Loudness.LOUD, Loudness.SOFT)
+
+    /** The rounds a lesson's soft and loud game plays: the workshop's arm rounds there, the garden's nap anywhere else. */
+    fun roundsFor(lessonId: String): List<Loudness> = if (lessonId == ARM_LESSON) ARM_ROUNDS else ROUNDS
+
+    /** The lesson whose game plays [ARM_ROUNDS]. */
+    const val ARM_LESSON = "workshop-8"
+
     /** The lesson's exercise: middle C once to set the level, then once per round (the notes wait, as in any game). */
-    fun exercise() = Exercise(right = List(ROUNDS.size + 1) { "C4:2" }.joinToString(" "), bpm = 60.0, practice = Practice.RIGHT)
+    fun exercise(rounds: List<Loudness> = ROUNDS) = Exercise(right = List(rounds.size + 1) { "C4:2" }.joinToString(" "), bpm = 60.0,
+        practice = Practice.RIGHT, fingers = List(rounds.size + 1) { "1" }.joinToString(" "))
 }
 
 /**

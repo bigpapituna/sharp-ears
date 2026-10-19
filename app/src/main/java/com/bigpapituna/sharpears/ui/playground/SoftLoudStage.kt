@@ -104,7 +104,8 @@ internal enum class Nap { ASLEEP, STIR, AWAKE, YAWN }
 internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
     val offset = LocalProfile.current.micOffsetDb
-    val game = remember(ex) { SoftLoudGame(offsetDb = offset) }
+    // 2.3: the workshop's heavy arm and soft arm play their own rounds (loud, soft, loud, soft).
+    val game = remember(ex) { SoftLoudGame(rounds = SoftLoud.roundsFor(lessonId), offsetDb = offset) }
     var seq by remember { mutableIntStateOf(0) }
     var lastRise by remember { mutableStateOf<Double?>(null) }
     var nap by remember { mutableStateOf(Nap.ASLEEP) }

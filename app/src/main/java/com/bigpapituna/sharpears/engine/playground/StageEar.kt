@@ -33,6 +33,11 @@ object StageKeys {
     fun letter(pc: Int): Set<Int> = (2..6).map { 12 * (it + 1) + pc }.toSet()
     /** The C position, C4 to G4: the copy games and the soft and loud tune (2.2) listen for these. */
     val FIVE: Set<Int> = setOf(60, 62, 64, 65, 67)
+    /** 2.3: the left hand's home, C3 to G3 (the workshop's left hand). */
+    val LEFT_FIVE: Set<Int> = setOf(48, 50, 52, 53, 55)
+    /** 2.3: the keys a stage's exercise plays, both hands (the hand stage, the photo booth's song): at most twelve. */
+    fun of(ex: com.bigpapituna.sharpears.engine.Exercise): Set<Int> =
+        com.bigpapituna.sharpears.engine.parseTokens(ex.right + " " + ex.left).flatMap { it.keys }.toSet()
     /** The pond's first chord, C4 E4 G4: one group, so its keys' shared partials never count against each other. */
     val C_CHORD: Set<Int> = setOf(60, 64, 67)
     /** Soft and loud: the white keys from A3 to G4 and the dog house between them; the game grades the rise. */
