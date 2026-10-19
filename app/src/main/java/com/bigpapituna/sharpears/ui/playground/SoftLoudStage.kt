@@ -278,15 +278,17 @@ internal fun Meter(rise: Double?, anchor: Double?, offset: Double, modifier: Mod
 }
 
 /** The night: a deep sky, the moon, twinkling stars. */
-internal fun DrawScope.night(twinkle: Float) {
+internal fun DrawScope.night(twinkle: Float, moon: Boolean = true) {
     drawRect(Brush.verticalGradient(listOf(NightTop, NightBottom)))
     val m = Offset(size.width * 0.84f, size.height * 0.16f)
     val r = minOf(size.width, size.height) * 0.07f
-    drawCircle(Brush.radialGradient(listOf(Moon.copy(alpha = 0.35f), Color.Transparent), m, r * 3), r * 3, m)
-    drawCircle(Moon, r, m)
-    // A full moon with three soft craters.
-    for ((dx, dy, cr) in listOf(Triple(-0.3f, -0.25f, 0.22f), Triple(0.28f, 0.1f, 0.16f), Triple(-0.05f, 0.38f, 0.12f)))
-        drawCircle(Color(0xFFE2D3A8), r * cr, m + Offset(r * dx, r * dy))
+    // A full moon with three soft craters (left out where a stage's own stars cross that corner).
+    if (moon) {
+        drawCircle(Brush.radialGradient(listOf(Moon.copy(alpha = 0.35f), Color.Transparent), m, r * 3), r * 3, m)
+        drawCircle(Moon, r, m)
+        for ((dx, dy, cr) in listOf(Triple(-0.3f, -0.25f, 0.22f), Triple(0.28f, 0.1f, 0.16f), Triple(-0.05f, 0.38f, 0.12f)))
+            drawCircle(Color(0xFFE2D3A8), r * cr, m + Offset(r * dx, r * dy))
+    }
     for (k in 0 until 14) {
         val sx = size.width * ((k * 0.137f + 0.05f) % 1f); val sy = size.height * ((k * 0.211f + 0.07f) % 0.55f)
         val a = 0.25f + 0.6f * (if (k % 2 == 0) twinkle else 1f - twinkle)

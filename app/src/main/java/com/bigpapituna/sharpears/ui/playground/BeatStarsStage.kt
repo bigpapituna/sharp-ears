@@ -235,7 +235,8 @@ internal fun BeatStarsStage(game: StageGame.Beat, step: Step, lessonId: String, 
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
-        SkyBackdrop(Modifier.fillMaxSize())
+        // No moon: the beat's stars arc across its corner.
+        SkyBackdrop(Modifier.fillMaxSize(), moon = false)
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             // The stars across the sky, one a beat.
             Canvas(Modifier.fillMaxWidth().height((roomH * 0.24f).coerceIn(64.dp, 150.dp)).semantics { contentDescription = "${lit.size} of ${hits.size} stars lit" }) {

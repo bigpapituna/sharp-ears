@@ -63,14 +63,17 @@ internal fun Voice.sayOnStage(text: String, mic: MicInput) { if (mic.listening) 
 
 // ---- The places ----------------------------------------------------------------------------------------------------
 
-/** The night sky behind a stage: the moon, twinkling stars, faint constellations, now and then a shooting star. */
+/**
+ * The night sky behind a stage: the moon, twinkling stars, faint constellations, now and then a shooting star. [moon]
+ * off for a stage whose own row of stars crosses the moon's corner (the beat stars).
+ */
 @Composable
-internal fun SkyBackdrop(modifier: Modifier = Modifier) {
+internal fun SkyBackdrop(modifier: Modifier = Modifier, moon: Boolean = true) {
     val still = reducedMotion()
     val clock = rememberInfiniteTransition(label = "sky")
     val twinkle by clock.animateFloat(0f, 1f, infiniteRepeatable(tween(1800), androidx.compose.animation.core.RepeatMode.Reverse), label = "twinkle")
     val drift by clock.animateFloat(0f, 1f, infiniteRepeatable(tween(7_000, easing = LinearEasing)), label = "drift")
-    Canvas(modifier.clearAndSetSemantics { }) { starrySky(if (still) 0.5f else twinkle, if (still) -1f else drift) }
+    Canvas(modifier.clearAndSetSemantics { }) { starrySky(if (still) 0.5f else twinkle, if (still) -1f else drift, moon) }
 }
 
 /** The treehouse behind a stage: leaves, the trunk, lanterns swaying on their string, the planks of the platform. */
@@ -96,8 +99,8 @@ internal fun PlaceBackdrop(place: Place, modifier: Modifier = Modifier, floorFro
 private val ConstellationInk = Color(0x33CFE0FF)
 
 /** [night] with two constellations and, every few seconds ([drift] 0..1, negative for none), a shooting star. */
-internal fun DrawScope.starrySky(twinkle: Float, drift: Float) {
-    night(twinkle)
+internal fun DrawScope.starrySky(twinkle: Float, drift: Float, moon: Boolean = true) {
+    night(twinkle, moon)
     // The Big Dipper, small, top left; a little kite under the moon.
     val dipper = listOf(0.08f to 0.10f, 0.15f to 0.13f, 0.21f to 0.12f, 0.27f to 0.15f, 0.29f to 0.24f, 0.37f to 0.25f, 0.37f to 0.15f)
     val kite = listOf(0.70f to 0.30f, 0.76f to 0.26f, 0.80f to 0.33f, 0.74f to 0.38f, 0.70f to 0.30f)
