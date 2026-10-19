@@ -21,13 +21,15 @@ class CoursePathTest {
     private val bigKid = CoursePath(Profile.firstUnitId(ProfileKind.KID), bigKid = true)
 
     @Test fun kidsStartInThePlaygroundGrownUpsAtBasics() {
-        // 2.2: a kid walks the Playground's three pages (garden, pond, concert hall), then Basics, the big kids' road.
-        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID, "basics"), kid.levels.take(4).map { it.id })
+        // 2.2: a kid walks the Playground's pages (garden, pond, concert hall; 2.3 the workshop and the fair), then Basics.
+        val pages = com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS.map { it.id }
+        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID), pages.take(3))
+        assertEquals(pages + "basics", kid.levels.take(pages.size + 1).map { it.id })
         assertEquals("basics", adult.levels.first().id)
-        assertEquals("the playground's pages come last for a grown-up", listOf(PLAYGROUND_ID, POND_ID, HALL_ID), adult.levels.takeLast(3).map { it.id })
+        assertEquals("the playground's pages come last for a grown-up", pages, adult.levels.takeLast(pages.size).map { it.id })
         assertEquals(COURSE.size, adult.levels.size)
-        assertTrue(adult.levels.takeLast(3).all(adult::isExtra))
-        assertEquals("only the pages are extras", 3, adult.levels.count(adult::isExtra))
+        assertTrue(adult.levels.takeLast(pages.size).all(adult::isExtra))
+        assertEquals("only the pages are extras", pages.size, adult.levels.count(adult::isExtra))
         assertTrue(kid.levels.none(kid::isExtra))
     }
 
@@ -53,7 +55,11 @@ class CoursePathTest {
         val pg = COURSE.first { it.id == PLAYGROUND_ID }.lessons
         assertEquals("the garden's last game leads to the pond", "pond-1", kid.after(pg.last())?.id)
         assertEquals("hall-1", kid.after(POND.lessons.last())?.id)
-        assertEquals("the recital leads to the big kids' road", "sit", kid.after(HALL.lessons.last())?.id)
+        // 2.3: the recital leads on to the workshop; the fair's last game to the big kids' road.
+        assertEquals("the recital leads to the workshop", "workshop-1", kid.after(HALL.lessons.last())?.id)
+        assertEquals("the workshop's concert leads on", com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
+            .let { p -> p[p.indexOfFirst { it.id == "workshop" } + 1].lessonIds.first() }, kid.after(com.bigpapituna.sharpears.engine.playground.WORKSHOP.lessons.last())?.id)
+        assertEquals("the fair leads to the big kids' road", "sit", kid.after(com.bigpapituna.sharpears.engine.playground.FAIR.lessons.last())?.id)
         assertEquals("pond-1", kid.next { it.startsWith("playground-") }?.id)
         assertEquals("sit", kid.next { isPlaygroundLesson(it) }?.id)
         assertEquals(COURSE.sumOf { it.lessons.size }, kid.counted.size)
@@ -67,7 +73,8 @@ class CoursePathTest {
         val short = setOf("playground-2", "playground-3", "playground-6", "playground-7", "playground-12")
         assertEquals("pond-1", bigKid.next { it in short }?.id)
         assertEquals("pond-1", bigKid.after(COURSE.first { it.id == PLAYGROUND_ID }.lessons.last())?.id)
-        assertEquals("sit", bigKid.next { it in short || it.startsWith("pond-") || it.startsWith("hall-") }?.id)
+        assertEquals("workshop-1", bigKid.next { it in short || it.startsWith("pond-") || it.startsWith("hall-") }?.id)
+        assertEquals("sit", bigKid.next { it in short || (isPlaygroundLesson(it) && !it.startsWith("playground-")) }?.id)
     }
 
     @Test fun anyOfLessonsAreTheRangeGames() {

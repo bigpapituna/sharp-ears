@@ -43,6 +43,14 @@ fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: Stri
                 Game.CHORD -> ChordStage(step, lessonId, deps, inject, onEnded)
                 Game.SOFT_LOUD_TUNE -> TuneStage(step, lessonId, deps, inject, onEnded)
                 Game.SET_LIST -> SetListStage(step, lessonId, deps, inject, onEnded)
+                // 2.3, the workshop and the fair (part A).
+                Game.PICK -> PickStage(step, lessonId, deps, inject, onEnded)
+                Game.HAND -> HandStage(step, lessonId, deps, inject, onEnded)
+                Game.PEDAL -> PedalStage(step, lessonId, deps, inject, onEnded)
+                Game.BALLOONS -> BalloonStage(step, lessonId, deps, inject, onEnded)
+                Game.CAROUSEL -> CarouselStage(step, lessonId, deps, inject, onEnded)
+                Game.STRONGMAN -> StrongmanStage(step, lessonId, deps, inject, onEnded)
+                Game.PHOTO -> PhotoStage(step, lessonId, deps, inject, onEnded)
                 null -> {}
             }
         }

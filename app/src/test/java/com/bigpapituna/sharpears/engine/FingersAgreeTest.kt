@@ -63,7 +63,10 @@ class FingersAgreeTest {
         fun fingersOn(id: String, hand: Hand, pc: Int) =
             exercises(lesson(id)).flatMap { lane(it, hand) }.filter { Math.floorMod(it.first, 12) == pc }.map { it.second }.toSet()
         // "Low C with your little finger", "Its little finger sits on the C below the middle", "Your left little finger holds low C".
-        for (id in listOf("playground-9", "pond-7", "pond-8", "hall-5", "hall-10", "fingers-left")) assertEquals(id, setOf(5), fingersOn(id, Hand.LEFT, 0))
+        for (id in listOf("playground-9", "pond-7", "pond-8", "hall-5", "hall-10", "fingers-left", "workshop-5", "workshop-11")) assertEquals(id, setOf(5), fingersOn(id, Hand.LEFT, 0))
+        // 2.3: "Your thumb sits on middle C" (the workshop's right hand), "Your two thumbs share middle C" (both hands).
+        for (id in listOf("workshop-1", "workshop-2", "workshop-4", "workshop-6", "workshop-7", "workshop-9", "workshop-11")) assertEquals(id, setOf(1), fingersOn(id, Hand.RIGHT, 0))
+        assertEquals(setOf(1), fingersOn("workshop-6", Hand.LEFT, 0)); assertEquals(setOf(5), fingersOn("workshop-6", Hand.LEFT, 5))
         // "Play middle C with your right thumb", "tap it on middle C with your thumb".
         for (id in listOf("sit", "rhythm-quarters")) assertEquals(id, setOf(1), lane(exercises(lesson(id)).first(), Hand.RIGHT).map { it.second }.toSet())
         // "Fingers 1, 3 and 5 play it" (triads); "Your thumb, middle finger and little finger press together" (the pond's chord).

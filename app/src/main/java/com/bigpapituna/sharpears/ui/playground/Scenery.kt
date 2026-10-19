@@ -164,12 +164,13 @@ internal fun DrawScope.fairLights(t: Float) {
         drawRect(if (k % 2 == 0) Color(0xFF8E2F2A) else Color(0xFFCFC2AE), Offset(x, 0f), Size(stripe, size.height))
     }
     val flags = listOf(Color(0xFF7DB8FF), Color(0xFFFCD860), Color(0xFFE0605A), Color(0xFF7CC173))
-    val n = (w / 26.dp.toPx()).toInt().coerceAtLeast(6)
+    // Small flags along the very top, above the stage's row of stars.
+    val n = (w / 20.dp.toPx()).toInt().coerceAtLeast(6)
     for (k in 0 until n) {
         val x = w * (k + 0.5f) / n
-        val y = 4.dp.toPx() + 6.dp.toPx() * sin(PI.toFloat() * (k + 0.5f) / n)
-        val tri = Path().apply { moveTo(x - 8.dp.toPx(), y); lineTo(x + 8.dp.toPx(), y); lineTo(x, y + 14.dp.toPx()); close() }
-        drawPath(tri, flags[k % flags.size].copy(alpha = 0.85f))
+        val y = 1.dp.toPx() + 2.dp.toPx() * sin(PI.toFloat() * (k + 0.5f) / n)
+        val tri = Path().apply { moveTo(x - 5.dp.toPx(), y); lineTo(x + 5.dp.toPx(), y); lineTo(x, y + 8.dp.toPx()); close() }
+        drawPath(tri, flags[k % flags.size].copy(alpha = 0.8f))
     }
     for (k in 0 until n + 1) {
         val c = Offset(w * k / n, size.height * 0.62f + 8.dp.toPx() * sin(PI.toFloat() * k / n))

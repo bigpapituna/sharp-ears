@@ -23,7 +23,7 @@ object PlaygroundLines {
         "C is just left of the dog house.", "A little louder!",
         // Every round shows itself first, then listens; three tries and it goes by (RoundCoach).
         LET_ME_SHOW, YOUR_TURN, AGAIN, LET_GO, WHITE_KEY, CLAP_AGAIN, I_HEARD_YOU,
-    ) + PageLines.ALL
+    ) + PageLines.ALL + WorkshopLines.ALL + FairLines.ALL
 
     /** The first round's demo begins. */
     const val LET_ME_SHOW = "Let me show you."

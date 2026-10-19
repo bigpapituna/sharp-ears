@@ -35,18 +35,25 @@ class PagesTest {
     private val pond = POND.lessons
     private val hall = HALL.lessons
 
-    @Test fun threePagesInPathOrder() {
-        assertEquals(listOf("garden", "pond", "hall"), PLAYGROUND_PAGES.map { it.id })
-        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID), PLAYGROUND_PAGES.map { it.levelId })
-        assertEquals(listOf("playground-pond", "playground-hall"), listOf(POND_ID, HALL_ID))
-        assertEquals(listOf(Place.GARDEN, Place.POND, Place.CONCERT_HALL), PLAYGROUND_PAGES.map { it.place })
-        assertEquals(listOf("The garden", "The pond", "The concert hall"), PLAYGROUND_PAGES.map { it.title })
+    @Test fun thePagesInPathOrder() {
+        // 2.3: the workshop after the hall, the fair last (part B's treehouse and night sky go between them).
+        assertEquals(listOf("garden", "pond", "hall", "workshop"), PLAYGROUND_PAGES.take(4).map { it.id })
+        assertEquals("fair", PLAYGROUND_PAGES.last().id)
+        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID, WORKSHOP_ID), PLAYGROUND_PAGES.take(4).map { it.levelId })
+        assertEquals(FAIR_ID, PLAYGROUND_PAGES.last().levelId)
+        assertEquals(listOf("playground-pond", "playground-hall", "playground-workshop", "playground-fair"), listOf(POND_ID, HALL_ID, WORKSHOP_ID, FAIR_ID))
+        assertEquals(listOf(Place.GARDEN, Place.POND, Place.CONCERT_HALL, Place.WORKSHOP), PLAYGROUND_PAGES.take(4).map { it.place })
+        assertEquals(Place.FAIR, PLAYGROUND_PAGES.last().place)
+        assertEquals(listOf("The garden", "The pond", "The concert hall", "The workshop"), PLAYGROUND_PAGES.take(4).map { it.title })
+        assertEquals("The fair", PLAYGROUND_PAGES.last().title)
+        assertEquals(PLAYGROUND_PAGES.map { it.levelId }, PLAYGROUND_LEVELS.map { it.id })
+        assertEquals(PLAYGROUND_PAGES.size, PLAYGROUND_PAGES.map { it.place }.toSet().size)
         assertEquals((1..12).map { "pond-$it" }, PLAYGROUND_PAGES[1].lessonIds)
         assertEquals((1..12).map { "hall-$it" }, PLAYGROUND_PAGES[2].lessonIds)
         assertEquals(pond.map { it.id }, PLAYGROUND_PAGES[1].lessonIds)
         assertEquals(hall.map { it.id }, PLAYGROUND_PAGES[2].lessonIds)
         assertEquals("pond-12", PLAYGROUND_PAGES[1].lastLessonId)
-        assertEquals("the last Playground lesson", "hall-12", PLAYGROUND_PAGES.last().lastLessonId)
+        assertEquals("the last Playground lesson", "fair-4", PLAYGROUND_PAGES.last().lastLessonId)
         assertEquals(PLAYGROUND_PAGES[1], pageOf("pond-7"))
         assertEquals(PLAYGROUND_PAGES[2], pageOf("hall-1"))
         assertNull(pageOf("sit"))
@@ -62,7 +69,8 @@ class PagesTest {
 
     @Test fun thePagesFollowTheGardenInTheCourse() {
         assertEquals(listOf(PLAYGROUND, POND, HALL), COURSE.take(3))
-        assertEquals("basics", COURSE[3].id)
+        assertEquals(PLAYGROUND_LEVELS, COURSE.take(PLAYGROUND_LEVELS.size))
+        assertEquals("basics", COURSE[PLAYGROUND_LEVELS.size].id)
         assertSame(POND, COURSE.first { it.id == POND_ID })
         assertEquals("Pup's Pond", POND.title)
         assertEquals("Pup's Concert Hall", HALL.title)
@@ -228,9 +236,10 @@ class PagesTest {
         assertTrue(Recital.parse(null).isEmpty())
     }
 
-    /** The kid home's finale plays after the last lesson; the path goes on to Basics. */
-    @Test fun theRecitalIsTheLastPlaygroundLesson() {
+    /** The recital ends the concert hall; the kid home's last finale plays after the last page (2.3: the fair), then Basics. */
+    @Test fun theRecitalEndsTheHallAndBasicsFollowsTheLastPage() {
         assertEquals("hall-12", COURSE.take(3).last().lessons.last().id)
-        assertEquals("sit", COURSE[3].lessons.first().id)
+        assertEquals("fair-4", COURSE[PLAYGROUND_LEVELS.size - 1].lessons.last().id)
+        assertEquals("sit", COURSE[PLAYGROUND_LEVELS.size].lessons.first().id)
     }
 }

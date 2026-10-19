@@ -117,6 +117,34 @@ class StageHearingTest {
         assertTrue(problems.joinToString("\n"), problems.isEmpty())
     }
 
+    /**
+     * 2.3: the workshop's left hand at home (C3 to G3) and every photo booth song's keys (the fair): each key of the set
+     * heard as itself at two levels, no other key passing for one (NoteJudge: the same letter in another octave counts).
+     * The C position (the hand stage's right hand, the pedal, the balloons, the carousel) and the strongman's keys (soft
+     * and loud's) are tested above. Each key is rendered once and heard against every set.
+     */
+    @Test fun theWorkshopsAndTheFairsSetsOnPianoSynth() {
+        val sets = (listOf(StageKeys.LEFT_FIVE) + SHELF.map { StageKeys.of(photoExercise(it)) }).distinct()
+        assertTrue(sets.all { it.size <= 12 })
+        val problems = mutableListOf<String>()
+        for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
+            val audio = key(k, gain)
+            for (set in sets) {
+                val heard = hear(audio, set)
+                if (heard.isEmpty()) { problems += "${noteName(k)} at $gain dB with ${set.map(::noteName)}: nothing at all"; continue }
+                val s = heard.first()
+                if (k in set && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${noteName(k)} with ${set.map(::noteName)}: heard as $s"
+                for (want in set) {
+                    val a = NoteJudge.judge(s, want)
+                    if (a is Answer.Found && Math.floorMod(k - want, 12) != 0) problems += "${noteName(k)} at $gain dB passed for ${noteName(want)} ($s)"
+                    if (k == want && a !is Answer.Found) problems += "${noteName(k)} at $gain dB was not itself ($s)"
+                }
+            }
+        }
+        println("2.3 sets: ${sets.map { s -> s.map(::noteName) }}")
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
+    }
+
     /** A tune played one note after another, as a kid copies the frogs: every note heard once, in order. */
     @Test fun aTuneIsHeardNoteByNote() {
         val tune = listOf(60, 62, 64, 60, 67, 64, 67, 64)

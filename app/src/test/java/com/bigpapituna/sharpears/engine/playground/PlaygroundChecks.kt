@@ -122,6 +122,15 @@ object PlaygroundChecks {
                 Game.CHORD -> run + keys * 4.5
                 Game.SOFT_LOUD_TUNE -> phrases() * (1.3 + 0.65 + 2.5 + 1.4) + keys * (0.42 + 1.2)
                 Game.SET_LIST -> 20.0 + Recital.songs(null).sumOf { sh -> sh.start.toSong("w", "w").let { w -> w.durationMs / 1000.0 + w.groups.size * 1.8 + 1.6 } }
+                // 2.3. A pick: the question (and a sound), a look and a tap, the praise, the pause.
+                Game.PICK -> pickRounds(s).sumOf { r -> 2.4 + (if (r.sound != null) 1.8 else 0.0) + 3.0 + 1.6 + 1.8 }
+                // The hand: the finger's demo and its call, then the key (a little slower than a hunt: the kid finds the finger first).
+                Game.HAND -> run + keys * 3.5
+                // A tune copied (balloons, the carousel, the photo booth's takes) like the copy games; the pedal plays each one back.
+                Game.PEDAL -> phrases() * (1.3 + 0.65 + 1.4 + 4.8) + keys * (0.45 + 2.0)
+                Game.BALLOONS, Game.CAROUSEL -> phrases() * (1.3 + 0.65 + 1.4) + keys * (0.45 + 2.0)
+                Game.PHOTO -> 20.0 + phrases() * (1.3 + 0.65 + 1.4) + keys * (0.45 + 2.0) + 18.0
+                Game.STRONGMAN -> phrases() * (1.3 + 0.65 + 1.4) + keys * (0.7 + 2.2)
                 else -> run + when {
                     s.game == Game.SOFT_LOUD -> keys * 4.0
                     s.game == Game.HIGH_LOW || s.game == Game.KEY_HUNT -> keys * 3.0

@@ -72,7 +72,9 @@ class StageSoundsTest {
         // 2.2: the concert hall's letters, the C position (the copy games, the soft and loud tune) and the pond's chord, one group.
         val sets = listOf(StageKeys.HIGH_LOW, StageKeys.DOG_HOUSES, StageKeys.FENCES, StageKeys.CS, StageKeys.SOFT_LOUD, Jam().micNotes()).map { it to it.map { k -> setOf(k) } } +
             listOf(2, 4, 5, 7).map { StageKeys.letter(it).let { set -> set to set.map { k -> setOf(k) } } } +
-            listOf(StageKeys.FIVE to StageKeys.FIVE.map { setOf(it) }, StageKeys.C_CHORD to listOf(StageKeys.C_CHORD))
+            listOf(StageKeys.FIVE to StageKeys.FIVE.map { setOf(it) }, StageKeys.C_CHORD to listOf(StageKeys.C_CHORD)) +
+            // 2.3: the workshop's left hand, the photo booth's songs.
+            (listOf(StageKeys.LEFT_FIVE) + SHELF.map { StageKeys.of(photoExercise(it)) }).distinct().map { it to it.map { k -> setOf(k) } }
         val bad = mutableListOf<String>()
         for (s in sounds) for (gain in listOf(0.0, -12.0, -24.0)) for ((set, groups) in sets) {
             val ev = heard(load(s, gain), set, strict = true, groups = groups)

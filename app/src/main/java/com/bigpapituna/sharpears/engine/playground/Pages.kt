@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.engine.playground
 
+import com.bigpapituna.sharpears.engine.CourseLevel
+
 /**
  * A page of Pup's Playground: one place in the pup's world, one course level, twelve lessons in order. The kid's
  * path runs page by page ([PLAYGROUND_PAGES]), then on to the big kids' road (Basics). The world draws one scene per
@@ -9,15 +11,27 @@ data class PlaygroundPage(val id: String, val levelId: String, val place: Place,
     val lastLessonId get() = lessonIds.last()
 }
 
-/** In path order. The garden is the first twelve; the pond and the concert hall pages follow. */
-val PLAYGROUND_PAGES: List<PlaygroundPage> = listOf(
-    PlaygroundPage("garden", PLAYGROUND_ID, Place.GARDEN, "The garden", PLAYGROUND.lessons.map { it.id }),
-    PlaygroundPage("pond", POND_ID, Place.POND, "The pond", POND.lessons.map { it.id }),
-    PlaygroundPage("hall", HALL_ID, Place.CONCERT_HALL, "The concert hall", HALL.lessons.map { it.id }),
+private fun page(id: String, level: CourseLevel, place: Place, title: String) = PlaygroundPage(id, level.id, place, title, level.lessons.map { it.id }) to level
+
+/**
+ * Every page with its course level, in path order: the one list to change when a page is added (2.3: the workshop, then
+ * part B's treehouse and night sky, then the fair, the last before the big kids' road). [PLAYGROUND_PAGES],
+ * [PLAYGROUND_LEVELS] and the course's start (COURSE) all follow it.
+ */
+private val PAGES: List<Pair<PlaygroundPage, CourseLevel>> = listOf(
+    page("garden", PLAYGROUND, Place.GARDEN, "The garden"),
+    page("pond", POND, Place.POND, "The pond"),
+    page("hall", HALL, Place.CONCERT_HALL, "The concert hall"),
+    page("workshop", WORKSHOP, Place.WORKSHOP, "The workshop"),
+    // 2.3 part B goes here: page("treehouse", ...) and page("nightsky", ...) (ui/playground/INTEGRATION.md).
+    page("fair", FAIR, Place.FAIR, "The fair"),
 )
 
+/** In path order. The garden is the first twelve; the pond, the concert hall, the workshop and the fair follow. */
+val PLAYGROUND_PAGES: List<PlaygroundPage> = PAGES.map { it.first }
+
 /** The pages' course levels, in path order (first in COURSE, before Basics). */
-val PLAYGROUND_LEVELS get() = listOf(PLAYGROUND, POND, HALL)
+val PLAYGROUND_LEVELS: List<CourseLevel> get() = PAGES.map { it.second }
 
 /** True for the level of a Playground page (the garden, the pond, the concert hall). */
 fun isPlaygroundLevel(levelId: String) = PLAYGROUND_PAGES.any { it.levelId == levelId }

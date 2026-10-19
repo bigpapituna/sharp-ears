@@ -30,7 +30,9 @@ class PlaygroundFlowTest {
 
     @Test fun everyLessonEndsWithNoRightInput() {
         val lessons = PLAYGROUND_LEVELS.flatMap { it.lessons }
-        assertEquals(36, lessons.size)
+        // 2.3: the garden, the pond, the hall, the workshop and the fair (part B's treehouse and night sky join them).
+        assertEquals(PLAYGROUND_PAGES.sumOf { it.lessonIds.size }, lessons.size)
+        assertTrue(lessons.size >= 52)
         for (kid in Kid.entries) for (lesson in lessons) {
             val w = walk(lesson, kid)
             assertEquals("${lesson.id} ($kid): every step done: ${w.steps}", lesson.steps.size, w.steps.size)
@@ -63,7 +65,11 @@ class PlaygroundFlowTest {
         val ex = step.exercise ?: return null to "read"
         return when (step.game) {
             Game.CLAP -> clap(kid, w)
-            Game.HIGH_LOW, Game.KEY_HUNT, Game.SOFT_LOUD, Game.ECHO, Game.CHORD, Game.SOFT_LOUD_TUNE -> stage(step, kid, w)
+            Game.HIGH_LOW, Game.KEY_HUNT, Game.SOFT_LOUD, Game.ECHO, Game.CHORD, Game.SOFT_LOUD_TUNE,
+            Game.HAND, Game.PEDAL, Game.BALLOONS, Game.CAROUSEL, Game.STRONGMAN -> stage(lessonId, step, ex, kid, w)
+            // The photo booth: picking (the shelf's first song), its three takes, the play back and the card.
+            Game.PHOTO -> { w.ms += 40_000; stage(lessonId, step, photoExercise(SHELF.first()), kid, w) }
+            Game.PICK -> pick(step, kid, w)
             Game.SET_LIST -> setList(kid, w)
             Game.CONCERT -> perform(concertPlan(lessonId, step).songs.first().exercise, kid, w)
             null -> when (step.kind) {
@@ -75,11 +81,10 @@ class PlaygroundFlowTest {
     }
 
     /** A stage: rounds shown, heard, let go (ui/playground rememberStage). */
-    private fun stage(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
-        val ex = step.exercise!!
-        val phrases = step.game == Game.ECHO || step.game == Game.SOFT_LOUD_TUNE
-        val r = StageRounds(ex.toSong("t", "t"), ex.practice, phrases = phrases)
-        val game = if (step.game == Game.SOFT_LOUD) SoftLoudGame() else null
+    private fun stage(lessonId: String, step: Step, ex: Exercise, kid: Kid, w: Walk): Pair<Report?, String> {
+        val phrases = step.game in setOf(Game.ECHO, Game.SOFT_LOUD_TUNE, Game.PEDAL, Game.BALLOONS, Game.CAROUSEL, Game.STRONGMAN, Game.PHOTO)
+        val r = StageRounds(ex.toSong("t", "t"), ex.practice, phrases = phrases, gapMs = if (step.game == Game.PEDAL) 6_200 else 1_400)
+        val game = if (step.game == Game.SOFT_LOUD) SoftLoudGame(SoftLoud.roundsFor(lessonId)) else null
         val tune = if (step.game == Game.SOFT_LOUD_TUNE) TuneLoudness() else null
         val chord = if (step.game == Game.CHORD) ChordJudge(StageKeys.C_CHORD) else null
         fun letGo() { if (game != null && !game.done) game.skip(); tune?.skipped(); chord?.reset() }
@@ -107,6 +112,10 @@ class PlaygroundFlowTest {
                     HuntJudge.judge(StageSound(now, HeardBy.NAMED, key, final = true), hunt)
                 }
                 Game.ECHO, Game.SOFT_LOUD_TUNE -> NoteJudge.judge(StageSound(now, HeardBy.NAMED, 71, final = true), r.expectedKey())
+                // 2.3: C sharp, a key none of the workshop's or the fair's tunes has (Yankee Doodle has a B).
+                Game.HAND, Game.PEDAL, Game.BALLOONS, Game.CAROUSEL, Game.PHOTO -> NoteJudge.judge(StageSound(now, HeardBy.NAMED, 73, final = true), r.expectedKey())
+                // The strongman takes any key as a swing: a kid who plays anything rings it eventually.
+                Game.STRONGMAN -> StrongmanJudge.judge(StageSound(now, HeardBy.NAMED, 73, riseDb = -40.0, final = true), r.expectedKey())
                 Game.CHORD -> chord!!.judge(StageSound(now, HeardBy.NAMED, 62, final = true))
                 else -> {
                     // Soft and loud: the other loudness each time (the first note sets the level, so anything counts there).
@@ -126,6 +135,26 @@ class PlaygroundFlowTest {
         if (game != null) assertTrue("the nap ends", game.done)
         assertEquals("every round found or let go", r.rounds, r.done)
         return r.report() to "${r.rounds} rounds, ${r.letGo.size} let go, $finds taken by the game"
+    }
+
+    /** 2.3, the pick game: a silent kid's rounds go by after three quiet stretches, a kid who taps only other pictures after three taps. */
+    private fun pick(step: Step, kid: Kid, w: Walk): Pair<Report?, String> {
+        val g = PickRounds(pickRounds(step))
+        var now = 0L
+        var lastTry = 0L
+        g.start(now)
+        while (!g.ended) {
+            now += 20
+            assertTrue("a pick game that never ends: ${step.text}", now < 30 * 60_000)
+            g.tick(now)
+            if (kid != Kid.WRONG || g.coach.phase != RoundCoach.Phase.LISTEN || now - lastTry < 1_500) continue
+            lastTry = now
+            val r = g.current!!
+            g.tap(r.options.first { it != r.answer }, now)
+        }
+        w.ms += now
+        assertEquals("nothing right: every round let go", g.rounds.size, g.letGo.size)
+        return g.report() to "${g.rounds.size} pictures, ${g.letGo.size} let go, ${g.notIt} taps"
     }
 
     /** The drum: silent tries ask again, the third lets go (ui/playground ClapStage). Claps are never right here. */

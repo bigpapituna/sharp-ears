@@ -214,7 +214,8 @@ class KidMapTest {
 
     /** The merged pages (2.2): every lesson drops its own page's stickers, by its page, never by its number. */
     @Test fun theRealPagesDropTheirOwnPlacesStickers() {
-        val want = mapOf("garden" to Place.GARDEN, "pond" to Place.POND, "hall" to Place.CONCERT)
+        val want = mapOf("garden" to Place.GARDEN, "pond" to Place.POND, "hall" to Place.CONCERT, "workshop" to Place.WORKSHOP, "fair" to Place.FAIR,
+            "treehouse" to Place.TREEHOUSE, "nightsky" to Place.NIGHT_SKY)
         PLAYGROUND_PAGES.forEach { page ->
             page.lessonIds.forEach { id ->
                 assertEquals(id, want.getValue(page.id), KidPages.dropPlace(id))
@@ -223,13 +224,15 @@ class KidMapTest {
         }
         assertEquals(Place.POND, KidPages.dropPlace("pond-1"))
         assertEquals(Place.CONCERT, KidPages.dropPlace("hall-12"))
+        assertEquals(Place.WORKSHOP, KidPages.dropPlace("workshop-7"))
+        assertEquals(Place.FAIR, KidPages.dropPlace("fair-4"))
         assertNull("outside the Playground the album picks", KidPages.dropPlace("sit"))
     }
 
     /**
      * The real map walked lesson by lesson, the way the kid home does it (the next stone, its finale on a page's last
-     * lesson): a pre-reader walks all three pages whole; a reader the garden's short list, then the pond and the hall
-     * whole. Either way the map's next stone is the course path's next lesson, and the hall's finale opens the road.
+     * lesson): a pre-reader walks every page whole; a reader the garden's short list, then the rest whole. Either way the
+     * map's next stone is the course path's next lesson, and the last page's finale (2.3: the fair's) opens the road.
      */
     @Test fun theRealMapFollowsTheCoursePathForReadersAndPreReaders() {
         for (reader in listOf(false, true)) {
@@ -245,11 +248,12 @@ class KidMapTest {
                 walk += next; done += next
                 Finale.trigger(next, finales)?.let { finales += it.id }
             }
-            val pond = PLAYGROUND_PAGES[1].lessonIds; val hall = PLAYGROUND_PAGES[2].lessonIds
+            // 2.3: every page after the garden walked whole (the workshop, the fair: the short list names none of them).
             val garden = if (reader) BIG_KID_LESSONS else PLAYGROUND_PAGES[0].lessonIds
-            assertEquals("reader=$reader", garden + pond + hall, walk)
+            assertEquals("reader=$reader", garden + PLAYGROUND_PAGES.drop(1).flatMap { it.lessonIds }, walk)
             assertEquals(PLAYGROUND_PAGES.map { it.id }.toSet(), finales)
-            assertEquals(listOf(12, 12, 12), KidMap.build(path, { false }, { 0 }, emptySet()).pages.map { it.stones.size })
+            assertEquals(PLAYGROUND_PAGES.map { it.lessonIds.size }, KidMap.build(path, { false }, { 0 }, emptySet()).pages.map { it.stones.size })
+            assertEquals("the fair is a short page", 4, KidMap.build(path, { false }, { 0 }, emptySet()).pages.last().stones.size)
         }
     }
 }

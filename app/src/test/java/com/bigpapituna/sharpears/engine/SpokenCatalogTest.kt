@@ -78,6 +78,12 @@ class SpokenCatalogTest {
         assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.playground.PageLines.ALL))
         assertTrue("Your turn: row, row, row your boat." in kid && "Find every D. D is the orange dog, inside the dog house." in kid)
         assertTrue(com.bigpapituna.sharpears.engine.playground.HALL.lessons.flatMap { it.steps }.flatMap { s -> s.scenes.map { it.say } }.all { it in kid })
+        // 2.3: the workshop's and the fair's steps, scenes and stage lines.
+        assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.playground.WorkshopLines.ALL))
+        assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.playground.FairLines.ALL))
+        for (level in listOf(com.bigpapituna.sharpears.engine.playground.WORKSHOP, com.bigpapituna.sharpears.engine.playground.FAIR))
+            assertTrue(level.id, level.lessons.flatMap { it.steps }.all { s -> SpokenCatalog.normalize(s.text) in kid && s.scenes.all { SpokenCatalog.normalize(it.say) in kid } })
+        assertTrue("Finger three!" in kid && "Pop the red balloon!" in kid && "Next stop, the fair!" in kid)
         assertTrue("no names", kid.none { "Mia" in it || "{name}" in it })
     }
 }

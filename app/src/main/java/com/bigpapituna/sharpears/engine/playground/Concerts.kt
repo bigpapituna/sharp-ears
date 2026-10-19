@@ -81,6 +81,8 @@ fun concertPlan(lessonId: String, step: Step, recital: List<String>? = null): Co
     val page = pageOf(lessonId)
     return when (page?.place) {
         Place.POND -> ConcertPlan(Place.POND, POND_SONGS, pick = true)
+        // 2.3: the workshop's piano plays its first song, Mary with every finger in place.
+        Place.WORKSHOP -> ConcertPlan(Place.WORKSHOP, listOf(ConcertSong("Mary Had a Little Lamb", "lamb", WORKSHOP_MARY)), pick = false)
         Place.CONCERT_HALL -> {
             val lesson = HALL.lessons.first { it.id == lessonId }
             val nth = lesson.steps.filter { it.game == Game.CONCERT }.indexOfFirst { it.text == step.text }.coerceAtLeast(0)

@@ -76,6 +76,27 @@ enum class Game {
      * (wait mode). The exercise is the default set's first bite, for a screen that does not know the game.
      */
     SET_LIST,
+    /**
+     * 2.3, the workshop: tap the picture that is right ([pickRounds]: how to sit, a level wrist, a short or long note, the
+     * pedal down or up). No microphone; three tries and the round goes by. The exercise is a middle C, for a screen that
+     * does not know the game.
+     */
+    PICK,
+    /**
+     * 2.3, the workshop: the painted hand over big keys, a finger on each key of its home; each round the hand presses
+     * a finger and the kid plays the key under it ([handLook]: a bubble under the palm, the finger numbers called).
+     */
+    HAND,
+    /** 2.3, the workshop: play a little tune, and the pup plays it back with the sustain pedal down (the soft foot presses it). */
+    PEDAL,
+    /** 2.3, the fair: the pup calls a balloon by its colour (a letter for readers); its key pops it. A round is a bunch of balloons. */
+    BALLOONS,
+    /** 2.3, the fair: C D E F G and back, a run a round; every smooth run spins the carousel faster. */
+    CAROUSEL,
+    /** 2.3, the fair: a heavy note sends the puck up the strongman's pole, the biggest rings the bell. Every height is cheered. */
+    STRONGMAN,
+    /** 2.3, the fair: pick a song from the shelf, play its start three times (three photos), hear it back, send the photo card. */
+    PHOTO,
 }
 
 /**

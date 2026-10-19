@@ -34,7 +34,7 @@ class PlaygroundTest {
             assertTrue("${l.id} has a game to play", l.steps.any { it.exercise != null })
         }
         // Three pages of twelve (2.2: the garden, the pond, the concert hall); the big-kid path is five of the garden's.
-        assertEquals(36, PLAYGROUND_PLACES.size)
+        assertEquals(PLAYGROUND_PAGES.sumOf { it.lessonIds.size }, PLAYGROUND_PLACES.size)
         assertEquals(List(12) { Place.GARDEN }, lessons.map { PLAYGROUND_PLACES.getValue(it.id) })
         assertEquals(lessons.map { it.id }, PLAYGROUND_PAGES.first().lessonIds)
         assertEquals(PLAYGROUND_PAGES.first(), pageOf("playground-12"))

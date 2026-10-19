@@ -15,9 +15,6 @@ import com.bigpapituna.sharpears.engine.theory.Touch
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow
 import com.bigpapituna.sharpears.engine.playground.Game
-import com.bigpapituna.sharpears.engine.playground.HALL
-import com.bigpapituna.sharpears.engine.playground.PLAYGROUND
-import com.bigpapituna.sharpears.engine.playground.POND
 
 /**
  * The Learn course: levels of short lessons. Each lesson is a list of steps: text to read (and hear), and
@@ -768,10 +765,7 @@ private val TECHNIQUE_2 = listOf(
  * lessons call the notation functions in this file while they are made, so building the list with this file's other
  * values would see the Playground half made (null) when the Playground is touched first.
  */
-val COURSE: List<CourseLevel> by lazy { listOf(
-    PLAYGROUND,
-    POND,
-    HALL,
+val COURSE: List<CourseLevel> by lazy { com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS + listOf(
     CourseLevel("basics", "Basics", "Where to sit, where the notes are, and which finger is which.", listOf(
         run {
             val e = Exercise(right = "C4:1 r:1 C4:1 r:1 C4:1 r:1 C4:2", bpm = 60.0, practice = Practice.RIGHT)
