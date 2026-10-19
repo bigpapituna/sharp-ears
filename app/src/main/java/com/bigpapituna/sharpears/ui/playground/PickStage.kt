@@ -247,7 +247,14 @@ private fun PickCard(pick: Pick, modifier: Modifier, right: Boolean, wobble: Boo
                 Pick.WRIST_HIGH -> softArm(ink, 0f, 1f, 0f, 0.4f, 0f)
                 Pick.SHORT -> bounce(sounding, pulse)
                 Pick.LONG -> longNote(sounding, pulse)
-                Pick.PEDAL_DOWN -> softFoot(ink, Offset.Zero, size.width, size.height, 1f)
+                Pick.PEDAL_DOWN -> {
+                    val (_, ball) = softFoot(ink, Offset.Zero, size.width, size.height, 1f)
+                    // An arrow pressing down on the ball of the foot: this one is down.
+                    val a = ball - Offset(0f, size.height * 0.34f); val b = ball - Offset(0f, size.height * 0.12f)
+                    drawLine(PupGold, a, b, 5.dp.toPx(), StrokeCap.Round)
+                    drawLine(PupGold, b, b + Offset(-9.dp.toPx(), -9.dp.toPx()), 5.dp.toPx(), StrokeCap.Round)
+                    drawLine(PupGold, b, b + Offset(9.dp.toPx(), -9.dp.toPx()), 5.dp.toPx(), StrokeCap.Round)
+                }
                 Pick.PEDAL_UP -> softFoot(ink, Offset.Zero, size.width, size.height, 0f)
             }
             if (right) {

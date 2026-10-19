@@ -185,6 +185,8 @@ private fun PhotoTakes(song: ShelfSong, lessonId: String, deps: LessonDeps, inje
         run.phase == RoundCoach.Phase.LISTEN -> FairLines.SNAP[run.done.coerceIn(0, FairLines.SNAP.lastIndex)]
         else -> null
     })
+    val songKeys = remember(ex) { StageKeys.of(ex) }
+    val colours = com.bigpapituna.sharpears.ui.skin.colourNotesOn()
     val low = remember(ex) { com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow(StageKeys.of(ex).min() - 2) }
     val high = remember(ex) { com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove(StageKeys.of(ex).max() + 2) }
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -194,7 +196,8 @@ private fun PhotoTakes(song: ShelfSong, lessonId: String, deps: LessonDeps, inje
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                    Text(song.title, color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(song.title, color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.background(Color(0xE62A221C), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
                     Spacer(Modifier.height(6.dp))
                     StageLine(line)
                     Spacer(Modifier.height(6.dp))
@@ -213,7 +216,8 @@ private fun PhotoTakes(song: ShelfSong, lessonId: String, deps: LessonDeps, inje
                 }
             }
             BigKeys(low, high, "Piano keys for ${song.title}", Modifier.fillMaxWidth().height((roomH * 0.26f).coerceIn(96.dp, 180.dp)).padding(top = 8.dp),
-                fill = { m -> if (m == st.demoIndex?.let { demo.getOrNull(it) }) PupGold else null },
+                fill = { m -> if (m == st.demoIndex?.let { demo.getOrNull(it) }) PupGold
+                    else if (colours && m in songKeys) com.bigpapituna.sharpears.ui.skin.noteColour(m).copy(alpha = 0.45f) else null },
                 last = run.last, fx = st.fx,
                 onKey = { m ->
                     if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }

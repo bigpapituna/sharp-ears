@@ -64,7 +64,7 @@ import com.bigpapituna.sharpears.ui.rememberPupController
  * [notes] in the jar and a few records. For the debug route and screenshots.
  */
 fun demoWorld(stickers: Int, notes: Int = 120, egg: Boolean = true, songIds: List<String> = emptyList(), outfit: Outfit = Outfit.NONE): WorldState {
-    val order = Stickers.ALL.take(stickers.coerceIn(0, 30))
+    val order = Stickers.ALL.take(stickers.coerceIn(0, Stickers.ALL.size))
     val owned = order.associate { it.id to 1 }.toMutableMap()
     order.getOrNull(0)?.let { owned[it.id] = 3 }
     order.getOrNull(3)?.let { owned[it.id] = 2 }

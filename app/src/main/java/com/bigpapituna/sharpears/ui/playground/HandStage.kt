@@ -225,7 +225,7 @@ private fun HandKeys(home: IntArray, right: Boolean, look: HandLook, modifier: M
         if (look == HandLook.BUBBLE) {
             val tip3 = handTip(right, HandPose.REST, 3, 3, ax, ay, ww)
             val wrist = handWrist(right, 3, ax, ay, ww)
-            bubble(lerp(tip3, wrist, 0.36f), ww * 1.45f * (1f + 0.04f * sin(wob) + 0.06f * d), still)
+            bubble(lerp(tip3, wrist, 0.42f), ww * 1.2f * (1f + 0.04f * sin(wob) + 0.06f * d), still)
         }
         // The numbers on the fingertips: the one waited for (or pressing) lit in the hand's colour.
         for (n in 1..5) {
@@ -243,7 +243,8 @@ private fun HandKeys(home: IntArray, right: Boolean, look: HandLook, modifier: M
 
 /** The bubble under the palm: see-through, a soft rainbow sheen, a highlight, a dashed rim. */
 private fun DrawScope.bubble(c: Offset, r: Float, still: Boolean) {
-    drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.04f), Color(0xFF9AD0F5).copy(alpha = 0.22f), Color(0xFFC7B3F2).copy(alpha = 0.34f)), c, r), r, c)
-    drawCircle(Color.White.copy(alpha = 0.7f), r, c, style = Stroke(2.dp.toPx(), pathEffect = if (still) null else PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))))
-    drawCircle(Color.White.copy(alpha = 0.75f), r * 0.16f, c + Offset(-r * 0.42f, -r * 0.42f))
+    drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0f), Color(0xFF9AD0F5).copy(alpha = 0.12f), Color(0xFFC7B3F2).copy(alpha = 0.3f)), c, r), r, c)
+    drawCircle(Color.White.copy(alpha = 0.75f), r, c, style = Stroke(2.dp.toPx(), pathEffect = if (still) null else PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))))
+    drawCircle(Color.White.copy(alpha = 0.8f), r * 0.14f, c + Offset(-r * 0.45f, -r * 0.45f))
+    drawCircle(Color.White.copy(alpha = 0.5f), r * 0.06f, c + Offset(-r * 0.22f, -r * 0.6f))
 }
