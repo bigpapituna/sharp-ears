@@ -36,7 +36,7 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
 - P6 mic matcher: done 2026-10-07. Verified on Roy's Yamaha via the Fold7 bottom mic with MIDI as judge (session-155837, local only): 33/33 scale notes heard, 0 false strikes, median 113 ms key-to-detection (includes capture latency). Profile build on the Fold: mic thread 6.5-9% of a core, 0 janky frames. Emulator injection: 13/13 groups.
   Design notes: decimated bands (12/24/48 kHz, 2048-sample windows), cached "before" windows, taper 0.25, per-partial fresh rise, semitone/neighbour/sub/odd/sharpness checks, chord-aware probes (group from Transport.listenGroup).
   Fold quirks: capture path is VOICE_RECOGNITION (no UNPROCESSED); AudioRecord.getTimestamp framePosition is offset (put MIDI truth 1.5 s early), so MicInput maps MIDI to audio with its own read clock.
-  Mic wrong-note flashes are OFF by default (MicInput.wrongFlash, switch in Microphone setup): Roy's room has talking/TV and loudness jumps cannot be told from wrong notes (57 false flashes in 54 s). Upgrade path: name the wrong note via a semitone-grid search.
+  Mic wrong-note flashes were OFF by default here (on by default since 2.1, see below; MicInput.wrongFlash, switch in Microphone setup): Roy's room has talking/TV and loudness jumps cannot be told from wrong notes (57 false flashes in 54 s). Upgrade path: name the wrong note via a semitone-grid search.
   Open: back mic vs bottom mic comparison; labelled fixtures (scale-left etc.) never recorded, only the live session with truth.
 - P7 chords: done 2026-10-07. engine/Chords.kt (15 types x inversions x 12 roots, fingering, 4 progressions in C/G/F/D/A with voice leading; 4+ note chords drop the right-hand root), ChordDrill, ui/ChordsScreen.kt (Dictionary with fingering labels + Play, Practice by touch/MIDI/mic with streaks, Progressions -> player in wait mode). Mic: octave doublings inside a chord are credited from the lower note; Transport.chordSlack = 1 with the mic (4+ note chords pass with one note unheard). Emulator: practice by touch 4/4 with a correct miss, by injected audio 3/3; progressions by injected audio 4/4, 4/4, 12/12. Debug extras: --es screen chords --es tab practice|progressions, --es song prog:<i>:<key>.
 - Mic chord fix (2026-10-07, from Roy's chord-practice session session-163012, no MIDI): the "two partials must jump" rule rejected real chord notes on his piano (only the fundamental clears once chord-mates' shared overtones are set aside). Now one fresh partial counts if it is the fundamental, a hammer attack (>= 3 dB broadband jump) came within 180 ms, and the note's total power is not falling (that last guard stopped a false C4 in the scale recording). Chord practice listens in the shown octave and the octave below via NoteMatcher.groups (one group per octave; a single group buried upper notes in their lower octave); strikes that began before the chord appeared are ignored. Replay of Roy's session: Bb 18.5 -> 7.8 s, Em 23.2 -> 3.6 s, F#m 13.9 -> 10.8 s. Fold: mic thread 9-11% of a core in chord practice (profile build).
@@ -61,7 +61,7 @@ app/src/main/java/com/bigpapituna/sharpears/{engine,audio,ui,data} · assets/son
   Also: Listen mode no longer mutes the sampler just because the mic toggle is on (the mic never listens in Listen).
 - Feature batch (2026-10-08, emulators only: Pixel7_API37 emulator-5554, Fold_API37 emulator-5556; Roy's phone not reachable). 171 JVM tests, lint 0 errors, profile APK 23.8 MB.
   1. Lead-in and count-in: Transport.runFromMs/anchorMs/fresh/preview(). A fresh run (top or after a seek) starts 2 beats before its first group (Wait, Listen), 1 bar with the backing, 2 bars in Perform with clicks on every beat (metronome or not) and a "1 2 3 4" counter at the hit line; count-in keys are IGNORED and never graded; the timeline holds at the run start (shownMs). Before Play the first notes sit 0.75 x LOOKAHEAD above the line with "Press play". Evidence: TransportTest +5; Twinkle wait "lead-in ... from -1875 ms", held at 0 after ~1.9 s; Perform 8 clicks, beats 1..4 twice, counter screenshot.
-  2. Feedback light: ui/HitLights.kt drawn by NoteLane in the draw phase (a clock ticks only while a light lives). Correct note: flash up its column (hand colour, white core); wrong: soft orange-red glow along the hit line (WrongGlow). No green keys, no red border. Settings > Falling notes > Feedback light (default on; off = old flashes). Evidence: touch hit/wrong screenshots with --ef lightSlow 12-15; injected mic run logs "light hit" per note; toggle off logs "redFlash" with the red border back.
+  2. Feedback light: ui/HitLights.kt drawn by NoteLane in the draw phase (a clock ticks only while a light lives). Correct note: flash up its column (hand colour, white core); wrong: soft orange-red glow along the hit line (WrongGlow). No green keys, no red border. Settings > Falling notes > Feedback light (default on; off = old flashes). Evidence: touch hit/wrong screenshots with --ef lightSlow 12-15; injected mic run logs "light hit" per note; toggle off logs "redFlash" with the red border back (the border was removed later; off now flashes the keys).
   3. Trouble spots: engine/TroubleSpots.kt (+TroubleLog in Transport, PerformScore onMiss). Wait: seconds held past 1.2 s plus 1.5 s per wrong key; Perform: misses. Recap and a new wait-mode "Played through" sheet show "Hardest bars: 3, 5" with "Loop bar N" (A-B loop, wait, 50%, lead-in); Prefs trouble:<id>; library row "Work on bar 3". Evidence: TroubleSpotsTest; Twinkle by touch with 2 wrong keys in bar 3 and a 4 s hold in bar 5 -> "bar 3, bar 5"; Loop bar 3 -> loop 4800..7200 at 0.5x.
   4. Practice today: engine/DailySession.kt planner (up to 6 chords from the Daily queue, next lesson, worst bar looped 2 min or the Continue song in wait mode; "About 10 min" rounded to 5). Panel above a Continue row on Songs; one-line interstitial "Next: chords" (spoken) with Skip and End for today; summary row "Done today: ... N min." Chord time added to practice minutes; a song or loop part counts after 60 s; nothing done writes no summary. Evidence: DailySessionTest; --ez daily true walked chords (1 answered by touch), lesson, bar 11 loop that ended itself at 120 s; song part -> "Done today: Minuet in G. 1 min."
   5. Hear my run: engine/RunRecording.kt (RunRecorder, JSON via engine/MiniJson.kt), data/RunStore.kt files/runs/<id>.json, ui/RunReplay.kt (sampler at the run's speed, song dimmed, played notes thin and bright). Button in the recap and the wait-mode sheet. Evidence: RunRecordingTest; Perform by touch -> "run saved twinkle: 11 notes", replay screenshot. Wait-mode notes are timed at the hold point, so drift shows mainly in Perform runs.
@@ -330,6 +330,43 @@ a finale per page), then the big kids' road; grown-ups keep 2.1 with the three p
 - Tests: 759 JVM, lint 0 errors (25 warnings, all older).
 - Still open: everything on a real piano with a kid; the map's frame time on the Fold; a finale's "Next stop" names the
   next page even when that page was already walked (only reachable through debug seeds).
+
+### 2.2.1 QA (2026-10-18, branch `qa-2.2.1`, versionCode 10; emulators only, not on Roy's phone yet)
+A sweep for small errors of the kind Roy found (the hint hand pressing finger 2 on a Mary note marked 4, 959be29). Each
+class of error now has a JVM test that fails if it comes back:
+- What a lesson says vs what it shows: scenes and copy named fingers the falling notes, ghost hand and hint hand did not
+  use (left-hand "little finger on C" under a 1, bites fingered apart from their line, Practice-tab book fingering only
+  in the right hand, trills in the wrong hand, contrary F, progression triads under other fingers than the dictionary).
+  Exercise.leftFingers / Song.leftFingering, Exercise.withFingers. FingersAgreeTest, PaintedHandTest, ChordsTest.
+- Note spelling: chord tones by pitch class (E major "E, Ab, B"; C minor "D#"), progression pictures (C7 with A#), a
+  scale's black keys by one flats switch (D harmonic minor's C# drawn Db), D flat mixolydian "six sharps", F#7 and G#dim7
+  arpeggios and the E flat minor warm-up in the wrong accidentals, a dim7's seventh called "a sixth". Chord.spell /
+  toneName, Song.spellings, blackKeySpellings. SpellingTest.
+- Colour notes: lesson scenes lit keys in the accent while the words said "red cat C", Ode to Joy's card wore A's and B's
+  colours, white letters on yellow keys. SceneColoursTest, ColourWordsTest.
+- The voice: hints dropped while the mic listened (now speakOverMic), lines missing from the catalog, theory quizzes,
+  progression blurbs and a lesson title read as "V7 to I", "Bb" and "maj7" read as written. spokenNumerals.
+  SpokenCatalogTest (everyFixedLineAScreenSpeaksIsRecorded, theVoiceReadsNotesAndNumeralsAsWords).
+- Copy: kid lines with "wrong", numbers or "1 notes"; bubble lengths (kids 110 characters, grown-ups 150, kid home 40);
+  "1 days", "1 times", "every 1 bars", "+1 cents", "1 chords"; "an octave up" for a tenth; two screens with different
+  workout minutes; "c position"; ". Best run" for imported songs; "to start" mid-goal; the kid record shelf's counts; a
+  three-star line claiming every note right. KidCopyTest, CopyCountsTest, LibraryContentTest (Twinkle's spelling).
+- Settings that did not reach their screens: Reset progress kept the goal ring, streak, calendar and sight-reading best;
+  App sound off left the Chords tabs and Practice keys sounding; Vibration off still buzzed chord games (and for mic
+  notes); Spoken guidance off let the current line finish; Show wrong keys stayed on after the noise offer; a kid's
+  reading switch left a stale course path. ProgressStoreTest, SettingsWiringTest.
+- Layout: dense phrases drew notes over each other on a phone (PhraseLayoutTest); the finale's "Keep going" scrolled out
+  of sight on a phone; the waiting keys pulsed with animations off; the pup scratched through listening steps and sat at
+  his piano on clapping steps. ProgressFilesCoverageTest guards backup and profile delete for every per-profile file.
+- Voice: 2618 lines recorded. Tests: 797 JVM, lint 0 errors (25 warnings, all older). FixtureTest session-155837 33/33,
+  0 false strikes, 0 wrong flashes. Screenshots: app/build/screens/qa-*.png (not committed).
+- Not fixed, noted: on rows two and three of a kid map page the pup's head covers the middle star of the walked stone
+  above (the pup is taller than the row gap; needs a stars-over-pup layer or a design call); with micAddress unset the
+  "Bottom" chip shows selected while start() takes the first built-in mic the phone lists; C# and F# diminished 7
+  arpeggios mix sharps and a flat, so the plain names stand in on the notes; Ab/Eb dim and C#/F#/B aug chords show a
+  plain key where a double accidental belongs; library songs' DP fingering may change finger on repeated notes; a 2.0
+  backup also clears the owner's 2.1+ world, play, skin and kid files; the theory explainers and the tuner's A sound
+  with App sound off by design.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

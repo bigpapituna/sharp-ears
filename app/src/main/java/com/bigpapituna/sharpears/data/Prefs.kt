@@ -93,7 +93,7 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getBoolean("beatLines", false)
         set(v) = edit { putBoolean("beatLines", v) }
 
-    /** Hit-line light for right and wrong notes; off brings back green key flashes and a red keyboard border. */
+    /** Hit-line light for right and wrong notes; off, right notes flash green on the keys instead (the red border is gone). */
     var feedbackLight: Boolean
         get() = p.getBoolean("feedbackLight", true)
         set(v) = edit { putBoolean("feedbackLight", v) }
