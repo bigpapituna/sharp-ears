@@ -325,6 +325,16 @@ fun spokenTheory(text: String): String = text
     .replace("/", " or ").replace("&", " and ")
     .replace(Regex("\\s+"), " ").trim()
 
+private val NUMERAL_WORDS = mapOf("I" to "one", "II" to "two", "III" to "three", "IV" to "four", "V" to "five", "VI" to "six", "VII" to "seven")
+
+/**
+ * A theory quiz line or a lesson's title as the voice reads it: [spokenTheory], and Roman numerals as the scenes say
+ * them ("V7 to I" is "five seven to one", "the vii chord" "the seven chord"). Not for other lines: there "I" is the pup.
+ */
+fun spokenNumerals(text: String): String = spokenTheory(text.replace(Regex("\\b(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii)(7)?\\b")) { m ->
+    NUMERAL_WORDS.getValue(m.groupValues[1].uppercase()) + if (m.groupValues[2].isNotEmpty()) " seven" else ""
+})
+
 // ---- Lessons (2.0.1): the body at the piano, touch and phrases ---------------------------------------------------
 // The Learn course's reading steps are short explainers too (engine/Course.kt Step.scenes). These visuals show what
 // words alone did before: how to sit, the hand's shape, finger numbers, the pedal, loud and soft, smooth and short,

@@ -44,6 +44,31 @@ class SpokenCatalogTest {
     }
 
     /** 2.1: the kid skin, the Playground's stages and the play corner are in, and nothing with a name is recorded. */
+    /**
+     * 2.2.1 QA: the voice reads words, not symbols. Theory quiz lines went to the voice as "V7 to I" and "the vii chord"
+     * (the scenes say "five to one"); the scale-degree game said "Bb is not in Bb major" as written; the chord game's
+     * seventh level said "maj7".
+     */
+    @Test fun theVoiceReadsNotesAndNumeralsAsWords() {
+        val symbols = Regex("[♯♭]|\\b[A-G][b#]\\b|maj7|\\b(II|III|IV|VI|VII|ii|iii|iv|vi|vii|V7|V)\\b")
+        // A reading step is said scene by scene (each scene's own words); its whole written text is listed but never said.
+        val written = COURSE.flatMap { it.lessons }.flatMap { it.steps }.filter { it.scenes.isNotEmpty() }.map { SpokenCatalog.normalize(it.text.replace("\n\n", " ")) }.toSet()
+        for (l in SpokenCatalog.all() - written) assertTrue("read as words: \"$l\"", !symbols.containsMatchIn(l))
+        // Lines made while playing: a key outside the scale-degree game's key, a wrong shape in the seventh game.
+        var outside = 0
+        for (seed in 1L..40L) for (midi in 55..79) {
+            val g = com.bigpapituna.sharpears.engine.ear.ScaleDegreeGame(2, seed = seed)
+            val line = g.input(midi).line ?: continue
+            if ("is not in" !in line.text) continue
+            outside++
+            assertTrue(line.spoken, !symbols.containsMatchIn(line.spoken) && "#" !in line.spoken)
+        }
+        assertTrue(outside > 20)
+        val sevens = ChordGame(GameKind.MAJOR_MINOR, 1, seed = 9)
+        val wrong = listOf(60, 63, 66, 69).map { sevens.input(it, 0) }.last().line!!
+        assertEquals("Those notes are not a seven or major seven chord. Try again.", wrong.spoken)
+    }
+
     @Test fun kidLinesAreListed() {
         val kid = SpokenCatalog.kidLines()
         assertTrue(kid.containsAll(com.bigpapituna.sharpears.engine.skin.SkinLines.fixed()))

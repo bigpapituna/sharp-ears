@@ -17,6 +17,8 @@ data class ProgStep(val numeral: String, val semitones: Int, val type: ChordType
  */
 data class ProgPattern(val id: Int, val nickname: String, val minor: Boolean, val steps: List<ProgStep>, val blurb: String) {
     val label get() = steps.joinToString(" ") { it.numeral }
+    /** The blurb as the voice reads it: "IV lifts away" is "four lifts away". */
+    val spokenBlurb get() = com.bigpapituna.sharpears.engine.theory.spokenNumerals(blurb)
 }
 
 private fun maj(n: String, s: Int, b: Int = 1) = ProgStep(n, s, ChordType.MAJOR, b)
@@ -107,11 +109,11 @@ class ProgressionGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
         val chords = chordsOf(target, key).distinct().joinToString(", ") { chordLabel(it, key, target.minor) }
         val where = "In ${keyName(key, target.minor)} that is $chords."
         if (id == target.id) return endRound(true, GameLine("Yes: ${target.label} (${target.nickname}). ${target.blurb}",
-            "Yes, ${target.nickname}. ${target.blurb}"))
+            "Yes, ${target.nickname}. ${target.spokenBlurb}"))
         wrongs++
         val said = PROGRESSION_CATALOG.first { it.id == id }
         return endRound(false, GameLine("That was ${target.label} (${target.nickname}). ${target.blurb} $where You picked ${said.label}.",
-            "That was ${target.nickname}. ${target.blurb} You picked ${said.nickname}."))
+            "That was ${target.nickname}. ${target.spokenBlurb} You picked ${said.nickname}."))
     }
 
     /** The key's chord names for a log line (tests). */

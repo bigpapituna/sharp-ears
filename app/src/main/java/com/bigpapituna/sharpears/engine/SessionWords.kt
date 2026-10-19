@@ -28,8 +28,9 @@ object SessionWords {
         is SessionPart.Song -> "Next: “${part.title}”!"
     }
 
-    /** What the voice says before a kid's part: the [quoted] words without the quotes. */
-    fun kidNext(part: SessionPart): String = quoted(part, kid = true).replace("“", "").replace("”", "")
+    /** What the voice says before a kid's part: the [quoted] words without the quotes (a lesson's numerals as words). */
+    fun kidNext(part: SessionPart): String = (if (part is SessionPart.Lesson) quoted(part.copy(title = com.bigpapituna.sharpears.engine.theory.spokenNumerals(part.title)), kid = true)
+        else quoted(part, kid = true)).replace("“", "").replace("”", "")
 
     fun quoted(part: SessionPart): String = when (part) {
         is SessionPart.Chords -> part.next

@@ -25,7 +25,7 @@ sealed interface SessionPart {
     }
     data class Lesson(val lessonId: String, val title: String) : SessionPart {
         override val minutes get() = LESSON_MIN
-        override val next get() = "Next: the lesson $title"
+        override val next get() = "Next: the lesson ${com.bigpapituna.sharpears.engine.theory.spokenNumerals(title)}"
         override val done get() = "the lesson $title"
         override val row get() = "Lesson: $title"
     }

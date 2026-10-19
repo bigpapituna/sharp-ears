@@ -95,7 +95,7 @@ internal fun Quiz(unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, voic
     DisposableEffect(Unit) { onDispose { voice.stop() } }
     LaunchedEffect(at) {
         Log.d(TAG, "theory: ${lesson.id} question ${qi + 1}/${qs.size} ${q::class.simpleName}")
-        voice.speak(com.bigpapituna.sharpears.engine.theory.spokenTheory(q.prompt), interrupt = true)
+        voice.speak(com.bigpapituna.sharpears.engine.theory.spokenNumerals(q.prompt), interrupt = true)
     }
 
     fun answer(choice: Int, ok: Boolean) {
@@ -103,7 +103,7 @@ internal fun Quiz(unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, voic
         picked = choice; right = ok
         if (!ok && qi !in missed) { missed = missed + qi; order = order + qi }
         Log.d(TAG, "theory: ${lesson.id} q${qi + 1} answered $choice ${if (ok) "right" else "wrong"}")
-        voice.speak(if (ok) cheerTitle(cheers) else com.bigpapituna.sharpears.engine.theory.spokenTheory(q.explain), interrupt = true)
+        voice.speak(if (ok) cheerTitle(cheers) else com.bigpapituna.sharpears.engine.theory.spokenNumerals(q.explain), interrupt = true)
     }
     fun next() {
         if (at + 1 < order.size) { at++; picked = null; right = null; cheers++ }

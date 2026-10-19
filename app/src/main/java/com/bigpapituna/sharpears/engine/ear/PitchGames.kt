@@ -136,7 +136,8 @@ class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 
         val d = scale.indexOf(((midi - tonicPc) % 12 + 12) % 12)
         val shown = if (wrongs == 2) " Here is the note." else ""
         val what = if (d < 0) "${spell(midi % 12, flatKey(tonicPc, minor))} is not in $keyLabel." else "That was ${solfege(d, minor)}, step ${d + 1}."
-        val spoken = if (d < 0) what else "That was ${solfegeSpoken(solfege(d, minor))}, step ${d + 1}."
+        val spoken = if (d < 0) "${spellSpoken(midi % 12, flatKey(tonicPc, minor))} is not in ${keySpoken(tonicPc, minor)}."
+            else "That was ${solfegeSpoken(solfege(d, minor))}, step ${d + 1}."
         return wrong(GameLine("$what$shown", "$spoken$shown"))
     }
 
@@ -157,6 +158,7 @@ fun degreeFeel(d: Int, minor: Boolean): String = if (minor) when (d) {
     2 -> "me is the dark third of the minor home chord."
     5 -> "le is the low sixth, a mournful step."
     6 -> "te is the low seventh, a softer pull than ti."
+    3 -> "fa leans down towards me."
     else -> degreeFeelCommon(d)
 } else degreeFeelCommon(d)
 

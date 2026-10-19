@@ -174,7 +174,8 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
             recent.clear()
             wrongs++
             val what = if (level == 0) "a major or minor chord" else "a 7 or maj7 chord"
-            return Answer(Outcome.WRONG, GameLine("Those notes are not $what. Try again."))
+            val said = if (level == 0) what else "a seven or major seven chord"
+            return Answer(Outcome.WRONG, GameLine("Those notes are not $what. Try again.", "Those notes are not $said. Try again."))
         }
         val right = played.type == target.type
         val other = Chord(target.root, answerTypes.first { it != target.type })

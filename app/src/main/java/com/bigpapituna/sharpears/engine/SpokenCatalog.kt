@@ -7,6 +7,7 @@ import com.bigpapituna.sharpears.engine.ear.pitchSpoken
 import com.bigpapituna.sharpears.engine.ear.solfege
 import com.bigpapituna.sharpears.engine.ear.solfegeSpoken
 import com.bigpapituna.sharpears.engine.theory.THEORY_LESSONS
+import com.bigpapituna.sharpears.engine.theory.spokenNumerals
 import com.bigpapituna.sharpears.engine.theory.spokenTheory
 import java.security.MessageDigest
 
@@ -37,7 +38,7 @@ object SpokenCatalog {
         // (2.0.1) is said scene by scene, each caption as the explainer reads it; its whole text stays listed too.
         for (lesson in COURSE.flatMap { it.lessons }) {
             lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
-            add("Next: the lesson ${lesson.title}")
+            add("Next: the lesson ${spokenNumerals(lesson.title)}")
         }
         listOf("Lesson complete.", "Clean.", "Clean. On to the next step.", "Full speed. Lesson done.", "Full speed. On to the next step.",
             "Passed.", "Passed. On to the next step.", "No notes were heard in time.", "Next: chords").forEach(::add)
@@ -61,7 +62,7 @@ object SpokenCatalog {
         // 2.0: the Theory Academy speaks every scene's line, each quiz prompt, the explanation of a miss, and a cheer.
         for ((_, lesson) in THEORY_LESSONS) {
             lesson.scenes.forEach { add(spokenTheory(it.say)) }
-            lesson.quiz.forEach { add(spokenTheory(it.prompt)); add(spokenTheory(it.explain)) }
+            lesson.quiz.forEach { add(spokenNumerals(it.prompt)); add(spokenNumerals(it.explain)) }
         }
         CHEER_TITLES.forEach(::add)
         // 2.2.1: the player's hints (the octave hint, "Your turn." after the app plays the keys, the noisy-room offer).
@@ -132,8 +133,8 @@ object SpokenCatalog {
         // Progressions: right, or the one it was and the one picked (same mode).
         val cat = PROGRESSION_CATALOG
         for (t in cat) {
-            add("Yes, ${t.nickname}. ${t.blurb}")
-            cat.filter { it.minor == t.minor && it.id != t.id }.forEach { add("That was ${t.nickname}. ${t.blurb} You picked ${it.nickname}.") }
+            add("Yes, ${t.nickname}. ${t.spokenBlurb}")
+            cat.filter { it.minor == t.minor && it.id != t.id }.forEach { add("That was ${t.nickname}. ${t.spokenBlurb} You picked ${it.nickname}.") }
         }
         // Rhythm tap: a clean round.
         for (n in 1..16) add("Spot on: all $n notes within 80 milliseconds.")
