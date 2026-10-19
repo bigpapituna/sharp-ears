@@ -46,7 +46,8 @@ class AnyOfTest {
         assertTrue("still waiting for G", t.waiting)
         assertEquals(InputResult.GROUP_DONE, t.noteInput(67))
         // And existing songs build exactly as before: no group is any-of.
-        assertTrue(COURSE.filter { !com.bigpapituna.sharpears.engine.playground.isPlaygroundLevel(it.id) }.flatMap { it.lessons }.flatMap { it.steps }.mapNotNull { it.exercise }
+        // 2.3 part B: the treehouse and the night sky are Playground pages once merged (INTEGRATION-B.md).
+        assertTrue(COURSE.filter { !com.bigpapituna.sharpears.engine.playground.isPlaygroundLevel(it.id) && it.id !in setOf(com.bigpapituna.sharpears.engine.playground.TREEHOUSE_ID, com.bigpapituna.sharpears.engine.playground.NIGHT_SKY_ID) }.flatMap { it.lessons }.flatMap { it.steps }.mapNotNull { it.exercise }
             .all { ex -> ex.toSong("x", "x").groups.none { it.anyOf } })
     }
 

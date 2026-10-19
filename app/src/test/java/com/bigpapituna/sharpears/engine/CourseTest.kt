@@ -19,8 +19,10 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        assertEquals(106, ids.size)
-        assertEquals(listOf("playground", "playground-pond", "playground-hall", "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
+        assertEquals(130, ids.size)
+        // 2.3 part B adds the treehouse and the night sky at the end; the integrator moves them to their pages.
+        assertEquals(listOf("playground", "playground-pond", "playground-hall", "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2",
+            "playground-treehouse", "playground-night"),
             COURSE.map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             // Playground lessons are games for small children: as short as a read and one game.

@@ -85,6 +85,7 @@ object SpokenCatalog {
             lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
         }
         addAll(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.CALL_OUTS)
+        addAll(com.bigpapituna.sharpears.engine.playground.TreeSkyLines.fixed())     // 2.3 part B: the treehouse and the night sky
         addAll(com.bigpapituna.sharpears.engine.play.PlayLines.fixed())
         addAll(com.bigpapituna.sharpears.engine.play.JamWords.spoken())
         addAll(com.bigpapituna.sharpears.engine.kid.KidLines.fixed())         // 2.2: the kid home and the finale

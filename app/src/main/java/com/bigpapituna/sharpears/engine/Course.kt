@@ -16,8 +16,10 @@ import com.bigpapituna.sharpears.engine.theory.whiteAtOrAbove
 import com.bigpapituna.sharpears.engine.theory.whiteAtOrBelow
 import com.bigpapituna.sharpears.engine.playground.Game
 import com.bigpapituna.sharpears.engine.playground.HALL
+import com.bigpapituna.sharpears.engine.playground.NIGHT_SKY
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND
 import com.bigpapituna.sharpears.engine.playground.POND
+import com.bigpapituna.sharpears.engine.playground.TREEHOUSE
 
 /**
  * The Learn course: levels of short lessons. Each lesson is a list of steps: text to read (and hear), and
@@ -1130,4 +1132,7 @@ val COURSE: List<CourseLevel> by lazy { listOf(
     CourseLevel("repertoire-1", "Repertoire 1", "Six easy tunes, learned phrase by phrase: hands apart, then together.", REPERTOIRE_1),
     CourseLevel("repertoire-2", "Repertoire 2", "Six medium pieces: new keys, longer phrases and famous openings.", REPERTOIRE_2),
     CourseLevel("technique-2", "Technique 2", "Scales with the book fingering, broken chords, touch, shaping, pedal and sight-reading habits.", TECHNIQUE_2),
+    // 2.3 part B: the treehouse and the night sky, here so they can be opened; the integrator moves them to their pages.
+    TREEHOUSE,
+    NIGHT_SKY,
 ) }
