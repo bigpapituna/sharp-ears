@@ -61,7 +61,7 @@ object TreeSkyLines {
     /** The answer when the child tapped it. */
     fun yes(choice: TapChoice): String = "Yes! " + answer(choice)
 
-    /** The word under each button (readers see it; everyone hears it on a tap). */
+    /** The word under each button (readers see it; the button's name for TalkBack). */
     fun label(choice: TapChoice): String = when (choice) {
         TapChoice.UP -> "Up"; TapChoice.DOWN -> "Down"; TapChoice.SAME -> "Same"; TapChoice.DIFFERENT -> "Different"
         TapChoice.FIRST -> "First"; TapChoice.SECOND -> "Second"; TapChoice.FAST -> "Fast"; TapChoice.SLOW -> "Slow"
@@ -81,6 +81,8 @@ object TreeSkyLines {
     const val BEAT_SOME = "Twinkle! You found the beat."
     const val BEAT_AGAIN = "Let's play it again!"
     const val ON_THE_BEAT = "On the beat!"
+    const val BEAT_NEAR = "I heard you! Now right on the beat."
+    const val PLAY_C = "Play middle C, on the beat."
 
     // ---- Higher or lower ----------------------------------------------------------------------------------------------
     fun want(way: Way): String = if (way == Way.HIGHER) "Play a higher one!" else "Play a lower one!"
@@ -154,14 +156,14 @@ object TreeSkyLines {
             if (game is StageGame.Copy) addAll(calls(step.exercise!!))
             if (game is StageGame.Tap) {
                 add(ask(game.kind))
-                game.kind.choices.forEach { add(answer(it)); add(yes(it)); add(label(it) + "!") }
+                game.kind.choices.forEach { add(answer(it)); add(yes(it)) }
                 game.rounds.mapNotNull { r -> r.play?.let { r.parts.flatten().firstNotNullOfOrNull { s -> s.finger } } }.forEach { add(playWith(it)) }
             }
             if (game is StageGame.HigherLower) game.rounds.map { it.way }.distinct().forEach { add(want(it)); add(went(it)); add(same(it)); add(otherWay(it)) }
         }
         addAll(TREE_COPIED); addAll(SKY_COPIED); add(BLACK_KEY); add(NO_PEEKING)
         add(LISTEN_AGAIN); add(WATCH_AGAIN); addAll(PLAYED); add(LOOK_WHERE)
-        add(BEAT_ALL); add(BEAT_SOME); add(BEAT_AGAIN); add(ON_THE_BEAT)
+        add(BEAT_ALL); add(BEAT_SOME); add(BEAT_AGAIN); add(ON_THE_BEAT); add(BEAT_NEAR); add(PLAY_C)
         add(UP_AND_DOWN)
         addAll(listOf(USUAL, NOW_LOUD, NOW_QUIET, HEARD_USUAL, LOUD_YES, LOUD_NOT, QUIET_YES, QUIET_IN_BETWEEN, QUIET_LOUD, LOUD_AND_QUIET))
         addAll(listOf(NOW_FAST, NOW_SLOW, FAST_YES, FAST_NOT, SLOW_YES, SLOW_NOT, FAST_AND_SLOW))
