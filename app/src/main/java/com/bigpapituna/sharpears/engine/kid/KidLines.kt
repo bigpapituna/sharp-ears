@@ -61,6 +61,6 @@ object KidLines {
         pages.forEach { p -> add(finished(null, p)); add(onward(Finale.after(p, pages))) }
         // 2.3: every place a page can be, whichever pages this build has, so the lines are recorded before a page lands
         // (the treehouse and the night sky come from another branch) and whatever order the pages end up in.
-        PagePlace.entries.forEach { add(finished(null, it.title)); add(nextStop(it.title)) }
+        PagePlace.entries.forEach { add(finished(null, it.title)); if (it != PagePlace.GARDEN) add(nextStop(it.title)) }
     }.distinct()
 }
