@@ -79,6 +79,7 @@ internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = M
             is ValueTreeVisual -> valueTreeScene(visual, t, ink)
             is PopVisual -> popScene(visual, t, ink)
             is PostureVisual -> postureScene(visual, t, ink)
+            is com.bigpapituna.sharpears.engine.theory.ArmVisual -> armScene(visual, t, ink)
             is HandShapeVisual -> handShapeScene(visual, t, ink, hands.value)
             is FingerNumbersVisual -> fingerNumbersScene(visual, t, ink, hands.value)
             is PedalVisual -> pedalScene(visual, t, ink)

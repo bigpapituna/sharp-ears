@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.ui.theory
 
+import com.bigpapituna.sharpears.engine.theory.ArmVisual
+import com.bigpapituna.sharpears.engine.theory.ArmMove
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.lerp as lerpOffset
 import androidx.compose.ui.geometry.Offset
@@ -96,7 +98,8 @@ internal fun DrawScope.postureScene(v: PostureVisual, t: Int, ink: StageInk) {
     fun e(c: PostureCue) = smooth(v.settled(c, t))
     // The figure (soft realistic, ui/theory/SoftFigure.kt) in front of the piano; each cue moves from the poor habit to right.
     val (anchors, u) = softFigure(e(PostureCue.BENCH), e(PostureCue.EDGE), e(PostureCue.BACK), e(PostureCue.ELBOWS), e(PostureCue.LEVEL),
-        e(PostureCue.HANDS), sin(t / 650f) * 0.03f, v.steps.any { it.cue == PostureCue.LEVEL }, ink, v.steps.size * 16.dp.toPx())
+        e(PostureCue.HANDS), sin(t / 650f) * 0.03f, v.steps.any { it.cue == PostureCue.LEVEL }, ink, v.steps.size * 16.dp.toPx(),
+        close = 1f - e(PostureCue.CLOSE), tucked = 1f - e(PostureCue.FEET))
     // The part being put right glows; the cues stack up as labels, top left.
     val newest = v.steps.indices.lastOrNull { t >= v.stepAt(it) } ?: -1
     v.steps.forEachIndexed { i, s ->
@@ -822,3 +825,60 @@ internal fun DrawScope.midiScene(v: MidiVisual, t: Int, ink: StageInk) {
 
 /** A key's usual name without octave, for the pictures. */
 private fun keyLabel(midi: Int, flats: Boolean = false) = com.bigpapituna.sharpears.engine.theory.keyLabel(midi, flats)
+
+// ---- The arm at the key (2.3) ------------------------------------------------------------------------------------
+
+/**
+ * The workshop's arm at middle C, side view ([ArmVisual], soft realistic): each step moves from the last pose into its
+ * own over moveMs (the wrist level, sagging or poking up; a heavy arm lifting, then falling into the key; a soft
+ * fingertip sinking), the key dips as the finger lands, a ring of sound spreads from it (wide for heavy, small for
+ * soft), and the step's label pops at the top. The bridge line shows on every wrist pose.
+ */
+internal fun DrawScope.armScene(v: ArmVisual, t: Int, ink: StageInk) {
+    val labelRoom = 44.dp.toPx()
+    val i = v.current(t)
+    fun wristOf(m: ArmMove) = when (m) { ArmMove.LOW -> -1f; ArmMove.HIGH -> 1f; else -> 0f }
+    var wrist = 0f; var lift = 0f; var keyDown = 0.5f; var bridge = 0f
+    if (i >= 0) {
+        val s = v.steps[i]
+        val from = if (i > 0) wristOf(v.steps[i - 1].move) else 0f
+        wrist = mix(from, wristOf(s.move), smooth(progress(t, v.stepAt(i), v.moveMs)))
+        val land = v.landAt(i)
+        when (s.move) {
+            ArmMove.HEAVY -> {
+                lift = if (t < land) smooth(progress(t, v.stepAt(i), v.moveMs)) else 1f - progress(t, land, 110)
+                keyDown = if (t < land) 0.5f * (1f - lift) else maxOf(press(t - land), 0.6f)
+            }
+            ArmMove.SOFT -> {
+                lift = if (t < land) 0.3f * sin(progress(t, v.stepAt(i), v.moveMs) * Math.PI.toFloat()) else 0f
+                keyDown = if (t < land) 0.4f else 0.4f + 0.3f * smooth(progress(t, land, 450))
+            }
+            else -> {
+                bridge = 1f
+                keyDown = if (s.move == ArmMove.LEVEL) maxOf(press(t - land), 0.5f) else 0.5f
+            }
+        }
+    }
+    val spots = softArm(ink, labelRoom, wrist, lift, keyDown, bridge)
+    val at = spots.wrist; val u = spots.unit
+    if (i >= 0) {
+        val move = v.steps[i].move
+        val heavy = move == ArmMove.HEAVY; val soft = move == ArmMove.SOFT
+        // The wrist glows as it moves into place; a ring of sound spreads from the key as the finger lands.
+        val glow = 1f - progress(t, v.stepAt(i) + v.moveMs, 500)
+        if (glow > 0f && !heavy && !soft) drawCircle(ink.accent, 0.9f * u, at, style = Stroke(2.dp.toPx()), alpha = glow)
+        val land = v.landAt(i)
+        if ((heavy || soft) && t >= land) {
+            val p = progress(t, land, 900)
+            val c = spots.tip
+            val r = (if (heavy) 3.4f else 1.4f) * u * (0.3f + 0.7f * p)
+            drawCircle(ink.accent, r, c, style = Stroke(((if (heavy) 5f else 2f) * (1f - p) + 1f) * density), alpha = 1f - p)
+        }
+    }
+    for (k in maxOf(0, i - 1)..i) {
+        if (k < 0) continue
+        val p = progress(t, v.stepAt(k) + (if (k > 0) 200 else 0), 380)
+        val fade = if (k == i) 1f else 1f - smooth(progress(t, v.stepAt(i), 180))
+        pill(ink, v.steps[k].label, Offset(size.width / 2, labelRoom / 2 + 4.dp.toPx()), k == i, p, 15.sp, fade)
+    }
+}

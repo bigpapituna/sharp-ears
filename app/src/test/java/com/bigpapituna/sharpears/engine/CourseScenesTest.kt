@@ -100,6 +100,7 @@ class CourseScenesTest {
             }
             is SongMapVisual -> v.passes.forEach { assertTrue("$name: pass $it", it.from in v.sections.indices && it.to in it.from..v.sections.lastIndex && it.speed in 10..100) }
             is MidiVisual -> assertTrue(name, v.signals.isNotEmpty())
+            is com.bigpapituna.sharpears.engine.theory.ArmVisual -> assertTrue(name, v.steps.isNotEmpty() && v.key in 21..108)
             else -> {}
         }
     }

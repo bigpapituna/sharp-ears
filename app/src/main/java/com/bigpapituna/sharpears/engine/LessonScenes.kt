@@ -102,6 +102,10 @@ internal fun together(rNotes: String, rFingers: String, lNotes: String, lFingers
 internal fun chordPress(spec: String, right: Boolean = true, label: String? = null, spread: Float = 1f) =
     FingerStep(spec.split(' ').map { t -> t.split(':').let { FingerPress(right, it[0].toInt(), m(it[1])) } }, label, spread)
 
+/** 2.3: the arm at middle C from the side: "LEVEL to "A bridge"", one pose a step ([ArmVisual]). */
+internal fun arm(vararg steps: Pair<com.bigpapituna.sharpears.engine.theory.ArmMove, String>, key: String = "C4", stepMs: Int = 1700) =
+    com.bigpapituna.sharpears.engine.theory.ArmVisual(steps.map { com.bigpapituna.sharpears.engine.theory.ArmStep(it.first, it.second) }, m(key), stepMs)
+
 internal fun pedal(chords: String, names: List<String> = emptyList(), late: Boolean = false, foot: Boolean = false, chordMs: Int = 1900) =
     PedalVisual(chords.split(' ').map { c -> c.split('+').map(::m) }, names, chordMs, late = late, foot = foot)
 

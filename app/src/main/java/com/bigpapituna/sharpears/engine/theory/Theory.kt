@@ -343,8 +343,11 @@ fun spokenNumerals(text: String): String = spokenTheory(text.replace(Regex("\\b(
 /** A soft rising chime for the moment a picture settles into place, so a still picture is heard as well as seen. */
 private val CHIME = listOf(72, 76, 79, 84, 79, 76)
 
-/** A part of the body at the piano that a [PostureVisual] puts right. */
-enum class PostureCue { BENCH, EDGE, BACK, ELBOWS, LEVEL, HANDS }
+/**
+ * A part of the body at the piano that a [PostureVisual] puts right. 2.3 (the workshop): CLOSE, the bench pushed in too
+ * close (knees under the keys, elbows squashed); FEET, the feet tucked under the bench.
+ */
+enum class PostureCue { BENCH, EDGE, BACK, ELBOWS, LEVEL, HANDS, CLOSE, FEET }
 
 data class PostureStep(val cue: PostureCue, val label: String)
 
@@ -364,6 +367,47 @@ data class PostureVisual(val steps: List<PostureStep>, val stepMs: Int = 1500) :
     }
     /** How far [cue] has moved into place at [t]: 0 the poor position, 1 right. */
     fun settled(cue: PostureCue, t: Int): Float = steps.indexOfFirst { it.cue == cue }.let { if (it < 0) 1f else progress(t, stepAt(it), moveMs) }
+}
+
+/** 2.3: what the forearm, wrist and hand do at the keys in an [ArmVisual]. */
+enum class ArmMove {
+    /** The wrist level with the forearm and the knuckles: a bridge. */
+    LEVEL,
+    /** The wrist sagging below the keys. */
+    LOW,
+    /** The wrist poking up above the knuckles. */
+    HIGH,
+    /** The arm lifts and falls into the key with its weight: a big, round sound. */
+    HEAVY,
+    /** The fingertip sinks gently into the key: a soft sound. */
+    SOFT,
+}
+
+data class ArmStep(val move: ArmMove, val label: String)
+
+/**
+ * 2.3 (the workshop): a forearm, wrist and hand at a key, seen from the side, in the soft realistic look of the posture
+ * figure (ui/theory/SoftFigure.kt softArm). Each step moves into its pose over [moveMs] and pops its label: the wrist
+ * level like a bridge (a dashed line from the arm to the knuckles), sagging, poking up; the arm's weight falling into
+ * the key (loud) or the fingertip sinking softly (soft). The key sounds as the finger lands.
+ */
+data class ArmVisual(val steps: List<ArmStep>, val key: Int = 60, val stepMs: Int = 1700) : Visual {
+    val leadMs get() = 500
+    val moveMs get() = 700
+    fun stepAt(i: Int) = leadMs + i * stepMs
+    /** When the finger lands in step [i] (a heavy arm falls a little later, after its lift). */
+    fun landAt(i: Int) = stepAt(i) + if (steps[i].move == ArmMove.HEAVY) moveMs + 250 else moveMs
+    override val durationMs get() = stepAt(steps.size) + 300
+    override val cues get() = steps.mapIndexedNotNull { i, s ->
+        when (s.move) {
+            ArmMove.HEAVY -> Cue(landAt(i), listOf(key), 1000, velocity = 112)
+            ArmMove.SOFT -> Cue(landAt(i), listOf(key), 1000, velocity = 34)
+            ArmMove.LEVEL -> Cue(landAt(i), listOf(key), 800, velocity = 68)
+            else -> null
+        }
+    }
+    /** The step showing at [t], or -1 before the first. */
+    fun current(t: Int) = steps.indices.lastOrNull { t >= stepAt(it) } ?: -1
 }
 
 /** A move of the hand in a [HandShapeVisual]. */

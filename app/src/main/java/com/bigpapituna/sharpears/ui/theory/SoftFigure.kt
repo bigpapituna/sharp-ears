@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.theory
 
+import androidx.compose.ui.geometry.Size
 import android.graphics.BlurMaskFilter
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -154,11 +155,13 @@ private fun ramp(xs: FloatArray, ys: FloatArray, s: Float): Float {
  * The player at the piano, side view, filling the canvas above [labelRoom]: each cue 0 (the poor habit) to 1 (right).
  * BENCH: the bench too far back. EDGE: sat deep on the bench. BACK: a slouch. ELBOWS: elbows pinned back. LEVEL:
  * wrists dropped below the keys. HANDS: hands in the lap. [levelLine] draws the dashed line under level forearms.
+ * 2.3, the other way round ([close] and [tucked], 0 right, 1 the habit): the bench pushed in so close that the knees
+ * are under the keys and the elbows squashed back, and the feet tucked under the bench on their toes.
  * Returns where each cue lives on screen (for its glow), and the size of one unit.
  */
 internal fun DrawScope.softFigure(
     bench: Float, edge: Float, back: Float, elbows: Float, level: Float, hands: Float, breathe: Float,
-    levelLine: Boolean, ink: StageInk, labelRoom: Float,
+    levelLine: Boolean, ink: StageInk, labelRoom: Float, close: Float = 0f, tucked: Float = 0f,
 ): Pair<Map<PostureCue, Offset>, Float> {
     val pad = 10.dp.toPx()
     val u = minOf((size.width - 2 * pad) / 12.4f, (size.height - pad - labelRoom) / 13.6f)
@@ -170,7 +173,7 @@ internal fun DrawScope.softFigure(
     fun box(x1: Float, y1: Float, x2: Float, y2: Float, r: Float) = Path().apply { addRoundRect(RoundRect(Rect(P(x1, y2), P(x2, y1)), CornerRadius(r * u))) }
     val sh = 0.14f * u
     // The poor habits move the bench back and the hip back on it.
-    val benchX = -(1 - bench) * 1.25f
+    val benchX = -(1 - bench) * 1.25f + close * 1.2f
     val hip = Offset(0.25f + benchX - (1 - edge) * 0.85f, 5.55f)
 
     drawLine(ink.faint, Offset(0f, floorY), Offset(size.width, floorY), 2.dp.toPx())
@@ -201,15 +204,16 @@ internal fun DrawScope.softFigure(
     fun spine(s: Float) = bezier(hip, ctrl, top, s)
     fun backN(s: Float) = bezierTan(hip, ctrl, top, s).let { Offset(-it.y, it.x) }
     val shoulder = spine(0.86f) - backN(0.86f) * 0.05f + Offset(0.3f, -0.15f) * (1 - back)
-    val knee = Offset(hip.x + 3.85f, 5.25f)
-    val ankle = Offset(knee.x + 0.25f, 0.95f)
+    val knee = Offset(hip.x + 3.85f - close * 0.55f, 5.25f + close * 0.25f)
+    val ankle = lerpO(Offset(knee.x + 0.25f, 0.95f), Offset(knee.x - 1.25f, 1.55f), tucked)
 
     // Legs: the far one a step behind and darker, then the near one.
     val farT = Tone(Trousers.shade, Trousers.shade.darken(0.8f), Trousers.base)
     for ((tone, off) in listOf(farT to Offset(0.3f, 0.12f), Trousers to Offset.Zero)) {
         val leg = union(listOf(cap(hip + off + Offset(0.1f, -0.1f), 0.85f, knee + off, 0.62f), cap(knee + off, 0.56f, ankle + off + Offset(0f, 0.25f), 0.42f)))
         paint(leg, tone, 0.2f * u)
-        drawShoe(P(ankle.x + off.x - 0.55f, off.y * 0.2f), 0.68f * u, 0f,
+        // Tucked feet stand on their toes: the heel lifted, the shoe tipped down to the floor.
+        drawShoe(P(ankle.x + off.x - lerpF(0.55f, 0.35f, tucked), off.y * 0.2f + tucked * 0.92f), 0.68f * u, -0.5f * tucked,
             if (off == Offset.Zero) ShoeLeather else Tone(ShoeLeather.shade, ShoeLeather.shade.darken(0.8f), ShoeLeather.base))
     }
 
@@ -263,6 +267,7 @@ internal fun DrawScope.softFigure(
     val anchors = mapOf(
         PostureCue.BENCH to P(-0.2f + benchX, 4.78f), PostureCue.EDGE to Q(hip), PostureCue.BACK to Q(spine(0.5f)),
         PostureCue.ELBOWS to Q(el), PostureCue.LEVEL to Q((el + wrist) / 2f), PostureCue.HANDS to Q(lerpO(wrist, tipF, 0.5f)),
+        PostureCue.CLOSE to Q(lerpO(hip, knee, 0.6f)), PostureCue.FEET to P(ankle.x + 0.6f, 0.4f),
     )
     return anchors to u
 }
@@ -356,3 +361,70 @@ internal fun DrawScope.softFoot(ink: StageInk, origin: Offset, w: Float, h: Floa
     }
     return heel to ball
 }
+
+// ---- The arm at the key (2.3) ------------------------------------------------------------------------------------
+
+/**
+ * 2.3 (the workshop): a forearm, wrist and hand at a white key, side view, filling the canvas below [labelRoom], the
+ * player to the left. [wrist] is the wrist's height: 0 level with the forearm and the knuckles (a bridge), -1 sagging
+ * below the keys, 1 poking up. [lift] (0..1) raises the whole hand off the key (a heavy arm about to fall); [press]
+ * (0..1) sinks the key. [bridge] (0..1) draws the dashed line from the forearm over the wrist to the knuckles. Returns
+ * the wrist's and the fingertip's places on screen (for a glow, a ring of sound) and the size of one unit.
+ */
+internal fun DrawScope.softArm(ink: StageInk, labelRoom: Float, wrist: Float, lift: Float, press: Float, bridge: Float): ArmSpots {
+    val pad = 10.dp.toPx()
+    // The forearm comes in from the left edge (cut off there); the key sits a little below the middle of the room.
+    val u = minOf((size.width - 2 * pad) / 11f, (size.height - pad - labelRoom) / 5.6f)
+    val x0 = size.width - pad - 10.4f * u
+    val y0 = labelRoom + (size.height - labelRoom) * 0.64f + 2.5f * u
+    fun P(x: Float, y: Float) = Offset(x0 + x * u, y0 - y * u)
+    fun Q(q: Offset) = P(q.x, q.y)
+    fun cap(a: Offset, ra: Float, b: Offset, rb: Float) = capsule(Q(a), ra * u, Q(b), rb * u)
+    fun box(x1: Float, y1: Float, x2: Float, y2: Float, r: Float) = Path().apply { addRoundRect(RoundRect(Rect(P(x1, y2), P(x2, y1)), CornerRadius(r * u))) }
+    val sh = 0.12f * u
+    // The keybed and the key, seen from the side: a black key behind, the white key in front, its front dipping when pressed.
+    paint(box(3.6f, 0.9f, 10.4f, 1.95f, 0.08f), Case, sh)
+    paint(box(6.3f, 2.35f, 10.2f, 2.95f, 0.08f), Ebony, sh * 0.6f)
+    val dip = 0.28f * press
+    paint(polygon(listOf(P(3.85f, 1.95f), P(3.85f, 2.5f - dip), P(10.2f, 2.5f), P(10.2f, 1.95f))), Ivory, sh * 0.7f)
+    // The pose: the knuckles stay over the key; the wrist goes up or down; a lift raises everything.
+    val up = Offset(0f, 1.7f * lift)
+    val w = lerpO(Offset(2.2f, 3.35f), if (wrist < 0) Offset(2.3f, 2.1f) else Offset(2.1f, 4.45f), abs(wrist)) + up
+    val k = lerpO(Offset(3.9f, 3.45f), if (wrist < 0) Offset(3.9f, 3.2f) else Offset(3.85f, 3.62f), abs(wrist)) + up
+    val tip = Offset(4.75f, 2.55f - dip) + up
+    val elbow = Offset(-2.4f, 2.75f + 0.22f * wrist.coerceAtMost(0f) + 0.25f * wrist.coerceAtLeast(0f)) + up * 0.45f
+    /** One finger from its knuckle to its tip, its middle joint up and out (a round finger). */
+    fun finger(knuckle: Offset, end: Offset, r: Float) = lerpO(knuckle, end, 0.5f).let { mid ->
+        val pip = mid + Offset(0.24f, 0.16f)
+        union(listOf(cap(knuckle, r * 1.15f, pip, r * 1.05f), cap(pip, r, end, r * 0.82f))) to pip
+    }
+    // A soft shadow on the key under the hand.
+    castShadow(oval(P((w.x + tip.x) / 2 + 0.3f, 2.5f), (tip.x - w.x) * 0.55f * u, 0.12f * u), 0.2f * u, 0.2f * (1f - 0.6f * lift))
+    // The forearm in its sleeve; the fingers behind (ring and little finger, a shade darker, a little shorter); the thumb
+    // under the hand; the back of the hand; the pointing finger in front, curving down onto the key.
+    paint(cap(elbow, 0.66f, w - (w - elbow).unit() * 0.25f, 0.52f), Sweater, 0.2f * u)
+    val back = Tone(SkinT.shade, SkinT.shade.darken(0.86f), SkinT.base)
+    paint(finger(k + Offset(-0.38f, -0.06f), tip + Offset(-0.95f, 0.06f), 0.16f).first, back, 0.06f * u)
+    paint(finger(k + Offset(-0.18f, -0.02f), tip + Offset(-0.48f, 0.02f), 0.17f).first, back, 0.06f * u)
+    val thumbEnd = Offset(3.6f, 2.85f) + up + Offset(0f, (w.y - 3.35f - up.y) * 0.3f)
+    paint(cap(w + Offset(0.5f, -0.28f), 0.22f, thumbEnd, 0.17f), back, 0.06f * u)
+    val (front, pip) = finger(k, tip, 0.19f)
+    paint(union(listOf(cap(w - (w - elbow).unit() * 0.4f, 0.47f, w, 0.45f), cap(w, 0.45f, k, 0.4f), front)), SkinT, 0.1f * u)
+    // Knuckles, the nail, a crease at the wrist.
+    detail(curve(Q(k + Offset(-0.1f, 0.3f)), Q(k + Offset(0.12f, 0.36f)), Q(k + Offset(0.26f, 0.22f))), SkinT.shade, 1.3f, 0.7f)
+    val nail = Q(tip); val dn = (Q(tip) - Q(pip)).unit()
+    drawOval(Color(0xFFFAE3D4), Offset(nail.x - 0.1f * u, nail.y - 0.1f * u) - dn * (0.03f * u), Size(0.18f * u, 0.12f * u), alpha = 0.9f)
+    detail(curve(Q(w + Offset(-0.05f, 0.44f)), Q(w + Offset(0.12f, 0.2f)), Q(w + Offset(0.02f, -0.05f))), SkinT.shade, 1.3f, 0.7f)
+    // The bridge: a dashed line in the accent over the forearm, the wrist and the hand to the knuckles.
+    if (bridge > 0.01f) {
+        val over = Offset(0f, 0.66f)
+        val a = Q(w - (w - elbow).unit() * 2.2f + over); val b = Q(w + over); val c = Q(k + over + Offset(0f, 0.05f))
+        val line = Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(c.x, c.y) }
+        drawPath(line, ink.accent, alpha = bridge, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(9.dp.toPx(), 6.dp.toPx()))))
+    }
+    return ArmSpots(Q(w), Q(tip), u)
+}
+
+/** Where [softArm] drew the wrist and the fingertip on screen, and the size of one unit. */
+internal data class ArmSpots(val wrist: Offset, val tip: Offset, val unit: Float)
