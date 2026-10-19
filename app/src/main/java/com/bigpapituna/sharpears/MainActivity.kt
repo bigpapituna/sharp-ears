@@ -219,6 +219,8 @@ class MainActivity : ComponentActivity() {
     private var openId: String? = null
     /** Kid or grown-up, as the app was opened (a switch of kind reopens it). */
     private var openKind: com.bigpapituna.sharpears.engine.family.ProfileKind? = null
+    /** A kid reads or not, as the app was opened (a big kid's course path differs, so a change reopens it too). */
+    private var openReader: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -242,8 +244,8 @@ class MainActivity : ComponentActivity() {
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
         // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
         lifecycleScope.launch {
-            profiles.currentFlow.map { it.id to it.kind }.distinctUntilChanged().collect { (id, kind) ->
-                if (openId != null && (openId != id || openKind != kind)) openApp(fromLaunch = false)
+            profiles.currentFlow.map { Triple(it.id, it.kind, it.reader) }.distinctUntilChanged().collect { (id, kind, reader) ->
+                if (openId != null && (openId != id || openKind != kind || openReader != reader)) openApp(fromLaunch = false)
             }
         }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
@@ -277,6 +279,7 @@ class MainActivity : ComponentActivity() {
         if (profile.isKid && newPlayer) gate.close()
         openId = profile.id
         openKind = profile.kind
+        openReader = profile.reader
         Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }

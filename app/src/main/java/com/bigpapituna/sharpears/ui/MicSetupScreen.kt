@@ -91,7 +91,8 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
     var sensitivity by remember { mutableFloatStateOf(mic.matcher.config.sensitivityDb.toFloat()) }
     var wrongDb by remember { mutableFloatStateOf(mic.matcher.config.wrongOnsetDb.toFloat()) }
     var savedNote by remember { mutableStateOf<String?>(null) }
-    var wrongFlash by remember { mutableStateOf(mic.wrongFlash) }
+    // What the player does now: off after the noisy-room offer stopped the painting for this session; on again clears that.
+    var wrongFlash by remember { mutableStateOf(mic.paintsWrongKeys) }
 
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
     val visible = onScreen()
@@ -162,7 +163,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 Text("Show wrong keys heard by the mic", style = MaterialTheme.typography.titleMedium)
                 Text("A key you hit lights yellow next to the right one and red further away. Only clear piano strikes count, so talking should not set it off.", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; Log.d(TAG, "mic wrongFlash=$it") },
+            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; Log.d(TAG, "mic wrongFlash=$it") },
                 modifier = Modifier.semantics { contentDescription = "Show wrong keys heard by the mic" })
         }
         if (wrongFlash) {

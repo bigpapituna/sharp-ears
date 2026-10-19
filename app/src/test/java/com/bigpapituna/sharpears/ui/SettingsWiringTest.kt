@@ -26,4 +26,17 @@ class SettingsWiringTest {
         assertTrue(files.size >= 2)
         for (f in files) assertTrue("${f.name} buzzes without the switch", "it.enabled = prefs.haptics" in f.readText())
     }
+
+    /**
+     * A switch acts at once: Spoken guidance off stopped only the next line (the one playing, and the queue, went on);
+     * Show wrong keys stayed on, and did nothing, after the noisy-room offer stopped the painting for the session; and a
+     * kid's "Reads now" kept the old course path on the kid map and Practice today until a restart.
+     */
+    @Test fun switchesActAtOnce() {
+        fun src(f: String) = File(root, f).readText()
+        assertTrue("prefs.voice = it; if (!it) voice?.stop()" in src("ui/SettingsScreen.kt"))
+        val mic = src("ui/MicSetupScreen.kt")
+        assertTrue("mutableStateOf(mic.paintsWrongKeys)" in mic && "if (it) mic.wrongPaintOff = false" in mic)
+        assertTrue("Triple(it.id, it.kind, it.reader)" in src("MainActivity.kt"))
+    }
 }

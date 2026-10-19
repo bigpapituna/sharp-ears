@@ -135,7 +135,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
 
             Section("Voice")
             Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
-                prefs.voice && v >= 0) { prefs.voice = it }
+                prefs.voice && v >= 0) { prefs.voice = it; if (!it) voice?.stop() }
             if (prefs.voice) Toggle("Natural voice",
                 "A lifelike voice (Kokoro) that runs on this phone, nothing sent anywhere." +
                     if (voice?.naturalModelInstalled == false) " Lines that name notes and times use the phone's voice until the voice model is installed." else "",
