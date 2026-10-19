@@ -19,13 +19,14 @@ class CourseTest {
     @Test fun everyLessonIsUsable() {
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
-        // 2.3: 106 before the workshop's twelve and the fair's four.
-        assertEquals(122 + (com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES.sumOf { it.lessonIds.size } - 52), ids.size)
-        // The Playground's pages first (2.3: the garden, the pond, the hall, the workshop, the fair), then the course.
-        assertEquals(com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS.map { it.id } +
-            listOf("basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
+        // 2.3: 106 before the workshop's twelve, the treehouse's twelve, the night sky's twelve and the fair's four.
+        assertEquals(146, ids.size)
+        assertEquals(76, com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES.sumOf { it.lessonIds.size })
+        // The Playground's pages first, in path order (the garden, the pond, the hall, the workshop, the treehouse, the
+        // night sky, the fair), then the course.
+        assertEquals(listOf("playground", "playground-pond", "playground-hall", "playground-workshop", "playground-treehouse", "playground-night", "playground-fair",
+            "basics", "beginner", "rhythm", "intermediate", "keys", "advanced", "technique", "repertoire-1", "repertoire-2", "technique-2"),
             COURSE.map { it.id })
-        assertEquals(listOf("playground", "playground-pond", "playground-hall", "playground-workshop"), COURSE.take(4).map { it.id })
         for (lesson in COURSE.flatMap { it.lessons }) {
             // Playground lessons are games for small children: as short as a read and one game.
             val steps = if (com.bigpapituna.sharpears.engine.playground.isPlaygroundLesson(lesson.id)) 2..7 else 3..6

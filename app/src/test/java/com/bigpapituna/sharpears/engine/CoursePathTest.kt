@@ -21,7 +21,8 @@ class CoursePathTest {
     private val bigKid = CoursePath(Profile.firstUnitId(ProfileKind.KID), bigKid = true)
 
     @Test fun kidsStartInThePlaygroundGrownUpsAtBasics() {
-        // 2.2: a kid walks the Playground's pages (garden, pond, concert hall; 2.3 the workshop and the fair), then Basics.
+        // 2.2: a kid walks the Playground's pages (garden, pond, concert hall; 2.3 the workshop, the treehouse, the night
+        // sky and the fair), then Basics.
         val pages = com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS.map { it.id }
         assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID), pages.take(3))
         assertEquals(pages + "basics", kid.levels.take(pages.size + 1).map { it.id })
@@ -55,10 +56,12 @@ class CoursePathTest {
         val pg = COURSE.first { it.id == PLAYGROUND_ID }.lessons
         assertEquals("the garden's last game leads to the pond", "pond-1", kid.after(pg.last())?.id)
         assertEquals("hall-1", kid.after(POND.lessons.last())?.id)
-        // 2.3: the recital leads on to the workshop; the fair's last game to the big kids' road.
+        // 2.3: the recital leads on to the workshop, the workshop to the treehouse, the treehouse to the night sky, the night
+        // sky to the fair, and the fair's last game to the big kids' road.
         assertEquals("the recital leads to the workshop", "workshop-1", kid.after(HALL.lessons.last())?.id)
-        assertEquals("the workshop's concert leads on", com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
-            .let { p -> p[p.indexOfFirst { it.id == "workshop" } + 1].lessonIds.first() }, kid.after(com.bigpapituna.sharpears.engine.playground.WORKSHOP.lessons.last())?.id)
+        assertEquals("the workshop's concert leads to the treehouse", "treehouse-1", kid.after(com.bigpapituna.sharpears.engine.playground.WORKSHOP.lessons.last())?.id)
+        assertEquals("the treehouse's concert leads to the night sky", "night-1", kid.after(com.bigpapituna.sharpears.engine.playground.TREEHOUSE.lessons.last())?.id)
+        assertEquals("the night sky's concert leads to the fair", "fair-1", kid.after(com.bigpapituna.sharpears.engine.playground.NIGHT_SKY.lessons.last())?.id)
         assertEquals("the fair leads to the big kids' road", "sit", kid.after(com.bigpapituna.sharpears.engine.playground.FAIR.lessons.last())?.id)
         assertEquals("pond-1", kid.next { it.startsWith("playground-") }?.id)
         assertEquals("sit", kid.next { isPlaygroundLesson(it) }?.id)
@@ -78,7 +81,8 @@ class CoursePathTest {
     }
 
     @Test fun anyOfLessonsAreTheRangeGames() {
-        assertEquals(setOf("playground-1", "playground-2", "playground-3", "hall-1"), ANY_OF_LESSONS)
+        // 2.3: the night sky's higher or lower (any key above or below the pup's) and its black-key jam.
+        assertEquals(setOf("playground-1", "playground-2", "playground-3", "hall-1", "night-5", "night-11"), ANY_OF_LESSONS)
     }
 
     @Test fun grownUpModeIsOfferedOnceAfterBeginner() {

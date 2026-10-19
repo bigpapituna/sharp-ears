@@ -440,6 +440,53 @@ ui/playground/INTEGRATION.md, "2.3".
   (the coach waits for the line first). `HAND` cannot see fingers by design: it hears keys and trusts the picture. A kid
   who had reached Basics before 2.3 is sent back to workshop-1 by CoursePath (the road opens again once every page is
   walked); their Basics progress is kept.
+
+## 2.3 part B: the treehouse and the night sky (2026-10-18, branch `k40b`, emulator-5554 only; version not bumped)
+Roy asked for 40 new kid lessons: which finger to use, basic ways to use the piano and hand placement, and lessons that
+keep kids engaged. Part B is 24 of them on two new Playground pages; part A (branch `k40a`) owns the places, the world
+and its two pages (Workshop, Fair). Merge notes, page entries and the registry edit: ui/playground/INTEGRATION-B.md.
+- Treehouse (`TREEHOUSE_ID` "playground-treehouse", treehouse-1..12, engine/playground/Treehouse.kt): fingers that move.
+  Finger walk (1 2 3 and back), the left hand's walk (little finger five on C, the thumb's walk down from G), the thumb
+  tuck (1 2 3, thumb under to F, three over on the way back), fingers four and five, skips (1 3 5), five fingers in G,
+  five fingers in F (finger four on B flat), the same tune in the other hand, copy my fingers (the pup calls "Two,
+  three, four!"; the second game by ear), the left hand echo, which finger (tap the number the painted hand used, then
+  play the key), and a concert (Hot Cross Buns with both hands; Twinkle with the band singing the tune and the left hand
+  on the low notes).
+- Night sky (`NIGHT_SKY_ID` "playground-night", night-1..12, NightSky.kt): rhythm and listening. Steady beat (clap,
+  then C on every beat at 60, 80 and 100: a star a beat), ta ti-ti ta-a (say, clap, play), rests, the metronome game
+  (on the click, every other click), then a tap game and a play-it game each: up or down (then a note higher or lower),
+  same or different (then copy the tunes), louder (then loud and quiet), fast or slow (then your usual pace, fast and
+  slow), long or short, happy or sad (then the happy chord: the sun comes out), a black-key jam with the band (every
+  note a star, the tune drawn across the sky), and Twinkle under the stars with the band.
+- Fingers agree everywhere: every exercise writes out the fingers of the hands the child plays, so the falling notes,
+  ghost hand, hint hand, scenes, the copy stage's painted hand and badges and the pup's calls all say the same finger
+  (TreeSkyFingersTest, and FingersAgreeTest over COURSE). The app hears keys, not fingers: no line says it saw a finger.
+- Stages (ui/playground): CopyStage (treehouse: the painted hand plays each phrase, finger badges on the keys, the pup
+  calls the fingers; night: stars sing the tune), TapStage (TapQuiz: the pup's example, three tries then he shows the
+  answer; pictures with words for readers; which finger uses the painted hand and then the mic for the key),
+  BeatStarsStage (drum or metronome, the matcher's own delay taken off a strike), HigherLowerStage, LoudQuietStage,
+  TempoStage, SkyChordStage, StarJamStage (band in the black keys' key, the mic deaf 300 ms at each band note),
+  TreeSkyConcertStage, the drum game under the stars; backdrops and the painted hand over a stage in TreeSkyStages.kt.
+  The steps are marked by text in engine/playground/StageGames.kt (the Game enum is part A's file); the only edit to an
+  existing UI file is three lines in PlaygroundStage.kt. Rules: TapGames.kt, BeatGames.kt, ListenGames.kt.
+- On this branch the two levels sit at the end of COURSE (so `--es lesson` opens them); they become Playground pages at
+  the merge (until then StepRetry's let go, PlayerScreen's letGo and ANY_OF_LESSONS do not reach them). CourseTest
+  (130 lessons) and AnyOfTest were adjusted for that.
+- Voice: TreeSkyLines.fixed() (steps, scenes, the stages' lines) in SpokenCatalog.kidLines; 336 new lines recorded (314 at
+  0.85), 2954 in the catalog; render_voice.py deleted nothing.
+- Tests: 832 JVM (797 before): TreeSkyTest (shape, copy, bubbles, no digits in kid lines, no finger claims, stage
+  marks, games, concerts, beats, jam, any-of), TreeSkyFlowTest (24 lessons, a silent and a wrong-keys kid, as merged),
+  TreeSkyHearingTest (every set on PianoSynth: positions, higher or lower, the jam, middle C; the drum, the clicks and
+  the band never a key), TreeSkyFingersTest, TapGamesTest, TreeSkyGamesTest. Time model 114 to 180 s a lesson. Lint
+  0 errors (25 warnings, all older). Screenshots of every lesson's main stage (pre-reader Mia p1, reader Leo p2):
+  app/build/screens/k40b-*.png (not committed). Debug: `--es lesson treehouse-N|night-N --ei step n --es profile p1
+  --ez awake true`.
+- Not proven: everything with a real piano and a child (emulator only); the beat stars' window (250 ms) and delay
+  correction on a real phone; the fast and slow grade when the matcher drops a fast note; the jam's band on a phone
+  speaker. On the emulator the stages hear the host's room and speakers (the demo comes back late through the host
+  mic), so rounds there get found or let go by themselves; emulator-5554 (Medium_Phone_API_37.0) froze once under the
+  host's memory pressure (0.5 GB free) and was restarted.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

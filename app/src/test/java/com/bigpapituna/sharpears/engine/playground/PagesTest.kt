@@ -36,16 +36,16 @@ class PagesTest {
     private val hall = HALL.lessons
 
     @Test fun thePagesInPathOrder() {
-        // 2.3: the workshop after the hall, the fair last (part B's treehouse and night sky go between them).
-        assertEquals(listOf("garden", "pond", "hall", "workshop"), PLAYGROUND_PAGES.take(4).map { it.id })
-        assertEquals("fair", PLAYGROUND_PAGES.last().id)
-        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID, WORKSHOP_ID), PLAYGROUND_PAGES.take(4).map { it.levelId })
-        assertEquals(FAIR_ID, PLAYGROUND_PAGES.last().levelId)
-        assertEquals(listOf("playground-pond", "playground-hall", "playground-workshop", "playground-fair"), listOf(POND_ID, HALL_ID, WORKSHOP_ID, FAIR_ID))
-        assertEquals(listOf(Place.GARDEN, Place.POND, Place.CONCERT_HALL, Place.WORKSHOP), PLAYGROUND_PAGES.take(4).map { it.place })
-        assertEquals(Place.FAIR, PLAYGROUND_PAGES.last().place)
-        assertEquals(listOf("The garden", "The pond", "The concert hall", "The workshop"), PLAYGROUND_PAGES.take(4).map { it.title })
-        assertEquals("The fair", PLAYGROUND_PAGES.last().title)
+        // 2.3: the workshop after the hall, then the treehouse and the night sky, the fair last.
+        assertEquals(listOf("garden", "pond", "hall", "workshop", "treehouse", "nightsky", "fair"), PLAYGROUND_PAGES.map { it.id })
+        assertEquals(listOf(PLAYGROUND_ID, POND_ID, HALL_ID, WORKSHOP_ID, TREEHOUSE_ID, NIGHT_SKY_ID, FAIR_ID), PLAYGROUND_PAGES.map { it.levelId })
+        assertEquals(listOf("playground-pond", "playground-hall", "playground-workshop", "playground-treehouse", "playground-night", "playground-fair"),
+            listOf(POND_ID, HALL_ID, WORKSHOP_ID, TREEHOUSE_ID, NIGHT_SKY_ID, FAIR_ID))
+        assertEquals(listOf(Place.GARDEN, Place.POND, Place.CONCERT_HALL, Place.WORKSHOP, Place.TREEHOUSE, Place.NIGHT_SKY, Place.FAIR), PLAYGROUND_PAGES.map { it.place })
+        assertEquals(listOf("The garden", "The pond", "The concert hall", "The workshop", "The treehouse", "The night sky", "The fair"), PLAYGROUND_PAGES.map { it.title })
+        assertEquals(PLAYGROUND_PAGES.map { it.place.title }, PLAYGROUND_PAGES.map { it.title })
+        assertEquals((1..12).map { "treehouse-$it" }, PLAYGROUND_PAGES[4].lessonIds)
+        assertEquals((1..12).map { "night-$it" }, PLAYGROUND_PAGES[5].lessonIds)
         assertEquals(PLAYGROUND_PAGES.map { it.levelId }, PLAYGROUND_LEVELS.map { it.id })
         assertEquals(PLAYGROUND_PAGES.size, PLAYGROUND_PAGES.map { it.place }.toSet().size)
         assertEquals((1..12).map { "pond-$it" }, PLAYGROUND_PAGES[1].lessonIds)
@@ -64,6 +64,9 @@ class PagesTest {
         assertEquals(Place.CONCERT_HALL, PLAYGROUND_PLACES["hall-12"])
         // A Perform step of any page lets go after three tries.
         assertTrue(StepRetry.letGo("pond-12", 3) && StepRetry.letGo("hall-7", 3))
+        // 2.3: the treehouse's and the night sky's too, once they are pages.
+        assertTrue(StepRetry.letGo("treehouse-12", 3) && StepRetry.letGo("night-12", 3) && StepRetry.letGo("night-1", 3))
+        assertFalse(StepRetry.letGo("treehouse-12", 2))
         assertFalse(StepRetry.letGo("rep-london", 3))
     }
 

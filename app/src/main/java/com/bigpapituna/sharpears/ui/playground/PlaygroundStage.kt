@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.playground.Game
+import com.bigpapituna.sharpears.engine.playground.StageGames
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.Stage
@@ -20,7 +21,7 @@ import com.bigpapituna.sharpears.ui.Stage
  */
 
 /** True when the Playground draws [step] itself; otherwise the embedded player runs it. */
-fun hasPlaygroundStage(step: Step): Boolean = step.game != null && step.exercise != null
+fun hasPlaygroundStage(step: Step): Boolean = (step.game != null || StageGames.of(step) != null) && step.exercise != null
 
 /**
  * The stage for a Playground game step, in the lesson's one raised dark panel. It runs the step (its own microphone,
@@ -33,6 +34,9 @@ fun hasPlaygroundStage(step: Step): Boolean = step.game != null && step.exercise
 fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     SharpEarsTheme(dark = true) {
         Box(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(Stage)) {
+            // 2.3 part B: the treehouse's and the night sky's stages first (TreeSkyStages.kt).
+            val treeSky = StageGames.of(step)
+            if (treeSky != null) TreeSkyStage(treeSky, step, lessonId, deps, inject, onEnded) else
             when (step.game) {
                 Game.HIGH_LOW -> HighLowStage(step, lessonId, deps, inject, onEnded)
                 Game.KEY_HUNT -> KeyHuntStage(step, lessonId, deps, inject, onEnded)
