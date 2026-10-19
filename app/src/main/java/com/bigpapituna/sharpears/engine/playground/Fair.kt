@@ -22,8 +22,8 @@ import com.bigpapituna.sharpears.engine.walk
 import com.bigpapituna.sharpears.engine.withFingers
 
 /*
- * Pup's Playground, the fair (2.3, part A): a short page of four reward games, the last before the big kids' road (after
- * the night sky, once part B's pages are in). Each is a game of three rounds with a star a round: pop the balloons the pup
+ * Pup's Playground, the fair (2.3): a short page of four reward games, the last before the big kids' road (after the
+ * night sky). Each is a game of three rounds with a star a round: pop the balloons the pup
  * calls, spin the carousel with smooth runs up to G and back, ring the strongman's bell with a heavy arm, and play a song
  * in the photo booth for a photo card to send. Same rules as every page: a demo first, three tries and it goes by, every
  * sound answered, strict keys.

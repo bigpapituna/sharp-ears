@@ -9,8 +9,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,13 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.Voice
-import com.bigpapituna.sharpears.engine.Report
-import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.isBlack
-import com.bigpapituna.sharpears.engine.playground.Backdrop
-import com.bigpapituna.sharpears.engine.playground.StageGame
+import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.ui.LeftHandColor
-import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.RightHandColor
@@ -59,31 +53,10 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 /*
- * 2.3 part B: the treehouse's and the night sky's stages (engine/playground StageGames), drawn in their own places
- * (the world's scenes for the two pages come with the world's part of 2.3). [TreeSkyStage] picks the stage for a
- * marked step; the backdrops, the painted hand over a stage's keys and the finger badges are shared here.
+ * 2.3: what the treehouse's and the night sky's stages share (CopyStage, TapStage, BeatStarsStage, HigherLowerStage,
+ * LoudQuietStage, TempoStage, SkyChordStage, StarJamStage, their concerts, and ClapStage on those pages): the two
+ * places' backdrops, the painted hand over a stage's keys and the finger badges.
  */
-
-/** The stage for a step the 2.3 pages mark ([StageGame]); the registry (PlaygroundStage) calls it before the Game registry. */
-@Composable
-internal fun TreeSkyStage(game: StageGame, step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit) {
-    when (game) {
-        is StageGame.Copy -> CopyStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.Tap -> TapStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.Beat -> BeatStarsStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.HigherLower -> HigherLowerStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.LoudQuiet -> LoudQuietStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.Tempo -> TempoStage(game, step, lessonId, deps, inject, onEnded)
-        StageGame.SkyChord -> SkyChordStage(step, lessonId, deps, inject, onEnded)
-        is StageGame.Jam -> StarJamStage(game, step, lessonId, deps, inject, onEnded)
-        is StageGame.Concert -> TreeSkyConcertStage(game, step, lessonId, deps, inject, onEnded)
-        // The drum game under the stars: ClapStage draws nothing behind itself outside the pond and the hall.
-        StageGame.NightClap -> Box(Modifier.fillMaxSize()) {
-            SkyBackdrop(Modifier.fillMaxSize())
-            ClapStage(step, lessonId, deps, inject, onEnded)
-        }
-    }
-}
 
 /** Says [text] the way a stage must: over the microphone when it listens (deaf meanwhile), as an ordinary line when not. */
 internal fun Voice.sayOnStage(text: String, mic: MicInput) { if (mic.listening) speakOverMic(text) else speak(text) }
@@ -108,9 +81,17 @@ internal fun TreeBackdrop(modifier: Modifier = Modifier, floorFrom: Float = 0.8f
     Canvas(modifier.clearAndSetSemantics { }) { treehouse(if (still) 0f else sway, floorFrom) }
 }
 
+/**
+ * A page's backdrop behind a stage: the treehouse's and the night sky's move (the lanterns sway, the stars twinkle), the
+ * other pages' are [placeBackdrop]'s still pictures. The garden's stages draw their own (nothing here).
+ */
 @Composable
-internal fun PlaceBackdrop(backdrop: Backdrop, modifier: Modifier = Modifier, floorFrom: Float = 0.8f) =
-    if (backdrop == Backdrop.TREEHOUSE) TreeBackdrop(modifier, floorFrom) else SkyBackdrop(modifier)
+internal fun PlaceBackdrop(place: Place, modifier: Modifier = Modifier, floorFrom: Float = 0.8f) = when (place) {
+    Place.TREEHOUSE -> TreeBackdrop(modifier, floorFrom)
+    Place.NIGHT_SKY -> SkyBackdrop(modifier)
+    Place.GARDEN -> {}
+    else -> Canvas(modifier.clearAndSetSemantics { }) { placeBackdrop(place, 0.3f, floorFrom) }
+}
 
 private val ConstellationInk = Color(0x33CFE0FF)
 

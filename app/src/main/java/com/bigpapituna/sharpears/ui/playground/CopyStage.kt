@@ -51,9 +51,9 @@ import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.noteName
-import com.bigpapituna.sharpears.engine.playground.Backdrop
 import com.bigpapituna.sharpears.engine.playground.NoteJudge
 import com.bigpapituna.sharpears.engine.playground.PageLines
+import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
 import com.bigpapituna.sharpears.engine.playground.RoundCoach
 import com.bigpapituna.sharpears.engine.playground.StageGame
@@ -85,7 +85,7 @@ private const val COPY_GAP_MS = 520L
 internal fun CopyStage(game: StageGame.Copy, step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit,
                        modifier: Modifier = Modifier) {
     val ex = step.exercise ?: return
-    val tree = game.backdrop == Backdrop.TREEHOUSE
+    val tree = game.place == Place.TREEHOUSE
     val song = remember(ex) { ex.toSong("$lessonId-copy", lessonId) }
     val fingering = remember(song) { Fingering.of(song) }
     val phrases = remember(song) { TreeSkyLines.phrases(song) }
@@ -173,7 +173,7 @@ internal fun CopyStage(game: StageGame.Copy, step: Step, lessonId: String, deps:
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
-        PlaceBackdrop(game.backdrop, Modifier.fillMaxSize(), floorFrom = 0.42f)
+        PlaceBackdrop(game.place, Modifier.fillMaxSize(), floorFrom = 0.42f)
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {

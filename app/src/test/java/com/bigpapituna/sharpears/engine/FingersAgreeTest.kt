@@ -32,8 +32,11 @@ class FingersAgreeTest {
         return song.notes.filter { it.hand == hand }.map { it.midi to f[it] }
     }
 
-    /** Every exercise a lesson plays in the player, as a grown-up and as a kid (the bite). */
-    private fun exercises(l: CourseLesson) = l.steps.filter { it.exercise != null && it.game == null }.flatMap { s ->
+    /**
+     * Every exercise a lesson plays, as a grown-up and as a kid (the bite): in the player, and since 2.3 on the stages too
+     * (the treehouse's copy games and which-finger rounds show the painted hand and the numbers from the same fingers).
+     */
+    private fun exercises(l: CourseLesson) = l.steps.filter { it.exercise != null }.flatMap { s ->
         listOfNotNull(s.exercise, Bites.kidStep(s).exercise)
     }
 
@@ -103,7 +106,7 @@ class FingersAgreeTest {
         for (l in lessons) for (s in l.steps) {
             val ex = s.exercise ?: continue
             val bite = Bites.kidStep(s).exercise ?: continue
-            if (bite == ex || s.game != null) continue
+            if (bite == ex) continue
             for (hand in Hand.entries) {
                 val part = lane(bite, hand)
                 assertEquals("${l.id} $hand", lane(ex, hand).take(part.size).map { it.second }, part.map { it.second })

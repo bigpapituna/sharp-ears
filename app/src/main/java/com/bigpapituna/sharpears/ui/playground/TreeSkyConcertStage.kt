@@ -39,9 +39,9 @@ import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
-import com.bigpapituna.sharpears.engine.playground.Backdrop
+import com.bigpapituna.sharpears.engine.playground.ConcertSong
+import com.bigpapituna.sharpears.engine.playground.Place
 import com.bigpapituna.sharpears.engine.playground.PlaygroundLines
-import com.bigpapituna.sharpears.engine.playground.StageGame
 import com.bigpapituna.sharpears.engine.playground.TreeSkyLines
 import com.bigpapituna.sharpears.engine.skin.Bites
 import com.bigpapituna.sharpears.engine.toSong
@@ -57,32 +57,33 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 
 /**
- * 2.3 part B, the treehouse's and the night sky's concerts: the step's song in its place (the lanterns in the tree,
- * the moon and the stars). The pup plays its start first (the embedded player in Listen mode, "Let me show you"), then
- * you play it in time (Perform; the band plays the other hand, or with both hands, no band but the clicks). A run at the
+ * 2.3, the treehouse's and the night sky's concerts ([com.bigpapituna.sharpears.engine.playground.Game.CONCERT]; ConcertStage
+ * hands them here with the step's [song] from concertPlan): the song in its [place] (the lanterns in the tree, the moon
+ * and the stars). The pup plays its start first (the embedded player in Listen mode, "Let me show you"), then you play it
+ * in time as written (Perform; the band plays the other hand, or with both hands, no band but the clicks). A run at the
  * pass mark ([com.bigpapituna.sharpears.engine.playground.CONCERT_PASS], two stars) brings the pup dancing, "Bravo!",
  * lanterns or shooting stars, before the lesson moves on; one under it goes back to the lesson's "Try again", which
- * lets the step go after three tries once the pages are on PLAYGROUND_PAGES (StepRetry).
+ * lets the step go after three tries (StepRetry).
  */
 @Composable
-internal fun TreeSkyConcertStage(game: StageGame.Concert, step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit,
+internal fun TreeSkyConcertStage(song: ConcertSong, place: Place, step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit,
                                  modifier: Modifier = Modifier) {
-    val ex = step.exercise ?: return
+    val ex = song.exercise
     var shown by remember { mutableStateOf(false) }
     var bravo by remember { mutableStateOf<Report?>(null) }
     val ended by rememberUpdatedState(onEnded)
     val still = reducedMotion()
-    val tree = game.backdrop == Backdrop.TREEHOUSE
+    val tree = place == Place.TREEHOUSE
     val hands = when (ex.practice) { Practice.BOTH -> "Both hands"; Practice.LEFT -> "Left hand, with the band"; Practice.RIGHT -> "With the band" }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
         Column(Modifier.fillMaxSize()) {
             // The place along the top: the treehouse's lanterns or the night sky, the song's title over it.
             Box(Modifier.fillMaxWidth().height(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))) {
-                PlaceBackdrop(game.backdrop, Modifier.fillMaxSize(), floorFrom = 0.9f)
+                PlaceBackdrop(place, Modifier.fillMaxSize(), floorFrom = 0.9f)
                 Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).background(Color(0xB3110F0D), androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        Text(game.title, color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(song.title, color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(hands, color = PupGold, fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                     }
                 }
@@ -91,25 +92,25 @@ internal fun TreeSkyConcertStage(game: StageGame.Concert, step: Step, lessonId: 
                 if (!shown) {
                     // The demo: the song's first two bars, played by the app with the names showing.
                     LaunchedEffect(Unit) { deps.voice.speak(PlaygroundLines.LET_ME_SHOW) }
-                    PlayerScreen(Bites.cut(ex, 2.0 * ex.beats).toSong("$lessonId-concert-demo-${game.picture}", game.title), null, deps.sampler, deps.midi,
+                    PlayerScreen(Bites.cut(ex, 2.0 * ex.beats).toSong("$lessonId-concert-demo-${song.picture}", song.title), null, deps.sampler, deps.midi,
                         deps.mic, deps.voice, deps.prefs, deps.ready, 0.0, false,
                         PlayerStart(Mode.LISTEN, Practice.BOTH, mic = false),
                         onBack = {},
                         onFinished = {
-                            Log.d(TAG, "playground: concert demo of ${game.title} done")
+                            Log.d(TAG, "playground: concert demo of ${song.title} done")
                             deps.voice.speak(PlaygroundLines.YOUR_TURN)
                             shown = true
                         },
                         embedded = Embedded("Listen first"),
                         modifier = Modifier.fillMaxSize())
                 } else {
-                    PlayerScreen(ex.toSong("$lessonId-concert-${game.picture}", game.title), null, deps.sampler, deps.midi, deps.mic, deps.voice, deps.prefs, deps.ready,
+                    PlayerScreen(ex.toSong("$lessonId-concert-${song.picture}", song.title), null, deps.sampler, deps.midi, deps.mic, deps.voice, deps.prefs, deps.ready,
                         0.0, false,
                         PlayerStart(Mode.PERFORM, ex.practice, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
                         onBack = {},
                         onFinished = { r ->
                             val passed = step.copy(exercise = ex).passed(r)
-                            Log.d(TAG, "playground: concert ${game.title} ${r.recap?.accuracy ?: 0} of ${ex.pass} needed, passed=$passed")
+                            Log.d(TAG, "playground: concert ${song.title} ${r.recap?.accuracy ?: 0} of ${ex.pass} needed, passed=$passed")
                             if (passed) bravo = r else ended(r)
                         },
                         embedded = Embedded(if (ex.practice == Practice.BOTH) "Both hands" else "With the band"),
@@ -120,7 +121,7 @@ internal fun TreeSkyConcertStage(game: StageGame.Concert, step: Step, lessonId: 
         bravo?.let { r ->
             LaunchedEffect(r) { deps.voice.speak(if (tree) TreeSkyLines.TREE_BRAVO else TreeSkyLines.SKY_BRAVO); delay(3_600); ended(r) }
             Box(Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))) {
-                PlaceBackdrop(game.backdrop, Modifier.fillMaxSize(), floorFrom = 0.78f)
+                PlaceBackdrop(place, Modifier.fillMaxSize(), floorFrom = 0.78f)
                 Box(Modifier.fillMaxSize().background(Color(0x66110F0D)))
                 ShootingStars(Modifier.fillMaxSize(), still, gold = tree)
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {

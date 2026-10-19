@@ -13,6 +13,7 @@ import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.Transport
 import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.engine.parseTokens
 import com.bigpapituna.sharpears.engine.toSong
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -106,7 +107,9 @@ object PlaygroundChecks {
      * the count-in in Perform, and the cheer and Continue after it; the concert adds picking a song. 2.2's games: a copy
      * game's tune is shown (its notes, under half a second each) and played back (two seconds a note); a chord round
      * takes four and a half seconds; the soft and loud tune says what it wants, shows the phrase, hears it and reacts;
-     * the set list is picking and three warm ups in wait mode.
+     * the set list is picking and three warm ups in wait mode. 2.3's: a pick, the hand, the pedal, the fair's games; the
+     * treehouse's copy games, the tap games, a key on every beat, higher or lower, loud and quiet, fast and slow, the happy
+     * chord and the jam, each as its stage runs.
      */
     fun estimatedSeconds(steps: List<Step>): Double = steps.sumOf { s ->
         if (s.kind == StepKind.READ) s.scenes.sumOf { maxOf(it.visual.durationMs / 1000.0, it.say.split(' ').size / 2.0) + 1.5 }
@@ -131,6 +134,19 @@ object PlaygroundChecks {
                 Game.BALLOONS, Game.CAROUSEL -> phrases() * (1.3 + 0.65 + 1.4) + keys * (0.45 + 2.0)
                 Game.PHOTO -> 20.0 + phrases() * (1.3 + 0.65 + 1.4) + keys * (0.45 + 2.0) + 18.0
                 Game.STRONGMAN -> phrases() * (1.3 + 0.65 + 1.4) + keys * (0.7 + 2.2)
+                // 2.3, the treehouse and the night sky. A copy game: each phrase shown (the hand playing it, the fingers said), then two seconds a note.
+                Game.COPY -> TreeSkyLines.phrases(song).let { p -> p.size * (1.3 + 0.65 + 1.4 + 1.2) + p.sumOf { it.size } * (0.45 + 2.0) }
+                // A tap game: the pup's example, then each round: its sounds, a few seconds to decide and tap, the pup's answer, the key to play.
+                Game.TAP -> StageGames.forStage<StageGame.Tap>(s).let { g ->
+                    (0.7 + g.example.soundMs / 1000.0 + 0.5 + 2.4) + 0.9 + g.rounds.sumOf { r -> 0.7 + r.soundMs / 1000.0 + 2.5 + 1.5 + 1.4 + if (r.play != null) 4.0 else 0.0 }
+                }
+                // A key on every beat: the pup's bar first, then the count-in and the beats, and the stars' verdict.
+                Game.BEAT -> BeatStars(parseTokens(ex.right).filter { !it.rest }.map { it.startBeat }, ex.bpm).let { b -> 4 * beat + 2.5 + b.lengthMs / 1000.0 + 1.5 + 1.4 }
+                Game.HIGHER_LOWER -> 1.3 + StageGames.forStage<StageGame.HigherLower>(s).rounds.size * (1.2 + 1.4 + 2.5 + 1.0)
+                Game.LOUD_QUIET -> StageGames.forStage<StageGame.LoudQuiet>(s).rounds.size * (1.3 + 1.0 + 2.0 + 1.5 + 1.4)
+                Game.TEMPO -> TreeSkyLines.phrases(song).let { p -> p.size * (1.3 + 0.65 + 1.5 + 1.4) + p.sumOf { it.size } * (0.42 + 0.8) }
+                Game.SKY_CHORD -> run + keys * 4.5
+                Game.JAM -> 2.0 + 2.5 + StageGames.forStage<StageGame.Jam>(s).bars * 4 * beat + 3.0
                 else -> run + when {
                     s.game == Game.SOFT_LOUD -> keys * 4.0
                     s.game == Game.HIGH_LOW || s.game == Game.KEY_HUNT -> keys * 3.0

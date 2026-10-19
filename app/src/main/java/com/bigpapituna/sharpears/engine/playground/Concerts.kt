@@ -75,19 +75,22 @@ data class ConcertPlan(val place: Place, val songs: List<ConcertSong>, val pick:
 
 /**
  * The concert for [step] of lesson [lessonId]: the garden's and the pond's let the kid pick; the concert hall's recital
- * plays the kid's [recital] songs (ids, see [Recital]) one per step, in order.
+ * plays the kid's [recital] songs (ids, see [Recital]) one per step, in order; the workshop, the treehouse and the night
+ * sky play their own songs (2.3), the treehouse's and the night sky's one per step, as written (the treehouse's Hot
+ * Cross Buns with both hands, its encore in the left hand under the band).
  */
 fun concertPlan(lessonId: String, step: Step, recital: List<String>? = null): ConcertPlan {
     val page = pageOf(lessonId)
+    /** Which of the lesson's concert steps [step] is. */
+    fun nth(): Int = PLAYGROUND_LEVELS.first { it.id == page!!.levelId }.lessons.first { it.id == lessonId }
+        .steps.filter { it.game == Game.CONCERT }.indexOfFirst { it.text == step.text }.coerceAtLeast(0)
     return when (page?.place) {
         Place.POND -> ConcertPlan(Place.POND, POND_SONGS, pick = true)
         // 2.3: the workshop's piano plays its first song, Mary with every finger in place.
         Place.WORKSHOP -> ConcertPlan(Place.WORKSHOP, listOf(ConcertSong("Mary Had a Little Lamb", "lamb", WORKSHOP_MARY)), pick = false)
-        Place.CONCERT_HALL -> {
-            val lesson = HALL.lessons.first { it.id == lessonId }
-            val nth = lesson.steps.filter { it.game == Game.CONCERT }.indexOfFirst { it.text == step.text }.coerceAtLeast(0)
-            ConcertPlan(Place.CONCERT_HALL, listOf(Recital.songs(recital)[nth % Recital.SIZE].concert), pick = false)
-        }
+        Place.TREEHOUSE -> ConcertPlan(Place.TREEHOUSE, listOf(TREEHOUSE_CONCERT[nth() % TREEHOUSE_CONCERT.size]), pick = false)
+        Place.NIGHT_SKY -> ConcertPlan(Place.NIGHT_SKY, listOf(NIGHT_CONCERT[nth() % NIGHT_CONCERT.size]), pick = false)
+        Place.CONCERT_HALL -> ConcertPlan(Place.CONCERT_HALL, listOf(Recital.songs(recital)[nth() % Recital.SIZE].concert), pick = false)
         else -> ConcertPlan(Place.GARDEN, CONCERT_SONGS, pick = true)
     }
 }

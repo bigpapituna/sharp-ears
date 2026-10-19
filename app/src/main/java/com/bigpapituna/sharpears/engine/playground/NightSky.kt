@@ -33,7 +33,7 @@ import com.bigpapituna.sharpears.engine.walk
  * happy or sad; a black-key jam with the band; and Twinkle under the stars. The same model and rules as the other pages.
  */
 
-/** The night sky's course level (its page and place come with the world's part of 2.3: see ui/playground/INTEGRATION-B.md). */
+/** The night sky's course level: its page (engine/playground/Pages.kt) is [Place.NIGHT_SKY], after the treehouse. */
 const val NIGHT_SKY_ID = "playground-night"
 
 private fun lesson(n: Int, title: String, summary: String, vararg steps: Step) = CourseLesson("night-$n", title, summary, steps.toList())
@@ -119,6 +119,9 @@ internal val TWINKLE_ALL = TWINKLE.copy(right = "${TWINKLE.right} $TWINKLE_MIDDL
     bpm = 70.0, practice = Practice.RIGHT, phraseEnd = null, pass = CONCERT_PASS,
     leftFingers = "$TWINKLE_LEFT_FINGERS 5 2 5 5 5 2 5 5 $TWINKLE_LEFT_FINGERS")
 
+/** The night sky concert (lesson 12), a song a step ([concertPlan]): the shelf's Twinkle with the band, then the whole song. */
+internal val NIGHT_CONCERT = listOf(shelfSong("twinkle")!!.concert, ConcertSong("Twinkle all the way", "star", TWINKLE_ALL))
+
 // ---- The tap games ---------------------------------------------------------------------------------------------------
 
 private val UP_OR_DOWN = tap(TapKind.UP_DOWN, upDown("C4", "G4"),
@@ -147,7 +150,7 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
                 sayRhythm("0:1 1:1 2:1 3:1", listOf("Twin", "kle", "twin", "kle"), 72), Mood.LISTEN),
             scene("A steady beat can be slow, a bit quicker, or quick. It never wobbles.",
                 pop("Slow", "Quicker", "Quick!", notes = listOf("C4", "C4", "C4"), stepMs = 900), Mood.POINT)),
-        play("Clap on every beat with my drum. Not faster, not slower.", DRUM.copy(bpm = 72.0), Game.CLAP).on(StageGame.NightClap),
+        play("Clap on every beat with my drum. Not faster, not slower.", DRUM.copy(bpm = 72.0), Game.CLAP),
         play("Now play middle C on every beat, slowly. Each one lights a star.", beat(60.0)).on(DRUM_BEAT),
         play("A bit quicker now. Keep your C steady with my drum.", beat(80.0)).on(DRUM_BEAT),
         play("Quick! Can your C keep up with the stars?", beat(100.0, count = 12)).on(DRUM_BEAT)),
@@ -159,7 +162,7 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
             scene("First we say it, then we clap it, then we play it on a key.",
                 pop("Say it", "Clap it", "Play it!", notes = listOf("C4", "C4+E4", "C4+E4+G4"), stepMs = 800), Mood.CHEER)),
         listen("Listen and say it with me: ta, ti-ti, ta-a, then once more.", TA_TITI_TAA),
-        play("Clap it with my drum: ta, ti-ti, ta-a.", TA_TITI_TAA, Game.CLAP).on(StageGame.NightClap),
+        play("Clap it with my drum: ta, ti-ti, ta-a.", TA_TITI_TAA, Game.CLAP),
         perform("Now play it on middle C. The clicks count you in.", TA_TITI_TAA.copy(pass = CONCERT_PASS)),
         perform("The same words on a little tune: ta, ti-ti, ta-a.",
             Exercise(right = "G4:1 G4:0.5 G4:0.5 E4:2 F4:1 F4:0.5 F4:0.5 D4:2", bpm = 60.0, practice = Practice.RIGHT, beatLines = true, pass = CONCERT_PASS,
@@ -170,8 +173,8 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
             scene("A rest is a beat of quiet. The stars hold still, and we whisper shh.",
                 sayRhythm("0:1 1:1 2:1 r3:1", listOf("Ta", "ta", "ta", "shh"), 66), Mood.LISTEN),
             scene("On a rest, open your hands wide and keep them still.", sayRhythm("0:1 r1:1 2:1 r3:1", listOf("Ta", "shh", "ta", "shh"), 66), Mood.POINT)),
-        play("Clap with my drum, and stop on every shh.", REST_LATE, Game.CLAP).on(StageGame.NightClap),
-        play("Now the shh comes sooner: ta, shh, ta, shh.", REST_SOON, Game.CLAP).on(StageGame.NightClap),
+        play("Clap with my drum, and stop on every shh.", REST_LATE, Game.CLAP),
+        play("Now the shh comes sooner: ta, shh, ta, shh.", REST_SOON, Game.CLAP),
         perform("Play it on middle C. Lift your hand on every shh.", REST_LATE.copy(pass = CONCERT_PASS)),
         perform("Now a tune with rests in it. Stop on every shh!",
             Exercise(right = "E4:1 D4:1 C4:1 r:1 E4:1 D4:1 C4:1 r:1", bpm = 72.0, practice = Practice.RIGHT, beatLines = true, pass = CONCERT_PASS, fingers = "3 2 1 3 2 1"))),
@@ -208,7 +211,7 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
             scene("If just one note changes, the tune is different. Listen closely!",
                 keys("A3", "A4", walk("C4 D4 E4") + walk("C4 D4 G4", mapOf(2 to "New"), clearFirst = true), stepMs = 600, names = KeyNames.NONE), Mood.THINK)),
         tapStep("Two tunes. Are they the same or different? Tap!", SAME_OR_NOT),
-        play("Now copy my tunes on the keys. Listen for the note that changes!", SKY_COPY).on(StageGame.Copy(Backdrop.NIGHT))),
+        play("Now copy my tunes on the keys. Listen for the note that changes!", SKY_COPY).on(StageGame.Copy(Place.NIGHT_SKY))),
 
     lesson(7, "Loud or quiet", "Which note was louder? Then play loud like thunder and quiet like a mouse.",
         read(
@@ -243,7 +246,7 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
             scene("Listen to my chord. Tap the sun if it sounds happy, or the cloud if it sounds sad.",
                 chords(chord("G3 B3 D4", "Happy"), chord("A3 C4 E4", "Sad"), low = "F3", high = "G4"), Mood.POINT)),
         tapStep("Listen to my chord. Happy or sad? Tap the sun or the cloud!", HAPPY_OR_SAD),
-        play("Now play the happy chord, C, E and G together. Make the sun come out!", HAPPY_CHORD).on(StageGame.SkyChord)),
+        play("Now play the happy chord, C, E and G together. Make the sun come out!", HAPPY_CHORD, Game.SKY_CHORD)),
 
     lesson(11, "Black key tunes", "Make up your own tune on the black keys, and the band plays along.",
         read(
@@ -264,10 +267,8 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
             scene("Tonight the stars came out to hear you play their very own song!",
                 pop("The moon", "The stars", "And you!", notes = listOf("C4+E4+G4", "F4+A4+C5", "G4+B4+D5"), stepMs = 800), Mood.CHEER),
             scene("Play Twinkle with the band. If you slip, just keep going.", lane(TWINKLE.bite().right, "C3:4 F3:2 C3:2", bpm = 72), Mood.POINT)),
-        perform("Play Twinkle for the stars, right to the end!", shelfSong("twinkle")!!.concert.exercise)
-            .on(StageGame.Concert(Backdrop.NIGHT, "Twinkle, Twinkle, Little Star", "star")),
-        perform("The stars want more! Play the whole song, all the way through.", TWINKLE_ALL)
-            .on(StageGame.Concert(Backdrop.NIGHT, "Twinkle all the way", "star")),
+        perform("Play Twinkle for the stars, right to the end!", NIGHT_CONCERT[0].exercise, Game.CONCERT),
+        perform("The stars want more! Play the whole song, all the way through.", NIGHT_CONCERT[1].exercise, Game.CONCERT),
         read(
             scene("Goodnight, stars! Thank you for listening.", pop("Good", "night", "stars!", notes = listOf("C4+E4+G4", "E4+G4+C5", "G4+C5+E5"), stepMs = 700),
                 Mood.CHEER),

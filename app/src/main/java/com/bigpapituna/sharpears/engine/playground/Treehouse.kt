@@ -33,15 +33,15 @@ import com.bigpapituna.sharpears.engine.walk
  * the pup asks for a finger and says which he used, and never says he saw yours.
  */
 
-/** The treehouse's course level (its page and place come with the world's part of 2.3: see ui/playground/INTEGRATION-B.md). */
+/** The treehouse's course level: its page (engine/playground/Pages.kt) is [Place.TREEHOUSE], after the workshop. */
 const val TREEHOUSE_ID = "playground-treehouse"
 
 private fun lesson(n: Int, title: String, summary: String, vararg steps: Step) = CourseLesson("treehouse-$n", title, summary, steps.toList())
 
 /** The treehouse's copy games: the painted hand shows each phrase with its fingers. */
-private val COPY = StageGame.Copy(Backdrop.TREEHOUSE)
+private val COPY = StageGame.Copy(Place.TREEHOUSE)
 /** The same, by ear after the first round: the pup's words and the sound only. */
-private val COPY_BY_EAR = StageGame.Copy(Backdrop.TREEHOUSE, byEar = true)
+private val COPY_BY_EAR = StageGame.Copy(Place.TREEHOUSE, byEar = true)
 
 private fun right(notes: String, fingers: String, bpm: Double = 72.0) = Exercise(right = notes, bpm = bpm, practice = Practice.RIGHT, fingers = fingers)
 private fun left(notes: String, fingers: String, bpm: Double = 72.0) = Exercise(left = notes, bpm = bpm, practice = Practice.LEFT, leftFingers = fingers)
@@ -86,6 +86,9 @@ internal val BUNS_BOTH = Exercise(right = BUNS_X.right, left = "r:2 C3:2 r:2 C3:
     fingers = "3 2 1 3 2 1 1 1 1 1 2 2 2 2 3 2 1", leftFingers = "5 5 5 1 5")
 /** Twinkle's start with the band singing the tune: your left hand plays the low notes (little finger on C, two on F). */
 internal val TWINKLE_LEFT = TWINKLE.copy(practice = Practice.LEFT, bpm = 72.0, pass = CONCERT_PASS, phraseEnd = null)
+
+/** The treehouse concert (lesson 12), a song a step ([concertPlan]): Hot Cross Buns with both hands, then the encore. */
+internal val TREEHOUSE_CONCERT = listOf(ConcertSong("Hot Cross Buns", "buns", BUNS_BOTH), ConcertSong("Twinkle, Twinkle, Little Star", "star", TWINKLE_LEFT))
 
 /**
  * Which finger (lesson 11): a round per key, the painted hand pressing it with its finger; the child taps the number,
@@ -264,9 +267,8 @@ val TREEHOUSE: CourseLevel = CourseLevel(TREEHOUSE_ID, "Pup's Treehouse", "Twelv
                 pop("The leaves", "The lanterns", "And you!", notes = listOf("C4+E4+G4", "F4+A4+C5", "G4+B4+D5"), stepMs = 800), Mood.CHEER),
             scene("First Hot Cross Buns with both hands. Then the band sings Twinkle while your left hand plays.",
                 lane(BUNS_BOTH.right, BUNS_BOTH.left, bpm = 66), Mood.POINT)),
-        perform("Play Hot Cross Buns with both hands, right to the end!", BUNS_BOTH).on(StageGame.Concert(Backdrop.TREEHOUSE, "Hot Cross Buns", "buns")),
-        perform("Encore! The band sings Twinkle, and your left hand plays the low notes.", TWINKLE_LEFT)
-            .on(StageGame.Concert(Backdrop.TREEHOUSE, "Twinkle, Twinkle, Little Star", "star")),
+        perform("Play Hot Cross Buns with both hands, right to the end!", TREEHOUSE_CONCERT[0].exercise, Game.CONCERT),
+        perform("Encore! The band sings Twinkle, and your left hand plays the low notes.", TREEHOUSE_CONCERT[1].exercise, Game.CONCERT),
         read(
             scene("Listen to the whole tree cheer for you!", pop("Bravo", "bravo", "bravo!", notes = listOf("C4+E4+G4", "E4+G4+C5", "G4+C5+E5"), stepMs = 700), Mood.CHEER),
             scene("Take a bow, piano player! Your fingers can walk, tuck, stretch and hop.", fingers("C4 D4 E4 F4 G4", "G3 F3 E3 D3 C3"), Mood.CHEER))),

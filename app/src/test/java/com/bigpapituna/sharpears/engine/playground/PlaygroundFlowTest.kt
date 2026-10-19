@@ -8,6 +8,7 @@ import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
 import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.Transport
+import com.bigpapituna.sharpears.engine.parseTokens
 import com.bigpapituna.sharpears.engine.skin.Bites
 import com.bigpapituna.sharpears.engine.toSong
 import org.junit.Assert.assertEquals
@@ -16,11 +17,13 @@ import org.junit.Test
 
 /**
  * No dead ends (2.1.1): every Playground lesson reaches its end with no right input at all, from a kid who plays
- * nothing and from one who plays only keys that are not it: the garden's twelve, and since 2.2 the pond's and the
- * concert hall's. Each step runs the way the app runs it: the stages through StageRounds and the judges (as
- * ui/playground's rememberStage; phrases for the copy games and the soft and loud tune), the drum through ClapTries, the
- * embedded player's wait mode through the same RoundCoach (PlayerScreen's letGo, the set list's three warm ups too),
- * Perform steps and the concerts through LessonScreen's StepRetry; the kid's bites as LessonScreen cuts them.
+ * nothing and from one who plays (or taps) only what is not it: the garden's twelve, since 2.2 the pond's and the
+ * concert hall's, since 2.3 the workshop's, the treehouse's, the night sky's and the fair's. Each step runs the way the
+ * app runs it: the stages through StageRounds and the judges (as ui/playground's rememberStage; phrases for the copy
+ * games and the soft and loud tune), the pick and tap games through PickRounds and TapQuiz, the drum and the beat stars
+ * through ClapTries, the jam through StarJam, the embedded player's wait mode through the same RoundCoach (PlayerScreen's
+ * letGo, the set list's three warm ups too), Perform steps and the concerts through LessonScreen's StepRetry; the kid's
+ * bites as LessonScreen cuts them.
  */
 class PlaygroundFlowTest {
     private enum class Kid { SILENT, WRONG }
@@ -30,9 +33,9 @@ class PlaygroundFlowTest {
 
     @Test fun everyLessonEndsWithNoRightInput() {
         val lessons = PLAYGROUND_LEVELS.flatMap { it.lessons }
-        // 2.3: the garden, the pond, the hall, the workshop and the fair (part B's treehouse and night sky join them).
+        // 2.3: the garden, the pond, the hall, the workshop, the treehouse, the night sky and the fair.
         assertEquals(PLAYGROUND_PAGES.sumOf { it.lessonIds.size }, lessons.size)
-        assertTrue(lessons.size >= 52)
+        assertEquals(76, lessons.size)
         for (kid in Kid.entries) for (lesson in lessons) {
             val w = walk(lesson, kid)
             assertEquals("${lesson.id} ($kid): every step done: ${w.steps}", lesson.steps.size, w.steps.size)
@@ -72,6 +75,27 @@ class PlaygroundFlowTest {
             Game.PICK -> pick(step, kid, w)
             Game.SET_LIST -> setList(kid, w)
             Game.CONCERT -> perform(concertPlan(lessonId, step).songs.first().exercise, kid, w)
+            // 2.3, the treehouse and the night sky (their rounds and sounds: StageGames).
+            Game.COPY -> rounds(step, kid, w, phrases = true) { s, r -> NoteJudge.judge(s, r.expectedKey()) }
+            Game.HIGHER_LOWER -> {
+                val g = StageGames.forStage<StageGame.HigherLower>(step)
+                rounds(step, kid, w, phrases = false, wrongKey = { r -> g.rounds[r.done].ref }) { s, r -> HigherLowerJudge.judge(s, g.rounds[r.done]) }
+            }
+            Game.LOUD_QUIET -> {
+                val tune = TuneLoudness(StageGames.forStage<StageGame.LoudQuiet>(step).rounds)
+                rounds(step, kid, w, phrases = true, onLetGo = tune::skipped) { s, r -> NoteJudge.judge(s, r.expectedKey()) }
+            }
+            Game.TEMPO -> {
+                val tune = TempoTune(StageGames.forStage<StageGame.Tempo>(step).rounds)
+                rounds(step, kid, w, phrases = true, onLetGo = tune::skipped) { s, r -> NoteJudge.judge(s, r.expectedKey()) }
+            }
+            Game.SKY_CHORD -> {
+                val chord = ChordJudge(StageKeys.C_CHORD)
+                rounds(step, kid, w, phrases = false, wrongKey = { 62 }, onLetGo = chord::reset) { s, _ -> chord.judge(s) }
+            }
+            Game.TAP -> tap(StageGames.forStage(step), kid, w)
+            Game.BEAT -> beat(ex, kid, w)
+            Game.JAM -> jam(StageGames.forStage(step), ex, kid, w)
             null -> when (step.kind) {
                 StepKind.PERFORM -> perform(ex, kid, w)
                 StepKind.LISTEN -> listen(step, w)
@@ -169,6 +193,93 @@ class PlaygroundFlowTest {
                 ClapTries.Next.LET_GO -> return Report(emptyList(), 0, 0, null, groups = 0, extraScore = 0) to "${attempt + 1} silent tries ($kid), let go"
             }
         }
+    }
+
+    /**
+     * 2.3, a treehouse or night sky stage of rounds (ui/playground rememberStage): shown, heard, let go after three tries.
+     * The wrong kid plays [wrongKey] (F sharp 4 is in none of the stages' positions; higher or lower hears the pup's own
+     * note; the chord a D).
+     */
+    private fun rounds(step: Step, kid: Kid, w: Walk, phrases: Boolean, wrongKey: (StageRounds) -> Int = { 66 }, onLetGo: () -> Unit = {},
+                       judge: (StageSound, StageRounds) -> Answer): Pair<Report?, String> {
+        val ex = step.exercise!!
+        val r = StageRounds(ex.toSong("t", "t"), ex.practice, phrases = phrases)
+        var now = 0L
+        var lastTry = 0L
+        r.start(now)
+        while (!r.ended) {
+            now += 20
+            assertTrue("a stage that never ends: ${step.text}", now < 30 * 60_000)
+            if (r.tick(20.0, now).second is RoundCoach.Cue.LetGo) onLetGo()
+            if (kid != Kid.WRONG || r.coach.phase != RoundCoach.Phase.LISTEN || now - lastTry < 1_500) continue
+            lastTry = now
+            val o = r.answer(judge(StageSound(now, HeardBy.NAMED, wrongKey(r), riseDb = -30.0, final = true), r), now)
+            if (o is StageRounds.Outcome.Missed && o.cue is RoundCoach.Cue.LetGo) onLetGo()
+            assertTrue("nothing right is found", o !is StageRounds.Outcome.Found)
+        }
+        w.ms += now
+        assertEquals("every round let go", r.rounds, r.letGo.size)
+        return r.report() to "${r.rounds} rounds, all let go"
+    }
+
+    /** 2.3, a tap game: the silent kid never taps; the other taps the other answer and plays a key that is not it. */
+    private fun tap(game: StageGame.Tap, kid: Kid, w: Walk): Pair<Report?, String> {
+        val q = TapQuiz(game.example, game.rounds)
+        var now = 0L
+        var lastTry = 0L
+        q.start(now)
+        while (!q.done) {
+            now += 20
+            assertTrue("a tap game that never ends", now < 30 * 60_000)
+            q.tick(now)
+            if (kid != Kid.WRONG || now - lastTry < 1_500) continue
+            lastTry = now
+            when (q.phase) {
+                TapQuiz.Phase.ASK -> q.tap(game.kind.choices.first { it != q.round!!.answer }, now)
+                TapQuiz.Phase.PLAY -> q.key(q.round!!.play!! + 1, now)
+                else -> {}
+            }
+        }
+        w.ms += now
+        assertEquals(0, q.right)
+        assertEquals(game.rounds.indices.toList(), q.letGo)
+        return q.report() to "${game.rounds.size} taps, all shown by the pup"
+    }
+
+    /** 2.3, a key on every beat: tries like the drum's (nothing heard asks again, three let go); keys that are not C light no star. */
+    private fun beat(ex: Exercise, kid: Kid, w: Walk): Pair<Report?, String> {
+        val b = BeatStars(parseTokens(ex.right).filter { !it.rest }.map { it.startBeat }, ex.bpm)
+        var attempt = 0
+        w.ms += (4 * b.beatMs).toLong()                          // the pup's bar first
+        while (true) {
+            b.reset()
+            w.ms += b.lengthMs.toLong() + 2_000
+            val heard = kid == Kid.WRONG                         // the wrong kid plays D on every beat: heard, no star
+            when (ClapTries.after(attempt, heard)) {
+                ClapTries.Next.DONE -> return b.report() to "beat, ${b.lit.size} stars"
+                ClapTries.Next.AGAIN -> attempt++
+                ClapTries.Next.LET_GO -> return Report(emptyList(), 0, 0, null, groups = 0, extraScore = 0) to "beat, ${attempt + 1} silent tries, let go"
+            }
+        }
+    }
+
+    /** 2.3, the jam: the silent kid's quiet stretches end it early; white keys draw no stars but keep it going to the band's end. */
+    private fun jam(game: StageGame.Jam, ex: Exercise, kid: Kid, w: Walk): Pair<Report?, String> {
+        val j = StarJam(game.bars, ex.bpm)
+        j.start()
+        var ms = 0.0
+        var lastKey = 0.0
+        while (true) {
+            ms += 20
+            if (kid == Kid.WRONG && ms - lastKey >= 1_500) { lastKey = ms; j.heard(64, ms) }
+            when (j.tick(ms)) {
+                StarJam.Tick.End, StarJam.Tick.LetGo -> break
+                else -> {}
+            }
+        }
+        w.ms += ms.toLong()
+        assertTrue(j.stars.isEmpty())
+        return j.report() to "jam, ${j.whites} white keys, ${j.tries} quiet tries"
     }
 
     /** "Pick your three": picking (the default three), then each one's start in wait mode, as the embedded player runs it. */

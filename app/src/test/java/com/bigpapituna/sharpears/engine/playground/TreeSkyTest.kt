@@ -21,7 +21,7 @@ import org.junit.Test
 /**
  * 2.3 part B: the treehouse (fingers that move) and the night sky (rhythm and listening), twelve lessons each, held to
  * the other pages' checks: reading steps of a few scenes, copy for small children, every exercise playable, two to four
- * minutes by the time model; the games where the plan puts them, each stage marked once, and the lines the kids hear.
+ * minutes by the time model; the games where the plan puts them, each stage's data kept once, and the lines the kids hear.
  */
 class TreeSkyTest {
     private val tree = TREEHOUSE.lessons
@@ -42,6 +42,8 @@ class TreeSkyTest {
         assertTrue(COURSE.contains(TREEHOUSE) && COURSE.contains(NIGHT_SKY))
         assertEquals(listOf(WORKSHOP_ID, TREEHOUSE_ID, NIGHT_SKY_ID, FAIR_ID), PLAYGROUND_LEVELS.map { it.id }.drop(3))
         assertTrue(all.all { isPlaygroundLesson(it.id) })
+        // So the plain player lets a key go after three tries and a Perform step goes on after three (PlayerScreen letGo, StepRetry).
+        assertTrue(all.all { StepRetry.isPlayground(it.id) && StepRetry.letGo(it.id, PLAYGROUND_TRIES) })
         val ids = COURSE.flatMap { it.lessons }.map { it.id }
         assertEquals("unique lesson ids", ids.size, ids.toSet().size)
         for (l in all) {
@@ -86,56 +88,58 @@ class TreeSkyTest {
 
     @Test fun everyExerciseParsesAndPlaysToTheEnd() = PlaygroundChecks.everyExerciseParsesAndPlaysToTheEnd(all)
 
-    @Test fun lessonsTakeTwoToFourMinutes() {
-        val secs = all.associate { it.id to TreeSkyTime.seconds(it).toInt() }
-        println(secs)
-        assertTrue("$secs", secs.values.all { it in 100..250 })
-    }
+    @Test fun lessonsTakeTwoToFourMinutes() { PlaygroundChecks.lessonsTakeTwoToFourMinutes(all) }
 
-    /** Each stage marked once, on a step that has an exercise; the texts that find them are unique in the whole course. */
-    @Test fun stagesAreMarkedOnceByUniqueText() {
+    /**
+     * Each stage's data is kept once, for a step that carries the data's game and has an exercise; the texts that find it
+     * are unique in the whole course; every step whose game needs data has it.
+     */
+    @Test fun stageDataIsKeptOnceByUniqueText() {
         val marked = StageGames.marked
         assertTrue(marked.size >= 30)
         val texts = COURSE.flatMap { it.lessons }.flatMap { it.steps }.map { it.text }
-        for ((text, _) in marked) {
+        for ((text, game) in marked) {
             assertEquals("\"$text\" is one step", 1, texts.count { it == text })
             val step = all.flatMap { it.steps }.first { it.text == text }
             assertNotNull(step.exercise)
-            assertTrue("a marked step plays: \"$text\"", step.kind == StepKind.PLAY || step.kind == StepKind.PERFORM)
+            assertEquals("\"$text\"", game.game, step.game)
+            assertTrue("a game step plays: \"$text\"", step.kind == StepKind.PLAY || step.kind == StepKind.PERFORM)
         }
-        // A kid's bite of a marked step is still found (LessonScreen hands the stage the bite).
+        val needsData = setOf(Game.COPY, Game.TAP, Game.BEAT, Game.HIGHER_LOWER, Game.LOUD_QUIET, Game.TEMPO, Game.JAM)
+        for (l in COURSE.flatMap { it.lessons }) for (s in l.steps) if (s.game in needsData) {
+            assertTrue("${l.id}: only the treehouse and the night sky", l in all)
+            assertEquals("${l.id} \"${s.text}\"", s.game, StageGames.of(s)?.game)
+        }
+        // A kid's bite of a step is still found (LessonScreen hands the stage the bite).
         for (l in all) for (s in l.steps) StageGames.of(s)?.let { assertEquals(it, StageGames.of(Bites.kidStep(s))) }
-        // Steps of other pages and reading steps are never marked.
+        // Steps of other pages and reading steps have none.
         assertNull(StageGames.of(PLAYGROUND.lessons[0].steps[1]))
         assertNull(StageGames.of(Step(StepKind.READ, marked.keys.first())))
     }
 
     @Test fun gamesSitWhereThePlanPutsThem() {
-        fun games(lessons: List<CourseLesson>, n: Int) = lessons[n - 1].steps.mapNotNull { StageGames.of(it)?.let { g -> g::class.simpleName } }
-        for (n in listOf(1, 2, 3, 4, 5, 6, 7, 8)) assertEquals("treehouse-$n", listOf("Copy"), games(tree, n))
-        assertEquals(listOf("Copy", "Copy"), games(tree, 9))
-        assertEquals(listOf("Copy", "Copy"), games(tree, 10))
-        assertEquals(listOf("Tap", "Tap"), games(tree, 11))
-        assertEquals(listOf("Concert", "Concert"), games(tree, 12))
-        assertEquals(listOf("NightClap", "Beat", "Beat", "Beat"), games(sky, 1))
-        assertEquals(listOf("NightClap"), games(sky, 2))
-        assertEquals(listOf("NightClap", "NightClap"), games(sky, 3))
-        assertEquals(listOf("Beat", "Beat", "Beat"), games(sky, 4))
-        assertEquals(listOf("Tap", "HigherLower"), games(sky, 5))
-        assertEquals(listOf("Tap", "Copy"), games(sky, 6))
-        assertEquals(listOf("Tap", "LoudQuiet"), games(sky, 7))
-        assertEquals(listOf("Tap", "Tempo"), games(sky, 8))
-        assertEquals(listOf("Tap"), games(sky, 9))
-        assertEquals(listOf("Tap", "SkyChord"), games(sky, 10))
-        assertEquals(listOf("Jam", "Jam"), games(sky, 11))
-        assertEquals(listOf("Concert", "Concert"), games(sky, 12))
-        // Clapping steps keep Game.CLAP (the pup claps above them, and a screen without the night sky runs ClapStage).
-        for (l in sky) for (s in l.steps) if (StageGames.of(s) == StageGame.NightClap) assertEquals(Game.CLAP, s.game)
-        // Every other marked step is new to the Game registry.
-        for (l in all) for (s in l.steps) if (StageGames.of(s).let { it != null && it != StageGame.NightClap }) assertNull(s.game)
-        // The treehouse's tap games ask about fingers, the night sky's about what they hear; each sits in its own place.
-        for (l in tree) for (s in l.steps) StageGames.of(s)?.let { assertEquals(Backdrop.TREEHOUSE, it.backdrop) }
-        for (l in sky) for (s in l.steps) StageGames.of(s)?.let { assertEquals(Backdrop.NIGHT, it.backdrop) }
+        fun games(lessons: List<CourseLesson>, n: Int) = lessons[n - 1].steps.mapNotNull { it.game }
+        for (n in listOf(1, 2, 3, 4, 5, 6, 7, 8)) assertEquals("treehouse-$n", listOf(Game.COPY), games(tree, n))
+        assertEquals(listOf(Game.COPY, Game.COPY), games(tree, 9))
+        assertEquals(listOf(Game.COPY, Game.COPY), games(tree, 10))
+        assertEquals(listOf(Game.TAP, Game.TAP), games(tree, 11))
+        assertEquals(listOf(Game.CONCERT, Game.CONCERT), games(tree, 12))
+        assertEquals(listOf(Game.CLAP, Game.BEAT, Game.BEAT, Game.BEAT), games(sky, 1))
+        assertEquals(listOf(Game.CLAP), games(sky, 2))
+        assertEquals(listOf(Game.CLAP, Game.CLAP), games(sky, 3))
+        assertEquals(listOf(Game.BEAT, Game.BEAT, Game.BEAT), games(sky, 4))
+        assertEquals(listOf(Game.TAP, Game.HIGHER_LOWER), games(sky, 5))
+        assertEquals(listOf(Game.TAP, Game.COPY), games(sky, 6))
+        assertEquals(listOf(Game.TAP, Game.LOUD_QUIET), games(sky, 7))
+        assertEquals(listOf(Game.TAP, Game.TEMPO), games(sky, 8))
+        assertEquals(listOf(Game.TAP), games(sky, 9))
+        assertEquals(listOf(Game.TAP, Game.SKY_CHORD), games(sky, 10))
+        assertEquals(listOf(Game.JAM, Game.JAM), games(sky, 11))
+        assertEquals(listOf(Game.CONCERT, Game.CONCERT), games(sky, 12))
+        // A game step still runs in the plain player when the screen does not know it.
+        for (l in all) l.steps.filter { it.game != null }.forEach { assertTrue(l.id, it.kind == StepKind.PLAY || it.kind == StepKind.PERFORM) }
+        // The treehouse's tap games ask about fingers, the night sky's about what they hear; each stage sits in its page's place.
+        for (l in all) for (s in l.steps) StageGames.of(s)?.let { assertEquals("${l.id} \"${s.text}\"", pageOf(l.id)!!.place, it.place) }
     }
 
     @Test fun theTapGamesAskWhatTheyPlay() {
@@ -177,7 +181,7 @@ class TreeSkyTest {
     }
 
     @Test fun theConcertsPlayWithTheBandAtTwoStars() {
-        val concerts = all.flatMap { l -> l.steps.filter { StageGames.of(it) is StageGame.Concert }.map { l.id to it } }
+        val concerts = all.flatMap { l -> l.steps.filter { it.game == Game.CONCERT }.map { l.id to it } }
         assertEquals(listOf("treehouse-12", "treehouse-12", "night-12", "night-12"), concerts.map { it.first })
         for ((id, s) in concerts) {
             val ex = s.exercise!!
@@ -186,6 +190,15 @@ class TreeSkyTest {
             assertNull(ex.phraseEnd)
             assertTrue("$id at a kid's tempo", ex.bpm <= 80.0)
         }
+        // concertPlan plays each step's own song, in its place, no picking (the stage shows that song's title).
+        assertEquals(TREEHOUSE_CONCERT + NIGHT_CONCERT, concerts.map { (id, s) -> concertPlan(id, s).songs.single() })
+        assertEquals(concerts.map { it.second.exercise }, concerts.map { (id, s) -> concertPlan(id, s).songs.single().exercise })
+        assertEquals(listOf(Place.TREEHOUSE, Place.TREEHOUSE, Place.NIGHT_SKY, Place.NIGHT_SKY), concerts.map { (id, s) -> concertPlan(id, s).place })
+        assertTrue(concerts.none { (id, s) -> concertPlan(id, s).pick })
+        assertEquals(listOf("Hot Cross Buns", "Twinkle, Twinkle, Little Star", "Twinkle, Twinkle, Little Star", "Twinkle all the way"),
+            concerts.map { (id, s) -> concertPlan(id, s).songs.single().title })
+        // A kid's bite of a concert step is the same song.
+        for ((id, s) in concerts) assertEquals(concertPlan(id, s), concertPlan(id, Bites.kidStep(s)))
         // Hot Cross Buns with both hands; Twinkle's tune by the band while the left hand plays the low notes.
         assertEquals(Practice.BOTH, BUNS_BOTH.practice)
         val buns = BUNS_BOTH.toSong("b", "b")
@@ -216,7 +229,7 @@ class TreeSkyTest {
         assertTrue(jam.groups.all { g -> g.anyOf && g.notes.all { isBlack(it.midi) } })
     }
 
-    /** The octave hint stays off where any key of a kind will do: these lessons' any-of groups (INTEGRATION-B.md lists them). */
+    /** The octave hint stays off where any key of a kind will do: these lessons' any-of groups (ANY_OF_LESSONS). */
     @Test fun anyOfLessonsAreListed() {
         val anyOf = all.filter { l -> l.steps.any { s -> s.exercise?.let { '|' in it.right || '|' in it.left } == true } }.map { it.id }
         assertEquals(listOf("night-5", "night-11"), anyOf)

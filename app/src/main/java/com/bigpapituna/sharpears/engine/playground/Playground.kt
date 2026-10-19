@@ -56,7 +56,8 @@ enum class Game {
     SOFT_LOUD,
     /**
      * Play a song for everyone, in time; passes at [CONCERT_PASS]. The lesson's [concertPlan] says which: pick one of
-     * three (the garden's [CONCERT_SONGS], the pond's), or the next of the kid's recital songs (the concert hall).
+     * three (the garden's [CONCERT_SONGS], the pond's), the next of the kid's recital songs (the concert hall), or the
+     * page's own song for the step (2.3: the workshop's Mary, the treehouse's and the night sky's two each).
      */
     CONCERT,
     /**
@@ -97,12 +98,35 @@ enum class Game {
     STRONGMAN,
     /** 2.3, the fair: pick a song from the shelf, play its start three times (three photos), hear it back, send the photo card. */
     PHOTO,
+    /**
+     * 2.3, the treehouse (and once under the stars): copy the pup a phrase at a time. In the treehouse the painted hand
+     * plays each note with its finger and the pup calls the fingers; by ear, after the first round only the sound is
+     * left ([StageGame.Copy]); under the stars the stars sing the tune.
+     */
+    COPY,
+    /**
+     * 2.3: the app plays, the kid taps the answer ([StageGame.Tap], [TapQuiz]): which finger the painted hand pressed (then
+     * the key), up or down, same or different, which was louder, fast or slow, long or short, happy or sad. The exercise
+     * is the sounds it plays, for a screen that does not know the game.
+     */
+    TAP,
+    /** 2.3, the night sky: middle C on every beat of the pup's drum or the metronome, a star a beat ([StageGame.Beat], [BeatStars]). */
+    BEAT,
+    /** 2.3, the night sky: a note higher or lower than the pup's ([StageGame.HigherLower], [HigherLowerJudge]); any key that way counts. */
+    HIGHER_LOWER,
+    /** 2.3, the night sky: middle C your usual way, then loud and quiet, each note graded ([StageGame.LoudQuiet], [TuneLoudness]). */
+    LOUD_QUIET,
+    /** 2.3, the night sky: C to G your usual way, then fast and slow ([StageGame.Tempo], [TempoTune]): the rabbit and the turtle. */
+    TEMPO,
+    /** 2.3, the night sky: the happy chord, C E G together, three times ([ChordJudge]); the rain cloud turns into the sun. */
+    SKY_CHORD,
+    /** 2.3, the night sky: any black keys with the band ([StageGame.Jam], [StarJam]), every note a star; a toy, it never fails. */
+    JAM,
 }
 
 /**
  * Where a lesson sits in the pup's world (the map and the album pages). 2.3 adds four places, each with its scene, trail,
- * stickers and album page (ui/world/Scenes.kt, engine/world): the workshop and the fair (part A's pages), the treehouse
- * and the night sky (part B's).
+ * stickers and album page (ui/world/Scenes.kt, engine/world): the workshop, the treehouse, the night sky and the fair.
  */
 enum class Place(val title: String) {
     GARDEN("The garden"), POND("The pond"), CONCERT_HALL("The concert hall"),

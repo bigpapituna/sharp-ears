@@ -79,9 +79,10 @@ private val Curtain = Color(0xFF8E2F2A)
 private val CurtainDeep = Color(0xFF5C1C19)
 
 /**
- * The concerts: the garden's lesson 12, "Pup's concert", the pond's lesson 12 and the concert hall's recital (2.2, the
- * lesson's [concertPlan]). At the garden and the pond the child picks one of three songs; the recital plays the songs
- * the kid picked in "Pick your three", one per step. The curtains open, the pup plays the song's start first ("Let me
+ * The concerts: the garden's lesson 12, "Pup's concert", the pond's lesson 12, the concert hall's recital (2.2) and the
+ * workshop's (2.3), as the lesson's [concertPlan] says; the treehouse's and the night sky's are drawn by
+ * [TreeSkyConcertStage]. At the garden and the pond the child picks one of three songs; the recital plays the songs the
+ * kid picked in "Pick your three", one per step. The curtains open, the pup plays the song's start first ("Let me
  * show you", the embedded player in Listen mode, 2.1.1: every round shows itself), and then they play it in time
  * (Perform, right hand, the band on the left), the pond's frogs and ducks or the animals the kid collected watching. A run
  * at the pass mark brings fireworks, the pup dancing and the audience cheering before the lesson moves on; one under it
@@ -94,6 +95,11 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
     val profileId = com.bigpapituna.sharpears.ui.family.LocalProfile.current.id
     val plan = remember(step, lessonId, profileId) {
         concertPlan(lessonId, step, com.bigpapituna.sharpears.data.RecitalStore(context, profileId).load())
+    }
+    // 2.3: the treehouse's and the night sky's concerts play their step's song as written, in their own place.
+    if (plan.place == Place.TREEHOUSE || plan.place == Place.NIGHT_SKY) {
+        TreeSkyConcertStage(plan.songs.single(), plan.place, step, lessonId, deps, inject, onEnded, modifier)
+        return
     }
     var chosen by remember { mutableStateOf<ConcertSong?>(if (plan.pick) null else plan.songs.first()) }
     var shown by remember { mutableStateOf(false) }                // the pup has played the song's start

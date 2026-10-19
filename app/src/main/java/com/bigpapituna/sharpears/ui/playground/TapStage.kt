@@ -280,7 +280,7 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
-        PlaceBackdrop(game.backdrop, Modifier.fillMaxSize(), floorFrom = 0.5f)
+        PlaceBackdrop(game.place, Modifier.fillMaxSize(), floorFrom = 0.5f)
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(game.rounds.size, quiz.finished, letGo = quiz.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
