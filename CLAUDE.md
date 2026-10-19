@@ -368,6 +368,78 @@ class of error now has a JVM test that fails if it comes back:
   backup also clears the owner's 2.1+ world, play, skin and kid files; the theory explainers and the tuner's A sound
   with App sound off by design.
 
+## 2.3 part A: the workshop and the fair (2026-10-18, branch `k40a`, emulator-5558 Fold only; version not bumped)
+Roy asked for forty more kid lessons: which finger plays, how to sit and hold the hands, basic ways to use the piano,
+and games. Part A is the workshop's twelve (sitting, hand shape, finger numbers, hand positions, wrist, arm weight,
+touch, pedal) and the fair's four games, plus the place work for all four new places (workshop, treehouse, night sky,
+fair). Part B (branch `k40b`) writes the treehouse's and the night sky's lessons. Merge notes:
+ui/playground/INTEGRATION.md, "2.3".
+- Path: garden, pond, hall, workshop, [treehouse, night sky from part B], fair, then Basics. engine/playground/Pages.kt
+  `PAGES` (part B adds two lines there). Workshop: `WORKSHOP_ID` "playground-workshop", `workshop-1..12`, Workshop.kt.
+  Fair: `FAIR_ID` "playground-fair", `fair-1..4`, Fair.kt. Readers walk both whole (BIG_KID_LESSONS names only the
+  garden); grown-ups see them as Extra units. COURSE is now the pages' levels then Basics (`PLAYGROUND_LEVELS + ...`).
+- The lessons (time model 104 to 159 s each):
+  - workshop-1 Sit like a pianist: posture scenes (tall, room to move, feet flat), `PICK` the right sitter from a
+    sloucher, a too-close one and tucked feet, then one long middle C and three Cs.
+  - workshop-2 The bubble hand: hang, hold a bubble, curl, tips; `HAND` with the painted hand and a bubble under it on
+    C, then D and E; C D E D C.
+  - workshop-3 Finger numbers: both hands numbered; `HAND` twice, the pup calls a finger ("Finger three!"), the kid
+    plays the key under it (the mic hears the key; the finger is the kid's).
+  - workshop-4 Right hand home: thumb on middle C to G with numbers; `HAND` home keys, listen, play, from memory.
+  - workshop-5 Left hand home: little finger on C3 up to the thumb on G3; the same in the left hand.
+  - workshop-6 Thumbs meet: the middle C position (both thumbs on C4, left F3 to C4, right C4 to G4), hands taking
+    turns out from the middle; listen, play, memory.
+  - workshop-7 Wrist like a bridge: arm scenes (level, sagging, poking up, the bridge dashed over the arm); `PICK`
+    the level wrist; a slow walk up to G and back.
+  - workshop-8 Heavy arm, soft arm: arm scenes (heavy, soft), `SOFT_LOUD` with six rounds (loud, soft, three times;
+    `SoftLoud.roundsFor`), then C E G with a heavy arm.
+  - workshop-9 Short and long: touch scenes; `PICK` by ear (the pup plays C short or long); a bouncing tune and a
+    smooth one, Perform.
+  - workshop-10 The pedal: the foot and the ringing chord; `PICK` by ear (pedal down or not); `PEDAL`: the kid plays
+    C E G and the pup plays it back with the pedal down. The pedal itself is never graded (the app cannot tell).
+  - workshop-11 Two hands take turns: left C D E, right answers C D E; listen, play, memory.
+  - workshop-12 The workshop concert: Mary with book fingers (3 2 1 2 3 3 3, 2 2 2, 3 5 5) at 80, the bite, the
+    phrase, then `CONCERT` with the band (concertPlan WORKSHOP, Mary only).
+  - fair-1 Balloon pop: `BALLOONS` twice, a balloon called by colour (pre-readers) or letter (readers), its key pops it.
+  - fair-2 The carousel: `CAROUSEL`, C to G and back three times; every smooth run spins it faster (carouselSpeed).
+  - fair-3 The strongman: `STRONGMAN` twice, three swings of middle C; any key counts, the louder the higher the puck
+    (StrongmanJudge, against the first swing), the bell at the top. Never a miss.
+  - fair-4 The photo booth: `PHOTO`, pick a song from the shelf, play its start three times (a photo each), the takes
+    play back, a photo card to share; a closing scene.
+- New games: `PICK` (engine/playground/Picks.kt, ui/playground/PickStage.kt; taps, no mic: sitting, wrists, short or
+  long, pedal; picture rounds take a tap while the question is still being asked, listening rounds after their sound),
+  `HAND` (HandStage.kt: the painted hand on the keys with numbers, bubble or home look; StageEar on its keys), `PEDAL`
+  (PedalStage.kt), `BALLOONS`, `CAROUSEL`, `STRONGMAN` (FairStages.kt), `PHOTO` (PhotoStage.kt). Every one uses
+  rememberStage / RoundCoach (shown first, a quiet stretch shows it again, three tries let it go).
+- Scenes: `ArmVisual` (engine/theory/Theory.kt `ArmMove`, LessonScenes `arm(...)`, ui/theory/SoftFigure `softArm`),
+  posture's CLOSE and FEET cues (softFigure `close`, `tucked`). FingersAgreeTest covers every exercise's book fingers
+  against the words.
+- The world: four new places (engine/world/Stickers.kt `Place.WORKSHOP, TREEHOUSE, NIGHT_SKY, FAIR`, the Playground's
+  `Place` likewise), forty stickers (six common, three rare, one shiny each; webps from scripts/gen_stickers.py
+  `--place`), four map scenes (ui/world/MorePlaces.kt: a workshop with a piano being built and a tape trail, a treehouse
+  with a log trail, a night sky with a glowing trail, a fair with carousel, strongman and a midway), their trail rows
+  (engine/world/Trail.kt; a short page is one row, its gate at its end: `WorldAnchors.gate(place, count)`), album
+  colours, finale lines for every page ("You finished the workshop!", "Next stop, the fair!"). The new stickers are not
+  audience animals (the hall's nine seats stay). A full album now takes about 114 drops (78 to 186 over 60 seeds).
+  Stage backdrops: Scenery.kt `placeBackdrop(place, t, floorFrom)` for every place; the echo game uses lanterns in the
+  treehouse and the night sky.
+- Voice: 221 new lines (2839 recorded, none deleted), rendered at 0.85 after the catalog was complete.
+- Tests: 828 JVM (797 before): WorkshopTest, FairTest, PickRoundsTest, and the pages-generic PagesTest, KidMapTest,
+  PlaygroundFlowTest (52 lessons, silent and wrong-keys kids), PlaygroundChecks, StageHearingTest and StageSoundsTest on
+  the new key sets, DropsTest, MapAnchorsTest, CourseScenesTest, FingersAgreeTest, KidCopyTest. Lint 0 errors (25
+  warnings, all older).
+- Emulator walk (5558 Fold; Mia pre-reader, Leo reader): the four scenes light and dark with every sticker, the
+  workshop and fair map pages with stones and gate, every lesson's scenes and stages, picks by tap (right and not it),
+  the hand stage hearing an injected key, the photo booth through by touch (three takes, playback, card), both finales
+  (workshop to "Next stop, the fair!", fair to the big kids' road), recorded voice playing. Screenshots:
+  app/build/screens/k40a-*.png (not committed).
+- Debug: `--es lesson workshop-4 --ei step 1`, `--es kidseed workshop:<n>|fair:<n>`, `--es screen finale --es page
+  workshop|fair`, `--es screen worlddemo` (every sticker of the seven places).
+- Not proven: everything on a real piano with a kid. Thresholds tuned on PianoSynth only: the strongman's height, the
+  carousel's smooth run, the balloons' timing. speakOverMic's deaf window can swallow a note played over the pup's call
+  (the coach waits for the line first). `HAND` cannot see fingers by design: it hears keys and trusts the picture. A kid
+  who had reached Basics before 2.3 is sent back to workshop-1 by CoursePath (the road opens again once every page is
+  walked); their Basics progress is kept.
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

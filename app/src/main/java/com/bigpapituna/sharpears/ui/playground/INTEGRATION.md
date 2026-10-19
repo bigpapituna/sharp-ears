@@ -228,3 +228,79 @@ was checked.
 5. Voice: this branch records 239 new lines (2577 in the catalog). After the merge, run SpokenCatalogTest and
    scripts/render_voice.py on the merged tree (it deletes recordings that are not in the list, so never on one branch).
 6. A kid who finished the garden before 2.2 should land on pond-1 through `CoursePath.next`, not on Basics.
+
+## 2.3: the workshop, the treehouse, the night sky and the fair (part A branch `k40a`, part B branch `k40b`)
+
+Part A (this branch) adds the workshop's twelve lessons and the fair's four, and every place's infrastructure for all
+four new pages; part B adds the treehouse's and the night sky's lessons. CLAUDE.md "2.3 part A" has the lessons.
+
+### Merging part B: two lines in engine/playground/Pages.kt
+
+```kotlin
+private val PAGES: List<Pair<PlaygroundPage, CourseLevel>> = listOf(
+    page("garden", PLAYGROUND, Place.GARDEN, "The garden"),
+    page("pond", POND, Place.POND, "The pond"),
+    page("hall", HALL, Place.CONCERT_HALL, "The concert hall"),
+    page("workshop", WORKSHOP, Place.WORKSHOP, "The workshop"),
+    page("treehouse", <part B's treehouse level>, Place.TREEHOUSE, "The treehouse"),   // part B
+    page("nightsky", <part B's night sky level>, Place.NIGHT_SKY, "The night sky"),    // part B
+    page("fair", FAIR, Place.FAIR, "The fair"),
+)
+```
+
+Replace the "2.3 part B goes here" comment with those two lines. Keep the page ids `treehouse` and `nightsky` and the
+titles as written: KidMapTest already expects those ids, and the finale lines ("You finished the treehouse!", "Next
+stop, the night sky!") are generated from the place titles and already recorded. Nothing else in part A names part B's
+lessons; PLAYGROUND_PAGES, PLAYGROUND_LEVELS, COURSE, CoursePath, the map, finales, drops and KidLines all follow
+`PAGES`.
+
+### What part A already does for the treehouse and the night sky
+
+- `Place.TREEHOUSE`, `Place.NIGHT_SKY` in the Playground's `Place` (engine/playground/Playground.kt) and in the world's
+  (engine/world/Stickers.kt, ids "treehouse" and "nightsky"), KidPages.worldPlace maps them.
+- Ten stickers each (webps in res/drawable, WorldStore's RES table, album colours, OneMore's short names), their map
+  scenes and trails (ui/world/MorePlaces.kt: drawTreehouse + log trail, drawNightSky + glowing trail), sticker anchors
+  kept off the twelve stops (MapAnchorsTest), trail rows (engine/world/Trail.kt; any page length works: fewer stops sit
+  on the first rows, more squeeze in extra rows).
+- Stage backdrops: Scenery.kt `placeBackdrop(place, t, floorFrom)` draws `treeDeck` and `nightHill`; ClapStage,
+  KeyHunt, EchoStage and ChordStage call it. EchoStage shows lanterns instead of frogs or spotlights there.
+- The audience: frogs and ducks only at the pond and the garden, the collected animals elsewhere.
+
+### Where the branches touch (all trivial: keep both sides)
+
+- `Game` enum (Playground.kt) and the registry `when` in PlaygroundStage.kt: part A adds `PICK, HAND, PEDAL, BALLOONS,
+  CAROUSEL, STRONGMAN, PHOTO`; part B adds its own. PlaygroundFlowTest's `when` over `Game` and PlaygroundChecks' time
+  model need both sides' games.
+- PlaygroundLines.CALL_OUTS: part A adds `WorkshopLines.ALL + FairLines.ALL`; add part B's.
+- If part B's `Place` lines differ from part A's (both may have added TREEHOUSE and NIGHT_SKY), take part A's: the
+  world, the scenes and the stickers use those exact names.
+- concertPlan (engine/playground/Concerts.kt): a page without its own branch falls to the garden's pick. If a
+  treehouse or night sky lesson uses `Game.CONCERT`, add its branch (see the WORKSHOP one: a fixed song, `pick =
+  false`).
+
+### After the merge
+
+1. Tests: PagesTest (path order; the fair stays last), KidMapTest (the map walk is page-generic), WorkshopTest
+   ("hall" before the workshop), FairTest (the last page), PlaygroundFlowTest (52 or more lessons), CourseTest (counts
+   from the pages), DropsTest (70 stickers; mean about 114 drops) should pass unchanged with part B's pages in.
+2. Voice: run SpokenCatalogTest, then scripts/render_voice.py on the merged tree only (it deletes recordings that are
+   not in the list, so never on one branch alone). Part A's 221 new lines are recorded (2839 in its catalog).
+3. On the emulator: the map has seven scenes; the workshop's finale says "Next stop, the treehouse!", the night sky's
+   "Next stop, the fair!", the fair's leads to the big kids' road.
+4. A kid already past the hall (or on Basics) is sent to workshop-1 by CoursePath; Basics progress is kept and the
+   road opens again once every page is walked (KidMap: the next lesson is off the pages).
+
+### Part A's games (registry in PlaygroundStage.kt)
+
+| Game | Stage | What it does |
+|---|---|---|
+| `PICK` | PickStage.kt (rules: engine/playground/Picks.kt) | tap the right picture: sitting, wrists, short or long, pedal; no mic |
+| `HAND` | HandStage.kt | the painted hand on the keys (home, bubble or numbers look); the pup calls keys or fingers |
+| `PEDAL` | PedalStage.kt | the kid plays C E G, the pup plays it back with the pedal down |
+| `BALLOONS` | FairStages.kt | balloons called by colour or letter; the key pops it |
+| `CAROUSEL` | FairStages.kt | C to G and back; each smooth run spins faster |
+| `STRONGMAN` | FairStages.kt | any key; the louder, the higher the puck (StrongmanJudge) |
+| `PHOTO` | PhotoStage.kt | pick a shelf song, play its start three times, a photo card to share |
+
+`SOFT_LOUD` takes its rounds from `SoftLoud.roundsFor(lessonId)` (workshop-8: loud, soft, three times).
+`rememberStage(..., gapMs)` sets the pause between rounds (the pedal's playback needs 6.2 s).

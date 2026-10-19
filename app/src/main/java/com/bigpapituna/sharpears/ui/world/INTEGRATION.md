@@ -178,8 +178,8 @@ You hero when nothing else applies (instead of WELCOME) and the Songs greeting's
   then a sticker of it. The floor counts every drop (lessons and songs): never more than three in a row without a
   rare or shiny. With the floor the long-run shares are about 60.5/32.9/6.6 (tested over 10k rolls).
 - Gaps are preferred 4 times in 5, so doubles turn up now and then; drops without a place fill the garden first, then
-  spill over. A whole album takes about 53 drops on average (31 to 123 over 60 seeds, DropsTest), the three shinies
-  being the long pole; with a sticker per lesson and per song that is a few weeks of daily play. Doubles show as "x3".
+  spill over. A whole album takes about 114 drops on average (78 to 186 over 60 seeds, DropsTest; 53 before 2.3 added
+  the workshop, the treehouse, the night sky and the fair, seventy stickers in seven places), the shinies being the long pole; with a sticker per lesson and per song that is a few weeks of daily play. Doubles show as "x3".
   If it fills too fast in practice: lower `Drops.PREFER_NEW` or add a second page (KIDS-PLAN 4).
 - An egg is laid on every third finished lesson (replays count) and hatches on the next one, one rarity up. Songs drop
   a sticker every time they are played to the end (no losers), never eggs.
