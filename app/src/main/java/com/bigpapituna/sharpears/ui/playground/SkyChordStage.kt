@@ -103,7 +103,8 @@ internal fun SkyChordStage(step: Step, lessonId: String, deps: LessonDeps, injec
     var tiltNow by remember { mutableStateOf(false) }
     LaunchedEffect(tiltSeq) { if (tiltSeq > 0) { tiltNow = true; delay(1300); tiltNow = false } }
     val demo = st.demoKeys
-    val finished = run.finished
+    // The round's phase is not snapshot state: its version is, so the line follows the round.
+    val finished = remember(run.version) { run.finished }
     val line = stageLine(st, when {
         finished -> TreeSkyLines.SUN_ALL
         demo.isNotEmpty() -> "Listen!"

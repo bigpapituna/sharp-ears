@@ -120,8 +120,9 @@ internal fun TempoStage(game: StageGame.Tempo, step: Step, lessonId: String, dep
     val target = game.rounds.getOrNull(round)
     LaunchedEffect(round) { steps = 0 }
     LaunchedEffect(steps) { if (steps > 0 && !still) { hop.snapTo(1f); hop.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 500f)) } }
-    // The demo walks the animal along too, a step a note.
+    // The demo walks the animal along too, a step a note; then it goes back to the start for you.
     LaunchedEffect(st.demoIndex) { st.demoIndex?.let { steps = it + 1 } }
+    LaunchedEffect(st.demoKeys) { if (st.demoKeys.isEmpty()) steps = run.rounds.doneInRound }
     val line = stageLine(st, when {
         run.finished -> TreeSkyLines.FAST_AND_SLOW
         st.demoKeys.isNotEmpty() -> "Listen!"

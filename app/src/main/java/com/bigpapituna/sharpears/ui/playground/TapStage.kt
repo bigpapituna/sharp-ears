@@ -207,7 +207,8 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
                 is TapQuiz.Cue.LetGo -> {
                     reveal = cue.answer; revealNumber = true; hand = hand?.copy(number = true)
                     say(PlaygroundLines.LET_GO)
-                    scope.launch { delay(1_400); show(TreeSkyLines.answer(cue.answer)) }
+                    // The pup tells the answer too (for a finger it shows: "Now you play it" follows at once).
+                    if (finger) scope.launch { delay(1_400); show(TreeSkyLines.answer(cue.answer)) } else say(TreeSkyLines.answer(cue.answer))
                 }
                 is TapQuiz.Cue.Play -> {
                     playKey = cue.key

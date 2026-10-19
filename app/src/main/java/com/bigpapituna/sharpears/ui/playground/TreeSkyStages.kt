@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -217,8 +218,8 @@ internal fun HandOverKeys(low: Int, high: Int, show: HandShow?, modifier: Modifi
     val press = remember { Animatable(0f) }
     var target by remember { mutableStateOf<HandShow?>(null) }
     val shown = remember { Animatable(0f) }
-    var boxW by remember { mutableStateOf(0f) }
-    var boxH by remember { mutableStateOf(0f) }
+    var boxW by remember { mutableFloatStateOf(0f) }
+    var boxH by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(show) { if (show != null) target = show }
     LaunchedEffect(show == null, still) { val want = if (show == null) 0f else 1f; if (still) shown.snapTo(want) else shown.animateTo(want, tween(300)) }
     LaunchedEffect(show?.pressed, show?.key, still) {
