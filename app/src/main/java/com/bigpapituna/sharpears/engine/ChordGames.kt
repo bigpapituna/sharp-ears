@@ -86,6 +86,7 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
     val found = mutableSetOf<Int>()
     var wrongs = 0; private set
     var roundOver = false; private set
+    override var skipped = 0; private set
     override val finished get() = round >= rounds
     /** Hear it: after two wrong notes the answer is lit on the keyboard. */
     val notesShown get() = kind == GameKind.HEAR && wrongs >= 2
@@ -196,7 +197,7 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
     }
 
     /** Gives up on this round (no point) and moves on. */
-    override fun skip() { if (!roundOver) { roundOver = true; streak = 0 }; next() }
+    override fun skip() { if (!roundOver) { roundOver = true; streak = 0; skipped++ }; next() }
 
     /** Moves to the next round after one ended. */
     override fun next() {

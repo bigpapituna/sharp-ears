@@ -203,6 +203,8 @@ private fun GameScreen(
     }
     LaunchedEffect(finished) {
         if (!finished) return@LaunchedEffect
+        // Every round skipped: nothing was played. It paid 40 XP, a "Good effort!" and a best of 0; now back to the games.
+        if (game.allSkipped) { Log.d(TAG, "games: ${kind.id} level $level every round skipped, nothing earned"); onExit(); return@LaunchedEffect }
         newBest = prefs.saveGameBest(kind.id, level, game.score)
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.GameComplete(kind.id, level, game.score, game.rounds))
         Log.d(TAG, "games: ${kind.id} level $level finished score=${game.score} bestStreak=${game.bestStreak} newBest=$newBest")
@@ -272,6 +274,7 @@ private fun GameScreen(
     }
 
     if (finished) {
+        if (game.allSkipped) return
         Celebration(
             when { newBest -> "New best!"; game.score * 2 >= game.rounds -> "Nice playing!"; else -> "Good effort!" },
             "${kind.title}, ${kind.levels[level].lowerFirst()}.",

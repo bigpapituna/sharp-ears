@@ -80,11 +80,14 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtStart = remember { progress?.xp ?: 0 }
     var reported by remember { mutableStateOf(false) }
+    // A workout whose every round was skipped played nothing: no streak day, no XP, no celebration.
+    var anyPlayed by remember { mutableStateOf(false) }
 
     when {
         index >= plan.items.size -> {
             val total = WorkoutResult(results.toList())
             LaunchedEffect(Unit) {
+                if (!anyPlayed) { android.util.Log.d(com.bigpapituna.sharpears.TAG, "ear: workout with every round skipped, nothing earned"); onExit(); return@LaunchedEffect }
                 seconds = ((SystemClock.elapsedRealtime() - started) / 1000).toInt()
                 store.recordWorkout(total.score, total.rounds)
                 env.report(EarEvent.Workout(results.size, total.score, total.rounds, total.bestStreak, seconds))
@@ -111,7 +114,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
             val trainer = remember(index) { newTrainer(item.kind, item.level, rounds = item.rounds) }
             TrainerHost(trainer, env, "Game ${index + 1} of ${plan.items.size}", onExit) {
                 results += WorkoutGame(item.kind, item.level, trainer.score, trainer.rounds, trainer.bestStreak)
-                store.played(item.kind)
+                if (!trainer.allSkipped) { anyPlayed = true; store.played(item.kind) }
                 index++; upNext = true
             }
         }

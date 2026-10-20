@@ -119,6 +119,8 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
     val done = newBest
     if (done == null) {
         TrainerHost(trainer, env, null, onExit) {
+            // Every round skipped: nothing was played (it paid 40 XP and practice time); back to the hub, nothing saved.
+            if (trainer.allSkipped) { android.util.Log.d(com.bigpapituna.sharpears.TAG, "ear: ${kind.id} every round skipped, nothing earned"); onExit(); return@TrainerHost }
             val best = store.saveBest(kind, level, trainer.score)
             store.played(kind)
             env.report(EarEvent.GameComplete(kind, level, trainer.score, trainer.rounds, trainer.bestStreak, best,
