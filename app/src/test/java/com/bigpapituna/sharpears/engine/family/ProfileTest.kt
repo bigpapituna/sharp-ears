@@ -46,6 +46,14 @@ class ProfileTest {
         assertEquals(0, Profile.kid("Mia", -3, true).avatar)
     }
 
+    /** Audit: a name cut at 20 UTF-16 units could keep half an emoji, a broken glyph that the backup wrote as "?". */
+    @Test fun aLongNameIsNeverCutInsideAnEmoji() {
+        val name = Profile.cleanName("a".repeat(19) + "🎹 Mia")
+        assertEquals("a".repeat(19), name)
+        assertEquals("Zoë 🎹", Profile.cleanName("Zoë 🎹"))
+        assertEquals(name, Profile.decode(Profile.kid(name, 0, true, id = "p1").encode())!!.name)
+    }
+
     @Test fun grownUpModeTakesTheAdultDefaultsAndKeepsWhoTheyAre() {
         val kid = Profile.kid("Mia", 5, reader = false, id = "p2", createdAt = 99)
         val grown = kid.withKind(ProfileKind.ADULT)

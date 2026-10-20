@@ -89,8 +89,9 @@ data class Profile(
             ProfileKind.ADULT -> Profile("", "", 0, kind, true, ADULT_GOAL, ADULT_HINTS, colourNotes = false, micOffsetDb = 0.0, createdAt = 0L)
         }
 
-        /** Trimmed, inner runs of spaces made one, at most [MAX_NAME] characters. */
-        fun cleanName(name: String): String = name.trim().replace(Regex("\\s+"), " ").take(MAX_NAME).trim()
+        /** Trimmed, inner runs of spaces made one, at most [MAX_NAME] characters (never half an emoji). */
+        fun cleanName(name: String): String = name.trim().replace(Regex("\\s+"), " ").take(MAX_NAME)
+            .let { if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it }.trim()
 
         /** What an id may look like: it ends up in file names ("progress.p3"). */
         private val ID = Regex("[A-Za-z0-9_-]{1,32}")
