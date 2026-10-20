@@ -110,4 +110,34 @@ class MatcherInvariantsTest {
             assertEquals(noteName(midi), listOf(midi), ev.filterIsInstance<MicEvent.Strike>().map { it.midi })
         }
     }
+    /** Strict keys (the stages) and the player's matcher agree on a key struck alone: both hear it, once, and nothing else. */
+    @Test fun strictAndPlainHearALoneKeyAlike() {
+        for (midi in 33..96) {
+            val audio = PianoSynth.render(listOf(SynthNote(midi, 500.0)), 2000.0)
+            for (strict in listOf(false, true)) {
+                val m = NoteMatcher(fs).apply { strictKeys = strict; expected = setOf(midi); groups = listOf(setOf(midi)) }
+                val strikes = mutableListOf<Int>()
+                var i = 0
+                while (i < audio.size) { val n = minOf(480, audio.size - i); m.process(audio.copyOfRange(i, i + n)).filterIsInstance<MicEvent.Strike>().forEach { strikes += it.midi }; i += n }
+                assertEquals("${noteName(midi)} strict=$strict", listOf(midi), strikes)
+            }
+        }
+    }
+
+    /**
+     * A person's mic offset (Profile.micOffsetDb, +3 for kids) only ever makes the floors easier by that much, and never
+     * takes the room margin under its 7.5 dB, whatever a profile file says.
+     */
+    @Test fun aMicOffsetStaysInsideItsBounds() {
+        val base = MatcherConfig()
+        var last = base
+        for (db in listOf(-20.0, -3.0, 0.0, 1.5, 3.0, 6.0, 20.0, 1e9)) {
+            val c = base.easierBy(db)
+            assertEquals("$db", base.sensitivityDb - db, c.sensitivityDb, 1e-9)
+            assertTrue("$db: margin ${c.roomMarginDb}", c.roomMarginDb >= MatcherConfig.MIN_ROOM_MARGIN_DB)
+            if (db > 0) assertTrue("$db", c.roomMarginDb <= last.roomMarginDb)
+            assertEquals(base.copy(sensitivityDb = c.sensitivityDb, roomMarginDb = c.roomMarginDb), c)    // the relative checks stay
+            last = c
+        }
+    }
 }
