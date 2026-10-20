@@ -391,7 +391,7 @@ fun LessonScreen(
             reward = dropSlot, oneMore = oneMore,
         ) else Celebration(
             "Lesson complete!", lesson.summary,
-            listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(tookSecs / 60, tookSecs % 60), "Time"),
+            listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(java.util.Locale.ROOT, tookSecs / 60, tookSecs % 60), "Time"),
                 Stat("$retries", if (retries == 1) "Retry" else "Retries")),
             primary = if (oneMore != null) "All lessons" else if (onNext != null) "Next lesson" else "Done",
             onPrimary = { voice.stop(); if (oneMore != null) onBack() else (onNext ?: onBack)() },

@@ -63,7 +63,7 @@ internal fun TrainerHost(trainer: EarTrainer, env: EarEnv, label: String?, onExi
     if (trainer is RhythmTapGame) RhythmPlay(trainer, env, label, onExit, onFinished) else KeysPlay(trainer, env, label, onExit, onFinished)
 }
 
-private fun clock(seconds: Int) = "${seconds / 60}:${"%02d".format(seconds % 60)}"
+private fun clock(seconds: Int) = "${seconds / 60}:${"%02d".format(java.util.Locale.ROOT, seconds % 60)}"
 
 /**
  * The daily workout: the games of [plan] back to back, each started from a short "next up" screen, and one

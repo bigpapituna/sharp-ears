@@ -21,7 +21,7 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
 
     /** Something the mic decided during the wait ("C3 rise -24.8 dB", "wrong note"). */
     fun heard(nowMs: Long, what: String) {
-        if (active && heard.size < 100) heard += "+%.2f s  %s".format((nowMs - startMs) / 1000.0, what)
+        if (active && heard.size < 100) heard += "+%.2f s  %s".format(java.util.Locale.ROOT, (nowMs - startMs) / 1000.0, what)
     }
 
     /** How long the current wait has lasted at [nowMs] (0 when not waiting). */

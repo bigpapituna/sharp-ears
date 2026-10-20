@@ -414,7 +414,7 @@ class MicInput(private val context: Context) {
             val dir = stallDir().apply { mkdirs() }
             val wav = File(dir, "$name.wav")
             Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-            File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
+            File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format(java.util.Locale.ROOT, (fromMark - from) / RATE.toDouble()))
             // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
             val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
             while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()

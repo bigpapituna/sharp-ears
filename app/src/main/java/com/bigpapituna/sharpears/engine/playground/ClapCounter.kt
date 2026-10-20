@@ -145,12 +145,12 @@ class ClapCounter(val sampleRate: Int = 48_000, val config: ClapConfig = ClapCon
         val tail = p.peakDb - meanDb(c.tailFromMs, c.tailToMs)
         val voiced = p.peakDb - meanDb(c.tailFromMs, c.tailToMs, voiceBandDb)
         val reason = when {
-            early < c.earlyDecayDb -> "lasts too long (down ${"%.0f".format(early)} dB after 15 to 35 ms)"
-            tail < c.decayDb -> "still sounding (down ${"%.0f".format(tail)} dB after 50 to 90 ms)"
-            voiced < c.voiceDb -> "a voice follows (${"%.0f".format(voiced)} dB under the burst)"
-            else -> periodicity(p.onsetFrame * frameLen).let { r -> if (r > c.maxPeriodicity) "has a pitch (${"%.2f".format(r)})" else null }
+            early < c.earlyDecayDb -> "lasts too long (down ${"%.0f".format(java.util.Locale.ROOT, early)} dB after 15 to 35 ms)"
+            tail < c.decayDb -> "still sounding (down ${"%.0f".format(java.util.Locale.ROOT, tail)} dB after 50 to 90 ms)"
+            voiced < c.voiceDb -> "a voice follows (${"%.0f".format(java.util.Locale.ROOT, voiced)} dB under the burst)"
+            else -> periodicity(p.onsetFrame * frameLen).let { r -> if (r > c.maxPeriodicity) "has a pitch (${"%.2f".format(java.util.Locale.ROOT, r)})" else null }
         }
-        if (reason != null) { trace?.invoke("not a clap at ${p.onsetFrame * c.frameMs.toInt()} ms, ${"%.0f".format(p.peakDb)} dB: $reason"); return false }
+        if (reason != null) { trace?.invoke("not a clap at ${p.onsetFrame * c.frameMs.toInt()} ms, ${"%.0f".format(java.util.Locale.ROOT, p.peakDb)} dB: $reason"); return false }
         lastClapFrame = p.onsetFrame
         total++
         listener?.invoke(Clap(p.onsetFrame * frameLen, p.peakDb))

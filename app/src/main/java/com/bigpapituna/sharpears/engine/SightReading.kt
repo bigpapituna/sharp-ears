@@ -62,7 +62,7 @@ private fun fmt(b: Double) = if (b == b.toInt().toDouble()) "${b.toInt()}" else 
 data class SightScore(val seconds: Int, val wrong: Int) {
     val points get() = seconds + 2 * wrong
     fun encode() = "$seconds,$wrong"
-    val label get() = "%d:%02d".format(seconds / 60, seconds % 60) + if (wrong == 0) ", no wrong notes" else ", $wrong wrong"
+    val label get() = "%d:%02d".format(java.util.Locale.ROOT, seconds / 60, seconds % 60) + if (wrong == 0) ", no wrong notes" else ", $wrong wrong"
 
     companion object {
         fun of(realMs: Double, wrong: Int) = SightScore((realMs / 1000).roundToInt(), wrong)

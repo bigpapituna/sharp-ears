@@ -541,10 +541,10 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
         if (reason == null) {
             tr?.invoke((if (wrongScan) "wrong key " else "accept ") + "${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: fresh ${db(noteFresh)} rise ${db(riseOf(f.note))} " +
                 "up ${db(riseOf(f.up))} down ${db(riseOf(f.down))} sub ${db(riseOf(f.sub))} odd ${db(fresh(f.odd))} " +
-                "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(it) }} partials $freshPartials/${f.note.size} " +
+                "sharp ${sharpness(f, nowP, beforeP, cfg)?.let { "%.1f".format(java.util.Locale.ROOT, it) }} partials $freshPartials/${f.note.size} " +
                 "attack ${(samplesProcessed - lastAttack) * 1000 / sampleRate}ms single=${freshPartials == 1} | " +
-                f.note.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
-                f.sub.joinToString { p -> "%.0fHz %s/%s".format(f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
+                f.note.joinToString { p -> "%.0fHz %s/%s".format(java.util.Locale.ROOT, f.all[p[p.size / 2]], db(nowV(p)), db(beforeV(p))) } + " | sub " +
+                f.sub.joinToString { p -> "%.0fHz %s/%s".format(java.util.Locale.ROOT, f.all[p[0]], db(nowV(p)), db(beforeV(p))) })
             return riseDb
         }
         if (wrongScan) return null
@@ -563,8 +563,8 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
                 Reject.NO_FUNDAMENTAL -> "a high note whose fundamental did not rise (a lower note's overtones?)"
                 Reject.NOT_SHARP -> "not a sharp peak (gliding sound: voice, whistle?)"
                 Reject.NO_LOW_PARTIALS -> "its two lowest partials barely rose (another key's overtones?)"
-                Reject.TOO_FAINT -> "too faint: lowest partial jumped ${"%.0f".format(firstJumpDb(f, nowP, beforeP))} dB, " +
-                    "${"%.0f".format(riseDb - roomFloorDb)} dB above the room"
+                Reject.TOO_FAINT -> "too faint: lowest partial jumped ${"%.0f".format(java.util.Locale.ROOT, firstJumpDb(f, nowP, beforeP))} dB, " +
+                    "${"%.0f".format(java.util.Locale.ROOT, riseDb - roomFloorDb)} dB above the room"
             }
             tr("reject ${noteName(midi)} at ${samplesProcessed * 1000 / sampleRate} ms: rise ${db(noteFresh)} dB, $why")
         }
@@ -602,7 +602,7 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             var fresh = 0.0
             for (i in r) fresh += now[i] - before[i]
             if (fresh >= STRICT_LOWER_RATIO * noteFresh) {
-                trace?.invoke("strict ${noteName(midi)}: a lower note at %.0f Hz rose %s against the note's %s".format(freqs[r.first], db(fresh), db(noteFresh)))
+                trace?.invoke("strict ${noteName(midi)}: a lower note at %.0f Hz rose %s against the note's %s".format(java.util.Locale.ROOT, freqs[r.first], db(fresh), db(noteFresh)))
                 return true
             }
         }
@@ -768,6 +768,6 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
     // ponytail: three fixed bands; per-note lengths only if the fixtures show a register that needs one
     fun windowFor(midi: Int): Int = window * factorFor(midi)   // effective span in full-rate samples
 
-    private fun db(p: Double) = "%.1f".format(10 * log10(p + 1e-20))
+    private fun db(p: Double) = "%.1f".format(java.util.Locale.ROOT, 10 * log10(p + 1e-20))
     private fun ms(v: Double) = (v * sampleRate / 1000).toLong()
 }

@@ -321,7 +321,7 @@ fun PlayerScreen(
         tail.addLast(java.time.LocalTime.now().toString().take(12) + "  " + line)
         while (tail.size > 60) tail.removeFirst()
     }
-    fun at(ms: Double) = "%d:%02d".format((ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
+    fun at(ms: Double) = "%d:%02d".format(java.util.Locale.ROOT, (ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
     // Keyboard as answer key (MIDI on USB with the mic on: the mic plays, the keyboard checks it). Mismatches close
     // together go into one clip, saved once things have been quiet for 3 s.
     val answerKey = remember { com.bigpapituna.sharpears.engine.AnswerKey() }
@@ -711,13 +711,13 @@ fun PlayerScreen(
                     Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}" +
                         (e.inferredFrom?.let { " (inferred from ${noteName(it)})" } ?: ""))
                     if (midi.connected.value != null) answerKey.mic(System.currentTimeMillis(), e.midi)
-                    stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
+                    stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     mic.noiseWatch.right(android.os.SystemClock.elapsedRealtime())
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
-                    val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(e.riseDb)} dB"
+                    val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB"
                     tail("mic: $what")
                     stallWatch.heard(System.currentTimeMillis(), what)
                     val paint = mic.paintsWrongKeys
