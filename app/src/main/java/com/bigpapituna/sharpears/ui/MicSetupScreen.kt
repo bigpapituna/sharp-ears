@@ -162,7 +162,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
         Slider(sensitivity, { sensitivity = it }, valueRange = -80f..-40f, onValueChangeFinished = {
             mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity")
-        })
+        }, modifier = Modifier.semantics { contentDescription = "Sensitivity" })     // TalkBack said only "slider" and a percent
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Show wrong keys heard by the mic", style = MaterialTheme.typography.titleMedium)
@@ -176,7 +176,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Raise it if right notes light up as wrong.", style = MaterialTheme.typography.bodySmall)
             Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
                 mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
-            })
+            }, modifier = Modifier.semantics { contentDescription = "Wrong-key trigger" })
         }
 
         if (mic.canRecord) {
