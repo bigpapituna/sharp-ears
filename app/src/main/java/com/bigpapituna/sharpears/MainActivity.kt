@@ -680,14 +680,18 @@ class MainActivity : ComponentActivity() {
                                     val m = songs.first { it.id == id }
                                     val song = remember(id) { repo.load(m) }
                                     val partStart = remember(s.index) { System.currentTimeMillis() }
+                                    // A song part played to its end shows its recap first (stars, XP, the sticker it dropped);
+                                    // closing the recap, or Back, goes on. It went on at once before, so none of it was seen.
+                                    var ranToEnd by remember(s.index) { mutableStateOf(false) }
                                     androidx.compose.runtime.key(s.index) {
                                         PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value,
                                             if (part is SessionPart.Song) prefs.progress(id).let { if (it.completed) 0.0 else it.lastPositionMs.toDouble() } else 0.0,
                                             dump, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission(),
                                                 loopBar = (part as? SessionPart.Loop)?.bar, timeLimitMs = if (part is SessionPart.Loop) 120_000L else null),
                                             // Leaving the song after a minute or more of it counts; leaving at once does not.
-                                            onBack = { advanceDaily(s, completed = System.currentTimeMillis() - partStart >= 60_000) },
-                                            onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
+                                            onBack = { advanceDaily(s, completed = ranToEnd || System.currentTimeMillis() - partStart >= 60_000) },
+                                            onFinished = { if (part is SessionPart.Song) ranToEnd = true },
+                                            onRecapClosed = { if (ranToEnd) advanceDaily(s, completed = true) },
                                             chordTrack = lessons.songChords.value[id],
                                             onTimeUp = {
                                                 if (part is SessionPart.Loop) quest(QuestEvent.LoopDone(part.songId, part.bar))

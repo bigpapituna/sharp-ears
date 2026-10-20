@@ -178,6 +178,8 @@ fun PlayerScreen(
      * stretches with nothing played), and the pup says "Good try, let's keep going".
      */
     letGo: Boolean = false,
+    /** The run's recap was closed (Practice today goes on to its next part then). */
+    onRecapClosed: () -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
@@ -1013,10 +1015,10 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
             // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
-            Dialog(onDismissRequest = { recap = null },
+            Dialog(onDismissRequest = { recap = null; onRecapClosed() },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                 RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
-                    onClose = { recap = null },
+                    onClose = { recap = null; onRecapClosed() },
                     onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
                     songTitle = meta?.title ?: song.title, run = lastRun,
                     // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
