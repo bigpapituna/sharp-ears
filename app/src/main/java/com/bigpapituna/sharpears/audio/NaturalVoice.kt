@@ -25,9 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class NaturalVoice(private val context: Context, private val onIdle: () -> Unit) {
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "natural-voice") }
-    private val recorded: Set<String> = runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet())
+    /** The recorded lines' file names: listing 3000 assets took about 100 ms of the first frame, so the worker reads it. */
+    private val recorded: Set<String> by lazy { runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet()) }
     /** The Kokoro speaker the recordings were made with (scripts/render_voice.py writes it), so both halves match. */
-    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().readText().trim().toInt() }.getOrDefault(3)
+    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().use { it.readText() }.trim().toInt() }.getOrDefault(3)
     private val modelDir = File(context.filesDir, "kokoro")
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
@@ -38,6 +39,8 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     /** Loaded once, on first use; [warmUp] starts it on its own thread so recorded lines never wait for it. */
     private val modelLoad = lazy { loadModel() }
     @Volatile private var modelFailed = false
+
+    init { worker.execute { recorded.size } }
 
     val modelInstalled get() = File(modelDir, "model.int8.onnx").exists()
     val busy get() = pending.get() > 0
