@@ -26,6 +26,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +74,9 @@ class LibraryActions(
     /** Pick a MIDI file; [into] is the locked entry it unlocks, or null for a new song. */
     val onImport: (into: SongMeta?) -> Unit,
     val onMic: () -> Unit,
+    /** An imported song's menu: a new title (its scores stay), or its file removed from this phone. */
+    val onRename: (SongMeta, String) -> Unit = { _, _ -> },
+    val onDelete: (SongMeta) -> Unit = {},
 )
 
 private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "Hard")
@@ -324,8 +332,38 @@ private fun SongRow(e: LibraryEntry, a: LibraryActions, art: SongArt?) {
                 }
             }
             Status(e)
+            // An imported song could be neither renamed nor removed (a wrong import stayed for good).
+            if (m.user && e.available && m.difficulty == "imported") SongMenu(m, a)
         }
     }
+}
+
+/** An imported song's own menu: rename it, or delete its file from this phone (asked first). */
+@Composable
+private fun SongMenu(m: SongMeta, a: LibraryActions) {
+    var open by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More for ${m.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Rename") }, onClick = { open = false; renaming = true })
+            DropdownMenuItem(text = { Text("Delete") }, onClick = { open = false; deleting = true })
+        }
+    }
+    if (renaming) {
+        var title by remember { mutableStateOf(m.title) }
+        AlertDialog(onDismissRequest = { renaming = false }, title = { Text("Rename ${m.title}") },
+            text = { OutlinedTextField(title, { title = it.take(80) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { TextButton(enabled = title.isNotBlank(), onClick = { a.onRename(m, title.trim()); renaming = false }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } })
+    }
+    if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text("Delete ${m.title}?") },
+        text = { Text("Its file is removed from this phone. You can import it again any time.") },
+        confirmButton = { TextButton(onClick = { a.onDelete(m); deleting = false }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { deleting = false }) { Text("Keep") } })
 }
 
 /** Where the song stands: best Perform score in a ring, played through, or the paused position. */

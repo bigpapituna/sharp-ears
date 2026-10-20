@@ -860,6 +860,12 @@ class MainActivity : ComponentActivity() {
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                                 onToday = ::startDaily,
+                                                onRename = { m, title -> repo.rename(m, title); Log.d(TAG, "song ${m.id} renamed"); libraryVersion++ },
+                                                onDelete = { m ->
+                                                    repo.delete(m)
+                                                    if (prefs.lastSongId == m.id) prefs.lastSongId = null
+                                                    Log.d(TAG, "song ${m.id} deleted"); libraryVersion++
+                                                },
                                             ),
                                             // The week in minutes, for grown-ups (a kid's home has no numbers).
                                             practice = remember(pv, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },

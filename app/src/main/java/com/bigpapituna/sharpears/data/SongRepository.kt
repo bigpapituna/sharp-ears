@@ -78,6 +78,11 @@ class SongRepository(private val context: Context) {
         return meta
     }
 
+    /** A new title for an imported song; its id, file and scores stay. */
+    fun rename(meta: SongMeta, title: String) {
+        if (imported().any { it.id == meta.id }) writeUserIndex(imported().map { if (it.id == meta.id) it.copy(title = title) else it })
+    }
+
     fun delete(meta: SongMeta) {
         File(context.filesDir, meta.file).delete()
         if (imported().any { it.id == meta.id }) writeUserIndex(imported().filter { it.id != meta.id })
