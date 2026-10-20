@@ -81,8 +81,9 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         TextButton(onClick = onMicSetup) { Text("Microphone setup") }
     }
     Heading("What is stored")
-    Para("Your settings, song progress, best scores, practice minutes, lesson and chord progress, XP, level, achievements and goals, " +
-        "ear training scores, what you practised with the scales and warm-ups, and any MIDI files you import are kept in the app's " +
+    Para("The names and pups of everyone who plays on this phone, and for each of them: settings, song progress, best scores, practice " +
+        "minutes, lesson and chord progress, XP, level, achievements and goals, ear training scores, what was practised with the scales " +
+        "and warm-ups, stickers and the pup's world. These and any MIDI files you import are kept in the app's " +
         "private storage on this phone. Uninstalling the app removes them. Settings has a reset for progress (XP and achievements stay).")
     Heading("Internet")
     Para("The app itself uses the internet only to show tutorial videos. When you open one, YouTube's embedded player loads " +
