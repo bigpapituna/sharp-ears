@@ -1169,6 +1169,8 @@ fun PlayerScreen(
     fun HandsTipRow() {
         val stage = handsTip ?: return
         if (duet != null) return                       // a duet plays both hands, one person each: no hands advice
+        // Already playing the hand it suggests (picked on the bar): "Start with the right hand alone?" over R was noise.
+        if (stage == "right" && practice == Practice.RIGHT || stage == "left" && practice == Practice.LEFT) return
         Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(when (stage) {
