@@ -686,6 +686,8 @@ fun PlayerScreen(
             }
         }
     }
+    // A keyboard unplugged with keys down sends no note-offs: they stayed lit until the player closed.
+    LaunchedEffect(midi.connected.value) { if (midi.connected.value == null) held.clear() }
 
     // The sustain pedal (MIDI CC 64): graded in pedal steps, shown on the strip under the keys.
     LaunchedEffect(midi) {
