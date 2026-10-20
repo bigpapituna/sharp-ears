@@ -207,13 +207,15 @@ fun CertificateCard(name: String, page: PlaygroundPage, stars: Int, modifier: Mo
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val words = remember(name, page, date) { CertificateWords.of(name, page, date) }
+    // A kid hands the phone to a grown-up to send it: the share sheet reaches every app and contact (parent gate).
+    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     LaunchedEffect(name, page, stars) { image = withContext(Dispatchers.Default) { drawCertificate(context, name, page, stars, date, CERT_W / 2, CERT_H / 2) } }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(CERT_W / CERT_H.toFloat()).shadow(10.dp, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp))
             .semantics { contentDescription = "${words.heading} ${words.name} ${words.what}, ${words.date}" }) {
             image?.let { Image(it.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().aspectRatio(CERT_W / CERT_H.toFloat())) }
         }
-        OutlinedButton(enabled = !busy, onClick = {
+        OutlinedButton(enabled = !busy, onClick = { gate.guardForKids {
             busy = true; error = null
             scope.launch {
                 val file = runCatching { withContext(Dispatchers.IO) { packCertificate(context, name, page, stars, date) } }
@@ -221,7 +223,7 @@ fun CertificateCard(name: String, page: PlaygroundPage, stars: Int, modifier: Mo
                 file.onSuccess { Share.files(context, listOf(it), words.title) }
                     .onFailure { Log.d(TAG, "certificate: share failed: $it"); error = "Could not get it ready. Try again?" }
             }
-        }) {
+        } }) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             else Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
