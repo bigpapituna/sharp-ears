@@ -45,7 +45,7 @@ object MiniJson {
     }
 
     // A byte-order mark (a backup re-saved by a text editor) is not part of the JSON.
-    fun read(text: String): Any? = Reader(text.removePrefix("﻿")).run { val v = value(); ws(); require(i == s.length) { "trailing text at $i" }; v }
+    fun read(text: String): Any? = Reader(text.removePrefix("\uFEFF")).run { val v = value(); ws(); require(i == s.length) { "trailing text at $i" }; v }
 
     private class Reader(val s: String) {
         var i = 0

@@ -40,7 +40,7 @@ class ProgressBackupTest {
      * and MiniJson read the standard escapes \b and \f as the letters b and f.
      */
     @Test fun aBackupSavedByAnEditorStillImports() {
-        assertEquals(files, ProgressBackup.decode("﻿" + ProgressBackup.encode(files)))
+        assertEquals(files, ProgressBackup.decode("\uFEFF" + ProgressBackup.encode(files)))
         assertEquals("a\bb\u000cc\"d\\e/f", MiniJson.read("\"a\\bb\\fc\\\"d\\\\e\\/f\""))
         val names = mapOf("name" to "Zoë 🎹", "tab" to "a\tb", "ctrl" to "x\u0001y")
         assertEquals(names, MiniJson.read(MiniJson.write(names)))
