@@ -143,6 +143,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 const val TAG = "SharpEars"
+/** The instance state's key for the open screen (see routeOf). */
+private const val ROUTE = "screen"
 
 /**
  * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
@@ -199,6 +201,32 @@ private fun depthOf(s: Screen) = when (s) {
     is Screen.Finale -> 2
 }
 
+/**
+ * The screen as one line for the saved instance state, the screens it goes back to first ("home:LEARN/lesson:2:find-c"),
+ * so a recreate (a process the system stopped in the background, Don't keep activities, a dark mode or font size change)
+ * reopens it, a lesson at its step, instead of home. Practice today and generated songs (the mic check, progressions,
+ * practice patterns) save as where they go back to. Read by [MainActivity.screenAt].
+ */
+private fun routeOf(s: Screen): String = when (s) {
+    is Screen.Home -> "home:${s.tab.name}"
+    is Screen.Player -> if (s.meta == null) routeOf(s.back) else "${routeOf(s.back)}/song:${s.meta.id}"
+    is Screen.Lesson -> "${routeOf(s.back)}/lesson:${s.step}:${s.lesson.id}"
+    is Screen.MicSetup -> "${routeOf(s.back)}/micsetup"
+    is Screen.SightRead -> "${routeOf(s.back)}/sight:${s.level}"
+    is Screen.Daily -> "home:SONGS"
+    is Screen.Privacy -> "${routeOf(s.back)}/privacy"
+    is Screen.Licences -> "${routeOf(s.back)}/licences"
+    is Screen.Settings -> "${routeOf(s.back)}/settings"
+    is Screen.EarTraining -> "${routeOf(s.back)}/ear"
+    Screen.Onboarding -> "onboarding"
+    is Screen.Theory -> "${routeOf(s.back)}/theory"
+    is Screen.World -> "${routeOf(s.back)}/world:${s.tab.name}"
+    is Screen.Play -> "${routeOf(s.back)}/play:${s.toy.name}"
+    is Screen.KidSongs -> "${routeOf(s.back)}/kidsongs"
+    is Screen.KidStickers -> "${routeOf(s.back)}/kidstickers:${s.page.name}"
+    is Screen.Finale -> "finale:${s.pageId}"
+}
+
 /** The player is always dark, like a video; everything else follows the system. */
 private fun playerShown(s: Screen) = s is Screen.Player ||
     (s is Screen.Daily && !s.between && s.plan.parts[s.index].let { it is SessionPart.Loop || it is SessionPart.Song })
@@ -238,10 +266,14 @@ class MainActivity : ComponentActivity() {
     private var openReader: Boolean? = null
     /** Launches of this activity's content ([openApp] with fromLaunch), so a new one forgets the last one's screen. */
     private var launches = 0
+    /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
+    private var shownRoute: String? = null
+    private var restoreRoute: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        restoreRoute = savedInstanceState?.getString(ROUTE)
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -436,6 +468,12 @@ class MainActivity : ComponentActivity() {
             else -> first
         }
         if (newKid) Log.d(TAG, "profiles: new kid ${profile.id} opens on ${(opening as? Screen.Lesson)?.lesson?.id}")
+        // A recreate reopens the screen that was open (see routeOf); a route that no longer resolves opens as a launch would.
+        val reopened = restoreRoute?.takeIf { fromLaunch }?.let { r ->
+            runCatching { screenAt(r, prefs, profile.isKid) }.onSuccess { Log.d(TAG, "screen restored: $r") }
+                .onFailure { Log.d(TAG, "screen not restored ($r): $it") }.getOrNull()
+        }
+        restoreRoute = null
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
         if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
@@ -446,7 +484,8 @@ class MainActivity : ComponentActivity() {
         // changing keeps the screen it is on.
         val opened = if (fromLaunch) ++launches else launches
         setContent { androidx.compose.runtime.key(profile.id, opened) {
-            var screen by remember { mutableStateOf(opening) }
+            var screen by remember { mutableStateOf(reopened ?: opening) }
+            androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen) }
             KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
@@ -1091,6 +1130,44 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         intent.getStringExtra("profile")?.let(profiles::switchTo)
         openApp(fromLaunch = true)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        shownRoute?.let { outState.putString(ROUTE, it) }
+    }
+
+    /**
+     * The screen [route] names (see [routeOf]), each part going back to the one before it. A song reopens in wait mode at
+     * its saved position, as from the library. A kid's Settings, Mic setup, Privacy and Licences sit behind the parent
+     * gate, which a recreate closes: they reopen as the screen they go back to.
+     */
+    private fun screenAt(route: String, prefs: Prefs, kid: Boolean): Screen = route.split("/").fold<String, Screen>(Screen.Home()) { back, part ->
+        val arg = part.substringAfter(":", "")
+        when (part.substringBefore(":")) {
+            "home" -> Screen.Home(HomeTab.valueOf(arg))
+            "song" -> repo.all().first { it.id == arg }.let { m ->
+                val p = prefs.progress(m.id)
+                Screen.Player(repo.load(m), m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                    if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
+            }
+            "lesson" -> arg.substringAfter(":").let { id -> COURSE.flatMap { it.lessons }.first { it.id == id } }
+                .let { Screen.Lesson(it, back, arg.substringBefore(":").toInt().coerceIn(0, it.steps.lastIndex)) }
+            "micsetup" -> if (kid) back else Screen.MicSetup(back)
+            "sight" -> Screen.SightRead(back, arg.toInt())
+            "privacy" -> if (kid) back else Screen.Privacy(back)
+            "licences" -> if (kid) back else Screen.Licences(back)
+            "settings" -> if (kid) back else Screen.Settings(back)
+            "ear" -> Screen.EarTraining(back)
+            "onboarding" -> Screen.Onboarding
+            "theory" -> Screen.Theory(back)
+            "world" -> Screen.World(back, WorldTab.valueOf(arg))
+            "play" -> Screen.Play(Toy.valueOf(arg), back)
+            "kidsongs" -> Screen.KidSongs(back)
+            "kidstickers" -> Screen.KidStickers(back, StickerPage.valueOf(arg))
+            "finale" -> Screen.Finale(arg)
+            else -> back
+        }
     }
 
     override fun onPause() {
