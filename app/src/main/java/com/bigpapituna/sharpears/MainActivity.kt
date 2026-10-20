@@ -206,6 +206,21 @@ private fun playerShown(s: Screen) = s is Screen.Player ||
 /** The stage: the player, or a Practice today part that runs one. */
 private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
 
+/** Screens played at the piano, hands off the phone for minutes: the screen stays on (see [KeepScreenOnWhile]). */
+private fun keepsScreenOn(s: Screen) = s is Screen.Player || s is Screen.Lesson || s is Screen.Daily || s is Screen.SightRead ||
+    s is Screen.Play || s is Screen.EarTraining || s is Screen.Theory || s is Screen.Finale
+
+/**
+ * The screen stays on while [stage] or while the mic listens (chord games, the tuner): a phone's 30 s timeout used to
+ * switch the screen off under a child playing a lesson, which stopped the mic and the lesson with it.
+ */
+@androidx.compose.runtime.Composable
+private fun KeepScreenOnWhile(mic: MicInput, stage: Boolean) {
+    val on = stage || mic.source.value != null
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, on) { view.keepScreenOn = on; onDispose { view.keepScreenOn = false } }
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
     private lateinit var midi: MidiDevices
@@ -431,6 +446,7 @@ class MainActivity : ComponentActivity() {
         val opened = if (fromLaunch) ++launches else launches
         setContent { androidx.compose.runtime.key(profile.id, opened) {
             var screen by remember { mutableStateOf(opening) }
+            KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
