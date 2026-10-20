@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.engine
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,6 +34,15 @@ class DailySessionTest {
         assertEquals(listOf("Next: Twinkle"), plan.parts.map { it.next })
         assertEquals("about 5 min", plan.aboutLabel)
         assertTrue(planSession(emptyList(), null, null).isEmpty)
+    }
+
+    /** Audit: one chord answered, then Skip the rest (or Back): the interstitial showed the chord part as skipped. */
+    @Test fun aChordPartEndedEarlyIsStillDone() {
+        val plan = planSession(chords.take(6), "rests" to "Rests", null)
+        val partly = (plan.parts[0] as SessionPart.Chords).let { it.copy(itemIds = it.itemIds.take(1)) }
+        assertTrue(plan.parts[0].doneIn(listOf(partly)))
+        assertFalse(plan.parts[1].doneIn(listOf(partly)))
+        assertTrue(plan.parts[1].doneIn(listOf(partly, plan.parts[1])))
     }
 
     @Test fun summaryNamesWhatWasDone() {

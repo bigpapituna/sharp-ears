@@ -84,6 +84,9 @@ fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, so
     return SessionPlan(parts)
 }
 
+/** Whether this part of the plan was done: a chord part also with fewer chords than planned (Skip the rest, or Back). */
+fun SessionPart.doneIn(done: List<SessionPart>): Boolean = done.any { it == this || (it is SessionPart.Chords && this is SessionPart.Chords) }
+
 /** The summary row: "Done today: 6 chords, the lesson Rests and bar 12 of Minuet in G. 14 min." */
 fun sessionSummary(done: List<SessionPart>, seconds: Long): String {
     val min = maxOf(1L, (seconds + 30) / 60)
