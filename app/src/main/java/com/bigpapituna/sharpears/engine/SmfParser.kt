@@ -23,6 +23,7 @@ object SmfParser {
         r.skip(headerLen - 6)
         if (format > 1) throw MidiFormatException("format $format not supported")
         if (division and 0x8000 != 0) throw MidiFormatException("SMPTE timing not supported")
+        if (division == 0) throw MidiFormatException("no ticks per quarter note")
 
         val notes = mutableListOf<RawNote>()
         val tempos = mutableListOf(0L to 500_000)   // (tick, microseconds per quarter)
@@ -33,7 +34,7 @@ object SmfParser {
         while (track < trackCount && r.remaining() >= 8) {
             val type = r.ascii(4)
             val len = r.u32()
-            if (len > r.remaining()) throw MidiFormatException("track $track truncated")
+            if (len < 0 || len > r.remaining()) throw MidiFormatException("track $track truncated")   // < 0: a length past 2 GB
             val end = r.pos + len
             if (type != "MTrk") { r.skip(len); continue }   // unknown chunk
             readTrack(r, end, track, notes, tempos, markers, { flats = it }) { timeSig = it }
@@ -96,7 +97,7 @@ object SmfParser {
                     when (type) {
                         0x51 -> if (len == 3) {
                             val us = data.fold(0) { acc, byte -> (acc shl 8) or (byte.toInt() and 0xFF) }
-                            tempos += tick to us
+                            if (us > 0) tempos += tick to us                // a zero tempo would make every later note time 0
                         }
                         0x58 -> if (len >= 2) onTimeSig(data[0].toInt() to (1 shl data[1].toInt()))
                         // Key signature: sf is a signed count of sharps (positive) or flats (negative).
@@ -113,10 +114,11 @@ object SmfParser {
                     when (status and 0xF0) {
                         0x90 -> {
                             val key = r.u8(); val vel = r.u8()
+                            if (key > 127 || vel > 127) throw MidiFormatException("bad note data in track $track")   // a key 255 broke the player
                             if (vel == 0) close(channel, key)
                             else open.getOrPut((channel shl 8) or key) { ArrayDeque() }.addLast(tick to vel)
                         }
-                        0x80 -> { val key = r.u8(); r.u8(); close(channel, key) }
+                        0x80 -> { val key = r.u8(); r.u8(); if (key > 127) throw MidiFormatException("bad note data in track $track"); close(channel, key) }
                         0xC0, 0xD0 -> r.skip(1)
                         else -> r.skip(2)
                     }
