@@ -34,4 +34,15 @@ class ProgressBackupTest {
         refused("{\"songs\": []}", "This file was not exported by Sharp Ears.")
         refused("{\"app\": \"sharp-ears\", \"version\": 9, \"files\": {}}", "This progress file is from a newer version of the app.")
     }
+
+    /**
+     * Audit: a backup opened and saved in a text editor gains a byte-order mark and was refused as "not a JSON file",
+     * and MiniJson read the standard escapes \b and \f as the letters b and f.
+     */
+    @Test fun aBackupSavedByAnEditorStillImports() {
+        assertEquals(files, ProgressBackup.decode("﻿" + ProgressBackup.encode(files)))
+        assertEquals("a\bb\u000cc\"d\\e/f", MiniJson.read("\"a\\bb\\fc\\\"d\\\\e\\/f\""))
+        val names = mapOf("name" to "Zoë 🎹", "tab" to "a\tb", "ctrl" to "x\u0001y")
+        assertEquals(names, MiniJson.read(MiniJson.write(names)))
+    }
 }

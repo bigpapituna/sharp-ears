@@ -44,7 +44,8 @@ object MiniJson {
         out.append('"')
     }
 
-    fun read(text: String): Any? = Reader(text).run { val v = value(); ws(); require(i == s.length) { "trailing text at $i" }; v }
+    // A byte-order mark (a backup re-saved by a text editor) is not part of the JSON.
+    fun read(text: String): Any? = Reader(text.removePrefix("﻿")).run { val v = value(); ws(); require(i == s.length) { "trailing text at $i" }; v }
 
     private class Reader(val s: String) {
         var i = 0
@@ -92,7 +93,7 @@ object MiniJson {
                 when (c) {
                     '"' -> return b.toString()
                     '\\' -> when (val e = s[i++]) {
-                        'n' -> b.append('\n'); 'r' -> b.append('\r'); 't' -> b.append('\t')
+                        'n' -> b.append('\n'); 'r' -> b.append('\r'); 't' -> b.append('\t'); 'b' -> b.append('\b'); 'f' -> b.append('\u000c')
                         'u' -> { b.append(s.substring(i, i + 4).toInt(16).toChar()); i += 4 }
                         else -> b.append(e)
                     }
