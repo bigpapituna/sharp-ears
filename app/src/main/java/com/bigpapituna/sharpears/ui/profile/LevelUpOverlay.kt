@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -75,7 +76,9 @@ fun LevelUpOverlay(levelUp: LevelUp, xp: Int, onDone: () -> Unit) {
     val shownXp = rememberCountUp(xp, 1500, from = Progression.xpToReach(levelUp.from))
     val toNext = Progression.xpToNext(xp)
     val px = with(LocalDensity.current) { 320.dp.toPx() }
-    Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }.windowInsetsPadding(WindowInsets.safeDrawing)) {
+    // A pane over the screen: TalkBack reads it alone (the screen under it was still reachable and its buttons usable).
+    Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }.semantics { paneTitle = "Level up" }
+        .windowInsetsPadding(WindowInsets.safeDrawing)) {
         Confetti(levelUp, Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
