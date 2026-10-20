@@ -573,8 +573,12 @@ fun PlayerScreen(
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
         }
+        // A run the player played: not Listen (the app plays it), and not one that reached nothing (Play pressed at the
+        // end, after a seek or the seek bar dragged there, was a "Clean run!" with a sticker and 50 XP, and wiped the
+        // song's hardest bars).
+        val played = transport.mode != Mode.LISTEN && !transport.report().empty
         // The hardest bars of a Wait or Perform run, remembered for the library row.
-        val spots = when (transport.mode) {
+        val spots = if (!played) null else when (transport.mode) {
             Mode.WAIT -> TroubleSpots.forWait(song, transport.troubles)
             Mode.PERFORM -> TroubleSpots.forPerform(song, transport.troubles)
             Mode.LISTEN -> null
@@ -596,15 +600,14 @@ fun PlayerScreen(
             prefs.saveTroubleBars(meta.id, spots)
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
-        if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
+        if (played) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
         val wasCompleted = prefs.progress(meta.id).completed
         // The recap shows the XP this run earned and the level bar, as lessons do.
         val xpBefore = progress?.xp
         fun xp(gained: Int?) = gained?.takeIf { it > 0 }
         fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
         val timeMs = transport.runRealMs.toLong()
-        // A run the player played (not one the app played in Listen) drops a sticker and counts for today's quest.
-        val played = transport.mode != Mode.LISTEN
+        // A run the player played drops a sticker and counts for today's quest.
         val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
         if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), kid)
             .forEach { Log.d(TAG, "quest: ${it.kind} done by ${song.id}") }
@@ -626,7 +629,7 @@ fun PlayerScreen(
             val right = if (duet?.leftId == profile.id) p.name else profile.name
             Duet.recapLine(left, right, stars)
         }
-        if (run != null) {
+        if (run != null && played) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
@@ -637,9 +640,9 @@ fun PlayerScreen(
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else if (!played) {
-            // Listen: the app played it, so it opens at the top again but is not marked played and earns no song XP.
+            // Listen (the app played it) or nothing reached: it opens at the top again, not marked played, no song XP.
             prefs.savePosition(meta.id, 0)
-            Log.d(TAG, "listened through ${song.id}")
+            Log.d(TAG, (if (transport.mode == Mode.LISTEN) "listened through " else "nothing played in the run of ") + song.id)
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))

@@ -1,6 +1,8 @@
 package com.bigpapituna.sharpears.engine
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FeedbackTest {
@@ -12,6 +14,14 @@ class FeedbackTest {
         assertEquals("C four", spokenNote(60))
         assertEquals("C five", spokenNote(72))
         assertEquals("E flat", spokenPitch(3))
+    }
+
+    /** Audit: Play at a song's end (after a seek) passed no group, yet counted as a clean run with a sticker and XP. */
+    @Test fun aRunThatReachedNothingIsEmpty() {
+        assertTrue(Report(emptyList(), 0, 0, null, groups = 0).empty)
+        assertTrue("a Perform run with no note graded", Report(emptyList(), 0, 0, Recap(0, 0, 0, 0, 0)).empty)
+        assertFalse(Report(emptyList(), 0, 0, null, groups = 1).empty)
+        assertFalse("a Perform run that missed everything still played", Report(emptyList(), 0, 0, recap(0, miss = 3)).empty)
     }
 
     @Test fun cleanRun() {

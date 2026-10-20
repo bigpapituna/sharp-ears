@@ -36,6 +36,8 @@ data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongK
                   /** Real ms from the run's first group to its end (holds included). */
                   val realMs: Double = 0.0) {
     val clean get() = wrongKeys == 0 && (recap == null || recap.miss == 0)
+    /** Nothing in it was played: no group passed (Wait) and no note graded (Perform), as when Play is pressed at the end. */
+    val empty get() = groups == 0 && (recap?.total ?: 0) == 0
 }
 
 /** A line to show and the same line as the voice should say it. */
