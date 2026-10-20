@@ -83,7 +83,8 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
     Heading("What is stored")
     Para("Your settings, song progress, best scores, practice minutes, lesson and chord progress, XP, level, achievements and goals, " +
         "ear training scores, what you practised with the scales and warm-ups, and any MIDI files you import are kept in the app's " +
-        "private storage on this phone. Uninstalling the app removes them. Settings has a reset for progress (XP and achievements stay).")
+        "private storage on this phone. Uninstalling the app removes them. Settings has a reset for progress (XP and achievements stay). " +
+        "If the phone backs up apps to your Google account, Android may include these files there, never the recordings or the GitHub token.")
     Heading("Internet")
     Para("The app itself uses the internet only to show tutorial videos. When you open one, YouTube's embedded player loads " +
         "from YouTube and connects to Google, and YouTube's terms and Google's privacy policy apply to it. " +

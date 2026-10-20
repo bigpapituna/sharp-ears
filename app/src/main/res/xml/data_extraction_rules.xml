@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Android's own backup (Android 12+: Google cloud backup and phone-to-phone transfer) may copy. Settings and
+  progress go along; the GitHub report token, the practice recordings and stuck-moment clips never leave the phone
+  (the privacy page promises that), and the Kokoro model (over 100 MB, installed by script) would push the app past
+  the 25 MB cloud quota, which stops its whole backup.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="reports.xml" />
+        <exclude domain="external" path="fixtures/" />
+        <exclude domain="external" path="stalls/" />
+        <exclude domain="file" path="kokoro/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="reports.xml" />
+        <exclude domain="external" path="fixtures/" />
+        <exclude domain="external" path="stalls/" />
+    </device-transfer>
+</data-extraction-rules>
