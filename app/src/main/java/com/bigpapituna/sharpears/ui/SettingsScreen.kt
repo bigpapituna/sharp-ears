@@ -84,9 +84,12 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         }
     }
     // Android 13 and up ask before an app may post notifications: asked when the reminder is switched on.
+    // Refused (or refused twice, when Android stops asking and the switch did nothing at all): say where to allow them.
+    var notifyRefused by remember { mutableStateOf(false) }
     val askNotify = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "reminder: notification permission granted=$granted")
         prefs.reminderOn = granted
+        notifyRefused = !granted
         onReminder()
     }
     // Re-read after each write so the controls show the saved values.
@@ -159,6 +162,17 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             if (showReminder) TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
                 contentDescription = "Reminder time, $timeLabel, tap to change"
             }) { Text("Time: $timeLabel") }
+            // Checked again on coming back from the phone's settings.
+            val shown = onScreen()
+            val blocked = remember(shown, v, notifyRefused) { !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) }
+            if (showReminder && blocked && (notifyRefused || prefs.reminderOn)) {
+                Text("Notifications are off for Sharp Ears, so no reminder can show. Allow them in the phone's settings.",
+                    style = MaterialTheme.typography.bodySmall, color = dim)
+                TextButton(onClick = {
+                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                }) { Text("Open notification settings") }
+            }
 
             Section("Progress")
             Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
