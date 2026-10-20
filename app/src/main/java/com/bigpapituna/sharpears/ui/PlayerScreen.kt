@@ -191,6 +191,14 @@ fun PlayerScreen(
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
+    // The stage is always dark: light status bar icons over it (with a light phone theme they were dark on black). Set
+    // again after each configuration change, which puts the edge-to-edge style back (the turn to landscape is one).
+    if (embedded == null) DisposableEffect(androidx.compose.ui.platform.LocalConfiguration.current) {
+        val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        val lightBars = bars.isAppearanceLightStatusBars
+        bars.isAppearanceLightStatusBars = false
+        onDispose { bars.isAppearanceLightStatusBars = lightBars }
+    }
     val labels = embedded?.labels ?: true
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
     val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
