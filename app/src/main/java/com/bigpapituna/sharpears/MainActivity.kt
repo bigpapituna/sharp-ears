@@ -788,8 +788,10 @@ class MainActivity : ComponentActivity() {
                             var corner by remember { mutableStateOf(false) }
                             // After the last page's finale the pup says it once: the big kids' road is open.
                             val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
-                            // A finale left waiting (its lesson was left another way): it plays now.
-                            LaunchedEffect(pendingFinale) { pendingFinale?.let { pendingFinale = null; screen = Screen.Finale(it) } }
+                            // A finale left waiting (its lesson was left another way, or the app was closed before): it plays now.
+                            LaunchedEffect(pendingFinale) {
+                                (pendingFinale ?: Finale.owed(prefs::lessonDone, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
+                            }
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
                                 onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
                                 onToy = { t -> screen = Screen.Play(t, home) },

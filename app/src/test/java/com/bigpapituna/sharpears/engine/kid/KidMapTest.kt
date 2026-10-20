@@ -138,6 +138,22 @@ class KidMapTest {
         assertEquals(Finale.After.Road, Finale.after(pages[2], pages + empty))
     }
 
+    /**
+     * Audit 2026-10-20: a page's finale only played as the kid left its last lesson, from memory; with the app closed or
+     * killed in between it was lost for good. A finale owed (the last lesson done, the finale not played) plays on the
+     * kid home, once, first page first.
+     */
+    @Test fun aFinaleOwedPlaysWhenTheHomeOpens() {
+        val done = setOf("g-12", "p-3")
+        assertEquals("garden", Finale.owed(done::contains, emptySet(), pages)?.id)
+        assertNull("played already", Finale.owed(done::contains, setOf("garden"), pages))
+        assertNull("the last lesson not done", Finale.owed(setOf("g-11")::contains, emptySet(), pages))
+        assertEquals("first page first", "garden", Finale.owed(setOf("g-12", "p-12")::contains, emptySet(), pages)?.id)
+        assertEquals("pond", Finale.owed(setOf("g-12", "p-12")::contains, setOf("garden"), pages)?.id)
+        val empty = PlaygroundPage("empty", "x", PagePlace.POND, "Empty", emptyList())
+        assertNull("a page with no lessons owes nothing", Finale.owed({ true }, setOf("garden", "pond", "hall"), listOf(empty) + pages))
+    }
+
     @Test fun afterAFinaleThePathGoesToTheNextPageOrTheRoad() {
         assertEquals(Finale.After.NextPage(pages[1]), Finale.after(pages[0], pages))
         assertEquals(Finale.After.NextPage(pages[2]), Finale.after(pages[1], pages))
