@@ -369,6 +369,15 @@ fun LessonScreen(
             if (cheer == Cheer.GOOD) complete() else { feedback = null; run++ }
         })
     }
+    // Today's goal reached with this lesson, bedtime off: the goal's cheer, once a day, after the pup's line (songs and
+    // finales cheer in MainActivity). Checked once the last step's player or stage has written its time.
+    if (kid && finished && progress != null && !holdGoodnight) LaunchedEffect(Unit) {
+        if (!bedtime.bedtime && Bedtime.sayWellDone(true, progress.secondsToday(today), progress.goalMinutes, bedtime.wellDoneOn, today)) {
+            bedtime.wellDoneOn = today
+            voice.speak(com.bigpapituna.sharpears.engine.SessionWords.wellDone(who.name))
+            Log.d(TAG, "bedtime: goal cheered after ${lesson.id}")
+        }
+    }
     // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
