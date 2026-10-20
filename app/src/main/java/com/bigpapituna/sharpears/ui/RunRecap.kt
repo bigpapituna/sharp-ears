@@ -34,6 +34,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -190,10 +191,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                         modifier = Modifier.widthIn(max = 420.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) })
                 }
             }
-            // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up).
+            // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up). On a
+            // phone held sideways it lands below the numbers' space: once they have counted, the column glides to it.
+            val dropInView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            if (short && e.reward != null) LaunchedEffect(e) { delay(if (still) 300L else 2900L); dropInView.bringIntoView() }
             val drop: @Composable ColumnScope.() -> Unit = {
                 e.reward?.let { rw ->
-                    Column(Modifier.fillMaxWidth().slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().bringIntoViewRequester(dropInView).slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (short) 84.dp else if (kid) 132.dp else 116.dp)
                         com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle })
                     }
