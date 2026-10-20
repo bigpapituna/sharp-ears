@@ -156,7 +156,7 @@ class Scale(val root: Int, val type: ScaleType, val octaves: Int = 1) {
         else searched(upAndDown(hand), hand)
 
     private fun searched(notes: List<Int>, hand: Hand): List<Int> {
-        if (type == ScaleType.CHROMATIC) return chromaticFingers(notes)
+        if (type == ScaleType.CHROMATIC) return chromaticFingers(notes, hand)
         val mirror = hand == Hand.LEFT
         val p = notes.map { listOf(if (mirror) -it else it) }
         return Fingering.solve(p, notes.map { listOf(isBlack(it)) }).map { it[0] }
@@ -193,18 +193,17 @@ internal fun noteLine(notes: List<Int>, beatsPerNote: Double, flats: Boolean): S
 /** 1.0 as "1", 0.5 as "0.5": the notation reads any decimal, this just keeps it short. */
 internal fun beat(x: Double): String = if (x == Math.rint(x)) x.toInt().toString() else x.toString()
 
-/** 1 on white keys, 3 on black keys, 2 on the white key that follows a white key (F after E, C after B). */
-private fun chromaticFingers(notes: List<Int>): List<Int> {
-    val out = notes.mapIndexed { i, m ->
-        when {
-            isBlack(m) -> 3
-            i > 0 && !isBlack(notes[i - 1]) -> 2
-            else -> 1
-        }
-    }.toMutableList()
-    // Finish on the thumb, like the other scales.
-    if (out.isNotEmpty() && !isBlack(notes.last())) out[out.lastIndex] = 1
-    return out
+/**
+ * 1 on white keys, 3 on black keys, and 2 where two white keys meet (E and F, B and C), whichever way the run goes: on F
+ * and C in the right hand, on E and B in the left, so the thumb passes on the next white key.
+ */
+private fun chromaticFingers(notes: List<Int>, hand: Hand): List<Int> = notes.mapIndexed { i, m ->
+    val pair = if (hand == Hand.RIGHT) m - 1 else m + 1          // the other white key of the two
+    when {
+        isBlack(m) -> 3
+        !isBlack(pair) && (notes.getOrNull(i - 1) == pair || notes.getOrNull(i + 1) == pair) -> 2
+        else -> 1
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------

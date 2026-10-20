@@ -123,6 +123,23 @@ class ScalesTest {
         assertEquals(listOf(2, 3, 4, 1, 2, 3, 1, 2), Scale(6, ScaleType.MELODIC_MINOR).fingering(Hand.RIGHT))
     }
 
+    /**
+     * Audit: the chromatic scale put 2 on any white key after a white key, so coming down from C the right hand played
+     * C and B with finger 2, and the left hand went up E 1, F 2. By the book: 1 on white keys, 3 on black ones, and where
+     * two white keys meet 2 on F and C in the right hand, on E and B in the left, in both directions.
+     */
+    @Test fun theChromaticScaleIsFingeredByTheBook() {
+        val c = Scale(0, ScaleType.CHROMATIC)
+        assertEquals("1 3 1 3 1 2 3 1 3 1 3 1 2 1 3 1 3 1 3 2 1 3 1 3 1", c.fingeringUpAndDown(Hand.RIGHT).joinToString(" "))
+        assertEquals("1 3 1 3 2 1 3 1 3 1 3 2 1 2 3 1 3 1 3 1 2 3 1 3 1", c.fingeringUpAndDown(Hand.LEFT).joinToString(" "))
+        for (root in 0..11) for (hand in Hand.entries) for (oct in 1..2) {
+            val s = Scale(root, ScaleType.CHROMATIC, oct)
+            val notes = s.upAndDown(hand); val f = s.fingeringUpAndDown(hand)
+            for (i in 1 until notes.size) assertTrue("${s.name} $hand x$oct $f at $i", f[i] != f[i - 1])
+            notes.zip(f).forEach { (m, x) -> assertTrue("${s.name} $hand $f", if (isBlack(m)) x == 3 else x in 1..2) }
+        }
+    }
+
     @Test fun arpeggiosHaveOneFingerPerNote() {
         for (type in ArpeggioType.entries) for (root in 0..11) for (oct in 1..2) for (hand in Hand.entries) {
             val a = Arpeggio(root, type, oct)
