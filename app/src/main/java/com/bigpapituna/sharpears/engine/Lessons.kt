@@ -12,8 +12,15 @@ private val BOX_DAYS = listOf(0, 1, 2, 4, 7, 14)
 data class Mastery(val box: Int = 0, val dueAt: Long = 0, val seen: Boolean = false)
 
 fun Mastery.after(correct: Boolean, now: Long): Mastery {
-    val b = if (correct) minOf(box + 1, 5) else maxOf(box - 1, 0)
+    val b = (if (correct) box + 1 else box - 1).coerceIn(0, 5)
     return Mastery(b, now + BOX_DAYS[b] * DAY_MS, seen = true)
+}
+
+/** A stored "box,dueAt" (data/LessonStore); null for anything else (a broken or hand-edited backup). Boxes stay 0..5. */
+fun decodeMastery(s: String): Mastery? = s.split(",").takeIf { it.size == 2 }?.let { (b, d) ->
+    val box = b.trim().toIntOrNull() ?: return null
+    val due = d.trim().toLongOrNull() ?: return null
+    Mastery(box.coerceIn(0, 5), due, seen = true)
 }
 
 /** One thing to practice. Chord items share ids across packs ("chord:Am7"), so mastery carries over. */

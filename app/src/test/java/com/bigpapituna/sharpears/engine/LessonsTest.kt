@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.engine
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,6 +25,18 @@ class LessonsTest {
         m = m.after(false, 3 * DAY_MS); assertEquals(Mastery(1, 4 * DAY_MS, true), m)
         repeat(10) { m = m.after(true, 0) }
         assertEquals(5, m.box)
+    }
+
+    /**
+     * Audit: the Chords tab read every stored "box,dueAt" with toInt/toLong, and a box past 6 indexed past the Leitner
+     * table on the next wrong answer, so one broken value in an imported backup crashed the tab each time it opened.
+     */
+    @Test fun storedMasteryNeverBreaksTheQueue() {
+        assertEquals(Mastery(3, 1_700_000_000_000, true), decodeMastery("3,1700000000000"))
+        for (bad in listOf("3,x", "x,5", "3,", ",", "1,2,3", "", "3")) assertNull(bad, decodeMastery(bad))
+        assertEquals(5, decodeMastery("9,0")!!.box)
+        assertEquals(0, decodeMastery("-4,0")!!.box)
+        for (box in -3..12) for (right in listOf(true, false)) assertTrue(Mastery(box, 0, true).after(right, 0).box in 0..5)
     }
 
     @Test fun dueQueueAcrossSimulatedDays() {
