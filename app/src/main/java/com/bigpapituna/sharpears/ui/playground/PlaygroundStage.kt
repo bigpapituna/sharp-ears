@@ -32,6 +32,8 @@ fun hasPlaygroundStage(step: Step): Boolean = step.game != null && step.exercise
  */
 @Composable
 fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
+    // Time at the stage is practice, as the embedded player's is (engine/playground/StageTime.kt).
+    if (com.bigpapituna.sharpears.engine.playground.StageTime.counts(step.game)) CountsAsPractice(step, deps)
     SharpEarsTheme(dark = true) {
         Box(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(Stage)) {
             when (step.game) {
@@ -63,6 +65,31 @@ fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: Stri
                 Game.JAM -> StarJamStage(forStage(step), step, lessonId, deps, inject, onEnded)
                 null -> {}
             }
+        }
+    }
+}
+
+/**
+ * While the app is on screen, the stage's time goes to today's practice (the daily goal, its cheer, bedtime and the paw
+ * calendar read it): written every [StageTime.FLUSH_MS][com.bigpapituna.sharpears.engine.playground.StageTime.FLUSH_MS]
+ * and when the stage ends or the app leaves the screen, as PlayerScreen writes its own.
+ */
+@Composable
+private fun CountsAsPractice(step: Step, deps: LessonDeps) {
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val from = androidx.compose.runtime.remember { longArrayOf(0L) }
+    fun flush() {
+        val secs = ((System.currentTimeMillis() - from[0]) / 1000).toInt()
+        if (secs <= 0) return
+        from[0] += secs * 1000L
+        deps.prefs.addPractice(java.time.LocalDate.now(), secs)
+        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))   // after Prefs: the goal reads both
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "playground: practice +$secs s (${step.game})")
+    }
+    if (com.bigpapituna.sharpears.ui.onScreen()) {
+        androidx.compose.runtime.DisposableEffect(Unit) { from[0] = System.currentTimeMillis(); onDispose { flush() } }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            while (true) { kotlinx.coroutines.delay(com.bigpapituna.sharpears.engine.playground.StageTime.FLUSH_MS); flush() }
         }
     }
 }
