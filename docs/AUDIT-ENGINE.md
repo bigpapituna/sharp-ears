@@ -102,6 +102,21 @@ lost), medium (wrong in a real flow), low (an edge, a corrupt file, a debug tool
 | data/RunStore.kt | "Hear my run" files are phone-wide, never read back, not deleted with a profile and not in backups | A dead write; wiring or removing it is the player team's |
 | data/Profiles.kt, engine/family/Roster.kt | An unreadable roster resets to the owner and the next kid's id starts at p1 again, inheriting an old p1's files | Needs a kept copy of the text or an orphan clean-up |
 | data/ProgressFiles.kt replace | A hand-edited backup can give a key another type than the app reads (ClassCastException at the read) | Only through a hand-edited file; a typed check on import is the fix |
+| engine/Fingering.kt | The worked-out fingering can move the hand inside a five-key tune: When the Saints shows E under 3 and 2, F under 4 and 3, G under 5 and 4; a random tune on C to G gives C both 1 and 2. The solver only weighs one step at a time, and OFFSET's 3.5 for finger 3 makes E to F look like a move | Lessons now carry book fingers where this showed (finding 28); making a semitone of jitter free in the solver still moved the hand (thumb-under is cheap), so the fix is a model change (a cost for leaving the position a passage fits), worth a pass over every library song |
+
+## Test counts and suite time
+
+- Before: 863 tests, all green; the suite took 22 to 23 minutes (1306 s in the tests, 1265 s of them in three hearing
+  tests) on a machine shared with the other teams' builds.
+- After: 909 tests (46 new), all green. Run twice in a row with --rerun, the same 909 pass both times with the same
+  outcome each (no flaky or order-dependent test): 2 m 20 s and 2 m 38 s for the whole task on the same machine, 112 s
+  in the tests. The slowest, by load: TreeSkyHearingTest.theTreehousePositionsOnPianoSynth 13 to 21 s,
+  higherOrLowerOnPianoSynth 12 to 13 s, StageHearingTest.theHuntsOnPianoSynth 9 to 11 s, FixtureTest 9 s (Roy's
+  recordings, unchanged: 33 of 33, 0 false strikes); everything else under 6 s. PlaythroughTest (nine runs of each of over
+  900 songs and exercises) takes under a second.
+- Lint: 0 errors, the same 25 warnings as before (the backup rules pass FullBackupContent).
+- Voice: 3512 catalog lines, all recorded (340 new, speaker 3, the same Kokoro model), none deleted;
+  `python -I scripts/render_voice.py --check` lists nothing to record or delete once SpokenCatalogTest has written the list.
 
 ## Not provable on the JVM
 
