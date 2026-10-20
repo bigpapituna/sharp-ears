@@ -470,7 +470,9 @@ class MainActivity : ComponentActivity() {
                         prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
-                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                        // A kid starts a two-hand song on the tune (the right hand), as the grown-ups' hands tip advises.
+                        val hands = if (profile.isKid && song.notes.any { it.hand == Hand.RIGHT }) Practice.RIGHT else Practice.BOTH
+                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, hands, mic = prefs.micDefault && mic.hasPermission()),
                             if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
                     }
                     // "Practice today": due chords, the next lesson, then the Continue song's worst bar (or the song).

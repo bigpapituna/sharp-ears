@@ -906,6 +906,7 @@ fun PlayerScreen(
                 kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
+            kid = kid,
             duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
                 ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(
@@ -1130,7 +1131,7 @@ fun PlayerScreen(
 
     // A new two-hand song: suggest hands apart first, then together. Library songs only, never lessons or progressions.
     var handsTip by remember(song) {
-        mutableStateOf(meta?.takeIf { embedded == null }?.let { m ->
+        mutableStateOf(meta?.takeIf { embedded == null && !kid }?.let { m ->
             val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
             com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(m.id), prefs.progress(m.id).completed)
                 ?.takeIf { it != prefs.handsTipDismissed(m.id) }
