@@ -309,7 +309,7 @@ class MainActivity : ComponentActivity() {
         val kidStore = KidStore(this, profile.id)
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
-        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader)
+        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
         val bedtime = com.bigpapituna.sharpears.ui.skin.BedtimeStore(this, profile.id)
         val practiceStore = PracticeStore(this, profile.id)
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own

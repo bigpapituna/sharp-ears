@@ -92,4 +92,21 @@ class CoursePathTest {
         assertFalse("once only", CoursePath.offerGrownUp(kid = true, offered = true, done = { it in beginner }))
         assertFalse("grown-ups are grown-ups already", CoursePath.offerGrownUp(kid = false, offered = false, done = { it in beginner }))
     }
+
+    /** Audit: "Some years" said "We'll start you in Intermediate", then Learn, Practice today and the quest all said "sit". */
+    @Test fun theOnboardingPlacementIsWhereSuggestionsStart() {
+        for (e in com.bigpapituna.sharpears.engine.progress.Experience.entries) {
+            val placed = CoursePath(Profile.firstUnitId(ProfileKind.ADULT), startAt = { e.startLessonId })
+            assertEquals(e.label, e.startLessonId, placed.next { false }?.id)
+        }
+        val placed = CoursePath(Profile.firstUnitId(ProfileKind.ADULT), startAt = { "scale-left" })
+        val main = placed.counted.map { it.id }
+        val from = main.indexOf("scale-left")
+        assertEquals(main[from + 1], placed.next { it == "scale-left" }?.id)
+        // Everything from the placement on done: the lessons before it come round, from the first.
+        assertEquals("sit", placed.next { it in main.drop(from) }?.id)
+        assertNull(placed.next { it in main })
+        // A lesson after it never pulls the suggestion back to the start.
+        assertEquals("scale-left", placed.next { it == "sit" }?.id)
+    }
 }
