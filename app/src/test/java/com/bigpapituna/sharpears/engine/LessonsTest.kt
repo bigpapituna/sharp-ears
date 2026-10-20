@@ -20,11 +20,32 @@ class LessonsTest {
 
     @Test fun leitnerBoxesAndDueDates() {
         var m = Mastery()
-        m = m.after(true, 0); assertEquals(Mastery(1, DAY_MS, true), m)
-        m = m.after(true, DAY_MS); assertEquals(Mastery(2, 3 * DAY_MS, true), m)
-        m = m.after(false, 3 * DAY_MS); assertEquals(Mastery(1, 4 * DAY_MS, true), m)
+        val utc = java.time.ZoneOffset.UTC
+        m = m.after(true, 0, utc); assertEquals(Mastery(1, DAY_MS, true), m)
+        m = m.after(true, DAY_MS, utc); assertEquals(Mastery(2, 3 * DAY_MS, true), m)
+        m = m.after(false, 3 * DAY_MS, utc); assertEquals(Mastery(1, 4 * DAY_MS, true), m)
         repeat(10) { m = m.after(true, 0) }
         assertEquals(5, m.box)
+    }
+
+    /**
+     * Audit: a chord's next review was 24 hours on to the minute, so a chord practised at 8 in the evening was not due
+     * the next morning (nor at the 18:30 reminder), and one practised the night before the clocks went forward skipped a
+     * whole day. It is due at the start of its day, in the phone's time zone.
+     */
+    @Test fun aChordIsDueOnItsCalendarDay() {
+        val zone = java.time.ZoneId.of("America/Toronto")
+        fun at(s: String) = java.time.LocalDateTime.parse(s).atZone(zone).toInstant().toEpochMilli()
+        val cur = Curriculum(listOf(LessonPack("p", "p", 1, emptyList(), listOf(chord("C")))))
+        fun due(m: Mastery, now: String) = cur.queue(mapOf("chord:C" to m), at(now), newLimit = 0).map { it.id }
+        val evening = Mastery().after(true, at("2026-10-20T20:00"), zone)
+        assertEquals(emptyList<String>(), due(evening, "2026-10-20T23:00"))
+        assertEquals(listOf("chord:C"), due(evening, "2026-10-21T08:00"))
+        val spring = Mastery().after(true, at("2026-03-07T23:30"), zone)
+        assertEquals(listOf("chord:C"), due(spring, "2026-03-08T09:00"))
+        val box3 = Mastery(2, 0, true).after(true, at("2026-12-30T21:00"), zone)
+        assertEquals(emptyList<String>(), due(box3, "2027-01-02T23:59"))
+        assertEquals(listOf("chord:C"), due(box3, "2027-01-03T00:00"))
     }
 
     /**
@@ -52,7 +73,7 @@ class LessonsTest {
         // Practice everything right every day; F always wrong.
         repeat(12) {
             for (item in cur.queue(mastery, now, newLimit = 10)) {
-                mastery[item.id] = (mastery[item.id] ?: Mastery()).after(item.id != "chord:F", now)
+                mastery[item.id] = (mastery[item.id] ?: Mastery()).after(item.id != "chord:F", now, java.time.ZoneOffset.UTC)
             }
             now += DAY_MS
         }

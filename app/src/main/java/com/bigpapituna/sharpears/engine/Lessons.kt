@@ -11,9 +11,14 @@ private val BOX_DAYS = listOf(0, 1, 2, 4, 7, 14)
 /** Leitner box 0..5 and when the item is due again. A never-practiced item has [seen] false. */
 data class Mastery(val box: Int = 0, val dueAt: Long = 0, val seen: Boolean = false)
 
-fun Mastery.after(correct: Boolean, now: Long): Mastery {
+/**
+ * Due again at the start of the day [BOX_DAYS] days on, in [zone]: a chord practised in the evening is due the next
+ * morning (24 hours on it was not, nor at the evening reminder), and a night with a clock change does not skip a day.
+ */
+fun Mastery.after(correct: Boolean, now: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Mastery {
     val b = (if (correct) box + 1 else box - 1).coerceIn(0, 5)
-    return Mastery(b, now + BOX_DAYS[b] * DAY_MS, seen = true)
+    val day = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().plusDays(BOX_DAYS[b].toLong())
+    return Mastery(b, day.atStartOfDay(zone).toInstant().toEpochMilli(), seen = true)
 }
 
 /** A stored "box,dueAt" (data/LessonStore); null for anything else (a broken or hand-edited backup). Boxes stay 0..5. */
