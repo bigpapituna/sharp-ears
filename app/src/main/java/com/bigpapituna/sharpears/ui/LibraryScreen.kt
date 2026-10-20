@@ -274,7 +274,7 @@ private fun ContinueRow(e: LibraryEntry, fresh: Boolean, a: LibraryActions, art:
                     fresh -> "An easy first song, melody and bass."
                     resume -> "Paused at ${formatTime(p.lastPositionMs.toDouble())}"
                     p.bestAccuracy >= 0 -> "Best run ${p.bestAccuracy}%"
-                    else -> e.meta.composer
+                    else -> e.meta.composer.ifEmpty { "Imported" }    // an imported song has none: the line was blank
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
