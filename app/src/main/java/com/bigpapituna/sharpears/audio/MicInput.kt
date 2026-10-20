@@ -368,7 +368,12 @@ class MicInput(private val context: Context) {
         if (!rawFrames.isEmpty) rawFrames.send(if (n == buf.size) buf else buf.copyOf(n))
         // The writer is read inside the lock: stopRecording() nulls and closes it under the same lock, and a stale
         // reference taken outside would append to a closed file (EBADF at the end of every recording).
-        synchronized(this) { writer?.append(buf, n) }
+        synchronized(this) {
+            // A full disk ends the debug recording, never the listening (an exception here used to kill the mic thread).
+            try { writer?.append(buf, n) } catch (e: java.io.IOException) {
+                Log.d(TAG, "mic: recording stopped: $e"); runCatching { writer?.close() }; writer = null
+            }
+        }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         val deaf = this.deaf
         if (deaf) lastDeafNanos = System.nanoTime()
@@ -427,15 +432,18 @@ class MicInput(private val context: Context) {
         val clip = FloatArray(n) { ring[((from + it) % ring.size).toInt()] }
         val tagged = com.bigpapituna.sharpears.engine.StallWatch.tagProfile(report, profileKind)
         Thread {
-            val dir = stallDir().apply { mkdirs() }
-            val wav = File(dir, "$name.wav")
-            Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-            File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
-            // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
-            val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
-            while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
-            Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
-            reporter.flush()
+            // A full or missing disk loses this clip, never the app (an exception on this thread was a crash mid-lesson).
+            try {
+                val dir = stallDir().apply { mkdirs() }
+                val wav = File(dir, "$name.wav")
+                Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
+                File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
+                // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
+                val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
+                while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
+                Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
+                reporter.flush()
+            } catch (e: Exception) { Log.d(TAG, "mic: stuck moment $name not saved: $e") }
         }.start()
     }
 
@@ -473,8 +481,9 @@ class MicInput(private val context: Context) {
             truth.append("# sharp ears fixture: sample,midi,velocity (velocity 0 = released)\n")
             truth.append("# mic=${source.value} rate=$RATE recorded=${java.time.LocalDateTime.now()}\n")
             recordStartFrame = framesRead
+            // No room (or no storage): no recording, but the mic goes on listening.
+            writer = try { Wav.Writer(f, RATE) } catch (e: java.io.IOException) { Log.d(TAG, "mic: cannot record ${f.name}: $e"); return null }
             recordFile = f
-            writer = Wav.Writer(f, RATE)
         }
         recording.value = label
         Log.d(TAG, "mic: recording ${f.absolutePath}")
@@ -486,7 +495,8 @@ class MicInput(private val context: Context) {
             writer?.close(); writer = null
             recordFile.also { recordFile = null }
         } ?: return
-        File(f.path.removeSuffix(".wav") + ".notes").writeText(truth.toString())
+        runCatching { File(f.path.removeSuffix(".wav") + ".notes").writeText(truth.toString()) }
+            .onFailure { Log.d(TAG, "mic: ${f.name} notes not saved: $it") }
         recording.value = null
         Log.d(TAG, "mic: saved ${f.name} (${f.length() / 1024} KB) and ${truth.lines().count { it.isNotBlank() && !it.startsWith("#") }} MIDI events")
     }
