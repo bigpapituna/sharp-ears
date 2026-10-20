@@ -938,7 +938,9 @@ fun PlayerScreen(
             onLoop = {
                 when {
                     loopStart == null -> setLoop(transport.positionMs.coerceAtLeast(0.0), null)
-                    loopEnd == null -> setLoop(loopStart, transport.positionMs)
+                    // An end marked before the start (the seek bar went back) swapped nothing: the bar showed "0:20-0:10"
+                    // and nothing looped. The two now swap; the same spot twice waits for an end somewhere else.
+                    loopEnd == null -> { val a = loopStart!!; val b = transport.positionMs.coerceAtLeast(0.0); if (b != a) setLoop(minOf(a, b), maxOf(a, b)) }
                     else -> setLoop(null, null)
                 }
             },
