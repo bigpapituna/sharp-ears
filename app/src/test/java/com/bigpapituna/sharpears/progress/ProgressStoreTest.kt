@@ -110,6 +110,14 @@ class ProgressStoreTest {
         assertEquals("XP is kept", xp, store.xp)
     }
 
+    /** Audit: after Reset progress the Songs tab still said "Done for today: Twinkle. 11 min." over "0 of 10 min today". */
+    @Test fun resetClearsTodaysPracticeTodaySummary() {
+        val today = LocalDate.now()
+        prefs.saveDailySummary(today, "Done today: Twinkle, Twinkle, Little Star. 11 min.")
+        prefs.resetProgress()
+        assertNull(prefs.dailySummary(today))
+    }
+
     @Test fun lessonXpIsPaidOnce() {
         assertEquals(100, store.record(ProgressEvent.LessonComplete("sit")).xpGained)
         assertEquals(0, store.record(ProgressEvent.LessonComplete("sit")).xpGained)

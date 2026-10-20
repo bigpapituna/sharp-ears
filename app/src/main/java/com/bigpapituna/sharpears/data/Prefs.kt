@@ -182,7 +182,8 @@ class Prefs(context: Context, val profileId: String) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") ||
+            it.startsWith("daily:") }      // today's "Done for today: ... 11 min." went on showing the minutes just cleared
         edit { keys.forEach(::remove) }
     }
 
