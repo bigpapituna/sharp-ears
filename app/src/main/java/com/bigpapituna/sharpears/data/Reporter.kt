@@ -21,7 +21,9 @@ import java.util.concurrent.Executors
  * Off until a token is set (in Microphone setup, or scripts/set-report-token.ps1 from the PC; either way it lives only
  * in this app's private storage, never in the code, a log or a report) and the switch in Microphone setup is on. Only on Wi-Fi or another unmetered network.
  */
-class Reporter(private val context: Context) {
+class Reporter(context: Context) {
+    // The app's context: MicInput is made per Activity, and the crash hook outlives it.
+    private val context: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("reports", Context.MODE_PRIVATE)
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "reports") }
     private val dir get() = File(context.getExternalFilesDir(null), "stalls")
@@ -118,6 +120,10 @@ class Reporter(private val context: Context) {
 
     /** Catches crashes: each is saved with its stack trace and the app's recent log, and goes out on the next start. */
     fun catchCrashes(version: String) {
+        // Once per process: every Activity start called this, chaining one more handler (a crash ran logcat and saved
+        // a report once per handler, each one a separate issue).
+        if (crashHookSet) return
+        crashHookSet = true
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             runCatching {
@@ -169,5 +175,8 @@ class Reporter(private val context: Context) {
 
     private fun stamp() = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 
-    private companion object { const val DEFAULT_REPO = "bigpapituna/sharp-ears" }
+    private companion object {
+        const val DEFAULT_REPO = "bigpapituna/sharp-ears"
+        @Volatile var crashHookSet = false
+    }
 }
