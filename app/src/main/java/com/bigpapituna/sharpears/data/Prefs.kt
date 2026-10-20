@@ -51,6 +51,8 @@ class Prefs(context: Context, val profileId: String) {
     var micDefault: Boolean
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
+    /** The mic was ever switched on or off here (the onboarding, the player's mic button); a kid starts with it on until then. */
+    val micDefaultChosen: Boolean get() = p.contains("micDefault")
 
     /** Kokoro (recorded and on-phone) instead of the phone's own text-to-speech voices. */
     var naturalVoice: Boolean

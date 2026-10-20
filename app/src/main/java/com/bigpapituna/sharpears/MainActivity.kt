@@ -299,6 +299,9 @@ class MainActivity : ComponentActivity() {
         if (newKid) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
         // Kids read the keys by their pads: every white key labelled (a letter, or an animal before reading), until a grown-up picks.
         if (profile.isKid && !prefs.keyLabelsChosen) prefs.keyLabels = com.bigpapituna.sharpears.data.KeyLabels.ALL
+        // Kids skip the onboarding that asks about the mic, so their lessons' player steps, concerts and songs opened
+        // with it off and heard nothing a kid played (the stages listen anyway). On until someone switches it off.
+        if (profile.isKid && !prefs.micDefaultChosen) prefs.micDefault = true
         // The pup's world for this profile: stickers, the jar every note feeds, the outfit; the shelf starts with old bests.
         val world = WorldStore(this, profile.id)
         world.mergeRecords(repo.all().associate { it.id to prefs.progress(it.id).bestAccuracy }.filterValues { it >= 0 })
