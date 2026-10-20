@@ -22,3 +22,13 @@ lost), medium (wrong in a real flow), low (an edge, a corrupt file, a debug tool
 | 11 | data/LessonStore.kt mastery, engine/Lessons.kt | The Chords tab read every stored 'box,dueAt' with toInt/toLong, and a box above 6 indexed past the Leitner table on the next wrong answer: one broken value in an imported backup crashed the Daily tab every time it opened | low | decodeMastery skips what does not parse and keeps boxes in 0..5; after() coerces too | LessonsTest.storedMasteryNeverBreaksTheQueue |
 | 12 | data/SongRepository.kt import | An imported file's id kept only a to z and digits, so every name without them (Chinese, Arabic, emoji: '月光', '夜想曲') became user-song and the second import replaced the first (file, index entry, best score, position); a Turkish phone lowercased IMAGINE to 'ımagıne' and lost the i's | low | userSongId: a name with no Latin letters or digits gets a code from the name; lowercase in Locale.ROOT | LibraryContentTest.importedSongsKeepTheirOwnIds |
 | 13 | scripts/render_voice.py | The voice renderer deletes every recording not in app/build/voice-lines.txt without asking whether that list is current (a stale list from another branch or a failed test run deletes recordings of lines still in use), wipes every file on a speaker change before the model has loaded (a failed run leaves the folder empty), and had no way to see what a run would do | medium (a run can delete the shipped voice) | --check prints the lines to record, the files to delete and whether the list is older than the code, and changes nothing; a run refuses a list older than the Kotlin sources unless --force; the speaker wipe waits for the model | python -I scripts/render_voice.py --check (exit 1 when a run is needed); not a JVM test |
+
+## Proven without a finding
+
+- Everything the player can be handed plays from start to end in Listen, Wait and Perform with each hands setting
+  (both, left, right): the 38 bundled songs, every lesson step of the 146 lessons and each kid bite, the Practice tab's
+  scales (every type) and arpeggios in all twelve keys, every warm-up in all twelve keys, 40 seeded sight-reading pieces
+  and the 20 progressions (about 5,000 runs). Someone who plays exactly what is asked finishes every wait-mode group of
+  their hand, scores 100% in Perform, and every key that sounds is released. Every Perform and ramp step has notes to
+  play, bpm 30 to 200 and a pass mark of 1 to 100 that a clean run reaches (PlaythroughTest).
+
