@@ -52,6 +52,17 @@ class TreeSkyHearingTest {
 
     private fun key(k: Int, gainDb: Double) = PianoSynth.render(listOf(SynthNote(k, 1000.0, 700.0, gainDb = gainDb)), 2600.0, noiseDb = -66.0)
 
+    /** [hear] for every key at both levels against [keys], on every core at once; by (key, level). */
+    private fun heardEach(keys: Set<Int>, range: IntRange = 21..108, gains: List<Double> = listOf(-14.0, -26.0)): Map<Pair<Int, Double>, List<StageSound>> =
+        heardEach(listOf(keys), range, gains).getValue(keys)
+
+    /** The same for several sets in one go (all their cases share the cores); by set, then (key, level). */
+    private fun heardEach(sets: List<Set<Int>>, range: IntRange = 21..108, gains: List<Double> = listOf(-14.0, -26.0)): Map<Set<Int>, Map<Pair<Int, Double>, List<StageSound>>> {
+        val cases = sets.distinct().flatMap { s -> range.flatMap { k -> gains.map { Triple(s, k, it) } } }
+        return cases.zip(parallelMap(cases) { (s, k, g) -> hear(key(k, g), s) }).groupBy({ it.first.first }, { (it.first.second to it.first.third) to it.second })
+            .mapValues { it.value.toMap() }
+    }
+
     /** The copy games' and the which-finger games' key sets: each key of the stage's exercise. */
     private fun copySets(): List<Set<Int>> = (TREEHOUSE.lessons + NIGHT_SKY.lessons).flatMap { it.steps }
         .filter { StageGames.of(it) is StageGame.Copy || StageGames.of(it) is StageGame.Tap && (StageGames.of(it) as StageGame.Tap).kind == TapKind.FINGER }
@@ -68,8 +79,9 @@ class TreeSkyHearingTest {
     @Test fun theTreehousePositionsOnPianoSynth() {
         val problems = mutableListOf<String>()
         var named = 0
-        for (set in copySets().filter { it != StageKeys.FIVE && it.size > 1 }) for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-            val heard = hear(key(k, gain), set)
+        val each = heardEach(copySets().filter { it != StageKeys.FIVE && it.size > 1 })
+        for (set in each.keys) for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
+            val heard = each.getValue(set).getValue(k to gain)
             if (heard.isEmpty()) { problems += "${set.map(::noteName)}: ${noteName(k)} at $gain dB: nothing at all"; continue }
             val s = heard.first()
             if (k in set && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${set.map(::noteName)}: ${noteName(k)} heard as $s"
@@ -89,8 +101,9 @@ class TreeSkyHearingTest {
         val problems = mutableListOf<String>()
         val rounds = (NIGHT_SKY.lessons.flatMap { it.steps }.mapNotNull { StageGames.of(it) as? StageGame.HigherLower }).single().rounds
         var found = 0
+        val each = heardEach(rounds.map { it.keys }, 36..96)
         for (r in rounds) for (k in 36..96) for (gain in listOf(-14.0, -26.0)) {
-            val heard = hear(key(k, gain), r.keys)
+            val heard = each.getValue(r.keys).getValue(k to gain)
             if (heard.isEmpty()) { problems += "$r ${noteName(k)} at $gain dB: nothing at all"; continue }
             val s = heard.first()
             if (k in r.keys && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "$r: ${noteName(k)} heard as $s"
@@ -107,11 +120,12 @@ class TreeSkyHearingTest {
     /** The jam: every black key it listens for draws its star; a white key never does. Middle C for the beat games: only a C lights a star. */
     @Test fun theJamAndTheBeatOnPianoSynth() {
         val problems = mutableListOf<String>()
+        val both = heardEach(listOf(JAM_KEYS, setOf(60))); val jams = both.getValue(JAM_KEYS); val beats = both.getValue(setOf(60))
         for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-            val jam = hear(key(k, gain), JAM_KEYS)
+            val jam = jams.getValue(k to gain)
             if (k in JAM_KEYS && (jam.firstOrNull()?.by != HeardBy.MATCHER || jam.first().midi != k)) problems += "jam: ${noteName(k)} heard as $jam"
             if (!isBlack(k) && jam.any { (it.by == HeardBy.MATCHER || it.by == HeardBy.NAMED) && it.midi?.let(::isBlack) == true }) problems += "jam: white ${noteName(k)} drew a star ($jam)"
-            val beat = hear(key(k, gain), setOf(60))
+            val beat = beats.getValue(k to gain)
             val c = beat.any { (it.by == HeardBy.MATCHER || it.by == HeardBy.NAMED) && it.midi?.let { m -> m % 12 == 0 } == true }
             if (k == 60 && beat.firstOrNull()?.midi != 60) problems += "beat: middle C heard as $beat"
             if (k % 12 != 0 && c) problems += "beat: ${noteName(k)} at $gain dB lit a star ($beat)"
