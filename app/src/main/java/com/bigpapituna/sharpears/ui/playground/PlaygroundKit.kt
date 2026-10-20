@@ -92,6 +92,7 @@ import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
+import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -525,7 +526,8 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
     val injected = remember { mutableStateOf(false) }
     // Waits for the voice once (the step's instruction), then stays on while the stage is active.
     var began by remember { mutableStateOf(false) }
-    val can = active && (inject != null || mic.hasPermission())
+    // Only with the app on screen: Home or the lock button mid-stage stops the mic, coming back starts it again.
+    val can = active && onScreen() && (inject != null || mic.hasPermission())
     val holds = voice.holdsMic
     LaunchedEffect(can, holds) { if (can && !holds) began = true }
     val listen = can && began
@@ -588,7 +590,7 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
 internal fun rememberListening(mic: MicInput, voice: Voice, active: Boolean, inject: String?, raw: ((FloatArray, Int) -> Unit)? = null): Boolean {
     val context = LocalContext.current
     val injected = remember { mutableStateOf(false) }
-    val listen = active && !voice.holdsMic && (inject != null || mic.hasPermission())
+    val listen = active && onScreen() && !voice.holdsMic && (inject != null || mic.hasPermission())
     DisposableEffect(listen) {
         if (!listen) return@DisposableEffect onDispose {}
         val removeRaw = raw?.let { r -> mic.rawFrames.add { chunk -> r(chunk, chunk.size) } }
