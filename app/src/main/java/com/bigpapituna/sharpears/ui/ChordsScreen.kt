@@ -377,8 +377,9 @@ private fun ChordTrainer(
                 Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(current.name, style = MaterialTheme.typography.displayMedium)
             }
-            Stat("Correct", drill.correct)
-            Stat("Streak", drill.streak)
+            // The running counts belong to the open-ended Practice tab: a session's drill is one chord, so they read 0 or
+            // 1 and went back to 0 on every chord ("1 of 5" says where a session stands).
+            if (pup) { Stat("Correct", drill.correct); Stat("Streak", drill.streak) }
         }
         // Feedback line: fixed height so the keyboard does not jump when it appears.
         Text(flash?.first ?: "", color = if (flash?.second == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
