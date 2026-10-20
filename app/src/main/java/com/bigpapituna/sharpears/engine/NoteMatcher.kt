@@ -386,7 +386,9 @@ class NoteMatcher(val sampleRate: Int = 48_000, config: MatcherConfig = MatcherC
             val explained = recentStrikes.any { it >= o.at - ms(60.0) && it <= o.at + ms(150.0) }
             if (explained || exp.isEmpty()) continue
             val near = if (o.midi >= 0) WrongKeys.nearest(o.midi, exp) else null
-            if (near != null) events += MicEvent.Wrong(o.at, o.midi, near, kotlin.math.abs(o.midi - near), o.riseDb)
+            // The key was found against the notes expected then; when they changed since (the song went on), a key now
+            // expected, or out of reach of the new ones, is no wrong key.
+            if (near != null) { if (kotlin.math.abs(o.midi - near) in 1..WrongKeys.REACH) events += MicEvent.Wrong(o.at, o.midi, near, kotlin.math.abs(o.midi - near), o.riseDb) }
             else noise?.invoke(o.at)
         }
         return events
