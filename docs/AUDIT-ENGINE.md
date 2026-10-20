@@ -36,13 +36,79 @@ lost), medium (wrong in a real flow), low (an edge, a corrupt file, a debug tool
 | 25 | data/ProgressStore.kt practice | The practice log dropped every day more than 400 days before the practice being recorded, so one practice with the clock set far ahead (a dead clock battery, a game's time trick) erased the real log: back on the right date the streak was 1 and the heatmap empty | low | keep the newest 400 practice days, whatever their dates (a future day never counts in a streak) | ProgressStoreTest.aPracticeWithTheClockAheadKeepsTheRealLog |
 | 26 | reminder/Reminder.kt, AndroidManifest.xml | The reminder's alarm is a wall-clock time set at boot, app start or the last reminder: after travel to another time zone, or a clock set by hand, it went off at the old local time until it had fired once | low | the receiver also hears TIMEZONE_CHANGED and TIME_SET and sets the alarm again; only the alarm itself (no action) posts | ReminderWiringTest.aNewTimeZoneOrClockSetsTheNextReminderAgain (manifest and receiver are Android) |
 | 27 | test: StageHearingTest, TreeSkyHearingTest, StageSoundsTest | The suite took 22 minutes, 21 of them in three hearing tests that run a full matcher, pitch tracker and ear per key, level and set one after another (theTreehousePositionsOnPianoSynth alone 341 s, theHuntsOnPianoSynth 312 s, higherOrLowerOnPianoSynth 230 s on a busy machine) | low (the suite) | every case is heard on all cores at once (parallelMap: each case has its own audio, matcher and ear), then the same checks read the results in the same order | the same tests; on a quiet 16-core machine the whole suite now runs in about 2 minutes |
+| 28 | engine/Exercises.kt ROW_X, engine/playground/Hall.kt (hall-9) | Row, Row, Row Your Boat's phrase (pond-2, pond-12, the four rep-row steps, the concert shelf) fits the C position, but the worked-out fingers put D and E under 1 and 2 halfway through and F under 3; the concert hall's echo of Ode to Joy put E under both 2 and 3. Kids taught 'thumb on C' saw other numbers on the same keys | medium | book fingers in the C position (1 1 1 2 3 3 2 3 4 5; 3 3 4 5 5 3 2 1 2 3) | FingeringPropertiesTest.aLessonTuneInsideFiveKeysTakesOneFingerPerKey (plus: no worked-out finger plays two keys in a row across the library, lessons and sight-reading; the left hand mirrors the right) |
 
 ## Proven without a finding
 
 - Everything the player can be handed plays from start to end in Listen, Wait and Perform with each hands setting
   (both, left, right): the 38 bundled songs, every lesson step of the 146 lessons and each kid bite, the Practice tab's
   scales (every type) and arpeggios in all twelve keys, every warm-up in all twelve keys, 40 seeded sight-reading pieces
-  and the 20 progressions (about 5,000 runs). Someone who plays exactly what is asked finishes every wait-mode group of
-  their hand, scores 100% in Perform, and every key that sounds is released. Every Perform and ramp step has notes to
-  play, bpm 30 to 200 and a pass mark of 1 to 100 that a clean run reaches (PlaythroughTest).
+  and the 20 progressions: over 900 songs and exercises, each in three modes with three hands settings. Someone who
+  plays exactly what is asked finishes every wait-mode group of their hand, scores 100% in Perform, and every key that
+  sounds is released. Every Perform and ramp step has notes to play, bpm 30 to 200 and a pass mark of 1 to 100 that a
+  clean run reaches (PlaythroughTest).
+- The library (38 bundled songs): every file parses with both hands, groups never overlap, tempos 56 to 140 bpm, the 15
+  sectioned songs' sections run from 0 to the song's end inside it, lessons name the library's titles
+  (LibraryContentTest, probed again).
+- Damaged MIDI files parse into a playable song or are refused (SmfParserTest's seeded fuzz, after finding 23).
+- The note matcher, beyond its own tests: no strike from silence, a DC offset, a DC step, a click or a signal pinned to
+  the rails for any set the app listens for; a clipped note is itself and not its neighbour; a right note is never
+  offered to the octave hint as an octave off; a 44.1 kHz matcher hears every key once (the app always records at
+  48 kHz, MicInput.RATE, and resamples injected WAVs) (MatcherInvariantsTest). FixtureTest (session-155837 33 of 33, 0
+  false strikes, 0 wrong flashes) and StallReviewTest are unchanged and green.
+- Fingering: every exercise, scale, arpeggio, warm-up, sight-reading piece and library song gets a finger for every
+  note but the sixth and later notes of a chord wider than five (one left-hand note in Chopin's Prelude in E minor; by
+  design, see Fingering's KDoc). The same finger on a new key happens only where the book fingers ask for it (the
+  bass's little finger stepping down to G, Yankee Doodle's thumb from C to B), and in the chromatic scale before
+  finding 6.
+- Every catalog line has its recording and no recording is left over (3512 lines, 1115 at kid speed, speaker 3); the
+  hash scheme is the same in Kotlin and in render_voice.py (reimplemented in Python over all 3172 lines of the dump).
+- Resources: no getIdentifier anywhere; all 174 R references resolve and every drawable and raw file is used; 70
+  stickers (unique ids and names, 6 common, 3 rare and 1 shiny per place) with their webp; every pup pose and painted
+  frame has its drawable; HandAnchors covers all 17 frames with 6 points inside 0..1; every page's trail stops (12, the
+  fair 4), gate and sticker anchors are inside their scene; 7 pages, 76 Playground lessons, 146 in COURSE, unique ids.
+- Answer keys: every theory quiz (128 questions) has one right answer among distinct options; every ear game, over 300
+  seeds and every level, draws its answer once among distinct buttons and never offers it as a distractor; the chord
+  dictionary's 15 types in all 12 keys and inversions span at most an octave with ascending fingers (but the 9ths, below).
+- Data: every store's encoding round-trips every field (Profile, with defaults for fields added later, Roster, Quest,
+  WorldState, RunRecording, ProgressBackup with every SharedPreferences type); backups from 2.0.1 to 2.2.1 use the same
+  format; profile ids cannot reach a file path; no two stores share a key in a preference file; a report never carries
+  a name (after finding 9) or the token.
+- Time: streaks, paws, weekly goals, the heatmap and the bedtime use calendar days and handle year ends and February
+  29; the reminder's next time survives the spring-forward gap; file names' time stamps are ASCII in every locale.
+- The tests: no test asserts only constants (a few spec numbers, the hall's nine seats, the jar's 200, the XP rates, are
+  pinned inside behavioural tests on purpose).
+
+## Found, not fixed
+
+| Where | What | Why not now |
+|---|---|---|
+| engine/NoteMatcher.kt | Loud broadband noise passes for a key. White noise at -20 dBFS after quiet, or after a -50 dBFS room, gave 1 to 4 false strikes per 4 s for many single expected keys (C1 to C7) in synthetic tests: the room floor still says quiet for up to 20 s, and the noise's random peaks beat the relative checks now and then. A DC step also passes for D1 and D2 when all 88 keys are expected (no screen asks for that) | The fix (a strike must carry a share of the sound, as strict keys' STRICT_LEVEL_DB does, or pass at two moments as the wrong-key search does) changes the player's matcher and needs Roy's room recordings to tune; FixtureTest has no loud noise in it |
+| engine/Song.kt transposed | A transposed song keeps its scale's black-key spellings by pitch class: D harmonic minor's C sharp, transposed up a minor third, draws F harmonic minor's D flat as C sharp | Dropping the map is wrong in other keys (G harmonic minor's F sharp would become G flat); the right fix respells from the transposed key. Only Practice tab exercises carry spellings |
+| test PlaygroundChecks (time model) | The lesson time model counts concert picking where there is none (hall-12 +60 s, treehouse-12 and night-12 +40 s, workshop-12 +20 s), prices clap steps as key finding, and counts every reading scene though a kid sees the first until they ask for more. Corrected, 16 lessons fall under its 100 s floor (treehouse-12 78 s, pond-5 84 s, playground-7 85 s) | Needs a content or threshold decision, not a test edit |
+| ui (TheoryScreen, MainActivity's Daily chords part, EarTrainingScreen, WorkoutRun) | Time the app spent in the background counts as practice: a theory lesson left open overnight credits about 12 hours (XP, the goal, the marathon achievements) | Android-bound: a stopwatch that pauses on ON_STOP, in screens the flow teams own |
+| ui (MainActivity remember { LocalDate.now() }, ProfileScreen, LessonScreen, ChordsScreen) | "Today" goes stale while the app stays open across midnight: the kid home stays asleep the next morning, yesterday's quest and goal ring show | Compose-bound: a date that refreshes on resume and at midnight |
+| engine/PracticeStats.kt | "This week: 42 min" is the last seven days, while the weekly goal, the paws and You's "This week" run Monday to Sunday | A copy decision ("Last 7 days", or a Monday week) |
+| data/Prefs.kt addPractice | The player's own 60-day log is pruned by date like finding 25's, so a practice with the clock far ahead empties it | It now feeds only the week line's minutes (finding 19 took the streak off it); the same count-based fix applies |
+| engine/SpokenCatalog.kt, audio/NaturalVoice.kt | One recording per text whatever the speed: grown-ups hear "Your turn.", "That's it!", "Listen to both hands together." and the play corner's lines at the kids' 0.85, kids hear the high five and the octave hints at 1.0 | Needs a speed in the key and a second recording of each shared line |
+| engine/SpokenCatalog.kt | About 700 recordings (11 MB of 49) are never played: reading steps' whole texts (said scene by scene), chord types no game draws, nameless twins of lines said with a name, ramp steps the ramp never takes | Removing them deletes recordings for good; a pass for the content owner with render_voice.py --check |
+| copy | Near-duplicate lines recorded twice ("D major has two sharps: F sharp and C sharp." and the same with a comma; "Listen to every C, from low to high." with and without the comma; "Your turn." and "Your turn!" in Pup says); two lesson titles twice ("Finger numbers": workshop-3 and fingers-right; "Broken chords": broken and t2-broken) | Copy changes need new recordings and the content owner's call |
+| engine/ChordGames.kt | Build it's 504 "D is not in C major" lines and the interval answers that name both notes are made by the phone's voice | Generated on purpose (Build it's are dropped while the mic listens) |
+| engine/Lessons.kt parseChord, assets/lessons | Authored spellings are lost: the lesson pack's "Db" shows as C sharp (C#, E#, G#) and "G#m" as A flat minor (Ab, Cb, Eb) | Needs a spelling on ChordItem that keeps its mastery id |
+| engine/Chords.kt | 9 and add9 chords in root position span a ninth in one hand (C9 fingered 1 2 3 4 5 over 14 semitones) | A design call (drop the root as rightHand() does, or two hands) |
+| engine/Transport.kt, PerformScore | The last note ends the run: a last note played 200 ms late and heard by the mic about 113 ms later misses when the song's tail is under about 320 ms (Lightly Row's is 290 ms) | One note; accepting input for OK_MS after the end is the fix, with the recap waiting for it |
+| engine/Lessons.kt barMs | Bar numbers (trouble spots, chord labels) come from the first tempo, so songs with tempo changes (Für Elise, Clair de Lune) and pickups number bars off the score | A documented ponytail; needs the tempo map and the pickup |
+| ui/motion/PaintedHand.kt | One hand frame (hand_l_3, about 1.6 MB as a bitmap) is decoded and never drawn | UI |
+| data/RunStore.kt | "Hear my run" files are phone-wide, never read back, not deleted with a profile and not in backups | A dead write; wiring or removing it is the player team's |
+| data/Profiles.kt, engine/family/Roster.kt | An unreadable roster resets to the owner and the next kid's id starts at p1 again, inheriting an old p1's files | Needs a kept copy of the text or an orphan clean-up |
+| data/ProgressFiles.kt replace | A hand-edited backup can give a key another type than the app reads (ClassCastException at the read) | Only through a hand-edited file; a typed check on import is the fix |
+
+## Not provable on the JVM
+
+- Everything that needs a real piano, a real room or a child: the matcher's thresholds beyond FixtureTest's recording,
+  strict keys, the stages' judges (PianoSynth only), the voice over the mic.
+- The Android wiring of these fixes: the backup rules (finding 10) are checked by reading the manifest and the rule
+  files, the crash hook (17) through a JVM fake context, the reminder's broadcasts (26) and the home's streak (19) by
+  reading the source; none ran on a device or emulator (this team had none).
+- Frame times and memory.
 

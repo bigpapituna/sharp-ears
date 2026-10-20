@@ -167,7 +167,8 @@ val HALL: CourseLevel = CourseLevel(HALL_ID, "Pup's Concert Hall", "Twelve lesso
         play("Listen to my five notes, then play them back.",
             Exercise(right = "C4:1 E4:1 G4:1 E4:1 C4:1 r:2 G4:1 F4:1 E4:1 D4:1 C4:1", bpm = 80.0, practice = Practice.RIGHT), Game.ECHO),
         play("Now two tunes you know! Copy all five notes of each.",
-            Exercise(right = "E4:1 E4:1 F4:1 G4:1 G4:1 r:2 E4:1 D4:1 C4:1 D4:1 E4:1", bpm = 80.0, practice = Practice.RIGHT), Game.ECHO)),
+            Exercise(right = "E4:1 E4:1 F4:1 G4:1 G4:1 r:2 E4:1 D4:1 C4:1 D4:1 E4:1", bpm = 80.0, practice = Practice.RIGHT,
+                fingers = "3 3 4 5 5 3 2 1 2 3"), Game.ECHO)),
 
     lesson(10, "Hands together", "Ode to Joy on top, a low C and G underneath.",
         read(
