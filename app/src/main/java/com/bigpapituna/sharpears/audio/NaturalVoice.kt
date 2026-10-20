@@ -50,6 +50,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     /** Says [text] after what is queued ([flush]: instead of it); a generated line at [speed] (Kokoro's, 1 = normal). */
     fun say(text: String, flush: Boolean, speed: Float = 1f) {
         if (flush) stop()
+        if (worker.isShutdown) { Log.d(TAG, "voice: released, dropped: $text"); return }   // a stale screen after a profile switch
         val gen = generation
         pending.incrementAndGet()
         worker.execute {
@@ -63,9 +64,15 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     fun stop() { generation++; playing?.countDown() }
 
     /** Loads the model ahead of the first generated line (a second or two), without speaking. */
-    fun warmUp() { if (modelInstalled) Thread({ modelLoad.value }, "natural-voice-load").start() }
+    fun warmUp() { if (modelInstalled) { warming = true; Thread({ modelLoad.value }, "natural-voice-load").start() } }
+    /** [warmUp] started loading: [release] must wait for that model and free it (a profile switch mid-load leaked it). */
+    @Volatile private var warming = false
 
-    fun release() { stop(); worker.execute { if (modelLoad.isInitialized()) modelLoad.value?.release() }; worker.shutdown() }
+    fun release() {
+        stop()
+        worker.execute { if (modelLoad.isInitialized() || warming) modelLoad.value?.release() }
+        worker.shutdown()
+    }
 
     private fun speakNow(text: String, gen: Int, speed: Float) {
         val file = recording(text)
