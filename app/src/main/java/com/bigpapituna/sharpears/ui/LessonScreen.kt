@@ -243,7 +243,7 @@ fun LessonScreen(
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to lessons") }
+                IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = if (kid) "Back to the map" else "Back to lessons") }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     if (!kid) Text("${level.title}, lesson ${path.numberOf(lesson)}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
@@ -394,7 +394,7 @@ fun LessonScreen(
     if (finished && !goodnight) {
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
-            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null -> "All lessons"; onNext != null -> "Next lesson"; else -> "Done" },
+            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" },
             onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
