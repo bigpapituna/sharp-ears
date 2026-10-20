@@ -133,8 +133,11 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
 
         Text("Microphone", style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            mic.builtInMics().forEach { (address, label) ->
-                FilterChip(selected = (micAddress ?: "bottom") == address, onClick = { micAddress = address }, label = { Text(label) })
+            val mics = mic.builtInMics()
+            mics.forEach { (address, label) ->
+                // None picked yet: start() takes the first built-in mic the phone lists, so that chip is the one selected
+                // ("Bottom" showed selected whatever was used, and no chip at all where no mic is called "bottom").
+                FilterChip(selected = (micAddress ?: mics.firstOrNull()?.first) == address, onClick = { micAddress = address }, label = { Text(label) })
             }
         }
         Text(mic.source.value ?: "Starting", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
