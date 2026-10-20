@@ -63,7 +63,7 @@ directly in MainActivity.
 | `PlayerScreen.flushPractice()` (after `prefs.addPractice(...)`, ~line 249) | every 15 s and on exit | `progress?.record(ProgressEvent.Practice(LocalDateTime.now(), secs))` |
 | `MainActivity` the `onDispose { prefs.addPractice(...) }` (~line 313) | a Practice today part ends | the same `Practice` event with the seconds just added |
 | `PlayerScreen` run finished (~lines 449 to 458): the branch with `run != null` | a Perform run ended | `SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted)`; read `wasCompleted` from `prefs.progress(meta.id).completed` before `markCompleted` |
-| same function, the `else` branch (`prefs.markCompleted`) | a Wait or Listen run reached the end | `SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted)` |
+| same function, the `else` branch (`prefs.markCompleted`) | a Wait run reached the end (Listen is the app playing: no SongRun, not marked played) | `SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted)` |
 | `LessonScreen.complete()` (~line 103) | every step passed | `LessonStepPassed` in both branches (the `else { index++ }` and the `if (last)` one) |
 | `MainActivity` `onDone = { prefs.markLessonDone(l.id) }` (~lines 296 and 327) | the last step passed | `LessonComplete(l.id)` right after `markLessonDone` |
 | `ChordGamesScreen.strike()`, `ChordGame.Outcome.DONE` (~line 179) | a round is answered | `ChordRound(root = game.target.root)` (for Ear games without a root, `ChordRound()`) |

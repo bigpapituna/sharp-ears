@@ -626,6 +626,10 @@ fun PlayerScreen(
                 reward = reward, duetLine = duetLine)
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
+        } else if (!played) {
+            // Listen: the app played it, so it opens at the top again but is not marked played and earns no song XP.
+            prefs.savePosition(meta.id, 0)
+            Log.d(TAG, "listened through ${song.id}")
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
