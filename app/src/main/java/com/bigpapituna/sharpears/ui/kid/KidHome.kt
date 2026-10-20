@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -410,7 +411,9 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
             .padding(start = 24.dp, end = 24.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("For grown-ups", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             Text("Who's playing?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+            // Up to eight people: the row scrolls (on the cover screen a fifth one was squeezed to nothing).
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
                 corner.profiles.forEach { p ->
                     Column(Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClickLabel = "Play as ${p.name}") {
                         Log.d(TAG, "kid home: grown-ups switched to ${p.id}"); corner.onSwitch(p.id)
