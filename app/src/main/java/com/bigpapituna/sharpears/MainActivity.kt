@@ -480,7 +480,14 @@ class MainActivity : ComponentActivity() {
                     var grownUpOffered by remember { mutableStateOf(bedtime.grownUpOffered) }
                     fun maybeGoodnight(after: String): Boolean {
                         val today = java.time.LocalDate.now()
-                        if (!com.bigpapituna.sharpears.engine.skin.Bedtime.sayGoodnight(profile.isKid, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)) return false
+                        val sec = progress.secondsToday(today)
+                        // The goal itself only earns a cheer; bedtime is a parental control (off by default).
+                        if (!bedtime.bedtime && com.bigpapituna.sharpears.engine.skin.Bedtime.sayWellDone(profile.isKid, sec, progress.goalMinutes, bedtime.wellDoneOn, today)) {
+                            bedtime.wellDoneOn = today
+                            voice.speak(com.bigpapituna.sharpears.engine.SessionWords.wellDone(profile.name))
+                            Log.d(TAG, "bedtime: goal cheered after $after")
+                        }
+                        if (!com.bigpapituna.sharpears.engine.skin.Bedtime.sayGoodnight(profile.isKid, sec, progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)) return false
                         bedtime.goodnightOn = today
                         goodbye = true
                         Log.d(TAG, "bedtime: goodnight after $after")
@@ -776,7 +783,7 @@ class MainActivity : ComponentActivity() {
                             val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales()) }
                             val today = remember { java.time.LocalDate.now() }
                             val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
-                                bedtime.oneMoreOn, today)
+                                bedtime.oneMoreOn, today, bedtime.bedtime)
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
                             var corner by remember { mutableStateOf(false) }
                             // After the last page's finale the pup says it once: the big kids' road is open.

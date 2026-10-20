@@ -154,7 +154,7 @@ fun LessonScreen(
     val gate = LocalParentGate.current
     val today = remember { java.time.LocalDate.now() }
     var asleep by remember { mutableStateOf(kid && progress != null &&
-        !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today)) }
+        !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) }
     var goodnight by remember { mutableStateOf(false) }
     val week = remember(goodnight, asleep) { PawWeek.of(progress?.practiceLog() ?: emptyMap(), today) }
     // A kid's reading step: one scene, then "More?" for the rest.
@@ -371,7 +371,7 @@ fun LessonScreen(
     }
     // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
-        Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today)
+        Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
     // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
     val dropSlot: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound }) } }
     val nextDrop = remember(reward, next) {

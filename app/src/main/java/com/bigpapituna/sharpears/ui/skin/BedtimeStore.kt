@@ -25,6 +25,16 @@ class BedtimeStore(context: Context, profileId: String) {
         get() = day("oneMoreOn")
         set(v) = put("oneMoreOn", v)
 
+    /** The goal's cheer was said on this day (bedtime or not). */
+    var wellDoneOn: LocalDate?
+        get() = day("wellDoneOn")
+        set(v) = put("wellDoneOn", v)
+
+    /** Bedtime after the goal: a parental control, off unless a grown-up turns it on in Settings > Family. */
+    var bedtime: Boolean
+        get() = p.getBoolean("bedtime", false)
+        set(v) = p.edit { putBoolean("bedtime", v) }
+
     /** Grown-up mode was offered once Beginner was done (2.1, integrator): either answer puts the card away. */
     var grownUpOffered: Boolean
         get() = p.getBoolean("grownUpOffered", false)

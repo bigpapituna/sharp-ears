@@ -85,6 +85,9 @@ object SessionWords {
     /** When a kid opens a new lesson after the goodbye: the pup is asleep, lessons are for tomorrow. */
     fun lessonsAsleep(name: String?): String = RunWords.named("Shh{name}, the pup is asleep. New lessons tomorrow!", name)
 
+    /** The daily goal reached, with bedtime off: a cheer, and the kid plays on as long as they like. */
+    fun wellDone(name: String?): String = RunWords.named("You did your practice for today{name}! Keep playing as long as you like.", name)
+
     /** The home goal line for a kid: how the pup feels, never minutes. */
     fun kidGoal(practisedSec: Int, goalMin: Int): String {
         val done = if (goalMin <= 0) 0f else practisedSec / (goalMin * 60f)

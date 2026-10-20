@@ -82,6 +82,13 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
                     Text(if (p.reader) "Not reading yet" else "Reads now")
                 }
                 TextButton(onClick = { gate.guard { profiles.setKind(p.id, ProfileKind.ADULT) } }) { Text("Switch to grown-up mode") }
+                // Bedtime after the daily goal is a parental control, off by default: kids otherwise play as long as they like.
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val store = remember(p.id) { com.bigpapituna.sharpears.ui.skin.BedtimeStore(context.applicationContext, p.id) }
+                var bedtime by remember(p.id) { mutableStateOf(store.bedtime) }
+                TextButton(onClick = { gate.guard { bedtime = !bedtime; store.bedtime = bedtime } }) {
+                    Text(if (bedtime) "Bedtime after the goal: on" else "Bedtime after the goal: off")
+                }
             } else if (!p.isOwner) {
                 TextButton(onClick = { gate.guard { profiles.setKind(p.id, ProfileKind.KID) } }) { Text("Switch to kid mode") }
             }
