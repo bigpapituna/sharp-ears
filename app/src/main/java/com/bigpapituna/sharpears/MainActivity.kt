@@ -377,7 +377,8 @@ class MainActivity : ComponentActivity() {
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)
         val route = intent.getStringExtra("screen")?.takeIf { debuggable }
-        val first: Screen = when {
+        // A debug route with a bad value (an unknown lesson or song, "prog:x") opens home instead of crashing the launch.
+        val first: Screen = runCatching { when {
             route == "chords" -> Screen.Home(HomeTab.CHORDS,
                 when (intent.getStringExtra("tab")) {
                     "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
@@ -423,7 +424,7 @@ class MainActivity : ComponentActivity() {
                 Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Home(HomeTab.CHORDS, ChordsTab.PROGRESSIONS))
             }
             else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
-        }
+        } }.getOrElse { Log.d(TAG, "debug route failed, opening home: $it"); Screen.Home() }
 
         val startDaily = debuggable && intent.getBooleanExtra("daily", false)
         // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
