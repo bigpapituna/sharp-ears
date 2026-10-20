@@ -109,4 +109,23 @@ class CoursePathTest {
         // A lesson after it never pulls the suggestion back to the start.
         assertEquals("scale-left", placed.next { it == "sit" }?.id)
     }
+
+    @Test fun nextLessonAfterAReplayIsWhereLearnPoints() {
+        val main = adult.counted.map { it.id }
+        // The first five done, the second replayed: Next is the sixth, as Learn's Start says, not the third (done).
+        val done = main.take(5).toSet()
+        val second = adult.lesson(main[1])!!
+        assertEquals(main[2], adult.after(second)?.id)
+        assertEquals(main[5], adult.after(second) { it in done }?.id)
+        assertEquals(adult.next { it in done }?.id, adult.after(second) { it in done }?.id)
+        // Placed further on and that stretch done: the course's last lesson leads back to the lessons before it.
+        val placed = CoursePath(Profile.firstUnitId(ProfileKind.ADULT), startAt = { "scale-left" })
+        val from = main.indexOf("scale-left")
+        val walked = main.drop(from).toSet()
+        assertEquals("sit", placed.after(placed.lesson(main.last())!!) { it in walked - main.last() }?.id)
+        // Everything done: no Next. An extra unit stays on its page.
+        assertNull(adult.after(adult.lesson(main.last())!!) { it in main })
+        assertEquals("pond-2", adult.after(POND.lessons.first()) { false }?.id)
+        assertNull(adult.after(HALL.lessons.last()) { false })
+    }
 }

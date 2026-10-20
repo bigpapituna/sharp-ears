@@ -63,12 +63,17 @@ class CoursePath(
     /**
      * The lesson after [lesson] for "Next lesson": the following one on the path, skipping what is not suggested (a
      * big kid's other games). Inside the extra unit, its next lesson; at the end of the main course, null.
+     * With [done], lessons already done are passed over and, past the last one, it is where [next] points (so a lesson
+     * replayed for review leads on to the one Learn's Start, Practice today and the quest suggest, not to a done one).
      */
-    fun after(lesson: CourseLesson): CourseLesson? {
+    fun after(lesson: CourseLesson, done: ((String) -> Boolean)? = null): CourseLesson? {
         val i = lessons.indexOfFirst { it.second.id == lesson.id }
         if (i < 0) return null
         val extra = isExtra(lessons[i].first)
-        return lessons.drop(i + 1).firstOrNull { (lv, l) -> if (extra) lv == lessons[i].first else suggestable(lv, l) }?.second
+        val following = lessons.drop(i + 1).firstOrNull { (lv, l) ->
+            done?.invoke(l.id) != true && if (extra) lv == lessons[i].first else suggestable(lv, l)
+        }?.second
+        return following ?: if (done == null || extra) null else next { it == lesson.id || done(it) }
     }
 
     /** The unit [lesson] belongs to. */

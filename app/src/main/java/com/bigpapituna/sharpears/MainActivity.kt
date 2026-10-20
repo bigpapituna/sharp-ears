@@ -611,7 +611,7 @@ class MainActivity : ComponentActivity() {
                             // leads to the page's finale instead (and today's goodbye waits until after it).
                             val finaleAhead = profile.isKid && remember(l.id) { Finale.trigger(l.id, kidStore.finales()) != null }
                             val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales())
-                                else path.after(l)
+                                else path.after(l) { prefs.lessonDone(it) }
                             val leave = {
                                 val f = pendingFinale
                                 if (f != null) { pendingFinale = null; voice.stop(); screen = Screen.Finale(f) } else screen = s.back
