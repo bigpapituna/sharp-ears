@@ -640,7 +640,13 @@ class MainActivity : ComponentActivity() {
                                     parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                    BackHandler { advanceDaily(s, completed = false) }
+                                    // Back is "Skip the rest": the chords answered count, and the session ends here (left open,
+                                    // it took over Chords > Daily afterwards).
+                                    fun endChords(n: Int) {
+                                        part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
+                                        advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
+                                    }
+                                    BackHandler { val n = lessons.sessionIndex; lessons.endSession(); endChords(n) }
                                     // Chord practice does not run the player, so its time is counted here.
                                     androidx.compose.runtime.DisposableEffect(s.index) {
                                         val t0 = System.currentTimeMillis()
@@ -655,10 +661,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
                                         DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily }, sound = { prefs.sound },
-                                            onEnd = { n ->
-                                                part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
-                                                advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
-                                            })
+                                            onEnd = ::endChords)
                                     }
                                 }
                                 is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
