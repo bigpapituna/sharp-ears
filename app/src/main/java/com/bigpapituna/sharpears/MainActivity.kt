@@ -679,6 +679,8 @@ class MainActivity : ComponentActivity() {
                                     val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
                                     val m = songs.first { it.id == id }
                                     val song = remember(id) { repo.load(m) }
+                                    // Played here, it is the Continue song (Songs said "Start here" after a whole session of it).
+                                    LaunchedEffect(id) { prefs.lastSongId = id }
                                     val partStart = remember(s.index) { System.currentTimeMillis() }
                                     // A song part played to its end shows its recap first (stars, XP, the sticker it dropped);
                                     // closing the recap, or Back, goes on. It went on at once before, so none of it was seen.
