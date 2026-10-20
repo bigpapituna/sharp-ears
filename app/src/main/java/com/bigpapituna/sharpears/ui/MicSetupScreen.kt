@@ -123,7 +123,9 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Microphone setup", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         }
         if (!granted) {
-            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. Nothing is recorded or sent anywhere.",
+            // Honest for this build: debug builds keep recordings by default (Keep practice recordings, below once allowed).
+            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. " + if (mic.canRecord)
+                "This test build keeps recent sessions on the phone, and you can turn that off here." else "Nothing is recorded or sent anywhere.",
                 size = 88.dp, style = MaterialTheme.typography.bodyLarge)
             Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
             return@Column
@@ -183,7 +185,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                     Text("Keep practice recordings", style = MaterialTheme.typography.titleMedium)
                     Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing, " +
                         "plus a short clip whenever wait mode is stuck on the same notes for 5 seconds (up to 250 MB, oldest deleted first). " +
-                        "They never leave the phone unless you copy them off. Talking in the room is recorded too.",
+                        "They leave the phone only if you copy them off or switch on Send them for review. Talking in the room is recorded too.",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") },
