@@ -203,7 +203,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             onDismissRequest = { importing = null },
             title = { Text("Replace your progress?") },
             text = { Text("The file holds ${files.values.sumOf { it.size }} saved settings. They replace everything the app remembers now" +
-                (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile,") + " and this cannot be undone.") },
+                (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile (an older file: stickers and the pup's world stay),") + " and this cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     com.bigpapituna.sharpears.data.ProgressFiles.replace(context, files)

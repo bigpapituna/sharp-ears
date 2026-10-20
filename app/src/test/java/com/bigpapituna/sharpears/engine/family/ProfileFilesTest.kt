@@ -52,6 +52,14 @@ class ProfileFilesTest {
         val plan = ProfileFiles.importPlan(setOf("progress", "mic", "theory"), listOf("owner", "p1"), names)
         assertFalse(plan.allProfiles)
         assertEquals(setOf("progress", "mic", "theory"), plan.write)
-        assertEquals(names, plan.clear)                                      // the other profiles are left alone
+        assertEquals(listOf("progress", "mic", "theory"), plan.clear)        // the other profiles are left alone
+    }
+
+    /** Audit (noted in 2.2.1): restoring a 2.0 backup wiped the owner's stickers, quests and kid map, files 2.0 never had. */
+    @Test fun aBackupFrom20KeepsTheOwnersNewerFiles() {
+        val now = names + listOf("world", "play", "skin", "kid")
+        val plan = ProfileFiles.importPlan(names.toSet(), listOf("owner", "p1"), now)
+        assertEquals(names, plan.clear)
+        assertTrue(listOf("world", "play", "skin", "kid").none { it in plan.clear })
     }
 }
