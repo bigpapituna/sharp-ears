@@ -1042,6 +1042,7 @@ fun PlayerScreen(
         if (pickingDuet) Dialog(onDismissRequest = { pickingDuet = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             SharpEarsTheme(dark = androidx.compose.foundation.isSystemInDarkTheme()) {
+                DialogBarsFollowTheme()
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     // One readable column, centred on a wide screen.
                     Box(contentAlignment = Alignment.TopCenter) {
