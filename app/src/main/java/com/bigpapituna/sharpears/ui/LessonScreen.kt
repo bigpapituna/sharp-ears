@@ -200,6 +200,10 @@ fun LessonScreen(
             tookSecs = (System.currentTimeMillis() - openedAt) / 1000
             lessonStars = com.bigpapituna.sharpears.engine.kid.LessonStars.ofLesson(stepStars.toList())
             reward = onDone(lessonStars)
+            // A grown-up's "one more" (bedtime on) is spent with this lesson: the next one sleeps again.
+            if (kid && progress != null && Bedtime.oneMoreSpent(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) {
+                bedtime.oneMoreOn = null; Log.d(TAG, "bedtime: one more lesson spent on ${lesson.id}")
+            }
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")

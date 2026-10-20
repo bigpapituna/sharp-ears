@@ -37,6 +37,19 @@ class BedtimeTest {
         assertTrue(Bedtime.SONGS_OPEN)
     }
 
+    /** Audit 2026-10-20: one "one more lesson" from a grown-up opened every lesson for the rest of the day. */
+    @Test fun aGrownUpsOneMoreIsOneLesson() {
+        val today = LocalDate.of(2026, 10, 20)
+        assertTrue(Bedtime.oneMoreSpent(kid = true, practisedSec = 600, goalMin = 5, grownUpSaidOn = today, today = today, bedtime = true))
+        assertFalse("bedtime off: nothing to spend", Bedtime.oneMoreSpent(true, 600, 5, today, today, bedtime = false))
+        assertFalse("given another day", Bedtime.oneMoreSpent(true, 600, 5, today.minusDays(1), today, bedtime = true))
+        assertFalse("before the goal lessons are open anyway", Bedtime.oneMoreSpent(true, 100, 5, today, today, bedtime = true))
+        assertFalse("grown-ups have no bedtime", Bedtime.oneMoreSpent(false, 600, 5, today, today, bedtime = true))
+        // Spent (cleared), the lessons sleep again until a grown-up says one more.
+        assertTrue(Bedtime.lessonOpen(true, 600, 5, grownUpSaidOn = today, today = today, bedtime = true))
+        assertFalse(Bedtime.lessonOpen(true, 600, 5, grownUpSaidOn = null, today = today, bedtime = true))
+    }
+
     @Test fun bedtimeIsOffByDefaultSoKidsPlayOn() {
         val today = LocalDate.of(2026, 10, 20)
         // The goal reached, bedtime off: no goodnight, lessons stay open, the cheer is said once a day.
