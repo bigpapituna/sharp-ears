@@ -58,6 +58,19 @@ class StallWatchTest {
     }
 
     /**
+     * Audit: the stalls folder dropped files by name past its 250 MB, so every answer-key clip and crash report (even
+     * today's) went before months-old stuck moments, and a report's ".sent" marker went before the report, which was
+     * then sent again.
+     */
+    @Test fun theStallsFolderDropsTheOldestFirstWhateverItsKind() {
+        val names = listOf("answer-20261020-101500-twinkle.txt", "stall-20261001-090000-twinkle.sent", "crash-20261019-080000.txt",
+            "stall-20261001-090000-twinkle.wav", "flag-20261018-120000-ode.wav", "stall-20261001-090000-twinkle.txt", "summary-20261002-070000.txt")
+        assertEquals(listOf("stall-20261001-090000-twinkle.txt", "stall-20261001-090000-twinkle.wav", "stall-20261001-090000-twinkle.sent",
+            "summary-20261002-070000.txt", "flag-20261018-120000-ode.wav", "crash-20261019-080000.txt", "answer-20261020-101500-twinkle.txt"),
+            names.sortedWith(StallWatch.OLDEST_FIRST))
+    }
+
+    /**
      * Audit: a crash report carried the app's last 200 log lines, where the voice logs every line it says ("voice:
      * Lesson done, Mia!") and the finale and photo booth log file names with the kid's name; it went to GitHub as is.
      */

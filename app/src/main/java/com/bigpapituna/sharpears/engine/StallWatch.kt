@@ -68,6 +68,13 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
         }
 
         /**
+         * The stalls folder's files ("stall-", "answer-", "flag-", "crash-", "summary-" and a yyyyMMdd-HHmmss stamp; their
+         * .txt, .wav and .sent) in the order its size budget drops them: the oldest stamp first whatever the kind, and a
+         * report's ".sent" marker after the report, so a report never loses its marker and goes out twice.
+         */
+        val OLDEST_FIRST: Comparator<String> = compareBy({ it.substringAfter('-').substringBeforeLast('.') }, { it.endsWith(".sent") }, { it })
+
+        /**
          * [text] with each of [names] (the roster's) made "<name>", as a whole word in any case: a crash report carries
          * the app's recent log, where the voice's lines ("Lesson done, Mia!") and saved file names name the kids.
          */
