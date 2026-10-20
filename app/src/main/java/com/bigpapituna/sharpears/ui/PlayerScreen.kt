@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -884,15 +885,18 @@ fun PlayerScreen(
     val moving = playing && !waitingNow && transport.positionMs >= 0
     val showVideo = videoOn && tutorial != null
 
+    // The bar needs the playhead to a tenth of a second (a slider pixel is a few hundred ms of a song): read per frame, the
+    // whole bar recomposed 60 times a second while a song played.
+    val barPosition by remember { derivedStateOf { kotlin.math.floor(position / 100.0) * 100.0 } }
     @Composable
-    fun Bar() = TransportBar(
-        BarState(playing, ready, maxOf(position, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
+    fun Bar() = OwnScope { TransportBar(
+        BarState(playing, ready, maxOf(barPosition, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
             midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
             // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
             subtitle = listOfNotNull(
                 if (transpose != 0) "${if (transpose > 0) "Up" else "Down"} ${kotlin.math.abs(transpose)} ${if (kotlin.math.abs(transpose) == 1) "semitone" else "semitones"}" else null,
                 meta?.composer?.takeIf { it.isNotEmpty() },
-                song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
+                song.sections.lastOrNull { it.startMs <= barPosition }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
@@ -902,7 +906,7 @@ fun PlayerScreen(
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
-                position < transport.anchorMs -> if (playing) "Get ready" else ""
+                barPosition < transport.anchorMs -> if (playing) "Get ready" else ""
                 kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
@@ -945,7 +949,7 @@ fun PlayerScreen(
             }) else null,
         ),
         modifier = Modifier.fillMaxWidth(),
-    )
+    ) }
     if (flagging) FlagDialog(onDismiss = { flagging = false }) { what, note ->
         flagging = false
         val name = "flag-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
@@ -1093,8 +1097,9 @@ fun PlayerScreen(
         }
     }
 
-    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks.
-    LaunchedEffect(laneBox, position, playing) {
+    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks. Only with
+    // --ez dump: keyed on the position, it made the whole player recompose (and relaunch this effect) on every frame.
+    if (debugDump) LaunchedEffect(laneBox, position, playing) {
         val box = laneBox ?: return@LaunchedEffect
         if (playing) return@LaunchedEffect
         delay(400)
@@ -1220,6 +1225,13 @@ private fun handColor(h: Hand) = if (h == Hand.RIGHT) RightHandColor else LeftHa
 
 
 /** The lesson player's one row: play/pause, what the step asks (fixed by the step), live status, and the mic. */
+/**
+ * Runs [content] in a recompose scope of its own. A local composable function (PlayerScreen's Bar) has none, so its
+ * state reads recomposed the whole player: the playhead, read by the bar, did that on every frame.
+ */
+@Composable
+private fun OwnScope(content: @Composable () -> Unit) = content()
+
 @Composable
 private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: Boolean, onPlayPause: () -> Unit, onMic: () -> Unit, status: String) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
