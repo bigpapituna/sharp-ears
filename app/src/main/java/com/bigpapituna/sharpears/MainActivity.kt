@@ -221,6 +221,8 @@ class MainActivity : ComponentActivity() {
     private var openKind: com.bigpapituna.sharpears.engine.family.ProfileKind? = null
     /** A kid reads or not, as the app was opened (a big kid's course path differs, so a change reopens it too). */
     private var openReader: Boolean? = null
+    /** Launches of this activity's content ([openApp] with fromLaunch), so a new one forgets the last one's screen. */
+    private var launches = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -424,7 +426,10 @@ class MainActivity : ComponentActivity() {
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
 
-        setContent { androidx.compose.runtime.key(profile.id) {
+        // A launch (onCreate, the picker, a debug route through onNewIntent) starts a fresh composition; a profile's kind
+        // changing keeps the screen it is on.
+        val opened = if (fromLaunch) ++launches else launches
+        setContent { androidx.compose.runtime.key(profile.id, opened) {
             var screen by remember { mutableStateOf(opening) }
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
@@ -1055,6 +1060,20 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "kid debug: today's goal reached, goodnight said")
         }
         if (intent.getBooleanExtra("awake", false)) { bedtime.oneMoreOn = today; Log.d(TAG, "kid debug: lessons open today") }
+    }
+
+    /**
+     * The activity is singleTop (manifest): the launcher icon, the reminder's notification and `adb shell am start` bring
+     * this one back instead of stacking a second MainActivity on it (each with its own mic, voice, MIDI and sampler).
+     * Debug builds: a route in the new intent (--es screen, song, lesson, profile, --ez daily) opens as a fresh launch would.
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (!debuggable || (listOf("screen", "song", "lesson", "profile").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
+        setIntent(intent)
+        intent.getStringExtra("profile")?.let(profiles::switchTo)
+        openApp(fromLaunch = true)
     }
 
     override fun onPause() {
