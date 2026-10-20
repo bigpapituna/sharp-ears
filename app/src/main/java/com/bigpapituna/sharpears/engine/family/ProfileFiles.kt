@@ -45,13 +45,14 @@ object ProfileFiles {
     /**
      * The import of a backup holding [backup] files onto a phone with [currentIds] profiles. A backup with the roster
      * (2.1 on) replaces every profile: all current files are cleared and the backup's are written. One without it
-     * (2.0) is the owner's alone: only the plain [names] are cleared and written, other profiles stay as they are.
-     * Files that are not ours are never written.
+     * (2.0) is the owner's alone: only the plain files it holds are cleared and written (2.0 wrote every file it had), so
+     * other profiles and the owner's files from after 2.0 (the world, the kid's stars) stay as they are. Files that
+     * are not ours are never written.
      */
     fun importPlan(backup: Set<String>, currentIds: List<String>, names: List<String>): ImportPlan {
         val all = ROSTER in backup
         val write = backup.filter { if (all) restorable(it, names) else it in names }.toSet()
-        val clear = if (all) (backupFiles(names, currentIds) + write).distinct() else names
+        val clear = if (all) (backupFiles(names, currentIds) + write).distinct() else names.filter { it in backup }
         return ImportPlan(write, clear, all)
     }
 
