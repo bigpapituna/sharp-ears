@@ -264,7 +264,7 @@ class MicInput(private val context: Context) {
         stop = true
         val was = thread
         was?.join(1000)
-        thread = null
+        synchronized(threadLock) { if (thread === was) thread = null }
         main.post { source.value = null; level.floatValue = -120f; if (was != null) onStopped?.invoke() }
     }
 
@@ -274,11 +274,27 @@ class MicInput(private val context: Context) {
         matcher.reset()
         matcher.trace = if (traceOn()) { msg -> Log.d(TAG, "matcher $msg") } else null
         source.value = label
-        thread = Thread({
+        val t = Thread({
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
             try { body() } catch (e: Exception) { Log.d(TAG, "mic: thread failed: $e") }
-        }, "sharpears-mic").apply { start() }
+            finally { endedByItself() }
+        }, "sharpears-mic")
+        thread = t           // before start(): a loop that fails at once must find itself here to clear it
+        t.start()
     }
+
+    /**
+     * The capture loop ended without [stop] (the mic would not start, a read error, the input taken away): the mic is
+     * free again, so [listening] stops holding the voice's lines and the next [start] opens it afresh. Before this a
+     * dead loop stayed in [thread] and every later start() returned true without listening.
+     */
+    private fun endedByItself() {
+        val me = Thread.currentThread()
+        synchronized(threadLock) { if (thread !== me || stop) return; thread = null }
+        Log.d(TAG, "mic: the capture loop ended by itself")
+        main.post { source.value = null; level.floatValue = -120f; onStopped?.invoke() }
+    }
+    private val threadLock = Any()
 
     // ---- capture loops ----
 
@@ -289,10 +305,10 @@ class MicInput(private val context: Context) {
     @Volatile private var clockNanos = 0L
 
     private fun loopMic(rec: AudioRecord) {
-        rec.startRecording()
         val buf = FloatArray(512)
         framesRead = 0
         try {
+            rec.startRecording()          // inside the try: a refused start still releases the recorder below
             while (!stop) {
                 val n = rec.read(buf, 0, buf.size, AudioRecord.READ_BLOCKING)
                 if (n <= 0) { Log.d(TAG, "mic: read returned $n"); break }
@@ -304,7 +320,7 @@ class MicInput(private val context: Context) {
                 handle(buf, n)
             }
         } finally {
-            rec.stop(); rec.release()
+            runCatching { rec.stop() }; rec.release()
             Log.d(TAG, "mic: stopped after ${framesRead / RATE} s")
         }
     }
