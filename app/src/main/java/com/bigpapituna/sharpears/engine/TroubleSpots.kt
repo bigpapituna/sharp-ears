@@ -31,7 +31,9 @@ object TroubleSpots {
 
     fun spot(song: Song, bar: Int): TroubleSpot {
         val b = barMs(song)
-        return TroubleSpot(bar, (bar - 1) * b, minOf(bar * b, song.durationMs.toDouble()), 0.0)
+        // A stored bar can be stale (a re-imported, shorter file) or come from a backup: its loop stays inside the song.
+        val n = bar.coerceIn(1, maxOf(1, Math.ceil(song.durationMs / b).toInt()))
+        return TroubleSpot(bar, (n - 1) * b, minOf(n * b, song.durationMs.toDouble()), 0.0)
     }
 
     fun forWait(song: Song, log: TroubleLog, count: Int = 3): List<TroubleSpot> {
