@@ -136,7 +136,7 @@ private fun UpNext(plan: WorkoutPlan, index: Int, results: List<WorkoutGame>, on
                 val done = results.getOrNull(i)
                 val now = i == index
                 val lift by animateDpAsState(if (now) 10.dp else 0.dp, label = "lift")
-                Column(Modifier.weight(1f).fillMaxHeight().offset(y = -lift).clip(RoundedCornerShape(18.dp))
+                Column(Modifier.weight(1f).fillMaxHeight().offset { androidx.compose.ui.unit.IntOffset(0, -lift.roundToPx()) }.clip(RoundedCornerShape(18.dp))
                     .background(if (now) c.primaryContainer else c.surfaceContainerHigh)
                     .then(if (now) Modifier.border(2.dp, c.primary, RoundedCornerShape(18.dp)) else Modifier)
                     .graphicsLayer { alpha = if (done == null && !now) 0.7f else 1f }
