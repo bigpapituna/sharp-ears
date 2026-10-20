@@ -261,7 +261,10 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
         while (true) { delay(7000); pointing = true; delay(3400); pointing = false }
     }
     val shown = if (pointing) KidLines.signpostShort(found) else line
-    val pose = when { asleep && yawned -> Pose.SLEEPING; asleep -> Pose.GOODNIGHT; pointing -> Pose.POINTING; else -> Pose.GET_READY }
+    // Dressed up (My stickers): he waits on his stone in his outfit, which only the sitting base pose wears (the map was
+    // the one home where a kid never saw the pup they dressed; the grown-ups' home shows him the same way).
+    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
+    val pose = when { asleep && yawned -> Pose.SLEEPING; asleep -> Pose.GOODNIGHT; pointing -> Pose.POINTING; dressed -> Pose.WEAR_BASE; else -> Pose.GET_READY }
     // GET_READY points to the right of the screen, POINTING to the left: mirrored when the bubble is on the left.
     val mirror = !asleep && !right
     val pup = rememberPupController(idle = !pointing && !asleep)
