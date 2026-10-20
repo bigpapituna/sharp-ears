@@ -66,5 +66,14 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
             return if (at < 0) "profile=$kind\n$report"
             else (lines.take(at + 1) + "profile=$kind" + lines.drop(at + 1)).joinToString("\n")
         }
+
+        /**
+         * [text] with each of [names] (the roster's) made "<name>", as a whole word in any case: a crash report carries
+         * the app's recent log, where the voice's lines ("Lesson done, Mia!") and saved file names name the kids.
+         */
+        fun scrubNames(text: String, names: Collection<String>): String =
+            names.filter { it.isNotBlank() }.sortedByDescending { it.length }.fold(text) { t, n ->
+                t.replace(Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(n) + "(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE), "<name>")
+            }
     }
 }

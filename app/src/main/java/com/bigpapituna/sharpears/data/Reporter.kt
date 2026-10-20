@@ -124,9 +124,14 @@ class Reporter(private val context: Context) {
                 val log = runCatching {
                     ProcessBuilder("logcat", "-d", "-t", "200", "--pid=${android.os.Process.myPid()}").start().inputStream.bufferedReader().readText()
                 }.getOrDefault("(log unavailable)")
-                saveText("crash-" + stamp(), "title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
+                // The log holds the voice's lines and saved file names, which name the kids: a report never carries a name.
+                val names = runCatching {
+                    com.bigpapituna.sharpears.engine.family.Roster.decode(context.getSharedPreferences(com.bigpapituna.sharpears.engine.family.ProfileFiles.ROSTER,
+                        Context.MODE_PRIVATE).getString(Profiles.KEY_ROSTER, null)).profiles.map { it.name }
+                }.getOrDefault(emptyList())
+                saveText("crash-" + stamp(), com.bigpapituna.sharpears.engine.StallWatch.scrubNames("title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
                     "# sharp ears crash\nversion=$version thread=${t.name} device=${android.os.Build.MODEL} android=${android.os.Build.VERSION.RELEASE}\n\n" +
-                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"))
+                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"), names))
             }
             previous?.uncaughtException(t, e)
         }

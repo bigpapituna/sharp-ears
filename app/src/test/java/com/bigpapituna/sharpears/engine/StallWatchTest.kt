@@ -56,4 +56,17 @@ class StallWatchTest {
         w.start(100, listOf("D4"), "")
         assertTrue("nothing" in w.end(6_000, "played")!!.report)
     }
+
+    /**
+     * Audit: a crash report carried the app's last 200 log lines, where the voice logs every line it says ("voice:
+     * Lesson done, Mia!") and the finale and photo booth log file names with the kid's name; it went to GitHub as is.
+     */
+    @Test fun crashReportsNameNoOne() {
+        val log = "voice: Lesson done, Mia! Five stars, mia.\nfinale: garden for Zoë Rose\nsaved Zoë Rose finished the garden.png\n" +
+            "voice: Amazing, Al! All done. Alicia is fine.\nroster: Mia,Zoë Rose"
+        val clean = StallWatch.scrubNames(log, listOf("Mia", "Zoë Rose", "Al", ""))
+        for (name in listOf("Mia", "mia", "Zoë")) assertTrue("$name in $clean", name !in clean)
+        assertTrue(clean, "Amazing, <name>! All done. Alicia is fine." in clean)    // whole words only
+        assertEquals("voice: <name> and <name>.", StallWatch.scrubNames("voice: Mia and Zoë Rose.", listOf("Mia", "Zoë Rose")))
+    }
 }
