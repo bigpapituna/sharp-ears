@@ -66,6 +66,18 @@ class ProfileTest {
         for (p in all) assertEquals(p, Profile.decode(p.encode()))
     }
 
+    /**
+     * Audit: a pre-reader switched to grown-up mode came back from the file as a reader (the grown-up defaults set
+     * reader, and decode never read it back), so switching back to kid mode after a restart gave them letters and the
+     * reader's goal.
+     */
+    @Test fun aGrownUpWhoWasAPreReaderStaysOneThroughTheFile() {
+        val grown = Profile.kid("Mia", 5, reader = false, id = "p2").withKind(ProfileKind.ADULT)
+        val back = Profile.decode(grown.encode())!!
+        assertEquals(grown, back)
+        assertEquals(Profile.KID_GOAL_PRE_READER, back.withKind(ProfileKind.KID).dailyGoalMin)
+    }
+
     @Test fun olderOrBrokenTextReadsSafely() {
         assertNull(Profile.decode("not json"))
         assertNull(Profile.decode("{\"name\":\"no id\"}"))

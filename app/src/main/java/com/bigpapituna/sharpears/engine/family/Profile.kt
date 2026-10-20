@@ -104,6 +104,7 @@ data class Profile(
             val hints = (m["hintSeconds"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.takeIf { it.size == 3 } ?: d.hintSeconds
             return d.copy(
                 id = id,
+                reader = reader,
                 name = (m["name"] as? String)?.let(::cleanName)?.takeIf { it.isNotEmpty() } ?: if (id == OWNER_ID) OWNER_NAME else "Player",
                 avatar = ((m["avatar"] as? Number)?.toInt() ?: 0).coerceIn(0, AVATARS - 1),
                 dailyGoalMin = (m["dailyGoalMin"] as? Number)?.toInt() ?: d.dailyGoalMin,
