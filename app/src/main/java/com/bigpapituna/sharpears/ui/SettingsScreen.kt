@@ -60,9 +60,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** The daily reminder is the phone owner's (one alarm per phone); other profiles do not see it. */
                    showReminder: Boolean = true) {
     var pickTime by remember { mutableStateOf(false) }
-    // The reminder time as the phone shows times (6:30 PM, or 18:30).
-    val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
-        .format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)).replace(' ', ' ')
+    // The reminder time as the phone shows times (6:30 PM, or 18:30): its 12 or 24-hour setting, as the picker uses.
+    val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
+        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, prefs.reminderMinutes / 60); set(java.util.Calendar.MINUTE, prefs.reminderMinutes % 60) }.time).replace(' ', ' ')
     val context = androidx.compose.ui.platform.LocalContext.current
     // Progress export and import (Storage Access Framework: the player picks where the file goes).
     val scope = androidx.compose.runtime.rememberCoroutineScope()

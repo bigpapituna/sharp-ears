@@ -69,9 +69,6 @@ import com.bigpapituna.sharpears.ui.Stat
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.profile.mono
 import com.bigpapituna.sharpears.ui.reducedMotion
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 private const val STEPS = 4
 
@@ -251,8 +248,9 @@ private fun HabitStep(
     onReminder: (Boolean) -> Unit, onPickTime: () -> Unit, onMic: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    val timeLabel = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
-        .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)).replace(' ', ' ')
+    // As the phone shows times: its 12 or 24-hour setting, as the picker uses (java.time's localized format ignores it).
+    val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
+        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, reminderMinutes / 60); set(java.util.Calendar.MINUTE, reminderMinutes % 60) }.time).replace(' ', ' ')
     PupSays(Pose.LISTENING, if (askReminder) "Nearly there. Two quick choices and we can start." else "Nearly there. One quick choice and we can start.",
         Modifier.fillMaxWidth(), size = 96.dp)
     StepTitle(if (askReminder) "A reminder, and how you play" else "How you play")
