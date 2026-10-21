@@ -110,7 +110,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
                 val opts = listOf(KeyLabels.OFF to "Off", KeyLabels.C_ONLY to "C only", KeyLabels.ALL to "All")
                 opts.forEachIndexed { i, (k, label) ->
-                    SegmentedButton(prefs.keyLabels == k && v >= 0, { prefs.keyLabels = k }, SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(label) }
+                    SegmentedButton(prefs.keyLabels == k && v >= 0, { prefs.keyLabels = k; com.bigpapituna.sharpears.data.Briefs.setting("keyLabels", k) }, SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(label) }
                 }
             }
 
@@ -120,29 +120,29 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
             if (profiles != null) Toggle("Colour notes", "Each note and key in its own colour: C red, D orange, E yellow, F green, G teal, A blue, B purple, " +
                 "as in many beginners' books.", me.colourNotes) { on -> profiles.update(me.id) { it.copy(colourNotes = on) } }
-            Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it }
+            Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it; com.bigpapituna.sharpears.data.Briefs.setting("noteNames", it) }
             Toggle("Finger numbers", "A suggested finger for each note, 1 for the thumb to 5 for the little finger.",
-                prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it }
+                prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it; com.bigpapituna.sharpears.data.Briefs.setting("fingerNumbers", it) }
             Toggle("Feedback light", "A flash rises from the line on a right note, a soft glow runs along it on a wrong one. Off: keys flash instead.",
-                prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it }
+                prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it; com.bigpapituna.sharpears.data.Briefs.setting("feedbackLight", it) }
             Toggle("Beat lines", "A faint line across the notes on every beat. Rhythm lessons always show them.",
-                prefs.beatLines && v >= 0) { prefs.beatLines = it }
+                prefs.beatLines && v >= 0) { prefs.beatLines = it; com.bigpapituna.sharpears.data.Briefs.setting("beatLines", it) }
             Toggle("Ghost hand", "A hand over the keys shows which finger plays next.",
-                prefs.ghostHand && v >= 0) { prefs.ghostHand = it }
+                prefs.ghostHand && v >= 0) { prefs.ghostHand = it; com.bigpapituna.sharpears.data.Briefs.setting("ghostHand", it) }
 
             Section("Sound")
             Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
-                prefs.sound && v >= 0) { prefs.sound = it; com.bigpapituna.sharpears.ui.world.WorldSounds.on = it }
+                prefs.sound && v >= 0) { prefs.sound = it; com.bigpapituna.sharpears.ui.world.WorldSounds.on = it; com.bigpapituna.sharpears.data.Briefs.setting("sound", it) }
             Toggle("Vibration on touch keys", "A light tap for a right note, a double tap for a wrong one, when you play on the screen.",
-                prefs.haptics && v >= 0) { prefs.haptics = it }
+                prefs.haptics && v >= 0) { prefs.haptics = it; com.bigpapituna.sharpears.data.Briefs.setting("haptics", it) }
 
             Section("Voice")
             Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
-                prefs.voice && v >= 0) { prefs.voice = it; if (!it) voice?.stop() }
+                prefs.voice && v >= 0) { prefs.voice = it; if (!it) voice?.stop(); com.bigpapituna.sharpears.data.Briefs.setting("voice", it) }
             if (prefs.voice) Toggle("Natural voice",
                 "A lifelike voice (Kokoro) that runs on this phone, nothing sent anywhere." +
                     if (voice?.naturalModelInstalled == false) " Lines that name notes and times use the phone's voice until the voice model is installed." else "",
-                prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it }
+                prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it; com.bigpapituna.sharpears.data.Briefs.setting("naturalVoice", it) }
             if (voice != null && prefs.voice && !prefs.naturalVoice) VoicePicker(voice, v)
 
             Section("Microphone")
@@ -157,7 +157,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 prefs.reminderOn && v >= 0) { on ->
                 if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context))
                     askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                else { prefs.reminderOn = on; onReminder() }
+                else { prefs.reminderOn = on; onReminder(); com.bigpapituna.sharpears.data.Briefs.setting("reminderOn", on) }
             }
             if (showReminder) TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
                 contentDescription = "Reminder time, $timeLabel, tap to change"

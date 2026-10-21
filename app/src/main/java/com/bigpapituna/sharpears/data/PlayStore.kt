@@ -29,6 +29,7 @@ class PlayStore(context: Context, val profileId: String) {
     fun recordQuest(event: QuestEvent, kid: Boolean, day: LocalDate = LocalDate.now()): List<QuestTask> =
         book.recordQuest(event, day, kid).also { done ->
             if (done.isNotEmpty()) Log.d(TAG, "play: quest $profileId ${done.joinToString { it.kind.name }} done ($event)")
+            done.forEach { t -> Briefs.logFor(profileId) { com.bigpapituna.sharpears.engine.brief.BriefEvent.QuestStar(it, t.kind.name) } }
         }
 
     fun pupSaysBest(day: LocalDate = LocalDate.now()): Int = book.pupSaysBest(day)

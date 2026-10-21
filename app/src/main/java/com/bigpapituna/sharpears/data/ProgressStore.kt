@@ -62,7 +62,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
     private val goalState = mutableIntStateOf(p.getInt("goalMinutes", DailyGoal.DEFAULT))
     var goalMinutes: Int
         get() = goalState.intValue
-        set(v) { goalState.intValue = v; edit { putInt("goalMinutes", v) } }
+        set(v) { if (v != goalState.intValue) Briefs.settingFor(prefs.profileId, "goalMin", v); goalState.intValue = v; edit { putInt("goalMinutes", v) } }
 
     private val weeklyState = mutableIntStateOf(p.getInt("weeklyDays", WeeklyGoal.DEFAULT))
     var weeklyDays: Int
@@ -100,6 +100,9 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
     }
 
     fun secondsToday(today: LocalDate = LocalDate.now()): Int = practiceLog()[today] ?: 0
+
+    /** Every second of practice this store has counted (the brief's sessions take the difference across a session). */
+    val practiceSecondsTotal: Long get() = p.getLong("totalSeconds", 0)
 
     /** Settings > Reset progress clears practice time: this log too, or the goal ring, streak and calendar keep it. */
     fun clearPracticeLog() = edit { p.all.keys.filter { it.startsWith("day:") }.forEach(::remove) }
@@ -248,6 +251,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         if (DailyGoal.met(dayTotal, goalMinutes) && p.getString("goalPaid", null) != day.toString()) {
             edit { putString("goalPaid", day.toString()); putInt("daysGoalMet", p.getInt("daysGoalMet", 0) + 1) }
             bonus += Xp.DAILY_GOAL_MET
+            Briefs.logFor(prefs.profileId) { com.bigpapituna.sharpears.engine.brief.BriefEvent.GoalReached(it, goalMinutes) }
         }
         return bonus
     }

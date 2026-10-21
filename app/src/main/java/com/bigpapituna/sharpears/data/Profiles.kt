@@ -69,10 +69,27 @@ class Profiles(
     fun rename(id: String, name: String) = save(state.value.rename(id, name), "renamed $id")
 
     /** Changes anything but the id (avatar, reader, hint speed, colour notes, mic offset). */
-    fun update(id: String, change: (Profile) -> Profile) = save(state.value.update(id, change), "updated $id")
+    fun update(id: String, change: (Profile) -> Profile) {
+        val before = state.value.profiles.firstOrNull { it.id == id }
+        save(state.value.update(id, change), "updated $id")
+        val after = state.value.profiles.firstOrNull { it.id == id }
+        if (before != null && after != null) briefChanges(before, after)
+    }
+
+    /** The brief's event log: what changed about [after] (never the name). */
+    private fun briefChanges(before: Profile, after: Profile) {
+        fun put(key: String, a: Any, b: Any) { if (a != b) Briefs.settingFor(after.id, key, b) }
+        put("kind", before.kind, after.kind); put("reader", before.reader, after.reader); put("colourNotes", before.colourNotes, after.colourNotes)
+        put("micOffsetDb", before.micOffsetDb, after.micOffsetDb); put("hintSeconds", before.hintSeconds.joinToString(":"), after.hintSeconds.joinToString(":"))
+    }
 
     /** Grown-up mode for a kid (or back): the kind's defaults for goal, hints, colour notes and mic offset. */
-    fun setKind(id: String, kind: ProfileKind) = save(state.value.setKind(id, kind), "$id is now $kind")
+    fun setKind(id: String, kind: ProfileKind) {
+        val before = state.value.profiles.firstOrNull { it.id == id }
+        save(state.value.setKind(id, kind), "$id is now $kind")
+        val after = state.value.profiles.firstOrNull { it.id == id }
+        if (before != null && after != null) briefChanges(before, after)
+    }
 
     /** Makes [id] the current profile; unknown ids are ignored. */
     fun switchTo(id: String) = save(state.value.switchTo(id), "switched to $id")

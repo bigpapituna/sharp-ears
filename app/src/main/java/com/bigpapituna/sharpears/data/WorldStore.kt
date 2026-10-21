@@ -56,6 +56,7 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     fun lessonComplete(lessonId: String, place: Place? = null): Reward {
         val o = World.lessonComplete(state, place)
         set(o.state)
+        brief(o.reward)
         log("world: lesson $lessonId -> " + describe(o.reward) + ", album ${o.state.unique}/30, lessons ${o.state.lessons}")
         return o.reward
     }
@@ -64,9 +65,16 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     fun songComplete(songId: String, accuracy: Int?): Reward {
         val o = World.songComplete(state, songId, accuracy)
         set(o.state)
+        brief(o.reward)
         log("world: song $songId ${accuracy?.let { "$it%" } ?: "played through"} -> " + describe(o.reward) +
             (o.reward.record?.let { ", record ${it.before?.label ?: "none"} to ${it.after.label}" } ?: ""))
         return o.reward
+    }
+
+    /** The brief's event log: each sticker dropped, with its rarity and whether it was new. */
+    private fun brief(r: Reward) = r.drops.forEach { d ->
+        Briefs.logFor(profileId) { com.bigpapituna.sharpears.engine.brief.BriefEvent.StickerDrop(it,
+            com.bigpapituna.sharpears.engine.brief.StickerRarity.valueOf(d.rarity.name), d.sticker.id, d.isNew, d.source.name.lowercase()) }
     }
 
     /** What the next lesson (of [place]) gives, for the "one more" button. */

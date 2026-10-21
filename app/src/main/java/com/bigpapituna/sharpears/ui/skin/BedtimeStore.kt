@@ -5,7 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
+import com.bigpapituna.sharpears.data.Briefs
 import com.bigpapituna.sharpears.data.ProgressFiles
+import com.bigpapituna.sharpears.engine.brief.BriefEvent
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import java.time.LocalDate
 
@@ -14,12 +16,12 @@ import java.time.LocalDate
  * every per-person file): the last day the goodnight was shown, and the last day a grown-up let one more lesson
  * through. The integrator adds "skin" to ProgressFiles.NAMES so backup and profile deletion cover it.
  */
-class BedtimeStore(context: Context, profileId: String) {
+class BedtimeStore(context: Context, private val profileId: String) {
     private val p = context.getSharedPreferences(ProgressFiles.fileFor(FILE, profileId), Context.MODE_PRIVATE)
 
     var goodnightOn: LocalDate?
         get() = day("goodnightOn")
-        set(v) = put("goodnightOn", v)
+        set(v) { put("goodnightOn", v); if (v != null) Briefs.logFor(profileId) { BriefEvent.BedtimeShown(it) } }
 
     var oneMoreOn: LocalDate?
         get() = day("oneMoreOn")
@@ -33,7 +35,7 @@ class BedtimeStore(context: Context, profileId: String) {
     /** Bedtime after the goal: a parental control, off unless a grown-up turns it on in Settings > Family. */
     var bedtime: Boolean
         get() = p.getBoolean("bedtime", false)
-        set(v) = p.edit { putBoolean("bedtime", v) }
+        set(v) { p.edit { putBoolean("bedtime", v) }; Briefs.settingFor(profileId, "bedtime", v) }
 
     /** Grown-up mode was offered once Beginner was done (2.1, integrator): either answer puts the card away. */
     var grownUpOffered: Boolean

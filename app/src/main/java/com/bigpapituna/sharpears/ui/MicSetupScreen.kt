@@ -168,14 +168,14 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         Text("Sensitivity: %.0f dB".format(java.util.Locale.ROOT, sensitivity), style = MaterialTheme.typography.titleMedium)
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
         Slider(sensitivity, { sensitivity = it }, valueRange = -80f..-40f, onValueChangeFinished = {
-            mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity")
+            mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity"); com.bigpapituna.sharpears.data.Briefs.setting("sensitivityDb", sensitivity.toInt())
         }, modifier = Modifier.semantics { contentDescription = "Sensitivity" })     // TalkBack said only "slider" and a percent
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Show wrong keys heard by the mic", style = MaterialTheme.typography.titleMedium)
                 Text("A key you hit lights yellow next to the right one and red further away. Only clear piano strikes count, so talking should not set it off.", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; Log.d(TAG, "mic wrongFlash=$it") },
+            Switch(checked = wrongFlash, onCheckedChange = { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; Log.d(TAG, "mic wrongFlash=$it"); com.bigpapituna.sharpears.data.Briefs.setting("wrongFlash", it) },
                 modifier = Modifier.semantics { contentDescription = "Show wrong keys heard by the mic" })
         }
         if (wrongFlash) {

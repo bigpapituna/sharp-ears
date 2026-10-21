@@ -43,6 +43,7 @@ class KidStore(context: Context, val profileId: String, private val log: (String
         p.edit { putBoolean(FINALE + pageId, true) }
         version.intValue++
         log("kid: finale of $pageId played")
+        Briefs.logFor(profileId) { com.bigpapituna.sharpears.engine.brief.BriefEvent.FinalePlayed(it, pageId) }
     }
 
     /** The pup said "You're ready for the big kids' road!" (once, after the last page's finale). */
