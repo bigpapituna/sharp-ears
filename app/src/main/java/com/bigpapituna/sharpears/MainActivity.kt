@@ -656,6 +656,8 @@ class MainActivity : ComponentActivity() {
                     AnimatedContent(screen, Modifier.fillMaxSize(), label = "screen", contentKey = { it::class },
                         transitionSpec = screenTransitions(still, isStage = ::isStage, depth = ::depthOf)) { s ->
                     // Each screen keeps its own theme while it animates out (the home does not turn dark under the curtain).
+                    // A screen on its way out is off screen for onScreen(): its mic stops before the next screen's starts.
+                    androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.LocalLeaving provides (s::class != screen::class)) {
                     SharpEarsTheme(dark = playerShown(s) || systemDark) {
                     when (s) {
                         is Screen.Player -> {
@@ -1031,6 +1033,7 @@ class MainActivity : ComponentActivity() {
                                     onDone = { voice.stop(); screen = Screen.Home(kidFrom = page.id); maybeGoodnight("the ${page.id} finale") })
                             }
                         }
+                    }
                     }
                     }
                     }

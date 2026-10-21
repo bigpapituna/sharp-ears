@@ -210,7 +210,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     var listenFrom by remember { mutableLongStateOf(0L) }
     DisposableEffect(listen) {
         if (listen && !env.mic.start()) micOn = false
-        onDispose { env.mic.stop() }
+        onDispose { if (listen) env.mic.stop() }  // only the mic this effect started: never the next screen's
     }
     LaunchedEffect(seen, listen) {
         env.mic.matcher.expected = if (listen) trainer.micNotes() else emptySet()

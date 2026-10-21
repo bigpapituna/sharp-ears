@@ -691,12 +691,15 @@ fun PlayerScreen(
     DisposableEffect(micOn, mode, visible, voiceHolds, between, replaying) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
         // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying) {
+        val listens = micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying
+        val truth = micOn
+        if (listens) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
         if (micOn) midi.onTruth = mic::onMidiTruth
-        onDispose { stallEnd("left"); mic.stop(); midi.onTruth = null }
+        // Only what this effect started: a leaving player's last dispose used to stop the next screen's mic.
+        onDispose { stallEnd("left"); if (listens) mic.stop(); if (truth) midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
         transport.chordSlack = if (micOn) 1 else 0
