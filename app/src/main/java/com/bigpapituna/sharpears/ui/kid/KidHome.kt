@@ -273,6 +273,7 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     val px = if (right) x - sizes.stone * 0.18f else x + sizes.stone * 0.18f
     Box(Modifier.pinAt(px, y + sizes.stone * 0.22f, ay = 1f).size(p)
         .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClickLabel = "Play the next game", onClick = onGo)
+        .semantics { contentDescription = if (asleep) "The pup, asleep" else "The pup" }   // TalkBack read a nameless button
         .graphicsLayer { if (mirror) scaleX = -1f }) {
         Pup(pose, size = p, controller = pup, idle = !pointing && !asleep, bounce = BounceSize.SMALL)
     }
@@ -319,7 +320,7 @@ private fun KidBubble(text: String, tailLeft: Boolean, style: androidx.compose.u
 @Composable
 private fun Whistle(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    Box(modifier.size(44.dp).clip(CircleShape).background(c.surfaceContainerHigh.copy(alpha = 0.85f))
+    Box(modifier.size(48.dp).clip(CircleShape).background(c.surfaceContainerHigh.copy(alpha = 0.85f))   // 48 dp: the touch minimum
         .clickable(role = Role.Button, onClickLabel = "Grown-ups", onClick = onClick).semantics { contentDescription = "Grown-ups" },
         contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(26.dp)) {

@@ -151,7 +151,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
         .animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing), RepeatMode.Restart), label = "ring") else null
     val label = stone.title + ", " + when (stone.state) {
         StoneState.DONE -> "done, " + com.bigpapituna.sharpears.engine.skin.Stars.spoken(stone.stars).lowercase()
-        StoneState.NEXT -> "next, tap to play"
+        StoneState.NEXT -> if (asleep) "next, the pup is asleep" else "next, tap to play"
         StoneState.OPEN -> "open to play"
         StoneState.LATER -> "later"
     }
