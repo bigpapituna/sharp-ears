@@ -149,7 +149,7 @@ internal class EmailSections(
             s.tempoSpreadMs?.let { ms ->
                 Block.Text("in Perform the beat wandered about $ms ms from note to note" + (before(TrendKind.TEMPO_SPREAD)?.let { "; about $it ms ${earlier()}" } ?: "") + ".", label = "Steadiness:")
             },
-            s.clap?.let { c -> Block.Text("${c.onBeat} of ${c.beats} beats with a clap on the drum.", label = "Clapping:") }
+            s.clap?.let { c -> Block.Text("${c.onBeat} of " + EmailWords.count(c.beats, "beat") + " with a clap on the drum.", label = "Clapping:") }
                 ?: f.facts.firstOrNull { it.kind == FactKind.CLAP }?.let { Block.Text("a clap on ${it.value}% of the drum's beats.", label = "Clapping:") },
             s.ear.takeIf { it.isNotEmpty() }?.let { ear ->
                 Block.Text(ear.take(4).joinToString("; ") { "${it.correct} of ${it.rounds} right in ${earTitle(it.game)}" } + ".", label = "Ear games:")
@@ -249,7 +249,7 @@ internal class EmailSections(
         extras.path?.let { p ->
             val page = titles.page(p.pageId).takeIf { it.isNotBlank() }?.let(KidPages::inSentence) ?: "this page"
             val next = p.nextPageId?.let(titles::page)?.takeIf { it.isNotBlank() }?.let { " $it opens after it." }.orEmpty()
-            lines += Block.Text("${p.done} of ${p.total} stones done on $page.$next", label = "Next page:")
+            lines += Block.Text("${p.done} of " + EmailWords.count(p.total, "stone") + " done on $page.$next", label = "Next page:")
         }
         if (f.actions.isNotEmpty()) lines += Block.Text(f.actions.sortedBy { it.at }.joinToString(" ") { a ->
             val day = Instant.ofEpochMilli(a.at).atZone(zone).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)

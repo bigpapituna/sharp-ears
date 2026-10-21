@@ -101,8 +101,8 @@ object PlainTextEmail {
     private fun pawLine(c: Postcard): String? {
         if (c.paws.isEmpty()) return null
         val on = c.paws.filter { it.practised }.map { it.day }
-        if (on.isEmpty()) return "No practice on any of the last ${c.paws.size} days."
-        return "Played on ${EmailSections.joinAnd(on)} (${on.size} of ${c.paws.size} days)." + (c.pawCaption?.let { " $it" } ?: "")
+        if (on.isEmpty()) return "No practice on any of the last " + EmailWords.count(c.paws.size, "day") + "."
+        return "Played on ${EmailSections.joinAnd(on)} (${on.size} of " + EmailWords.count(c.paws.size, "day") + ")." + (c.pawCaption?.let { " $it" } ?: "")
     }
 
     private fun blockLines(b: Block): List<String> = when (b) {

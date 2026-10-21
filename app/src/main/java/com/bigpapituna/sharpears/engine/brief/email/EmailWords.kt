@@ -52,7 +52,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
 
     fun pawCaption(f: Findings): String? {
         if (f.stats.days.isEmpty()) return null
-        val goal = f.goalMinutes?.takeIf { it > 0 }?.let { "; the daily goal is ${words(it)} minutes" }.orEmpty()
+        val goal = f.goalMinutes?.takeIf { it > 0 }?.let { "; the daily goal is " + countWords(it, "minute") }.orEmpty()
         return "A paw is a day with practice$goal."
     }
 
@@ -91,9 +91,9 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
             TrendKind.EAR -> "Ear games: ${n(t.now)}% right, $from ${n(t.before)}% $earlier."
             TrendKind.CLAP -> "Claps on the beat: ${n(t.now)}% of the drum's beats, $from ${n(t.before)}% $earlier."
             TrendKind.PLAY_HINTS -> "The app had to play the key less often: ${n(t.now)}% of stuck moments, $from ${n(t.before)}% $earlier."
-            TrendKind.DAYS -> "${n(t.now)} days at the piano, $from ${n(t.before)} $earlier."
-            TrendKind.MINUTES -> "${n(t.now)} minutes of practice, $from ${n(t.before)} $earlier."
-            TrendKind.SESSIONS -> "${n(t.now)} sessions, $from ${n(t.before)} $earlier."
+            TrendKind.DAYS -> count(t.now.roundToInt(), "day") + " at the piano, $from ${n(t.before)} $earlier."
+            TrendKind.MINUTES -> count(t.now.roundToInt(), "minute") + " of practice, $from ${n(t.before)} $earlier."
+            TrendKind.SESSIONS -> count(t.now.roundToInt(), "session") + ", $from ${n(t.before)} $earlier."
         }
     }
 
@@ -314,6 +314,9 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
 
         /** Ten and under as words, the rest as digits. */
         fun words(n: Int): String = if (n in 0..10) WORDS[n] else n.toString()
+
+        /** "one minute", "five minutes", "12 minutes": [words] and the noun, singular for one. */
+        fun countWords(n: Int, one: String, many: String = one + "s"): String = words(n) + " " + if (abs(n) == 1) one else many
 
         /** "1 minute", "78 minutes" (digits: chips and lines with numbers). */
         fun count(n: Int, one: String, many: String = one + "s"): String = "$n " + if (abs(n) == 1) one else many
