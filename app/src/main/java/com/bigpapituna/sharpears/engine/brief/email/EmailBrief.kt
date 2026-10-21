@@ -210,7 +210,7 @@ object EmailBriefs {
      * Profile.avatar, [week] the stamp's week number ([weekNumber]); [actions] what grown-ups did (default: those in the
      * findings); [frequency] and [weekly] what the grown-up chose (the footer says it); [first] the first email, which
      * carries the welcome and the verification [code]. [titles] names lessons, songs and pages; [summary] a lesson's one
-     * line (COURSE's summary), shown under its name.
+     * line (COURSE's summary), shown under its name. [attached]: the full report's PDF goes with it (the footer says so).
      */
     fun build(
         findings: Findings,
@@ -227,6 +227,7 @@ object EmailBriefs {
         extras: EmailExtras = EmailExtras(),
         summary: (String) -> String? = { null },
         zone: ZoneId = ZoneId.systemDefault(),
+        attached: Boolean = true,
     ): EmailBrief {
         require(!first || code != null) { "the first email carries the code" }
         val period = EmailPeriod.of(findings.period)
@@ -265,7 +266,7 @@ object EmailBriefs {
             postcard = postcard, oneMinute = oneMinute, next = next,
             details = Details("The details, if you want them", "Tap a section to open it.", EmailSections(w, f, titles, summary, extras, zone).all()),
             signOff = SignOff("Gold star at home", brief.praise.ifBlank { w.quiet() }, "Signed, the pup", PupPose.CROWN),
-            footer = Footer(w.footer(brief.writtenBy, frequency, weekly, first, extras.phoneName)),
+            footer = Footer(w.footer(brief.writtenBy, frequency, weekly, first, extras.phoneName, attached)),
             writtenBy = brief.writtenBy,
             attachmentName = ExportLayout.fileNames(n, f.period, last).second,
         )

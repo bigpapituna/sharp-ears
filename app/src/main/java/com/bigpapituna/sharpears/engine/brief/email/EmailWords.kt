@@ -263,7 +263,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
 
     // ---- the footer ----
 
-    fun footer(by: Brief.Writer, frequency: EmailFrequency, weekly: WeeklySlot, first: Boolean, phoneName: String?): List<String> = listOfNotNull(
+    fun footer(by: Brief.Writer, frequency: EmailFrequency, weekly: WeeklySlot, first: Boolean, phoneName: String?, attached: Boolean = true): List<String> = listOfNotNull(
         "Sent by Sharp Ears for $name" + (phoneName?.trim()?.takeIf { it.isNotEmpty() }?.let { ", from $it" } ?: "") + ".",
         (if (by == Brief.Writer.AI) "Written by AI" else "Written on the phone") + " from the $spanNoun's numbers. No audio or recordings leave the phone.",
         if (first) null else when (frequency) {
@@ -273,7 +273,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
             EmailFrequency.OFF -> "These emails are off."
         },
         "To change how often these come, or stop them: grown-ups corner > Family > $name > Email, in the app.",
-        "The full report is attached as a PDF, for mail apps that cannot open the sections.",
+        if (attached) "The full report is attached as a PDF, for mail apps that cannot open the sections." else null,
     )
 
     companion object {
