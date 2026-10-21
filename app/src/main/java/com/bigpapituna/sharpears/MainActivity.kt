@@ -791,6 +791,9 @@ class MainActivity : ComponentActivity() {
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
                             var corner by remember { mutableStateOf(false) }
+                            // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
+                            // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
+                            LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
                             // After the last page's finale the pup says it once: the big kids' road is open.
                             val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
                             // A finale left waiting (its lesson was left another way, or the app was closed before): it plays now.
@@ -825,7 +828,7 @@ class MainActivity : ComponentActivity() {
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) }),
-                                onGrownUpsClosed = { corner = false },
+                                onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
                                     fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
