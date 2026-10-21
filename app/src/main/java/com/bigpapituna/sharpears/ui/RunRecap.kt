@@ -241,7 +241,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                             Spacer(Modifier.size(8.dp))
                             Text("Play again")
                         }
-                        if (e.canReplay) SmallPill("Hear my run", R.drawable.ic_play_arrow, onReplay)
+                        // The replay is a grown-up's screen (its clock, "your notes are the thin bright ones"): not a kid's.
+                        if (e.canReplay && !kid) SmallPill("Hear my run", R.drawable.ic_play_arrow, onReplay)
                         if (songTitle != null && (run != null || e.reward != null))
                             com.bigpapituna.sharpears.ui.play.ShareConcertButton(run, songTitle, stars, stickerRes = stickerRes)
                         TextButton(onClick = onClose) { Text("Close") }
