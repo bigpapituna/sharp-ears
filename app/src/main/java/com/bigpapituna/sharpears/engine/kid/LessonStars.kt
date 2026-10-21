@@ -27,7 +27,20 @@ object LessonStars {
      * with its own score (the drum's beats with a clap, a pedal or loudness step) by that score on the same lines as
      * Perform accuracy; a run where the notes wait by its wrong keys ([Stars.waitRun]).
      */
-    fun ofRun(report: Report): Int = when {
+    fun ofRun(report: Report): Int = minOf(byScore(report), letGoCap(report))
+
+    /**
+     * A stage that let rounds go (three tries, nothing heard or found) cannot earn more than it played: one star when half
+     * its rounds or more were let go, two when some were. Before, a kid who played nothing (or whose microphone heard
+     * nothing) was given three stars, since a let-go round adds no wrong key.
+     */
+    private fun letGoCap(report: Report): Int = when {
+        report.letGoRounds <= 0 || report.rounds <= 0 -> Stars.MAX
+        report.letGoRounds * 2 >= report.rounds -> LET_GO
+        else -> 2
+    }
+
+    private fun byScore(report: Report): Int = when {
         report.recap != null -> Stars.perform(report.recap)
         report.extraScore != null -> when {
             report.extraScore >= Stars.ALL_FROM -> 3

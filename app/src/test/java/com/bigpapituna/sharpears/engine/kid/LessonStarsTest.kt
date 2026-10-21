@@ -64,4 +64,14 @@ class LessonStarsTest {
         assertEquals(3, LessonStars.ofPage(listOf("a", "b", "c")) { stars[it] ?: 0 })
         assertEquals(1, LessonStars.ofPage(listOf("c")) { stars[it] ?: 0 })
     }
+
+    /** Audit 2026-10-20: a stage whose rounds were all let go (nothing played or heard) was given three stars. */
+    @Test fun roundsLetGoCapTheStars() {
+        fun stage(letGo: Int, rounds: Int, wrong: Int = 0) = Report(emptyList(), 0, wrong, null, letGoRounds = letGo, rounds = rounds)
+        assertEquals("nothing let go", 3, LessonStars.ofRun(stage(0, 3)))
+        assertEquals("one of three let go", 2, LessonStars.ofRun(stage(1, 3)))
+        assertEquals("half let go", 1, LessonStars.ofRun(stage(2, 4)))
+        assertEquals("all let go", 1, LessonStars.ofRun(stage(3, 3)))
+        assertEquals("never more than the wrong keys allow", 1, LessonStars.ofRun(stage(1, 3, wrong = 6)))
+    }
 }

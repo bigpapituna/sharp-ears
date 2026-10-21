@@ -34,7 +34,9 @@ data class Report(val missed: List<Pair<Int, Int>>, val retries: Int, val wrongK
                   /** A step's own score in percent (pedal changes, loudness), when it has one. */
                   val extraScore: Int? = null,
                   /** Real ms from the run's first group to its end (holds included). */
-                  val realMs: Double = 0.0) {
+                  val realMs: Double = 0.0,
+                  /** A Playground stage's rounds let go after three tries, and how many rounds it had (0 outside the stages). */
+                  val letGoRounds: Int = 0, val rounds: Int = 0) {
     val clean get() = wrongKeys == 0 && (recap == null || recap.miss == 0)
 }
 
