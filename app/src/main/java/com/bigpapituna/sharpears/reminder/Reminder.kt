@@ -83,7 +83,10 @@ object Reminder {
 /** The alarm went off (or the phone restarted): post the reminder, then set the next one. */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) { Reminder.schedule(context); return }
+        // A restart, or the clock or time zone changed (the alarm is an instant: after a trip it would ring at the old hour).
+        if (intent.action in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) {
+            Reminder.schedule(context); return
+        }
         Reminder.post(context)
         Reminder.schedule(context)
     }
