@@ -190,7 +190,8 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                             MapStop(l, i + 1, state) { open = if (open == l.id) null else l.id }
                         }
                     })
-                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next) { open = null; onOpen(r.lesson) }
+                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
+                    extra = path.levelOf(r.lesson)?.let(path::isExtra) == true)
                 is PathRow.Trophy -> UnitTrophy(r.level, r.level.lessons.all { done(it.id) })
             }
         }
@@ -349,7 +350,7 @@ private fun StopButton(state: StopState, number: Int, title: String, kind: Lesso
 
 /** The card a tapped stop opens: title, what it covers, its steps as a row of icons, and the way in. */
 @Composable
-private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onStart: () -> Unit) {
+private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onStart: () -> Unit, extra: Boolean = false) {
     val density = LocalDensity.current
     val shape = remember(density) {
         val tail = with(density) { 10.dp.toPx() }; val r = with(density) { 20.dp.toPx() }
@@ -378,7 +379,8 @@ private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onSta
                 modifier = Modifier.padding(start = 10.dp))
         }
         ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Text(when { done -> "Practise again"; next -> "Start"; else -> "Jump ahead" })
+            // A grown-up's Playground games are never next, so they are not "ahead" of anything.
+            Text(when { done -> "Practise again"; next -> "Start"; extra -> "Try it"; else -> "Jump ahead" })
         }
     }
 }
