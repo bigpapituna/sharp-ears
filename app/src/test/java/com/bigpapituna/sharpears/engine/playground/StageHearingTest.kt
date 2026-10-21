@@ -55,11 +55,23 @@ class StageHearingTest {
 
     private fun key(k: Int, gainDb: Double) = PianoSynth.render(listOf(SynthNote(k, 1000.0, 700.0, gainDb = gainDb)), 2600.0, noiseDb = -66.0)
 
+    /** [hear] for every key at both levels against [keys], on every core at once; by (key, level). */
+    private fun heardEach(keys: Set<Int>, range: IntRange = 21..108, gains: List<Double> = listOf(-14.0, -26.0)): Map<Pair<Int, Double>, List<StageSound>> =
+        heardEach(listOf(keys), range, gains).getValue(keys)
+
+    /** The same for several sets in one go (all their cases share the cores); by set, then (key, level). */
+    private fun heardEach(sets: List<Set<Int>>, range: IntRange = 21..108, gains: List<Double> = listOf(-14.0, -26.0)): Map<Set<Int>, Map<Pair<Int, Double>, List<StageSound>>> {
+        val cases = sets.distinct().flatMap { s -> range.flatMap { k -> gains.map { Triple(s, k, it) } } }
+        return cases.zip(parallelMap(cases) { (s, k, g) -> hear(key(k, g), s) }).groupBy({ it.first.first }, { (it.first.second to it.first.third) to it.second })
+            .mapValues { it.value.toMap() }
+    }
+
     @Test fun highAndLowOnPianoSynth() {
         val problems = mutableListOf<String>()
         var named = 0; var guessed = 0; var onsets = 0
+        val each = heardEach(StageKeys.HIGH_LOW)
         for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-            val heard = hear(key(k, gain), StageKeys.HIGH_LOW)
+            val heard = each.getValue(k to gain)
             if (heard.isEmpty()) { problems += "${noteName(k)} at $gain dB: nothing at all"; continue }
             val s = heard.first()
             if (k in StageKeys.HIGH_LOW && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${noteName(k)}: heard as $s"
@@ -77,11 +89,13 @@ class StageHearingTest {
 
     @Test fun theHuntsOnPianoSynth() {
         val problems = mutableListOf<String>()
+        val all = heardEach(Hunt.entries.map { StageKeys.forHunt(it) })
         for (hunt in Hunt.entries) {
             val members = StageKeys.forHunt(hunt)
             var otherOctave = 0; var nudged = 0
+            val each = all.getValue(members)
             for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-                val heard = hear(key(k, gain), members)
+                val heard = each.getValue(k to gain)
                 if (heard.isEmpty()) { problems += "$hunt ${noteName(k)} at $gain dB: nothing at all"; continue }
                 val a = HuntJudge.judge(heard.first(), hunt)
                 val right = Math.floorMod(k, 12) in hunt.pitchClasses
@@ -101,8 +115,9 @@ class StageHearingTest {
     @Test fun theCPositionOnPianoSynth() {
         val problems = mutableListOf<String>()
         var named = 0
+        val each = heardEach(StageKeys.FIVE)
         for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-            val heard = hear(key(k, gain), StageKeys.FIVE)
+            val heard = each.getValue(k to gain)
             if (heard.isEmpty()) { problems += "${noteName(k)} at $gain dB: nothing at all"; continue }
             val s = heard.first()
             if (k in StageKeys.FIVE && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${noteName(k)}: heard as $s"
@@ -127,10 +142,10 @@ class StageHearingTest {
         val sets = (listOf(StageKeys.LEFT_FIVE) + SHELF.map { StageKeys.of(photoExercise(it)) }).distinct()
         assertTrue(sets.all { it.size <= 12 })
         val problems = mutableListOf<String>()
+        val each = heardEach(sets)
         for (k in 21..108) for (gain in listOf(-14.0, -26.0)) {
-            val audio = key(k, gain)
             for (set in sets) {
-                val heard = hear(audio, set)
+                val heard = each.getValue(set).getValue(k to gain)
                 if (heard.isEmpty()) { problems += "${noteName(k)} at $gain dB with ${set.map(::noteName)}: nothing at all"; continue }
                 val s = heard.first()
                 if (k in set && (s.by != HeardBy.MATCHER || s.midi != k)) problems += "${noteName(k)} with ${set.map(::noteName)}: heard as $s"
@@ -168,8 +183,9 @@ class StageHearingTest {
                 val a = judge(listOf(60 to 1000.0, 64 to 1000.0 + roll, 67 to 1000.0 + 2 * roll), gain)
                 if (a.none { it is Answer.Found }) problems += "C E G rolled $roll ms at $gain dB: $a"
             }
+            val alone = parallelMap((21..108).toList()) { k -> judge(listOf(k to 1000.0), gain) }
             for (k in 21..108) {
-                val a = judge(listOf(k to 1000.0), gain)
+                val a = alone[k - 21]
                 if (a.any { it is Answer.Found }) problems += "${noteName(k)} alone at $gain dB found the chord"
             }
             for (other in listOf(listOf(60, 64, 69), listOf(60, 65, 69), listOf(59, 62, 67), listOf(62, 65, 69), listOf(48, 52, 55), listOf(72, 76, 79),
@@ -212,8 +228,10 @@ class StageHearingTest {
         val truth = File(wav.path.removeSuffix(".wav") + ".notes").readLines().filter { it.isNotBlank() && !it.startsWith("#") }
             .map { it.split(",").map(String::trim) }.filter { it[2].toInt() > 0 }.map { it[0].toLong() * 1000 / fs to it[1].toInt() }
         /** The sounds decided around each truth note (from 50 ms before it to the next, at most 600 ms). */
+        val sets = (Hunt.entries.map { StageKeys.forHunt(it) } + listOf(StageKeys.HIGH_LOW, StageKeys.FIVE, StageKeys.C_CHORD, StageKeys.SOFT_LOUD)).distinct()
+        val heardBy = sets.zip(parallelMap(sets) { hear(audio, it) }).toMap()
         fun perNote(keys: Set<Int>): List<Pair<Int, List<StageSound>>> {
-            val heard = hear(audio, keys)
+            val heard = heardBy[keys] ?: hear(audio, keys)
             return truth.mapIndexed { i, (at, midi) ->
                 val end = minOf(at + 600, truth.getOrNull(i + 1)?.first?.minus(50) ?: Long.MAX_VALUE)
                 midi to heard.filter { it.atMs in (at - 50) until end }

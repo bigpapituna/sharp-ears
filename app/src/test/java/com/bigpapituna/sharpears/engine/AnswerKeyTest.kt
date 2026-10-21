@@ -38,4 +38,21 @@ class AnswerKeyTest {
         a.key(1_000, 50, listened = true); a.mic(2_500, 50)
         assertEquals(listOf(AnswerKey.Kind.MISSED, AnswerKey.Kind.FALSE), a.settle(9_000).map { it.kind })
     }
+
+    /**
+     * Audit (AnswerKey.pair): a key was paired as if it were a mic strike, because it was not yet in its list when
+     * paired. So the mic heard slightly before the key (MIDI arriving late) was called a miss and a false note, and a
+     * key struck twice in 600 ms that the mic never heard paired with itself and was never called a miss.
+     */
+    @Test fun theMicJustBeforeTheKeyIsAMatch() {
+        val a = AnswerKey()
+        a.mic(1_000, 60); a.key(1_080, 60, listened = true)
+        assertEquals(emptyList<AnswerKey.Mismatch>(), a.settle(5_000))
+    }
+
+    @Test fun aKeyRepeatedTheMicNeverHeardIsMissedTwice() {
+        val a = AnswerKey()
+        a.key(1_000, 60, listened = true); a.key(1_400, 60, listened = true)
+        assertEquals(listOf(AnswerKey.Kind.MISSED, AnswerKey.Kind.MISSED), a.settle(9_000).map { it.kind })
+    }
 }

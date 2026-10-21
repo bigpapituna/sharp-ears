@@ -13,6 +13,7 @@ import com.bigpapituna.sharpears.engine.LessonItem
 import com.bigpapituna.sharpears.engine.LessonPack
 import com.bigpapituna.sharpears.engine.Mastery
 import com.bigpapituna.sharpears.engine.after
+import com.bigpapituna.sharpears.engine.decodeMastery
 import com.bigpapituna.sharpears.engine.parseChord
 import org.json.JSONObject
 
@@ -55,7 +56,7 @@ class LessonStore(private val context: Context, profileId: String) {
     fun curriculum() = Curriculum(authored + songPacks.value)
 
     fun mastery(): Map<String, Mastery> = prefs.all.mapNotNull { (k, v) ->
-        (v as? String)?.split(",")?.takeIf { it.size == 2 }?.let { (b, d) -> k to Mastery(b.toInt(), d.toLong(), seen = true) }
+        (v as? String)?.let(::decodeMastery)?.let { k to it }
     }.toMap()
 
     fun record(item: LessonItem, correct: Boolean, now: Long = System.currentTimeMillis()) {

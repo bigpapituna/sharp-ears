@@ -89,8 +89,9 @@ data class Profile(
             ProfileKind.ADULT -> Profile("", "", 0, kind, true, ADULT_GOAL, ADULT_HINTS, colourNotes = false, micOffsetDb = 0.0, createdAt = 0L)
         }
 
-        /** Trimmed, inner runs of spaces made one, at most [MAX_NAME] characters. */
-        fun cleanName(name: String): String = name.trim().replace(Regex("\\s+"), " ").take(MAX_NAME).trim()
+        /** Trimmed, inner runs of spaces made one, at most [MAX_NAME] characters (never half an emoji). */
+        fun cleanName(name: String): String = name.trim().replace(Regex("\\s+"), " ").take(MAX_NAME)
+            .let { if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it }.trim()
 
         /** What an id may look like: it ends up in file names ("progress.p3"). */
         private val ID = Regex("[A-Za-z0-9_-]{1,32}")
@@ -104,6 +105,7 @@ data class Profile(
             val hints = (m["hintSeconds"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.takeIf { it.size == 3 } ?: d.hintSeconds
             return d.copy(
                 id = id,
+                reader = reader,
                 name = (m["name"] as? String)?.let(::cleanName)?.takeIf { it.isNotEmpty() } ?: if (id == OWNER_ID) OWNER_NAME else "Player",
                 avatar = ((m["avatar"] as? Number)?.toInt() ?: 0).coerceIn(0, AVATARS - 1),
                 dailyGoalMin = (m["dailyGoalMin"] as? Number)?.toInt() ?: d.dailyGoalMin,

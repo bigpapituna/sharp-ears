@@ -206,13 +206,15 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         if (!playing) return emptyList()
         if (positionMs >= anchorMs) runRealMs += dtMs
         var end = (positionMs + dtMs * speed).coerceAtMost(song.durationMs.toDouble())
-        // "<=" so pressing B at the playhead wraps on the next frame; a seek past B plays on.
-        loop?.let {
-            if (positionMs <= it.endInclusive && end >= it.endInclusive) {
+        // "<=" so pressing B at the playhead wraps on the next frame; a seek past B plays on. A loop whose B lies past the
+        // end wraps at the end; one that runs backwards (B before A) or starts past the end is no loop.
+        loop?.takeIf { it.start < it.endInclusive && it.start < song.durationMs }?.let { l ->
+            val b = minOf(l.endInclusive, song.durationMs.toDouble())
+            if (positionMs <= b && end >= b) {
                 // Grade the groups before B (the ones after it were never reached), then start the next pass.
-                score?.advance(it.endInclusive + OK_MS)
+                score?.advance(b + OK_MS)
                 lastPass = report(); passes++
-                return seek(it.start)
+                return seek(l.start)
             }
         }
         if (mode == Mode.WAIT) {

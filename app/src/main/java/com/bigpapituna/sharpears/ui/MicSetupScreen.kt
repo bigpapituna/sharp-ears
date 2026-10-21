@@ -108,7 +108,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
     LaunchedEffect(mic) {
         mic.events.collect { e ->
             when (e) {
-                is MicEvent.Strike -> { heard++; last = "Heard ${noteName(e.midi)} (rise ${"%.0f".format(e.riseDb)} dB)" to true; Log.d(TAG, "micsetup heard ${noteName(e.midi)} rise=${e.riseDb}") }
+                is MicEvent.Strike -> { heard++; last = "Heard ${noteName(e.midi)} (rise ${"%.0f".format(java.util.Locale.ROOT, e.riseDb)} dB)" to true; Log.d(TAG, "micsetup heard ${noteName(e.midi)} rise=${e.riseDb}") }
                 is MicEvent.Wrong -> { last = "Heard a different note" to false; Log.d(TAG, "micsetup wrong") }
             }
         }
@@ -141,7 +141,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         val level = mic.level.floatValue
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LinearProgressIndicator(progress = { ((level + 90f) / 90f).coerceIn(0f, 1f) }, modifier = Modifier.weight(1f))
-            Text("%.0f dB".format(level), modifier = Modifier.width(64.dp))
+            Text("%.0f dB".format(java.util.Locale.ROOT, level), modifier = Modifier.width(64.dp))
         }
 
         Text("Check: play middle C (C4) a few times", style = MaterialTheme.typography.titleMedium)
@@ -153,7 +153,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
 
         FilledTonalButton(onClick = onMicCheck) { Text("Try it: C major scale in wait mode") }
 
-        Text("Sensitivity: %.0f dB".format(sensitivity), style = MaterialTheme.typography.titleMedium)
+        Text("Sensitivity: %.0f dB".format(java.util.Locale.ROOT, sensitivity), style = MaterialTheme.typography.titleMedium)
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
         Slider(sensitivity, { sensitivity = it }, valueRange = -80f..-40f, onValueChangeFinished = {
             mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity")
@@ -167,7 +167,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 modifier = Modifier.semantics { contentDescription = "Show wrong keys heard by the mic" })
         }
         if (wrongFlash) {
-            Text("Wrong-key trigger: %.0f dB jump".format(wrongDb), style = MaterialTheme.typography.titleMedium)
+            Text("Wrong-key trigger: %.0f dB jump".format(java.util.Locale.ROOT, wrongDb), style = MaterialTheme.typography.titleMedium)
             Text("Raise it if right notes light up as wrong.", style = MaterialTheme.typography.bodySmall)
             Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
                 mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
@@ -231,7 +231,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 val mb = files.sumOf { it.length() } / 1_048_576.0
                 Text(buildString {
                     if (newest != null) append("Newest ").append(SimpleDateFormat("MMM d, yyyy, HH:mm", LocalLocale.current.platformLocale).format(Date(newest))).append(". ")
-                    append(if (mb < 0.1) "Less than 0.1 MB" else "%.1f MB".format(mb)).append(" in ${files.size} file${if (files.size == 1) "" else "s"}.")
+                    append(if (mb < 0.1) "Less than 0.1 MB" else "%.1f MB".format(java.util.Locale.ROOT, mb)).append(" in ${files.size} file${if (files.size == 1) "" else "s"}.")
                 }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             packing?.let { (done, total) ->

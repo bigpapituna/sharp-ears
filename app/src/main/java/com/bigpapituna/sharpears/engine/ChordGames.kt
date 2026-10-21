@@ -96,7 +96,8 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
 
     init { startRound() }
 
-    private fun draw(prev: Chord?): Chord { var c: Chord; do { c = pool[rnd.nextInt(pool.size)] } while (c == prev && pool.size > 1); return c }
+    // Never the same keys twice in a row: augmented triads on C, E and G sharp are one chord by pitch class.
+    private fun draw(prev: Chord?): Chord { var c: Chord; do { c = pool[rnd.nextInt(pool.size)] } while (c.pitchClasses == prev?.pitchClasses && pool.size > 1); return c }
 
     private fun startRound() {
         found.clear(); wrongs = 0; roundOver = false; recent.clear()

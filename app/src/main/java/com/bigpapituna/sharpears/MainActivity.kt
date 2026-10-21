@@ -539,7 +539,7 @@ class MainActivity : ComponentActivity() {
                         Log.d(TAG, "daily: $summary")
                         voice.speak(if (profile.isKid) com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(profile.name)
                             else "Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
-                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), PracticeStats.streak(prefs.practice(), java.time.LocalDate.now()))
+                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), progress.streak().streak)
                         screen = Screen.Home()
                     }
                     fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null) {
@@ -853,7 +853,7 @@ class MainActivity : ComponentActivity() {
                                                 onToday = ::startDaily,
                                             ),
                                             // The week in minutes, for grown-ups (a kid's home has no numbers).
-                                            practice = remember(pv, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
+                                            practice = remember(pv, progress.version.intValue, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now(), progress.streak().streak) },
                                             today = remember(pv, lv, lessons.songPacks.value) {
                                                 val plan = todayPlan()
                                                 // Debug --ez emptyToday true: the panel with nothing due (for screenshots).

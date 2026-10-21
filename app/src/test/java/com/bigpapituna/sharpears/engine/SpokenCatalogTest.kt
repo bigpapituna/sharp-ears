@@ -12,9 +12,13 @@ class SpokenCatalogTest {
         assertTrue(SpokenCatalog.key("Lesson complete.") != SpokenCatalog.key("Lesson complete!"))
     }
 
+    /** The bundled songs' titles, which Practice today names before a song part. */
+    private fun library(): List<String> = Regex("\"title\": \"([^\"]+)\",\\s*\"composer\"").findAll(File("src/main/assets/songs/index.json").readText())
+        .map { it.groupValues[1] }.toList()
+
     /** Also writes build/voice-lines.txt, the list scripts/render_voice.py records: key, text and speed (kid lines slower). */
     @Test fun catalogIsSpeakableAndWritten() {
-        val lines = SpokenCatalog.all()
+        val lines = SpokenCatalog.all(library())
         assertTrue("lesson steps and prompts: ${lines.size}", lines.size > 300)
         lines.forEach { assertTrue("speakable: $it", it.isNotBlank() && it.none { c -> c in "—–·#&/" }) }
         assertEquals("keys are unique", lines.size, lines.map(SpokenCatalog::key).toSet().size)
@@ -85,5 +89,55 @@ class SpokenCatalogTest {
             assertTrue(level.id, level.lessons.flatMap { it.steps }.all { s -> SpokenCatalog.normalize(s.text) in kid && s.scenes.all { SpokenCatalog.normalize(it.say) in kid } })
         assertTrue("Finger three!" in kid && "Pop the red balloon!" in kid && "Next stop, the fair!" in kid)
         assertTrue("no names", kid.none { "Mia" in it || "{name}" in it })
+    }
+
+    /**
+     * Audit: the chord games and the scale-degree game said lines no recording had (every prompt of Hear it, Major or
+     * minor, Intervals and Play it back, the 96 Major or minor verdicts, the wrong keys), and Practice today named its
+     * song in a line nobody recorded, so the phone's own voice said them mid-game. Every line these games say is
+     * recorded, except the ones that name notes on purpose: Build it's wrong keys and an interval's two notes.
+     */
+    @Test fun theGamesAndPracticeTodaySayRecordedLines() {
+        val all = SpokenCatalog.all(library()).toSet()
+        val said = mutableSetOf<String>()
+        fun say(line: GameLine?) { line?.let { said += SpokenCatalog.normalize(it.spoken) } }
+        // The screens say a wrong key's line and a round's end; a key found on the way is only shown.
+        fun say(a: ChordGame.Answer) { if (a.outcome == ChordGame.Outcome.WRONG || a.outcome == ChordGame.Outcome.DONE) say(a.line) }
+        for (seed in 1L..30L) {
+            for (kind in listOf(GameKind.BUILD, GameKind.HEAR, GameKind.MAJOR_MINOR)) for (level in kind.levels.indices) {
+                val g = ChordGame(kind, level, seed = seed)
+                while (!g.finished) {
+                    say(g.prompt())
+                    for (m in 48..72) g.input(m, m * 100L).let { a -> if (!(kind == GameKind.BUILD && a.outcome == ChordGame.Outcome.WRONG)) say(a) }
+                    if (kind == GameKind.MAJOR_MINOR) for (t in g.answerTypes) Chord(g.target.root, t).voicing(0, 60).forEach { say(g.input(it, 10_000)) }
+                    g.skip()
+                }
+            }
+            for (level in 0..2) {
+                val i = IntervalGame(level, seed = seed)
+                while (!i.finished) { say(i.prompt()); for (m in 48..84) i.input(m).let { a -> if (a.outcome != ChordGame.Outcome.DONE) say(a) }; i.skip() }
+                val p = PlaybackGame(level, seed = seed)
+                while (!p.finished) { say(p.prompt()); repeat(3) { say(p.input(p.melody.first() + 1)) }; p.melody.forEach { say(p.input(it)) }; p.skip() }
+                val d = com.bigpapituna.sharpears.engine.ear.ScaleDegreeGame(level, seed = seed)
+                while (!d.finished) { say(d.prompt()); for (m in 55..79) say(d.input(m)); d.skip() }
+            }
+        }
+        for (title in library()) said += SessionPart.Song("id", title, 3.0, 3.0).next
+        val missing = said - all
+        assertTrue("${missing.size} unrecorded, e.g. ${missing.take(8)}", missing.isEmpty())
+        assertTrue(said.size > 300)
+    }
+
+    /**
+     * Audit: nothing checked that a catalog line has its recording. Every line has assets/voice/<key>.ogg, recorded by
+     * the voice the folder names, and no file is left from a line that is gone (scripts/render_voice.py --check).
+     */
+    @Test fun everyLineIsRecordedAndNoRecordingIsLeftOver() {
+        val dir = File("src/main/assets/voice")
+        val files = dir.listFiles { f -> f.extension == "ogg" }!!.map { it.nameWithoutExtension }.toSet()
+        val keys = SpokenCatalog.all(library()).map(SpokenCatalog::key).toSet()
+        assertEquals("3", File(dir, "speaker.txt").readText().trim())
+        assertTrue("unrecorded: ${(keys - files).take(10)}", (keys - files).isEmpty())
+        assertTrue("left over: ${(files - keys).take(10)}", (files - keys).isEmpty())
     }
 }

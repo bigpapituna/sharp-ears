@@ -75,10 +75,15 @@ class PerfectPitchGame(level: Int, seed: Long = System.nanoTime(), rounds: Int =
  */
 class ScaleDegreeGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 10) : TrainerBase(EarKind.DEGREE, level, rounds) {
     private val rnd = Random(seed)
-    private val keys: List<Pair<Int, Boolean>> = when (level) {
-        0 -> listOf(0 to false)
-        1 -> listOf(0, 7, 5, 2, 10, 9, 3).map { it to false }
-        else -> listOf(0, 7, 5, 2, 10).map { it to false } + listOf(9, 4, 2, 0, 7).map { it to true }
+    private val keys: List<Pair<Int, Boolean>> = keysFor(level)
+
+    companion object {
+        /** The keys (tonic, minor) a level draws from; the voice catalog records what is said about each. */
+        fun keysFor(level: Int): List<Pair<Int, Boolean>> = when (level) {
+            0 -> listOf(0 to false)
+            1 -> listOf(0, 7, 5, 2, 10, 9, 3).map { it to false }
+            else -> listOf(0, 7, 5, 2, 10).map { it to false } + listOf(9, 4, 2, 0, 7).map { it to true }
+        }
     }
     /** The steps the game asks about (0 = do). */
     val degrees: List<Int> = if (level == 0) (0..4).toList() else (0..6).toList()

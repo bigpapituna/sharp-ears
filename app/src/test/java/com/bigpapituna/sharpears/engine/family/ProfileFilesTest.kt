@@ -52,6 +52,17 @@ class ProfileFilesTest {
         val plan = ProfileFiles.importPlan(setOf("progress", "mic", "theory"), listOf("owner", "p1"), names)
         assertFalse(plan.allProfiles)
         assertEquals(setOf("progress", "mic", "theory"), plan.write)
-        assertEquals(names, plan.clear)                                      // the other profiles are left alone
+        assertEquals(listOf("progress", "mic", "theory"), plan.clear)        // the other profiles are left alone
+    }
+
+    /**
+     * Audit (noted in 2.2.1, not fixed then): a 2.0 backup cleared every plain file, so importing one wiped the owner's
+     * world (stickers, the dog house), skin, recital and kid stars, which 2.0 never had. It replaces what it holds.
+     */
+    @Test fun aBackupFrom20KeepsTheOwnersLaterFiles() {
+        val now = names + listOf("world", "play", "skin", "kid")                                           // ProgressFiles.NAMES since 2.2
+        val plan = ProfileFiles.importPlan(names.toSet(), listOf("owner", "p1"), now)                    // 2.0.1 wrote all seven
+        assertEquals(names, plan.clear)
+        assertTrue(listOf("world", "play", "skin", "kid").none { it in plan.clear })
     }
 }

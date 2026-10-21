@@ -195,7 +195,7 @@ fun TheoryScreen(
     }
 }
 
-private fun clock(secs: Int) = "%d:%02d".format(secs / 60, secs % 60)
+private fun clock(secs: Int) = "%d:%02d".format(java.util.Locale.ROOT, secs / 60, secs % 60)
 
 /**
  * Debug builds only: `--es theory <lesson id>` opens a lesson ([--ei scene n]), `--es part quiz [--ei question n]` its

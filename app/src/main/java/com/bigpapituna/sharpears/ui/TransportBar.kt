@@ -43,7 +43,7 @@ import com.bigpapituna.sharpears.engine.Section
 
 val SPEEDS = listOf(0.25, 0.5, 0.75, 1.0)
 
-fun formatTime(ms: Double): String { val s = (ms / 1000).toInt(); return "%d:%02d".format(s / 60, s % 60) }
+fun formatTime(ms: Double): String { val s = (ms / 1000).toInt(); return "%d:%02d".format(java.util.Locale.ROOT, s / 60, s % 60) }
 private fun speedLabel(s: Double) = "${s}x".replace(".0x", "x")
 
 /** Everything the bar shows; the player owns the state. */

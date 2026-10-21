@@ -21,5 +21,5 @@ object ReminderPlan {
     }
 
     /** "18:30" */
-    fun label(minutes: Int) = "%d:%02d".format(minutes / 60, minutes % 60)
+    fun label(minutes: Int) = "%d:%02d".format(java.util.Locale.ROOT, minutes / 60, minutes % 60)
 }

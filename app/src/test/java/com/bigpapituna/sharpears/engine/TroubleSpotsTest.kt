@@ -57,4 +57,14 @@ class TroubleSpotsTest {
         assertEquals(listOf(12, 3), TroubleSpots.decode("12,3"))
         assertEquals(emptyList<Int>(), TroubleSpots.decode(null))
     }
+
+    /** Audit: a stored bar (stale after a shorter file was imported, or from a backup) looped outside the song. */
+    @Test fun aStoredBarOutsideTheSongLoopsInsideIt() {
+        assertEquals(TroubleSpot(12, 14_000.0, 16_000.0, 0.0), TroubleSpots.spot(song, 12))
+        assertEquals(TroubleSpot(0, 0.0, 2000.0, 0.0), TroubleSpots.spot(song, 0))
+        assertEquals(TroubleSpot(-3, 0.0, 2000.0, 0.0), TroubleSpots.spot(song, -3))
+        val short = song.copy(durationMs = 15_000)
+        assertEquals(TroubleSpot(99, 14_000.0, 15_000.0, 0.0), TroubleSpots.spot(short, 99))
+        for (bar in TroubleSpots.decode("0,-1,3,40")) TroubleSpots.spot(song, bar).let { assertTrue("$it", it.startMs >= 0 && it.startMs < it.endMs && it.endMs <= song.durationMs) }
+    }
 }

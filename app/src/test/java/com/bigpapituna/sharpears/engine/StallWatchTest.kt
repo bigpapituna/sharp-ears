@@ -56,4 +56,30 @@ class StallWatchTest {
         w.start(100, listOf("D4"), "")
         assertTrue("nothing" in w.end(6_000, "played")!!.report)
     }
+
+    /**
+     * Audit: the stalls folder dropped files by name past its 250 MB, so every answer-key clip and crash report (even
+     * today's) went before months-old stuck moments, and a report's ".sent" marker went before the report, which was
+     * then sent again.
+     */
+    @Test fun theStallsFolderDropsTheOldestFirstWhateverItsKind() {
+        val names = listOf("answer-20261020-101500-twinkle.txt", "stall-20261001-090000-twinkle.sent", "crash-20261019-080000.txt",
+            "stall-20261001-090000-twinkle.wav", "flag-20261018-120000-ode.wav", "stall-20261001-090000-twinkle.txt", "summary-20261002-070000.txt")
+        assertEquals(listOf("stall-20261001-090000-twinkle.txt", "stall-20261001-090000-twinkle.wav", "stall-20261001-090000-twinkle.sent",
+            "summary-20261002-070000.txt", "flag-20261018-120000-ode.wav", "crash-20261019-080000.txt", "answer-20261020-101500-twinkle.txt"),
+            names.sortedWith(StallWatch.OLDEST_FIRST))
+    }
+
+    /**
+     * Audit: a crash report carried the app's last 200 log lines, where the voice logs every line it says ("voice:
+     * Lesson done, Mia!") and the finale and photo booth log file names with the kid's name; it went to GitHub as is.
+     */
+    @Test fun crashReportsNameNoOne() {
+        val log = "voice: Lesson done, Mia! Five stars, mia.\nfinale: garden for Zoë Rose\nsaved Zoë Rose finished the garden.png\n" +
+            "voice: Amazing, Al! All done. Alicia is fine.\nroster: Mia,Zoë Rose"
+        val clean = StallWatch.scrubNames(log, listOf("Mia", "Zoë Rose", "Al", ""))
+        for (name in listOf("Mia", "mia", "Zoë")) assertTrue("$name in $clean", name !in clean)
+        assertTrue(clean, "Amazing, <name>! All done. Alicia is fine." in clean)    // whole words only
+        assertEquals("voice: <name> and <name>.", StallWatch.scrubNames("voice: Mia and Zoë Rose.", listOf("Mia", "Zoë Rose")))
+    }
 }

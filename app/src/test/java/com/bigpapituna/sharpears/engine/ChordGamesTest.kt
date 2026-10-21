@@ -96,6 +96,19 @@ class ChordGamesTest {
         assertEquals(1, g.score)
     }
 
+    /** Audit: Hear it served C augmented after A flat augmented, the same three keys, as a new round. */
+    @Test fun aRoundNeverAsksForTheSameKeysAgain() {
+        for (kind in listOf(GameKind.BUILD, GameKind.HEAR, GameKind.MAJOR_MINOR)) for (level in kind.levels.indices) for (seed in 1L..200L) {
+            val g = ChordGame(kind, level, seed = seed)
+            var prev = g.target
+            repeat(9) {
+                g.skip()
+                assertTrue("$kind $level seed $seed: ${chordTitle(prev)} then ${chordTitle(g.target)}", g.target.pitchClasses != prev.pitchClasses)
+                prev = g.target
+            }
+        }
+    }
+
     @Test fun aRoundOfTenEnds() {
         val g = ChordGame(GameKind.BUILD, 2, seed = 1)
         repeat(10) { g.target.pitchClasses.forEach { pc -> g.input(60 + pc) }; g.next() }

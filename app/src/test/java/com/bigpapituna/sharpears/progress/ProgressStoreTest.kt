@@ -216,6 +216,19 @@ class ProgressStoreTest {
         assertTrue(store.snapshot(d0.plusDays(6)).longestStreak >= 7)
     }
 
+    /**
+     * Audit: the log dropped every day more than 400 days before the practice being recorded, so one practice with the
+     * clock set far ahead (a dead clock battery, a game's time trick) erased the real log: back on the right date the
+     * streak was 1 and the heatmap empty. The newest 400 practice days are kept, whatever their dates.
+     */
+    @Test fun aPracticeWithTheClockAheadKeepsTheRealLog() {
+        for (i in 0..6) store.record(ProgressEvent.Practice(at(d0.plusDays(i.toLong())), 60))
+        store.record(ProgressEvent.Practice(at(d0.plusDays(500)), 60))
+        store.record(ProgressEvent.Practice(at(d0.plusDays(7)), 60))
+        assertEquals(8, store.streak(d0.plusDays(7)).streak)
+        assertEquals(9, store.practiceLog().size)
+    }
+
     @Test fun answersPersistAcrossInstances() {
         store.goalMinutes = 20
         store.weeklyDays = 5

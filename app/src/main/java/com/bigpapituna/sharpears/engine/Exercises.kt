@@ -48,8 +48,9 @@ internal const val TWINKLE_LEFT_FINGERS = "5 2 5 2 5 5 5"
 
 // Opening phrases (four bars) of the repertoire songs, written in the same notation as scripts/gen_songs.py; Repertoire 1
 // and 2 teach them, the Playground's pond and concert hall (2.2) play their first phrase and perform them with the band.
+// Row's tune fits the C position: one finger per key (worked out, D and E went under 1 and 2 halfway and F under 3).
 internal val ROW_X = Exercise(right = "C4:1.5 C4:1.5 C4:1 D4:0.5 E4:1.5 E4:1 D4:0.5 E4:1 F4:0.5 G4:3",
-    left = "C3:3 C3:3 C3:3 C3:3", bpm = 84.0, beats = 3)
+    left = "C3:3 C3:3 C3:3 C3:3", bpm = 84.0, beats = 3, fingers = "1 1 1 2 3 3 2 3 4 5")
 internal val LONDON_X = Exercise(right = "G4:0.75 A4:0.25 G4:0.5 F4:0.5 E4:0.5 F4:0.5 G4:1 D4:0.5 E4:0.5 F4:1 E4:0.5 F4:0.5 G4:1",
     left = "C3:2 C3:2 G2:2 C3:2", bpm = 96.0, beats = 2)
 // Yankee Doodle and Old MacDonald carry the fingers their scenes teach: the thumb reaching down to G and B and back to the

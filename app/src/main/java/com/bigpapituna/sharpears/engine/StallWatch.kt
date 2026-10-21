@@ -21,7 +21,7 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
 
     /** Something the mic decided during the wait ("C3 rise -24.8 dB", "wrong note"). */
     fun heard(nowMs: Long, what: String) {
-        if (active && heard.size < 100) heard += "+%.2f s  %s".format((nowMs - startMs) / 1000.0, what)
+        if (active && heard.size < 100) heard += "+%.2f s  %s".format(java.util.Locale.ROOT, (nowMs - startMs) / 1000.0, what)
     }
 
     /** How long the current wait has lasted at [nowMs] (0 when not waiting). */
@@ -66,5 +66,21 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
             return if (at < 0) "profile=$kind\n$report"
             else (lines.take(at + 1) + "profile=$kind" + lines.drop(at + 1)).joinToString("\n")
         }
+
+        /**
+         * The stalls folder's files ("stall-", "answer-", "flag-", "crash-", "summary-" and a yyyyMMdd-HHmmss stamp; their
+         * .txt, .wav and .sent) in the order its size budget drops them: the oldest stamp first whatever the kind, and a
+         * report's ".sent" marker after the report, so a report never loses its marker and goes out twice.
+         */
+        val OLDEST_FIRST: Comparator<String> = compareBy({ it.substringAfter('-').substringBeforeLast('.') }, { it.endsWith(".sent") }, { it })
+
+        /**
+         * [text] with each of [names] (the roster's) made "<name>", as a whole word in any case: a crash report carries
+         * the app's recent log, where the voice's lines ("Lesson done, Mia!") and saved file names name the kids.
+         */
+        fun scrubNames(text: String, names: Collection<String>): String =
+            names.filter { it.isNotBlank() }.sortedByDescending { it.length }.fold(text) { t, n ->
+                t.replace(Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(n) + "(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE), "<name>")
+            }
     }
 }

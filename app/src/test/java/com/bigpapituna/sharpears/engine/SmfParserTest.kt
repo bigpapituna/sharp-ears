@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.engine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -95,6 +96,40 @@ class SmfParserTest {
         body.write(byteArrayOf(0, 0xFF.toByte(), 0x2F, 0))
         val bytes = body.toByteArray()
         return ByteArrayOutputStream().apply { write("MTrk".toByteArray()); u32(bytes.size); write(bytes) }.toByteArray()
+    }
+
+    /**
+     * Audit: an imported file is anything a phone holds. Every bundled file with seeded damage (bytes changed, cut,
+     * doubled) either parses into a song the player can run (a finite tempo, notes on keys 0 to 127 in time order, none
+     * before 0 or longer than the song) or is refused with MidiFormatException; nothing else may escape. A track length
+     * past 2 GB went negative and threw out of the parser's bounds, and a zero division or a zero tempo made a song of
+     * infinite tempo whose notes all sat at 0 or at the end of time.
+     */
+    @Test fun damagedFilesParseOrAreRefused() {
+        val files = File("src/main/assets/songs").listFiles { f -> f.extension == "mid" }!!.sortedBy { it.name }
+        val rnd = java.util.Random(7)
+        var refused = 0; var parsed = 0
+        for (f in files) {
+            val good = f.readBytes()
+            repeat(40) { n ->
+                val b = good.copyOf()
+                when (n % 4) {
+                    0 -> repeat(1 + rnd.nextInt(4)) { b[rnd.nextInt(b.size)] = rnd.nextInt(256).toByte() }
+                    1 -> b[8 + rnd.nextInt(6)] = rnd.nextInt(256).toByte()                                      // the header
+                    2 -> repeat(1 + rnd.nextInt(3)) { b[18 + rnd.nextInt(4)] = rnd.nextInt(256).toByte() }          // the first track's length
+                    else -> repeat(2) { val i = rnd.nextInt(b.size); b[i] = 0xFF.toByte(); if (i + 1 < b.size) b[i + 1] = 0x51 }
+                }
+                val damaged = if (n % 5 == 0) b.copyOf(rnd.nextInt(b.size)) else b
+                val song = try { SmfParser.parse(damaged, "x", "x") } catch (e: MidiFormatException) { refused++; return@repeat }
+                parsed++
+                val what = "${f.name} #$n"
+                assertTrue("$what bpm ${song.bpm}", song.bpm.isFinite() && song.bpm > 0)
+                song.notes.firstOrNull { !(it.midi in 0..127 && it.startMs >= 0 && it.durationMs >= 1 && it.startMs + it.durationMs <= song.durationMs) }?.let { fail("$what: $it in ${song.durationMs} ms") }
+                assertTrue(what, song.notes.zipWithNext().all { (a, c) -> a.startMs <= c.startMs })
+                assertTrue("$what lasts ${song.durationMs} ms", song.durationMs < Long.MAX_VALUE / 4)
+            }
+        }
+        assertTrue("refused $refused, parsed $parsed", refused > 0 && parsed > 0)
     }
 
     /** Splits a flat list into (delta, payload) using MIDI message lengths. */

@@ -475,7 +475,7 @@ internal fun rememberStage(
                 if (cue != null) handle(cue)
                 else missLine(a, run)?.let { if (first) sayOver(it) else st.say(it) }
             }
-            Answer.Heard -> clips.sound(now(), s.by.name.lowercase() + (s.guess?.let { " %.1f".format(it) } ?: ""))
+            Answer.Heard -> clips.sound(now(), s.by.name.lowercase() + (s.guess?.let { " %.1f".format(java.util.Locale.ROOT, it) } ?: ""))
         }
     }
     // A sound with no key yet: "I heard you!" for a moment (shown, not said: the mic is listening).
