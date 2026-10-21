@@ -204,7 +204,7 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
 }
 
 /**
- * A kid's second row: where the song is, Duet, the microphone and the video. The grown-ups' times, loop, speed, chord
+ * A kid's second row: where the song is, Duet and the microphone. The grown-ups' times, loop, speed, chord
  * names, metronome, flag and transpose were all on a pre-reader's song (no chords or loops for kids, as in Practice today).
  */
 @Composable
@@ -218,12 +218,7 @@ private fun KidRow(s: BarState, a: BarActions) {
         )
         s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
         MicToggle(s, a.onMic)
-        s.videoOn?.let { on ->
-            IconToggleButton(on, { a.onVideo() }, modifier = Modifier.semantics { stateDescription = if (on) "shown" else "hidden" }) {
-                Icon(painterResource(R.drawable.ic_smart_display), contentDescription = "Tutorial video",
-                    tint = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        // No tutorial video: its "Open in YouTube", YouTube's own links and the Sync controls are for grown-ups.
     }
 }
 
