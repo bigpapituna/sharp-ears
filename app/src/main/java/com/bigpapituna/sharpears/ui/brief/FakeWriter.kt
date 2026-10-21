@@ -19,15 +19,10 @@ import com.bigpapituna.sharpears.engine.brief.TrendKind
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 
 /*
- * FAKE WRITER, FOR THE INTEGRATOR TO REPLACE.
- *
- * Step 3 (this branch) builds the screens against the BriefWriter interface only. The real writers live on other branches:
- * the AI writer (engine/brief/ai, brief2a) and the template writer (engine/brief/templates, brief2b), chained by the
- * integrator's WriterChain. This stand-in writes a plain, warm brief straight from the findings so every screen, every
- * state and the debug route (`--es screen brief`) can be seen. It is NOT a template bank: no variety, no copy tests.
- *
- * To switch to the real writers, change the one line in BriefWriters.kt (ui/brief/BriefEnv.kt); nothing else in ui/brief
- * refers to this class except the demo route and the tests.
+ * The demo's stand-in writer (debug route `--es screen brief` and ExportLayoutTest only). The app writes with the real
+ * writers: the AI writer (engine/brief/ai) over the template writer (engine/brief/templates), from data/BriefAi.kt through
+ * BriefEnv.live. This one writes a plain, warm brief straight from the findings so every screen and state can be seen
+ * with made-up children and either "written by" note. It is NOT a template bank: no variety, no copy tests.
  */
 class FakeWriter(
     private val titles: BriefTitles,

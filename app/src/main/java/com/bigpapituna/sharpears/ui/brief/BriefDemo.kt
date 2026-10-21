@@ -82,7 +82,7 @@ fun demoEnv(by: Brief.Writer = Brief.Writer.AI, empty: Boolean = false, zone: Zo
     val writer = FakeWriter(DemoTitles, by)
     return BriefEnv(
         titles = DemoTitles,
-        service = BriefService(writer),
+        serviceFor = { BriefService(chain = { writer }) },
         loadFindings = { p, period, now ->
             if (empty) BriefSamples.empty(period, now, zone, p.kind)
             else if (p.isKid) BriefSamples.kid(period, now, zone, reader = p.reader) else BriefSamples.adult(period, now, zone)

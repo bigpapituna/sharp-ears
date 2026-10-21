@@ -1,8 +1,6 @@
 package com.bigpapituna.sharpears.data
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.util.Base64
 import android.util.Log
 import com.bigpapituna.sharpears.TAG
@@ -109,11 +107,7 @@ class Reporter(context: Context) {
         return text
     }
 
-    private fun unmetered(): Boolean {
-        val cm = context.getSystemService(ConnectivityManager::class.java)
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
+    private fun unmetered(): Boolean = Network.unmetered(context)
 
     /** Writes a report with no audio (crash, summary) into the same queue. */
     fun saveText(name: String, text: String) { dir.mkdirs(); File(dir, "$name.txt").writeText(text) }

@@ -19,9 +19,11 @@ import com.bigpapituna.sharpears.engine.brief.Period
 import com.bigpapituna.sharpears.engine.family.Profile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Where a brief is: reading the log, writing, shown, or nothing to say yet. */
 enum class Phase { LOADING, READY, EMPTY }
@@ -47,6 +49,8 @@ class BriefPageState(val profile: Profile, val period: Period) {
     var brief by mutableStateOf<Brief?>(null)
     /** A Refresh is rewriting the brief; the old one stays on screen meanwhile. */
     var refreshing by mutableStateOf(false)
+    /** The phone's brief is showing while the AI writes its own (the day and the week); it is swapped in when it comes. */
+    var improving by mutableStateOf(false)
     var notice by mutableStateOf<String?>(null)
     var asks by mutableStateOf(AskHistory())
     var expanded by mutableStateOf(false)
@@ -65,6 +69,10 @@ class BriefPageState(val profile: Profile, val period: Period) {
 class BriefController(val env: BriefEnv, private val scope: CoroutineScope) {
     private val pages = HashMap<String, BriefPageState>()
     private val open = ArrayList<Performed>()
+    private val services = HashMap<String, BriefService>()
+
+    /** [profile]'s writers, made once per screen. */
+    private fun service(profile: Profile): BriefService = services.getOrPut(profile.id) { env.serviceFor(profile) }
 
     /** The state for [profile] and [period], loading it the first time it is asked for. */
     fun page(profile: Profile, period: Period): BriefPageState = pages.getOrPut("${profile.id}/${period.name}") {
@@ -77,12 +85,31 @@ class BriefController(val env: BriefEnv, private val scope: CoroutineScope) {
             val f = withContext(Dispatchers.IO) { runCatching { env.loadFindings(p.profile, p.period, env.now()) }.getOrNull() }
             p.findings = f
             if (f == null || f.isEmpty) { p.phase = Phase.EMPTY; return@launch }
-            val b = env.service.write(f, p.profile.name)
+            val service = service(p.profile)
+            val name = p.profile.name
+            if (p.period != Period.SESSION && service.aiMayWrite(f)) {
+                // The day and the week (engine/brief/ai/INTEGRATION.md, "Waiting"): the AI may take seconds, so the phone's
+                // brief shows at once and the AI's replaces it when it comes. A reply from the AI's cache comes at once:
+                // waiting a moment for it first saves the page from changing under the reader.
+                val ai = async { service.write(f, name) }
+                val soon = withTimeoutOrNull(QUICK_MS) { ai.await() }
+                if (soon != null) { show(p, soon); return@launch }
+                service.phone(f, name)?.let { show(p, it) }
+                p.improving = true
+                val better = ai.await()
+                p.improving = false
+                // Swapped in only while nobody has started on the phone's version (an action card, a Refresh).
+                if (better != null && (p.brief == null || (better.writtenBy == Brief.Writer.AI && p.cards.isEmpty() && !p.refreshing))) show(p, better)
+                if (p.brief == null) { p.phase = Phase.EMPTY; p.notice = "I could not write this one just now. Try Refresh in a moment." }
+                return@launch
+            }
+            val b = service.write(f, name)
             if (b == null) { p.phase = Phase.EMPTY; p.notice = "I could not write this one just now. Try Refresh in a moment."; return@launch }
-            p.brief = b
-            p.phase = Phase.READY
+            show(p, b)
         }
     }
+
+    private fun show(p: BriefPageState, b: Brief) { p.brief = b; p.phase = Phase.READY }
 
     /** Rewrites the brief from fresh findings (the log may have grown since). The old brief stays until the new one is ready. */
     fun refresh(p: BriefPageState) {
@@ -90,7 +117,7 @@ class BriefController(val env: BriefEnv, private val scope: CoroutineScope) {
         scope.launch {
             p.refreshing = true; p.notice = null
             val f = withContext(Dispatchers.IO) { runCatching { env.loadFindings(p.profile, p.period, env.now()) }.getOrNull() } ?: p.findings
-            val b = f?.let { env.service.write(it, p.profile.name) }
+            val b = f?.let { service(p.profile).refresh(it, p.profile.name) }
             if (b != null && f != null) {
                 p.findings = f; p.brief = b; p.phase = if (f.isEmpty) Phase.EMPTY else Phase.READY
                 p.cards.clear()
@@ -107,7 +134,7 @@ class BriefController(val env: BriefEnv, private val scope: CoroutineScope) {
         p.asks = next
         val question = AskRules.forWriter(next.exchanges.first { it.id == id }.question, p.profile.name, p.profile.kind)
         scope.launch {
-            val a = env.service.answer(f, p.profile.name, question)
+            val a = service(p.profile).answer(f, p.profile.name, question)
             p.asks = if (a == null) p.asks.failed(id) else p.asks.answered(id, a)
         }
     }
@@ -157,4 +184,9 @@ class BriefController(val env: BriefEnv, private val scope: CoroutineScope) {
 
     /** The screen is closing: whatever is still undoable is recorded now. */
     fun commitAll() { synchronized(open) { open.forEach { it.commit() }; open.clear() } }
+
+    companion object {
+        /** How long a day or a week waits for the AI before the phone's brief shows (a cached reply is back well within it). */
+        const val QUICK_MS = 400L
+    }
 }

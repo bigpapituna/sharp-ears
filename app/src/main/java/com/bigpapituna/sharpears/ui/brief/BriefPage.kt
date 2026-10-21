@@ -93,7 +93,7 @@ fun BriefPage(
                     FullReport(brief, f, env)
                 }
                 footer?.invoke()
-                Text(if (page.profile.kind == ProfileKind.KID) "Made on this phone from ${name}'s playing. Only you can see it here." else "Made on this phone from your playing.",
+                Text(footerLine(page.profile.kind == ProfileKind.KID, name, brief.writtenBy),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
             }
         }
@@ -101,6 +101,14 @@ fun BriefPage(
 }
 
 private fun periodWord(p: Period) = when (p) { Period.SESSION -> "session"; Period.DAY -> "day"; Period.WEEK -> "week" }
+
+/** The line under a brief: where it was made and who sees it. An AI brief says what the AI was given (and what it never was). */
+internal fun footerLine(kid: Boolean, name: String, by: Brief.Writer): String = when {
+    by == Brief.Writer.AI && kid -> "Written from the numbers of ${name}'s playing. The AI never gets a name or a sound. Only you can see it here."
+    by == Brief.Writer.AI -> "Written from the numbers of your playing. The AI never gets a name or a sound."
+    kid -> "Made on this phone from ${name}'s playing. Only you can see it here."
+    else -> "Made on this phone from your playing."
+}
 
 @Composable
 private fun Empty(page: BriefPageState) {
@@ -121,6 +129,9 @@ private fun Meta(page: BriefPageState, brief: Brief, f: Findings, env: BriefEnv,
         Text(BriefFormat.rangeLabel(f, env.zone), style = MaterialTheme.typography.labelLarge, color = c.onSurfaceVariant)
         Text(BriefFormat.writtenNote(brief, env.now(), env.zone), style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        // The phone's brief is up while the AI writes its own; it takes its place when it comes (or this line just goes).
+        if (page.improving) Text("The AI is writing its version. It takes this one's place when it is ready.", style = MaterialTheme.typography.bodySmall,
+            color = c.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             PillButton(if (page.refreshing) "Rewriting" else "Refresh", enabled = !page.refreshing, busy = page.refreshing, onClick = onRefresh)
             PillButton("Send", onClick = onSend)

@@ -104,6 +104,7 @@ class Profiles(
         save(r, "deleted $id")
         ProfileFiles.filesOf(id, ProgressFiles.NAMES).forEach { app.deleteSharedPreferences(it) }
         Briefs.forget(app, id)                          // and the brief's event log (files/events/<id>.log)
+        BriefAi.forgetProfile(app, id)                  // and the AI brief's quota and cached replies (ai-brief.xml)
         return true
     }
 

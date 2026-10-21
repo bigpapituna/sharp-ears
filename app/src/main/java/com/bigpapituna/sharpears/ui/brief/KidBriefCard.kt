@@ -94,7 +94,7 @@ fun KidBriefCardHost(env: BriefEnv, profile: Profile, say: (String) -> Unit, onS
         val store = BriefStore(context, profile.id)
         val f = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { env.loadFindings(profile, Period.SESSION, env.now()) }.getOrNull() }
         if (f != null && KidCardWords.due(f.stats.totals.practiceMinutes * 60, f.range.fromMs.takeIf { !f.isEmpty }, store.cardSession.takeIf { it != 0L })) {
-            value = env.service.kidCard(f, profile.name)
+            value = env.serviceFor(profile).kidCard(f, profile.name)
             if (value != null) store.cardSession = f.range.fromMs
         }
     }

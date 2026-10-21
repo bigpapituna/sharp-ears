@@ -60,6 +60,11 @@ object BriefReminder {
         if (findings == null || !BriefNotice.shouldSend(findings)) { Log.d(TAG, "brief: ${profile.id} quiet week, no notification"); return false }
         if (!Reminder.canNotify(context)) { Log.d(TAG, "brief: no notification permission for ${profile.id}"); return false }
         val nm = context.getSystemService(NotificationManager::class.java) ?: return false
+        // The week's brief is written now (the AI when it is on, within its weekly limit; the phone's words otherwise), so its
+        // headline is the notification's text, and opening it reads the AI's cache instead of asking again.
+        val headline = runCatching {
+            kotlinx.coroutines.runBlocking { com.bigpapituna.sharpears.ui.brief.liveService(context, profile).write(findings, profile.name) }?.headline
+        }.getOrNull()?.takeIf { it.isNotBlank() }
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Weekly brief", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "A weekly note on how each player's week at the piano went, at the day and time set in the parent corner."
         })
@@ -73,7 +78,8 @@ object BriefReminder {
         val n = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_logo_mono)
             .setContentTitle(BriefNotice.title(profile.name, profile.kind))
-            .setContentText(BriefNotice.text(profile.kind))
+            .setContentText(headline ?: BriefNotice.text(profile.kind))
+            .setStyle(android.app.Notification.BigTextStyle().bigText(headline ?: BriefNotice.text(profile.kind)))
             .setContentIntent(open).setAutoCancel(true)
             .setVisibility(android.app.Notification.VISIBILITY_PRIVATE).setPublicVersion(public)
             .build()

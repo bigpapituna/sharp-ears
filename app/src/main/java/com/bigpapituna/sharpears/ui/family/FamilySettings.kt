@@ -105,6 +105,8 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
         Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp)); Text("Add someone")
     } else Text("Eight people is the most one phone holds.", style = MaterialTheme.typography.bodySmall, color = dim)
+    // Who writes the parent brief: the AI or the phone, and whether on mobile data (behind the gate, like the rest of Family).
+    com.bigpapituna.sharpears.ui.brief.BriefAiSettings(gate)
 
     renaming?.let { p ->
         var name by remember(p.id) { mutableStateOf(p.name) }
