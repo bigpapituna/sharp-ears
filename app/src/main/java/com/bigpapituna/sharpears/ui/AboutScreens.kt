@@ -66,8 +66,12 @@ private fun Link(label: String, url: String) {
  * that debug builds can keep practice recordings (switchable in Microphone setup).
  */
 @Composable
-fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit) = TextPage("Privacy", onBack) {
-    Para("Sharp Ears has no account, no ads and no analytics. " + if (canRecord) "Apart from the review reports below, which you switch on, " +
+fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit,
+                  /** This build carries an AI key, so the parent brief can be written by an AI model (data/BriefAi.kt). */
+                  aiBrief: Boolean = com.bigpapituna.sharpears.data.BriefAi.hasKey) = TextPage("Privacy", onBack) {
+    val except = listOfNotNull("the parent brief's numbers when the AI writes it (below)".takeIf { aiBrief },
+        "the review reports below, which you switch on".takeIf { canRecord })
+    Para("Sharp Ears has no account, no ads and no analytics. " + if (except.isNotEmpty()) "Apart from ${except.joinToString(" and ")}, " +
         "it sends nothing about you or your playing anywhere." else "It does not send anything about you or your playing anywhere.")
     Heading("Microphone")
     Para("The microphone is used only to hear which piano notes you play. It listens only while a song, a lesson or Playground game, " +
@@ -90,12 +94,34 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         "can carry them to a new phone; it never takes the mic recordings or the report token. Settings has a reset for progress " +
         "(lessons, stickers, XP and achievements stay).")
     Heading("Internet")
-    Para("The app itself uses the internet only to show tutorial videos" + (if (canRecord) " and, when that is on, to send review reports" else "") +
+    val uses = listOfNotNull("to show tutorial videos", "to have the parent brief written by AI".takeIf { aiBrief },
+        "to send review reports, when that is on".takeIf { canRecord })
+    Para("The app itself uses the internet only " + uses.dropLast(1).joinToString(", ").let { if (it.isEmpty()) uses.last() else "$it and ${uses.last()}" } +
         ". When you open a video, YouTube's embedded player loads " +
         "from YouTube and connects to Google, and YouTube's terms and Google's privacy policy apply to it. " +
         "Open in YouTube hands the video to the YouTube app or your browser.")
     Link("YouTube Terms of Service", "https://www.youtube.com/t/terms")
     Link("Google Privacy Policy", "https://policies.google.com/privacy")
+    Heading("The parent brief")
+    Para("The parent brief is made from each person's own playing on this phone: minutes, days, stars, tries, which lessons and songs, " +
+        "and moments such as a noisy room or a step that was hard. It never uses a recording or any sound, and it compares a child only " +
+        "with their own earlier weeks. Grown-ups read it behind the parent gate; a kid sees only the pup's short, kind card. A brief you " +
+        "send goes only where you send it.")
+    if (aiBrief) {
+        Para("On this build an AI model can write the words. On Wi-Fi, or on mobile data if you allow it in Settings, Family, the app sends " +
+            "OpenRouter (openrouter.ai), which passes it to the model's maker (Anthropic, for Claude Haiku), only the brief's findings: " +
+            "minutes, days, stars, tries, which lessons, songs and pages, and notes such as \"stuck on a lesson\" or \"noisy room\". It never " +
+            "sends a name (the app writes the name in afterwards, on this phone), a recording or any sound, a note a grown-up typed, or a song " +
+            "or lesson whose title or file name holds someone's name. A question you type or dictate is sent as text with names taken out. " +
+            "The app asks OpenRouter to use only providers that do not keep or train on what is sent. Like any website, OpenRouter sees the " +
+            "request come from your internet connection.")
+        Para("What comes back is checked on the phone, and anything that names something not in the findings is left out. Offline, on mobile " +
+            "data you did not allow, when the model is slow, after 40 AI briefs in a week for one person, when a reply fails a check, or with " +
+            "AI briefs switched off in Settings, Family, the brief is written on the phone instead, and says so. The last brief written for " +
+            "each person is kept on the phone, so opening it again sends nothing.")
+    } else Para("On this build every brief, card and answer is written on the phone, and nothing about it leaves the phone.")
+    Para("Dictating a question uses the phone's own speech recognition, so your voice stays on the phone; the microphone button is hidden " +
+        "when the phone has none.")
     Heading("Speech and MIDI")
     Para("Spoken guidance uses a voice that runs entirely on the phone: lines recorded into the app, and the Kokoro voice model for the rest. " +
         "With the natural voice off, it uses the phone's own text-to-speech engine instead. A USB MIDI keyboard's notes are read on the phone and go nowhere else.")

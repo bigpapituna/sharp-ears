@@ -49,6 +49,7 @@ wanted), built from this code with the changes below. Not legal advice: get the 
 | Audio (microphone) | Not collected: processed on the device, not stored or transmitted |
 | Files (imported MIDI) | Not collected: stay on the device |
 | App activity (progress, scores) | Not collected: stay on the device |
+| App activity (the parent brief's findings, 2.4) | Shared with a third party (the relay, OpenRouter and the model's maker) for app functionality, only when an AI writes a brief; encrypted in transit (HTTPS); not stored by the provider (zero-retention routing); no name or audio. With the relay (Option A) in place of the key in the app; answer "Yes, shared" to the first question then |
 
 Note on the YouTube player: Google's guidance is that data collected by an SDK or embedded service on the app's behalf
 counts. The embedded player is loaded only when the user opens a video; describe it in the privacy policy (done) and

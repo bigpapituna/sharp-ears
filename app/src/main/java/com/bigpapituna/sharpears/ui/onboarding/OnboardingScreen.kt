@@ -212,7 +212,10 @@ private fun WelcomeStep() {
     StepTitle("Welcome to Sharp Ears")
     Text("Lessons that start from the very first key, songs that fall onto the keyboard, chords, ear training and theory. " +
         "It listens as you play and tells you how it went.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Text("Everything stays on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // True on every build: one with an AI key sends the parent brief's numbers (never a name or a sound), and says so.
+    Text(if (com.bigpapituna.sharpears.data.BriefAi.hasKey) "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. " +
+        "Settings, Family turns that off." else "Everything stays on this phone. Nothing is sent anywhere.",
+        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
