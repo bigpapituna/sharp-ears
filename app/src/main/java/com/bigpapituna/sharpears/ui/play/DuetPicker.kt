@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.ui.play
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -108,6 +109,10 @@ internal fun DuetPickerContent(
     onPick: (String) -> Unit, onSwap: () -> Unit, onStart: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier,
 ) {
     val partner = others.firstOrNull { it.id == partnerId }
+    // The player is sideways on a phone, so the hands and "Play together" land below the fold: a pick brings them up.
+    val startInView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val firstPick = remember { partnerId }
+    androidx.compose.runtime.LaunchedEffect(partnerId) { if (partnerId != null && partnerId != firstPick) startInView.bringIntoView() }
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ExitPill(onCancel, label = "Back")
@@ -132,7 +137,7 @@ internal fun DuetPickerContent(
                 Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp)); Text("Swap hands")
             }
-            ChunkyButton(onStart, Modifier.fillMaxWidth()) { Text("Play together") }
+            ChunkyButton(onStart, Modifier.fillMaxWidth().bringIntoViewRequester(startInView)) { Text("Play together") }
         }
     }
 }
