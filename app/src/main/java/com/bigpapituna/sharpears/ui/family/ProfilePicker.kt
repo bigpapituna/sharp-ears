@@ -137,6 +137,16 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit) {
     var kind by rememberSaveable { mutableStateOf<ProfileKind?>(null) }
     var reader by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val focus = LocalFocusManager.current
+    // Kids never see the grown-ups' questions, and their games listen through the microphone from the first one: a phone
+    // that has not allowed it yet asks the grown-up making a kid's profile, once (before, the stages heard nothing and
+    // nobody was asked). Allowed or not, the profile is made.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var made by remember { mutableStateOf<Profile?>(null) }
+    val askMic = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { allowed ->
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "profiles: microphone for a new kid ${if (allowed) "allowed" else "not allowed"}")
+        made?.let(onDone)
+    }
     val clean = Profile.cleanName(name)
     val ready = clean.isNotEmpty() && kind != null && (kind == ProfileKind.ADULT || reader != null)
     val line = when {
@@ -195,7 +205,10 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit) {
         }
         ChunkyButton(onClick = {
             val k = kind ?: return@ChunkyButton
-            onDone(if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true) else Profile.adult(clean, avatar))
+            val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true) else Profile.adult(clean, avatar)
+            if (k == ProfileKind.KID && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                made = p; askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+            } else onDone(p)
         }, enabled = ready, modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
             Text("Go")
         }
