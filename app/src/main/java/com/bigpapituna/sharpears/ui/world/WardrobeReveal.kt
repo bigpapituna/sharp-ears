@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,21 +70,25 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
     var answered by rememberSaveable(items.map { it.id }) { mutableStateOf<Boolean?>(null) }
     val flip = remember(items) { Animatable(if (still) 1f else 0f) }
     val enter = remember(items) { Animatable(if (still) 1f else 0f) }
+    // On a finish screen the reveal comes last, often under the fold of a scrolling column: it scrolls itself into view so
+    // a child who cannot read sees "Keep it on?" and its buttons without having to find them (2.5.0).
+    val inView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(items) {
         world?.let { w -> if (answered == null) w.dress(items.fold(w.state.outfit) { o, i -> o.with(i) }) }
         if (!still) {
+            launch { delay(120); runCatching { inView.bringIntoView() } }
             enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 260f))
             delay(200)
             launch { flip.animateTo(1f, tween(520, easing = FastOutSlowInEasing)) }
             delay(260)
-        }
+        } else runCatching { inView.bringIntoView() }
         sounds.jingle(rarity)
         pup.react(if (rarity.special) PupReaction.SURPRISED else PupReaction.DANCE)
         say?.invoke(Wardrobe.revealLine(items))
         Log.d(TAG, "wardrobe: reveal ${items.joinToString { it.id }}")
     }
     val c = MaterialTheme.colorScheme
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().bringIntoViewRequester(inView), contentAlignment = Alignment.Center) {
         if (rarity == Rarity.SHINY && flip.value >= 0.5f) Confetti(items, Modifier.matchParentSize())
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
             .border(if (rarity.special) 3.dp else 0.dp, if (rarity == Rarity.SHINY) Brush.linearGradient(ShinyPrism) else Brush.linearGradient(listOf(RareBlue, RareBlue)), RoundedCornerShape(20.dp))

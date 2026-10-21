@@ -420,11 +420,13 @@ fun LessonScreen(
     // Bedtime on and a grown-up's one more spent with this lesson: the next one sleeps, so no way on into its asleep screen.
     val nextAsleep = kid && finished && progress != null && !holdGoodnight &&
         !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)
-    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
-        { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = { voice.stop(); onNext() }, title = next.title) }
-    } else null
     // The pup's card for the session (the parent brief, 2.4): read while the celebration plays, shown after its button.
     val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(who, ready = kid && finished)
+    // A kid's finish reads in one order (2.5.0): the stars, the stone's sticker, the drop, something new to wear, then the
+    // pup's card (when one is due this session) whichever way they go on, "one more" included.
+    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
+        { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = cardStep.then("One more") { voice.stop(); onNext() }, title = next.title) }
+    } else null
     if (finished && !goodnight) {
         val kidPrimary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" }
         if (kid) Celebration(
@@ -462,10 +464,14 @@ fun LessonScreen(
  */
 @Composable
 private fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null) {
+    // In order (2.5.0): the stars, the stone's own sticker (its shape turning into the sticker), the drop flipping in, and
+    // once it has landed the rest, something new to wear last.
+    var dropped by remember(reward) { mutableStateOf(reward.drops.isEmpty()) }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         stars?.takeIf { it > 0 }?.let { com.bigpapituna.sharpears.ui.skin.StarRow(it, size = 44.dp, sampler = sampler) }
-        com.bigpapituna.sharpears.ui.world.DropReveal(reward, cardWidth = 120.dp)
-        com.bigpapituna.sharpears.ui.world.RewardExtras(reward, say = say)
+        reward.level?.let { com.bigpapituna.sharpears.ui.world.LevelStickerEarned(it, say = say) }
+        if (reward.drops.isNotEmpty()) com.bigpapituna.sharpears.ui.world.DropReveal(reward, cardWidth = 120.dp, onDone = { dropped = true })
+        if (dropped) com.bigpapituna.sharpears.ui.world.RewardExtras(reward, say = say, level = false)
     }
 }
 

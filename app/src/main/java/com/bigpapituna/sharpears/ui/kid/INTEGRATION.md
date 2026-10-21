@@ -51,6 +51,14 @@ Three things to know:
   Decorate mode (ui/kid/Decorate.kt): a tap on a sticker in My stickers' tray, or a long press on a spot, starts it;
   the tray replaces the three buttons; tap a sticker then a spot (or the reverse), or hold and drag; Done ends it.
 
+## A kid's lesson finish, in order (2.5.0)
+
+The stars; the stone's own sticker, its shape turning into the sticker with the pup's line (`LevelStickerEarned`, first finish
+only); the drop flipping in (and the egg); once it has landed the rest (egg laid, dog house, record) and last something new to
+wear (`WardrobeReveal`, which scrolls itself into view, "Keep it on?"); then the pup's card when one is due this session,
+whichever button the kid takes, "One more" included (its Continue then says "One more"). Songs keep their recap's order (the
+drop, the extras, the reveal) and show the card on leaving the player.
+
 ## After merging `pages` and `kidhome`: check
 
 Done in 2.2.0 (branch `release-2.2`): every step below, with the four new finale lines recorded (2597 in the catalog);

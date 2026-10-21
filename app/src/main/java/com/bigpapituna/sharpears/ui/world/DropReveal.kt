@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.engine.world.Drop
 import com.bigpapituna.sharpears.engine.world.DropSource
+import com.bigpapituna.sharpears.engine.world.LevelSticker
 import com.bigpapituna.sharpears.engine.world.PupReaction
 import com.bigpapituna.sharpears.engine.world.Rarity
 import com.bigpapituna.sharpears.engine.world.Reward
@@ -233,12 +234,11 @@ fun DropRevealOverlay(reward: Reward, onDone: () -> Unit, primary: String = "Int
 @Composable
 fun RewardExtras(reward: Reward, modifier: Modifier = Modifier, songTitle: (String) -> String? = { null },
                  /** The voice, for the pup's lines (a new item, a stone's sticker); null: shown only. */
-                 say: ((String) -> Unit)? = null) {
-    LaunchedEffect(reward.level) { reward.level?.let { l -> say?.invoke(l.line) } }
+                 say: ((String) -> Unit)? = null,
+                 /** False when the caller shows the stone's sticker itself, first (a lesson's finish, 2.5.0). */
+                 level: Boolean = true) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        reward.level?.let { l ->
-            ExtraRow("${l.name}! A sticker for your trail. Stick it on the map.") { StickerImage(l, Modifier.size(60.dp)) }
-        }
+        if (level) reward.level?.let { l -> LevelStickerEarned(l, say = say) }
         if (reward.eggLaid) ExtraRow("A mystery egg appeared. It hatches when you finish your next lesson.") {
             EggView(EggLook.CLOSED, Modifier.size(44.dp, 56.dp))
         }
@@ -252,9 +252,41 @@ fun RewardExtras(reward: Reward, modifier: Modifier = Modifier, songTitle: (Stri
     }
 }
 
+/**
+ * The stone's own sticker, earned on its first finish (2.5): its shape (as it sat on the stone) turns into the sticker
+ * with a pop and the pup says its line. With animations off it is the sticker at once.
+ */
 @Composable
-private fun ExtraRow(line: String, picture: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 14.dp, vertical = 10.dp),
+fun LevelStickerEarned(sticker: LevelSticker, modifier: Modifier = Modifier, say: ((String) -> Unit)? = null) {
+    val still = reducedMotion()
+    val turn = remember(sticker.key) { Animatable(if (still) 1f else 0f) }
+    val sounds = rememberWorldSounds()
+    LaunchedEffect(sticker.key) {
+        if (!still) {
+            delay(500)
+            turn.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
+        }
+        sounds.jingle(Rarity.COMMON)
+        say?.invoke(sticker.line)
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "world: stone sticker ${sticker.key} earned on the finish")
+    }
+    ExtraRow("${sticker.name}! A sticker for your trail. Stick it on the map.", modifier) {
+        val t = turn.value
+        val c = MaterialTheme.colorScheme
+        Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+            // The shape fades as the sticker grows in over it, with a little overshoot.
+            if (t < 1f) StickerSilhouette(sticker, c.onSurface.copy(alpha = 0.38f), Modifier.fillMaxSize().graphicsLayer { alpha = 1f - t })
+            if (t > 0f) StickerImage(sticker, Modifier.fillMaxSize().graphicsLayer {
+                val k = if (t < 0.7f) 0.6f + 0.6f * (t / 0.7f) else 1.2f - 0.2f * ((t - 0.7f) / 0.3f)
+                scaleX = k; scaleY = k; alpha = t.coerceIn(0f, 1f)
+            })
+        }
+    }
+}
+
+@Composable
+private fun ExtraRow(line: String, modifier: Modifier = Modifier, picture: @Composable () -> Unit) {
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { picture() }
         Text(line, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
