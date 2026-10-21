@@ -72,3 +72,32 @@ check the current Play guidance on embedded web content when filling in the form
 The model and sherpa-onnx are Apache 2.0, so they are fine to ship. The espeak-ng-data folder the model reads pronunciations
 from is GPL 3.0. It is data loaded at run time, not linked code, but check this before a store release. The alternative
 is to ship only the recorded lines (assets/voice) and fall back to the phone's own TTS for everything else.
+
+## Release path and size (robustness audit, 2026-10-20)
+
+What the 2.3.0 debug APK holds (116 MB, arm64-v8a only):
+
+| Part | Size | Notes |
+|---|---|---|
+| assets/voice | 42.8 MB | 3172 recorded lines, Ogg (already compressed; stored as is) |
+| classes*.dex | 41.9 MB | debug: no R8, debug-only libraries (Compose tooling), dex stored uncompressed (minSdk 28) |
+| lib/arm64-v8a | 24.2 MB | sherpa-onnx (Kokoro speech); 10 KB androidx graphics path |
+| res/drawable-nodpi | 4.7 MB | pup poses and stickers (WebP) |
+| everything else | 1.9 MB | raw jingles, fonts, resources.arsc, samples (0.4 MB), songs (0.1 MB) |
+
+The Kokoro model itself (about 155 MB) is not in the APK: scripts/install-voice.ps1 copies it into files/kokoro.
+Before the audit the APK also carried lib/x86_64 (26 MB) for the emulators; they run arm64 apps through ARM
+translation, so it went (CLAUDE.md).
+
+For the public app:
+- Build an App Bundle (`bundleRelease`), not an APK: Play serves each phone only its ABI and screen density.
+  Add `x86_64` back to `abiFilters` only for Chromebooks; the bundle keeps it off phones.
+- Turn on R8 and resource shrinking for release (`isMinifyEnabled = true`, `isShrinkResources = true`). Keep rules
+  needed at least for sherpa-onnx's JNI classes (`-keep class com.k2fsa.sherpa.onnx.** { *; }`) and the YouTube
+  player; test the release build end to end (voice, video, import, export, reminder). Dex should drop to a fraction
+  of the debug 42 MB (not measured).
+- The voice model is over Play's base size limit: deliver it as a Play Asset Delivery pack (install-time or
+  on-demand), or ship the recorded lines only and let the phone's TTS say the rest (also avoids espeak-ng-data's GPL,
+  above).
+- Release builds already never record, never send reports and ignore every debug extra (all gated on
+  FLAG_DEBUGGABLE); the backup rules keep the token and recordings out of Google backups.
