@@ -138,4 +138,12 @@ class LibraryContentTest {
         }
         assertTrue("lessons named after songs: $named", named >= 10)
     }
+
+    @Test fun importedSongsInAnyScriptGetTheirOwnIds() {
+        assertEquals("user-moonlight-sonata-1", SongRepository.userSongId("Moonlight Sonata (1)"))
+        val ids = listOf("سلام", "مرحبا", "Привет", "नमस्ते", "小星星", "きらきら星").map(SongRepository::userSongId)
+        assertEquals(ids.toString(), ids.size, ids.toSet().size)
+        assertTrue(ids.toString(), ids.none { it == "user-song" || '/' in it })
+        assertEquals("user-song", SongRepository.userSongId("!!!"))
+    }
 }

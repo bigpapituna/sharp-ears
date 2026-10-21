@@ -68,7 +68,7 @@ class SongRepository(private val context: Context) {
             ?: throw ImportException("Could not open the file.")
         val name = displayName(uri)?.substringBeforeLast('.') ?: "Imported song"
         val meta = into ?: SongMeta(
-            id = "user-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "song" },
+            id = userSongId(name),
             file = "", title = name, composer = "", difficulty = "imported", hands = HandRule.Auto,
             license = "personal use, not bundled", attribution = "Imported from your device",
         ).let { it.copy(file = "user/${it.id}.mid") }
@@ -92,6 +92,12 @@ class SongRepository(private val context: Context) {
         }
 
     companion object {
+        /**
+         * An imported song's id from its file name. Letters of every script stay: with a-z only, every name in Arabic,
+         * Cyrillic, Devanagari or CJK became "user-song", and each import replaced the last one and took its progress.
+         */
+        fun userSongId(name: String) = "user-" + name.lowercase().replace(Regex("[^\\p{L}\\p{M}\\p{N}]+"), "-").trim('-').ifEmpty { "song" }
+
         /** Throws [ImportException] with a readable message when [bytes] is not a usable MIDI file. */
         fun validate(bytes: ByteArray, meta: SongMeta) {
             val song = try { SmfParser.parse(bytes, meta.id, meta.title, meta.hands) }
