@@ -84,7 +84,10 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                    guardToken: (() -> Unit) -> Unit = { it() }) {
     BackHandler(onBack = onBack)
     var granted by remember { mutableStateOf(mic.hasPermission()) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    // Refused twice, Android stops asking: "Allow microphone" then did nothing at all. Refused, the way to the phone's
+    // settings shows; coming back from there checks again.
+    var refused by remember { mutableStateOf(false) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it; refused = !it }
     var micAddress by remember { mutableStateOf(mic.micAddress) }
     var heard by remember { mutableIntStateOf(0) }
     var last by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
@@ -96,6 +99,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
 
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
     val visible = onScreen()
+    LaunchedEffect(visible) { if (visible && !granted) granted = mic.hasPermission() }
     DisposableEffect(granted, micAddress, visible) {
         if (granted && visible) {
             mic.micAddress = micAddress
@@ -128,6 +132,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                 "This test build keeps recent sessions on the phone, and you can turn that off here." else "Nothing is recorded or sent anywhere.",
                 size = 88.dp, style = MaterialTheme.typography.bodyLarge)
             Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
+            if (refused) MicRefusedNote()
             return@Column
         }
 
@@ -315,5 +320,22 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             }
             savedNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
+    }
+}
+
+/**
+ * Shown once the microphone was refused. After two refusals Android stops asking, so the only way left is the app's
+ * page in the phone's settings (Permissions, Microphone); this opens it.
+ */
+@Composable
+fun MicRefusedNote(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("The microphone is off for Sharp Ears. To turn it on, allow it in the phone's settings, under Permissions.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)))
+        }) { Text("Open the phone's settings") }
     }
 }

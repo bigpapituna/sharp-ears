@@ -768,6 +768,8 @@ fun PlayerScreen(
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
+        // Refused (twice, and Android stops asking): the mic button did nothing at all; the pup says where to allow it.
+        if (!granted) hintLine = "The microphone is off for Sharp Ears. Allow it in the phone's settings, under Permissions."
         if (granted) { micOn = true; prefs.micDefault = true; progress?.record(ProgressEvent.FeatureUsed("mic")); if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
