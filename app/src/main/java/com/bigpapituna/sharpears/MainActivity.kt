@@ -856,7 +856,8 @@ class MainActivity : ComponentActivity() {
                                             Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
                                             profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
                                         } },
-                                        onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                        // A grown-up's answer too: a kid's tap on "Not yet" put the one-time offer away for good.
+                                        onLater = { gate.guard { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") } })
                                 } })
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
