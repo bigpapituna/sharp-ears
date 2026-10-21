@@ -44,7 +44,13 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.bigpapituna.sharpears.engine.kid.KidPages
+import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
 import com.bigpapituna.sharpears.engine.world.Album
+import com.bigpapituna.sharpears.engine.world.LevelSticker
+import com.bigpapituna.sharpears.engine.world.LevelStickers
+import com.bigpapituna.sharpears.engine.world.WorldState
+import androidx.compose.foundation.layout.Spacer
 import com.bigpapituna.sharpears.engine.world.AlbumPage
 import com.bigpapituna.sharpears.engine.world.AlbumSlot
 import com.bigpapituna.sharpears.engine.world.Place
@@ -67,31 +73,106 @@ fun albumLine(a: Album): String = when {
     else -> "${a.collected} of ${a.size}. ${a.size - a.collected} still hiding."
 }
 
+/** A trail page's title and colour: the Playground's pages by their place, then the big kids' road. */
+private fun trailPage(id: String): Pair<String, Color> {
+    val page = PLAYGROUND_PAGES.firstOrNull { it.id == id } ?: return "The big kids' road" to Color(0xFF8A9A8E)
+    return page.title to KidPages.worldPlace(page).colour()
+}
+
 /**
- * The sticker album: the pup holding a sticker with how many are in, then a page per place with its stickers in
- * order and the gaps showing ("7 of 10 in the pond"). Tapping a sticker (or a gap) opens it big. Not lazy: seven
- * pages of ten (2.3) still fit any scroll the integrator puts it in.
+ * The sticker album (2.5): page by page in the map's order, first the stones' own stickers in stone order (the main
+ * collection, earned by finishing each stone), then that place's bonus stickers from the drops and the egg ("7 of 10 in
+ * the pond"), and last the big kids' road. Gaps show the sticker's shape. Tapping a sticker (or a gap) opens it big.
+ * Not lazy: it fits any scroll the integrator puts it in.
  */
 @Composable
-fun AlbumView(album: Album, modifier: Modifier = Modifier, showPup: Boolean = true) {
+fun AlbumView(state: WorldState, modifier: Modifier = Modifier, showPup: Boolean = true) {
     var open by remember { mutableStateOf<AlbumSlot?>(null) }
+    var openLevel by remember { mutableStateOf<Pair<LevelSticker, Boolean>?>(null) }
+    val album = state.album
     Column(modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (showPup) PupSays(Pose.STICKER, albumLine(album), size = 84.dp)
-        album.pages.forEach { page -> AlbumPageView(page, onSlot = { open = it }) }
+        if (showPup) PupSays(Pose.STICKER, trailAlbumLine(state), size = 84.dp)
+        LevelStickers.PAGES.forEach { id ->
+            LevelPageView(id, state.levels, onSticker = { l, earned -> openLevel = l to earned })
+            PLAYGROUND_PAGES.firstOrNull { it.id == id }?.let { p ->
+                AlbumPageView(album.page(KidPages.worldPlace(p)), onSlot = { open = it }, bonus = true)
+            }
+        }
     }
     open?.let { StickerSheet(it, onClose = { open = null }) }
+    openLevel?.let { (l, earned) -> LevelStickerSheet(l, earned, onClose = { openLevel = null }) }
+}
+
+/** What the pup says over the album: the trail's stickers first. */
+fun trailAlbumLine(state: WorldState): String = when {
+    state.levels.isEmpty() && state.unique == 0 -> "Finish a game on the map and its sticker lands here."
+    state.levels.size == LevelStickers.ALL.size -> "Every stone's sticker found. What an album."
+    state.tray.isNotEmpty() -> "Stick your stickers on the map. Tap one at the bottom."
+    else -> "Each stone on the map has a sticker to find."
+}
+
+/** A trail page's stones' stickers, in stone order: earned ones in colour, the rest as their shape. */
+@Composable
+fun LevelPageView(pageId: String, earned: Set<String>, modifier: Modifier = Modifier, onSticker: ((LevelSticker, Boolean) -> Unit)? = null) {
+    val c = MaterialTheme.colorScheme
+    val (title, tint) = trailPage(pageId)
+    val stickers = LevelStickers.of(pageId)
+    val got = stickers.count { it.lessonId in earned }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(14.dp).background(tint, CircleShape))
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+            Text("$got of ${stickers.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
+                color = if (got == stickers.size) c.primary else c.onSurfaceVariant,
+                modifier = Modifier.semantics { contentDescription = "$got of ${stickers.size} stones' stickers" })
+        }
+        stickers.chunked(6).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { l ->
+                    val has = l.lessonId in earned
+                    val label = if (has) l.name else "A stone's sticker, still to find"
+                    Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(c.surfaceContainerLowest)
+                        .then(if (onSticker == null) Modifier.semantics { contentDescription = label }
+                            else Modifier.clickable { onSticker(l, has) }.semantics { contentDescription = label; role = Role.Button }),
+                        contentAlignment = Alignment.Center) {
+                        if (has) StickerImage(l, Modifier.fillMaxSize().padding(4.dp))
+                        else StickerSilhouette(l, c.onSurface.copy(alpha = 0.1f), Modifier.fillMaxSize().padding(7.dp))
+                    }
+                }
+                repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** A stone's sticker big: its name and what the pup said, or its shape and where to find it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LevelStickerSheet(l: LevelSticker, earned: Boolean, onClose: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (earned) StickerImage(l, Modifier.size(200.dp), tilt = 0f) else StickerSilhouette(l, c.onSurface.copy(alpha = 0.12f), Modifier.size(200.dp))
+            Text(if (earned) l.name else "Still to find", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Text(if (earned) l.line else "Finish its stone on the map to earn it.", style = MaterialTheme.typography.bodyMedium,
+                color = c.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
+    }
 }
 
 /** One place's page: a coloured tab with its name, "7 of 10", a filling bar, then the ten slots in two rows. */
 @Composable
-fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: ((AlbumSlot) -> Unit)? = null) {
+fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: ((AlbumSlot) -> Unit)? = null, bonus: Boolean = false) {
     val c = MaterialTheme.colorScheme
     val tint = page.place.colour()
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(14.dp).background(tint, CircleShape))
-            Text(page.place.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+            Text(if (bonus) "Bonus stickers" else page.place.title, style = if (bonus) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).semantics { heading() })
             Text("${page.collected} of ${page.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
                 color = if (page.complete) c.primary else c.onSurfaceVariant,
                 modifier = Modifier.semantics { contentDescription = page.line })

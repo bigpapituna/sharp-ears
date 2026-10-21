@@ -9,6 +9,9 @@ these one for one under the same names.
 Output: app/src/main/res/drawable-nodpi/sticker_<place>_<n>.webp (place: garden, pond, concert, workshop, treehouse,
 nightsky, fair; n: 1..10)
     python -I scripts/gen_stickers.py [--sheet out.png] [--only fair_3] [--place fair]
+2.5 adds the stones' own stickers, one per Playground lesson and per Basics lesson (engine/world/LevelStickers.kt),
+sticker_lv_<lesson id with _ for ->.webp, in the same style:
+    python -I scripts/gen_stickers.py --levels [--only pond_3] [--sheet out.png]
 The names and order match engine/world/Stickers.kt.
 """
 import argparse
@@ -920,6 +923,727 @@ def fair_10(s):  # a rosette for the winner
     s.shape(star(256, 210, 56), YELLOW, YELLOW_D, lw=5)
 
 
+# ---- 2.5: the stones' own stickers, one per lesson (engine/world/LevelStickers.kt, art/GEMINI-BRIEF.md C2) ----------
+
+def face(s, cx, cy, r, blush=True, smile=True):
+    """Two eyes, pink cheeks and a smile for a creature or a thing with a face."""
+    s.eye(cx - r * 0.38, cy - r * 0.1, r * 0.13); s.eye(cx + r * 0.38, cy - r * 0.1, r * 0.13)
+    if blush:
+        s.fill(ellipse(cx - r * 0.62, cy + r * 0.2, r * 0.16, r * 0.1), PINK); s.fill(ellipse(cx + r * 0.62, cy + r * 0.2, r * 0.16, r * 0.1), PINK)
+    if smile:
+        s.line(arc(cx, cy + r * 0.05, r * 0.3, 25, 155, max(6, r * 0.07)))
+
+
+def note(s, x, y, c=DARK, r=30, flag=True):
+    """A music note: a head, a stem and a flag."""
+    s.shape(ellipse(x, y, r, r * 0.78, angle=-20), c, None)
+    s.shape(stroke([(x + r * 0.85, y - 4), (x + r * 0.85, y - r * 3.4)], 12), c)
+    if flag:
+        s.shape(poly([(x + r * 0.85, y - r * 3.4), (x + r * 2.2, y - r * 2.6), (x + r * 2.0, y - r * 2.1), (x + r * 0.85, y - r * 2.7)]), c)
+
+
+def medal(s, ribbon, ribbon_d, inner):
+    """A concert medal on a ribbon, the page's colour on the ribbon and in the middle."""
+    s.shape(poly([(150, 40), (230, 40), (290, 250), (210, 250)]), ribbon, ribbon_d)
+    s.shape(poly([(362, 40), (282, 40), (222, 250), (302, 250)]), ribbon, ribbon_d)
+    s.shape(ellipse(256, 330, 140), GOLD, GOLD_D, light=True)
+    s.shape(ellipse(256, 330, 100), YELLOW, YELLOW_D)
+    s.shape(star(256, 330, 70), inner, None, lw=6)
+
+
+def lv_playground_1(s):  # a see-saw, one end up and one down
+    s.shape(poly([(256, 300), (200, 420), (312, 420)]), RED, RED_D, light=True)
+    s.shape(stroke([(80, 380), (432, 220)], 34), WOOD, WOOD_D)
+    s.shape(rrect(70, 330, 120, 380, 10), BLUE, BLUE_D)
+    s.shape(rrect(392, 170, 442, 220, 10), BLUE, BLUE_D)
+    s.shape(ellipse(256, 300, 22), DARK)
+    for x, y in ((420, 120), (90, 450)):
+        s.shape(star(x, y, 30), YELLOW, YELLOW_D, lw=5)
+
+
+def lv_playground_2(s):  # piano keys: two black, then three black
+    s.shape(rrect(60, 130, 452, 400, 30), WHITE, WHITE_D, light=True)
+    for x in (116, 172, 228, 284, 340, 396):
+        s.line(stroke([(x, 150), (x, 390)], 6), GREY)
+    for x in (100, 156, 268, 324, 380):
+        s.shape(rrect(x - 4, 130, x + 36, 290, 8), DARK, lw=5)
+
+
+def lv_playground_3(s):  # a red cat, C's animal
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 60, 170), (256 + side * 140, 70), (256 + side * 150, 200)]), RED, RED_D)
+    s.shape(ellipse(256, 270, 160, 140), RED, RED_D, light=True)
+    s.shape(ellipse(256, 320, 70, 50), (250, 200, 196), outline=False)
+    face(s, 256, 260, 150)
+    s.fill(poly([(240, 300), (272, 300), (256, 318)]), PINK_D)
+    for side in (-1, 1):
+        for k in (-1, 1):
+            s.line(stroke([(256 + side * 90, 320 + k * 10), (256 + side * 190, 300 + k * 30)], 6))
+
+
+def lv_playground_4(s):  # three paw prints walking up the steps
+    s.shape(poly([(60, 440), (60, 360), (200, 360), (200, 280), (330, 280), (330, 200), (452, 200), (452, 440)]), SAND, SAND_D, light=True)
+    for x, y in ((130, 320), (264, 240), (392, 160)):
+        s.shape(ellipse(x, y + 10, 34, 28), WOOD_D, lw=5)
+        for dx, dy in ((-30, -26), (-10, -42), (12, -42), (32, -26)):
+            s.shape(ellipse(x + dx, y + dy, 11), WOOD_D, lw=4)
+
+
+def lv_playground_5(s):  # a hot cross bun
+    s.shape(ellipse(256, 290, 190, 150), ORANGE, ORANGE_D, light=True)
+    s.shape(ellipse(256, 270, 150, 100), (240, 176, 100), outline=False)
+    s.shape(union(stroke([(150, 230), (362, 320)], 26), stroke([(362, 230), (150, 320)], 26)), CREAM, CREAM_D, lw=5)
+    s.shape(rrect(70, 400, 442, 440, 18), WHITE, WHITE_D)
+
+
+def lv_playground_6(s):  # a parrot that copies
+    s.shape(poly([(250, 380), (180, 470), (240, 460), (290, 400)]), BLUE, BLUE_D)
+    s.shape(ellipse(256, 300, 110, 140), GREEN, GREEN_D, light=True)
+    s.shape(ellipse(230, 320, 60, 100, angle=10), LEAF_D)
+    s.shape(ellipse(270, 170, 90), RED, RED_D, light=True)
+    s.shape(poly([(330, 160), (400, 190), (340, 220)]), YELLOW, YELLOW_D)
+    s.eye(290, 150, 14)
+    s.shape(stroke([(160, 440), (360, 440)], 18), WOOD, WOOD_D)
+    note(s, 410, 330, PURPLE, 18)
+
+
+def lv_playground_7(s):  # two crossed drumsticks
+    for a, b in (((110, 420), (400, 110)), ((402, 420), (112, 110))):
+        s.shape(stroke([a, b], 30), WOOD, WOOD_D)
+        s.shape(ellipse(b[0], b[1], 40), CREAM, CREAM_D, light=True)
+    s.shape(star(256, 380, 40), YELLOW, YELLOW_D, lw=5)
+
+
+def lv_playground_8(s):  # a fluffy little lamb
+    for x in (190, 230, 290, 330):
+        s.shape(rrect(x - 14, 340, x + 14, 440, 10), DARK)
+    fluff = union(*[ellipse(256 + 120 * math.cos(k * math.pi / 5), 290 + 80 * math.sin(k * math.pi / 5), 54) for k in range(10)], ellipse(256, 290, 120, 90))
+    s.shape(fluff, WHITE, WHITE_D, light=True)
+    s.shape(ellipse(150, 230, 64, 56), DARK, DARK_D)
+    s.shape(ellipse(110, 200, 30, 16, angle=-30), DARK)
+    s.fill(ellipse(140, 220, 10), (255, 255, 255)); s.fill(ellipse(142, 222, 5), EYE)
+    s.shape(union(*[ellipse(170 + k * 26, 180, 22) for k in range(3)]), WHITE, WHITE_D, lw=5)
+
+
+def lv_playground_9(s):  # a cosy mitten for the left paw
+    s.shape(union(rrect(140, 150, 360, 400, 100), ellipse(380, 240, 50, 74, angle=-25)), RED, RED_D, light=True)
+    s.shape(rrect(130, 360, 370, 450, 24), WHITE, WHITE_D)
+    for x in (170, 220, 270, 320):
+        s.line(stroke([(x, 370), (x, 440)], 7), WHITE_D)
+    s.shape(star(240, 260, 44), WHITE, None, lw=5)
+
+
+def lv_playground_10(s):  # a goat, G's animal
+    for side in (-1, 1):
+        s.shape(arc(256 + side * 70, 150, 60, 180 if side < 0 else 0, 300 if side < 0 else -120, 26), SAND_D)
+    s.shape(ellipse(256, 270, 120, 140), TEAL, TEAL_D, light=True)
+    for side in (-1, 1):
+        s.shape(ellipse(256 + side * 130, 230, 54, 22, angle=side * 20), TEAL_D)
+    s.shape(ellipse(256, 340, 70, 56), (176, 226, 220), outline=False)
+    face(s, 256, 250, 120)
+    s.shape(poly([(236, 400), (276, 400), (256, 470)]), WHITE, WHITE_D, lw=5)
+
+
+def lv_playground_11(s):  # a soft feather
+    s.shape(ellipse(256, 240, 90, 200, angle=30), SKY, SKY_D, light=True)
+    s.line(stroke([(140, 450), (360, 70)], 10), BLUE_D)
+    for k in range(6):
+        y = 140 + k * 45
+        s.line(stroke([(256 + (240 - y) * 0.55, y), (256 + (240 - y) * 0.55 - 70, y - 40)], 5), WHITE)
+    s.shape(drop(380, 380, 22), PINK, outline=True, lw=5)
+
+
+def lv_playground_12(s):  # the garden's concert medal
+    medal(s, GREEN, GREEN_D, RED)
+
+
+def lv_pond_1(s):  # a twinkling star with a face
+    s.shape(star(256, 270, 200, inner=0.52), YELLOW, YELLOW_D, light=True)
+    face(s, 256, 280, 150)
+    for x, y in ((80, 90), (440, 110), (430, 440)):
+        s.shape(star(x, y, 26, inner=0.4, points=4), WHITE, None, lw=4)
+
+
+def lv_pond_2(s):  # a rowing boat with oars
+    s.shape(union(*[ellipse(x, 440, 50, 24) for x in range(70, 460, 70)]), SKY, SKY_D)
+    s.shape(stroke([(110, 260), (300, 420)], 16), WOOD_D)
+    s.shape(stroke([(402, 260), (212, 420)], 16), WOOD_D)
+    s.shape(poly([(70, 320), (442, 320), (390, 420), (122, 420)]), RED, RED_D, light=True)
+    s.shape(rrect(70, 300, 442, 330, 12), WOOD, WOOD_D)
+    s.shape(ellipse(110, 260, 30, 16, angle=40), WOOD); s.shape(ellipse(402, 260, 30, 16, angle=-40), WOOD)
+
+
+def lv_pond_3(s):  # a frog singing
+    s.shape(ellipse(230, 420, 180, 50), LEAF, LEAF_D)
+    s.shape(ellipse(230, 320, 140, 110), GREEN, GREEN_D, light=True)
+    for x in (170, 290):
+        s.shape(ellipse(x, 220, 44), GREEN, GREEN_D)
+        s.fill(ellipse(x, 220, 28), (255, 255, 255)); s.eye(x + 4, 222, 15)
+    s.shape(ellipse(230, 340, 46, 34), (180, 60, 70))
+    s.shape(ellipse(230, 350, 26, 16), PINK, outline=False)
+    note(s, 380, 230, BLUE, 22)
+    note(s, 430, 130, PURPLE, 16, flag=False)
+
+
+def lv_pond_4(s):  # a drum on a lily pad
+    s.shape(minus(ellipse(256, 400, 200, 70), poly([(256, 400), (430, 350), (456, 400)])), LEAF, LEAF_D)
+    s.shape(rrect(140, 220, 372, 380, 30), RED, RED_D, light=True)
+    s.shape(ellipse(256, 220, 116, 40), CREAM, CREAM_D)
+    for x in (170, 230, 290, 350):
+        s.line(stroke([(x, 250), (x + 30, 370)], 6), YELLOW)
+    s.shape(stroke([(330, 160), (430, 70)], 16), WOOD, WOOD_D)
+    s.shape(ellipse(430, 70, 22), CREAM, CREAM_D)
+
+
+def lv_pond_5(s):  # music notes, a ta and a ti-ti
+    note(s, 140, 380, DARK, 40, flag=False)
+    s.shape(ellipse(290, 380, 40, 31, angle=-20), BLUE)
+    s.shape(ellipse(410, 350, 40, 31, angle=-20), BLUE)
+    s.shape(stroke([(324, 376), (324, 150)], 14), BLUE)
+    s.shape(stroke([(444, 346), (444, 120)], 14), BLUE)
+    s.shape(poly([(318, 150), (450, 120), (450, 160), (318, 190)]), BLUE)
+
+
+def lv_pond_6(s):  # a farm cow
+    for side in (-1, 1):
+        s.shape(ellipse(256 + side * 150, 170, 50, 24, angle=side * -20), WHITE, WHITE_D)
+        s.shape(poly([(256 + side * 70, 140), (256 + side * 110, 70), (256 + side * 120, 150)]), CREAM, CREAM_D)
+    s.shape(ellipse(256, 240, 140, 130), WHITE, WHITE_D, light=True)
+    s.shape(ellipse(190, 190, 50, 40), DARK, outline=False)
+    s.shape(ellipse(256, 340, 110, 70), PINK, PINK_D)
+    s.fill(ellipse(220, 340, 14, 18), PINK_D); s.fill(ellipse(292, 340, 14, 18), PINK_D)
+    s.eye(210, 230, 15); s.eye(302, 230, 15)
+
+
+def lv_pond_7(s):  # stepping stones over the water
+    s.shape(ellipse(256, 300, 220, 150), SKY, SKY_D)
+    for x, y, r in ((130, 360, 60), (256, 280, 56), (380, 210, 52)):
+        s.shape(ellipse(x, y, r, r * 0.6), GREY, GREY_D, light=True)
+    s.line(arc(200, 330, 40, 200, 340, 6), WHITE)
+
+
+def lv_pond_8(s):  # a high five: two paws together
+    for x, c, cd in ((180, SAND, SAND_D), (332, GOLD, GOLD_D)):
+        s.shape(ellipse(x, 320, 80, 90), c, cd, light=True)
+        for dx, dy in ((-60, -80), (-22, -110), (22, -110), (60, -80)):
+            s.shape(ellipse(x + dx, 320 + dy, 26), c, cd, lw=6)
+        s.shape(ellipse(x, 330, 40, 34), PINK, PINK_D, lw=5)
+    s.shape(star(256, 120, 40, points=4, inner=0.35), YELLOW, None, lw=5)
+
+
+def lv_pond_9(s):  # a triple scoop: three notes at once
+    s.shape(poly([(180, 330), (332, 330), (256, 480)]), ORANGE, ORANGE_D, light=True)
+    for k in range(5):
+        s.line(stroke([(196 + k * 30, 340), (240 + k * 12, 440)], 4), ORANGE_D)
+    for y, c, cd in ((290, RED, RED_D), (200, YELLOW, YELLOW_D), (110, GREEN, GREEN_D)):
+        s.shape(ellipse(256, y, 92, 70), c, cd, light=True)
+
+
+def lv_pond_10(s):  # London Bridge
+    s.shape(union(*[ellipse(x, 450, 50, 22) for x in range(70, 460, 70)]), SKY, SKY_D)
+    for x in (130, 382):
+        s.shape(rrect(x - 50, 120, x + 50, 440, 8), GREY, GREY_D, light=True)
+        s.shape(poly([(x - 60, 130), (x, 50), (x + 60, 130)]), BLUE, BLUE_D)
+        s.shape(rrect(x - 18, 190, x + 18, 250, 14), DARK)
+    s.shape(rrect(70, 300, 442, 340, 8), WOOD, WOOD_D)
+    s.line(arc(256, 330, 140, 200, 340, 10), BLUE_D)
+
+
+def lv_pond_11(s):  # a wishing wand
+    s.shape(stroke([(120, 440), (300, 220)], 22), PURPLE, PURPLE_D)
+    s.shape(star(330, 180, 120), YELLOW, YELLOW_D, light=True)
+    for x, y in ((150, 120), (440, 330), (210, 300)):
+        s.shape(star(x, y, 24, inner=0.4, points=4), PINK, None, lw=4)
+
+
+def lv_pond_12(s):  # the pond's concert medal
+    medal(s, BLUE, BLUE_D, TEAL)
+
+
+def lv_hall_1(s):  # three letter blocks (no letters: colours for C, D, E)
+    for x, y, c, cd in ((150, 330, RED, RED_D), (360, 330, ORANGE, ORANGE_D), (256, 160, YELLOW, YELLOW_D)):
+        s.shape(rrect(x - 90, y - 90, x + 90, y + 90, 16), c, cd, light=True)
+        s.shape(rrect(x - 56, y - 56, x + 56, y + 56, 10), WHITE, WHITE_D, lw=5)
+        s.shape(ellipse(x, y, 24), c, None, lw=4)
+
+
+def lv_hall_2(s):  # a happy note
+    s.shape(ellipse(210, 360, 110, 86, angle=-20), PURPLE, PURPLE_D, light=True)
+    s.shape(stroke([(305, 340), (305, 80)], 30), PURPLE)
+    s.shape(poly([(300, 80), (420, 150), (400, 200), (300, 140)]), PURPLE, PURPLE_D)
+    face(s, 210, 360, 100)
+
+
+def lv_hall_3(s):  # a little sailboat
+    s.shape(union(*[ellipse(x, 440, 50, 22) for x in range(70, 460, 70)]), SKY, SKY_D)
+    s.shape(poly([(100, 360), (412, 360), (360, 430), (152, 430)]), WOOD, WOOD_D, light=True)
+    s.shape(stroke([(256, 360), (256, 80)], 12), WOOD_D)
+    s.shape(poly([(262, 90), (262, 340), (420, 340)]), WHITE, WHITE_D, light=True)
+    s.shape(poly([(250, 130), (250, 340), (130, 340)]), RED, RED_D)
+
+
+def lv_hall_4(s):  # a cap with a feather in it
+    s.shape(union(ellipse(256, 300, 160, 110), rrect(80, 300, 432, 360, 26)), BLUE, BLUE_D, light=True)
+    s.shape(ellipse(256, 360, 190, 40), BLUE_D)
+    s.shape(ellipse(330, 180, 50, 150, angle=30), RED, RED_D, light=True)
+    s.line(stroke([(270, 300), (400, 60)], 8), RED_D)
+
+
+def lv_hall_5(s):  # a hand print
+    s.shape(union(ellipse(256, 320, 110, 120), *[ellipse(256 + dx, 320 + dy, 30, 70, angle=a)
+            for dx, dy, a in ((-120, -60, 30), (-70, -170, 8), (0, -190, 0), (70, -170, -8), (130, -110, -25))]), ORANGE, ORANGE_D, light=True)
+    s.fill(ellipse(256, 340, 50, 46), (250, 196, 140))
+
+
+def lv_hall_6(s):  # a little mouse, quiet
+    s.line(arc(380, 400, 70, 200, 360, 10), PINK_D)
+    s.shape(ellipse(256, 330, 140, 100), GREY, GREY_D, light=True)
+    for x in (180, 330):
+        s.shape(ellipse(x, 200, 64), GREY, GREY_D); s.shape(ellipse(x, 200, 40), PINK, outline=False)
+    s.shape(ellipse(256, 270, 100, 84), GREY, GREY_D, light=True)
+    face(s, 256, 270, 90)
+    s.fill(ellipse(256, 300, 12, 9), PINK_D)
+
+
+def lv_hall_7(s):  # a trumpet
+    s.shape(union(stroke([(110, 280), (340, 280)], 40), poly([(320, 280), (450, 170), (450, 390)])), GOLD, GOLD_D, light=True)
+    s.shape(ellipse(450, 280, 26, 112), YELLOW, YELLOW_D)
+    for x in (190, 230, 270):
+        s.shape(rrect(x - 12, 210, x + 12, 270, 8), GOLD_D, lw=5)
+    s.shape(rrect(80, 260, 116, 300, 10), GOLD_D)
+    note(s, 140, 160, BLUE, 18)
+
+
+def lv_hall_8(s):  # a soft pillow for the rest
+    s.shape(rrect(80, 170, 432, 380, 90), PURPLE, PURPLE_D, light=True)
+    for x, y in ((90, 180), (422, 180), (90, 370), (422, 370)):
+        s.shape(ellipse(x, y, 30), PURPLE, PURPLE_D, lw=5)
+    s.line(arc(256, 275, 50, 20, 160, 8), PURPLE_D)
+    for x, y, r in ((380, 110, 26), (430, 70, 18)):
+        s.line(stroke([(x - r, y - r), (x + r, y - r), (x - r, y + r), (x + r, y + r)], 8), BLUE_D)
+
+
+def lv_hall_9(s):  # a xylophone
+    cols = [(RED, RED_D), (ORANGE, ORANGE_D), (YELLOW, YELLOW_D), (GREEN, GREEN_D), (BLUE, BLUE_D)]
+    for i, (c, cd) in enumerate(cols):
+        x = 110 + i * 72
+        h = 130 - i * 14
+        s.shape(rrect(x - 26, 260 - h, x + 26, 260 + h, 12), c, cd, light=True)
+    s.shape(stroke([(70, 330), (442, 300)], 12), WOOD_D)
+    s.shape(stroke([(330, 440), (430, 360)], 12), WOOD)
+    s.shape(ellipse(430, 360, 20), RED, RED_D, lw=5)
+
+
+def lv_hall_10(s):  # two hearts together
+    for cx, c, cd in ((200, RED, RED_D), (320, PINK, PINK_D)):
+        s.shape(union(ellipse(cx - 50, 220, 64), ellipse(cx + 50, 220, 64), poly([(cx - 112, 240), (cx + 112, 240), (cx, 380)])), c, cd, light=True)
+
+
+def lv_hall_11(s):  # a song book
+    s.shape(poly([(256, 150), (440, 120), (440, 400), (256, 430)]), WHITE, WHITE_D, light=True)
+    s.shape(poly([(256, 150), (72, 120), (72, 400), (256, 430)]), CREAM, CREAM_D, light=True)
+    for y in (190, 240, 290, 340):
+        s.line(stroke([(100, y - 10), (230, y + 4)], 4), GREY)
+        s.line(stroke([(282, y + 4), (412, y - 10)], 4), GREY)
+    s.fill(ellipse(160, 240, 14, 10), DARK); s.fill(ellipse(340, 280, 14, 10), DARK)
+    s.shape(rrect(240, 100, 272, 440, 8), RED, RED_D)
+
+
+def lv_hall_12(s):  # a rose for the recital
+    s.shape(stroke([(256, 460), (256, 270)], 18), LEAF, LEAF_D)
+    s.shape(ellipse(200, 380, 50, 22, angle=-30), LEAF, LEAF_D); s.shape(ellipse(310, 340, 50, 22, angle=30), LEAF, LEAF_D)
+    s.shape(ellipse(256, 200, 110, 100), RED, RED_D, light=True)
+    s.line(arc(256, 200, 60, 0, 300, 10), RED_D)
+    s.line(arc(256, 200, 30, 100, 400, 8), RED_D)
+
+
+def lv_workshop_1(s):  # a piano bench
+    s.shape(rrect(80, 200, 432, 270, 20), DARK, DARK_D, light=True)
+    s.shape(rrect(70, 180, 442, 220, 18), RED, RED_D, light=True)
+    for x in (110, 400):
+        s.shape(rrect(x - 16, 260, x + 16, 440, 8), DARK)
+    s.line(stroke([(110, 380), (400, 380)], 10), DARK)
+
+
+def lv_workshop_2(s):  # soap bubbles
+    for x, y, r in ((200, 280, 130), (370, 170, 80), (380, 380, 60), (110, 120, 44)):
+        s.shape(ellipse(x, y, r), SKY, SKY_D)
+        s.fill(ellipse(x, y, r * 0.86), (232, 244, 252))
+        s.line(arc(x, y, r * 0.65, 200, 260, max(6, r * 0.1)), WHITE)
+
+
+def lv_workshop_3(s):  # a finger puppet
+    s.shape(rrect(170, 160, 342, 450, 80), PURPLE, PURPLE_D, light=True)
+    s.shape(ellipse(256, 210, 100), YELLOW, YELLOW_D, light=True)
+    face(s, 256, 220, 90)
+    s.shape(union(*[ellipse(256 + dx, 110 + dy, 30) for dx, dy in ((-60, 10), (-20, -10), (20, -10), (60, 10))]), ORANGE, ORANGE_D)
+    for y in (330, 390):
+        s.line(stroke([(180, y), (332, y)], 8), PURPLE_D)
+
+
+def lv_workshop_4(s):  # a little house
+    s.shape(rrect(120, 220, 392, 440, 10), CREAM, CREAM_D, light=True)
+    s.shape(poly([(90, 240), (256, 90), (422, 240)]), RED, RED_D)
+    s.shape(rrect(220, 320, 292, 440, 10), WOOD, WOOD_D)
+    s.shape(rrect(310, 260, 370, 320, 6), SKY, SKY_D)
+    s.shape(rrect(140, 260, 200, 320, 6), SKY, SKY_D)
+    s.shape(ellipse(256, 180, 26), YELLOW, YELLOW_D, lw=5)
+
+
+def lv_workshop_5(s):  # a mailbox with a letter
+    s.shape(rrect(240, 300, 272, 460, 8), WOOD, WOOD_D)
+    s.shape(union(rrect(110, 160, 400, 320, 20), ellipse(255, 170, 145, 60)), BLUE, BLUE_D, light=True)
+    s.shape(rrect(360, 100, 380, 200, 6), RED, RED_D, lw=5)
+    s.shape(rrect(370, 100, 440, 140, 6), RED, RED_D, lw=5)
+    s.shape(rrect(150, 210, 290, 300, 8), WHITE, WHITE_D)
+    s.line(stroke([(150, 210), (220, 260), (290, 210)], 6), WHITE_D)
+
+
+def lv_workshop_6(s):  # a thumbs up
+    s.shape(union(rrect(150, 230, 380, 440, 50), ellipse(230, 160, 50, 110, angle=-10)), GOLD, GOLD_D, light=True)
+    for y in (280, 330, 380):
+        s.line(stroke([(300, y), (380, y)], 6), GOLD_D)
+    s.shape(rrect(100, 250, 160, 440, 20), BLUE, BLUE_D)
+
+
+def lv_workshop_7(s):  # a toy car on a bridge
+    s.shape(arc(256, 470, 230, 200, 340, 34), WOOD, WOOD_D)
+    s.shape(union(rrect(90, 210, 422, 320, 40), rrect(160, 140, 350, 230, 40)), RED, RED_D, light=True)
+    s.shape(rrect(190, 160, 320, 215, 18), SKY, SKY_D, lw=5)
+    for x in (160, 352):
+        s.shape(ellipse(x, 320, 46), DARK); s.shape(ellipse(x, 320, 18), GREY, outline=False)
+
+
+def lv_workshop_8(s):  # an elephant, heavy and gentle
+    s.shape(ellipse(256, 300, 170, 140), GREY, GREY_D, light=True)
+    for x in (140, 372):
+        s.shape(ellipse(x, 250, 80, 100), GREY_D)
+        s.shape(ellipse(x, 250, 50, 70), PINK, outline=False)
+    s.shape(ellipse(256, 240, 110, 100), GREY, GREY_D, light=True)
+    s.shape(stroke([(256, 290), (256, 400), (300, 440)], 50), GREY, GREY_D)
+    face(s, 256, 230, 100)
+
+
+def lv_workshop_9(s):  # a bouncy ball
+    s.shape(ellipse(256, 200, 140), RED, RED_D, light=True)
+    s.line(arc(256, 200, 140, 90, 270, 18), YELLOW)
+    s.shape(ellipse(256, 440, 120, 20), GREY_D, outline=False)
+    for x in (130, 382):
+        s.line(stroke([(x, 340), (x + (256 - x) * 0.2, 400)], 8), GREY)
+
+
+def lv_workshop_10(s):  # a sneaker on a pedal
+    s.shape(rrect(70, 380, 442, 440, 16), GOLD, GOLD_D)
+    s.shape(union(rrect(110, 250, 430, 380, 50), rrect(110, 160, 270, 300, 40)), BLUE, BLUE_D, light=True)
+    s.shape(rrect(100, 350, 440, 390, 18), WHITE, WHITE_D)
+    for x in (170, 210, 250):
+        s.line(stroke([(x, 200), (x + 40, 260)], 7), WHITE)
+
+
+def lv_workshop_11(s):  # a tin can phone
+    s.line(arc(256, 140, 180, 20, 160, 7), DARK)
+    for x in (100, 412):
+        s.shape(rrect(x - 60, 240, x + 60, 420, 14), SILVER, SILVER_D, light=True)
+        s.shape(ellipse(x, 240, 60, 20), GREY, GREY_D, lw=5)
+        for y in (300, 360):
+            s.line(stroke([(x - 60, y), (x + 60, y)], 5), SILVER_D)
+    note(s, 230, 300, PURPLE, 18)
+
+
+def lv_workshop_12(s):  # the workshop's concert medal
+    medal(s, ORANGE, ORANGE_D, WOOD)
+
+
+def lv_treehouse_1(s):  # a caterpillar inching along
+    for i, c in enumerate([GREEN, LEAF, GREEN, LEAF, GREEN]):
+        x = 100 + i * 70
+        y = 330 - (60 if i == 2 else 30 if i in (1, 3) else 0)
+        s.shape(ellipse(x, y, 60), c, LEAF_D, light=True)
+    s.shape(ellipse(420, 290, 70), GREEN, LEAF_D, light=True)
+    face(s, 420, 290, 64)
+    for side in (-1, 1):
+        s.line(stroke([(420 + side * 20, 230), (420 + side * 40, 170)], 6))
+
+
+def lv_treehouse_2(s):  # a marching ant
+    for x, r in ((150, 70), (256, 56), (360, 80)):
+        s.shape(ellipse(x, 300, r, r * 0.8), RED, RED_D, light=True)
+    face(s, 360, 290, 70)
+    for x in (200, 256, 310):
+        s.line(stroke([(x, 330), (x - 30, 430)], 9)); s.line(stroke([(x, 330), (x + 30, 430)], 9))
+    s.line(stroke([(380, 230), (420, 150)], 7)); s.line(stroke([(340, 230), (320, 150)], 7))
+
+
+def lv_treehouse_3(s):  # a hedgehog, tucked and round
+    spikes = union(*[poly([(256 + 120 * math.cos(a - 0.2), 300 + 110 * math.sin(a - 0.2)), (256 + 200 * math.cos(a), 300 + 180 * math.sin(a)),
+                          (256 + 120 * math.cos(a + 0.2), 300 + 110 * math.sin(a + 0.2))]) for a in [math.pi + k * math.pi / 9 for k in range(10)]])
+    s.shape(spikes, WOOD_D)
+    s.shape(ellipse(256, 320, 160, 120), WOOD, WOOD_D)
+    s.shape(ellipse(256, 350, 110, 80), SAND, SAND_D, light=True)
+    face(s, 256, 340, 90)
+    s.fill(ellipse(256, 360, 12), DARK)
+
+
+def lv_treehouse_4(s):  # little weights
+    s.shape(rrect(130, 240, 382, 272, 14), SILVER, SILVER_D)
+    for x in (130, 382):
+        s.shape(rrect(x - 40, 170, x + 40, 340, 24), PURPLE, PURPLE_D, light=True)
+    s.shape(star(256, 140, 36, points=4, inner=0.35), YELLOW, None, lw=4)
+
+
+def lv_treehouse_5(s):  # hopscotch squares
+    for x, y, c in ((256, 400, RED), (256, 300, ORANGE), (190, 200, YELLOW), (322, 200, GREEN), (256, 100, BLUE)):
+        s.shape(rrect(x - 60, y - 46, x + 60, y + 46, 8), c, None, light=True)
+    s.shape(ellipse(420, 400, 30), PINK, PINK_D, lw=5)
+
+
+def lv_treehouse_6(s):  # a bunch of grapes
+    s.shape(stroke([(256, 150), (290, 70)], 16), WOOD, WOOD_D)
+    s.shape(ellipse(330, 110, 60, 30, angle=-20), LEAF, LEAF_D)
+    for row, n in enumerate((4, 3, 2, 1)):
+        for k in range(n):
+            x = 256 + (k - (n - 1) / 2) * 70
+            s.shape(ellipse(x, 200 + row * 62, 40), PURPLE, PURPLE_D, light=True)
+
+
+def lv_treehouse_7(s):  # a fox
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 50, 180), (256 + side * 150, 70), (256 + side * 150, 230)]), ORANGE, ORANGE_D)
+    s.shape(poly([(80, 200), (432, 200), (256, 430)]), ORANGE, ORANGE_D, light=True)
+    s.shape(poly([(140, 260), (256, 290), (256, 430)]), WHITE, outline=False)
+    s.shape(poly([(372, 260), (256, 290), (256, 430)]), WHITE, outline=False)
+    s.eye(200, 270, 15); s.eye(312, 270, 15)
+    s.fill(ellipse(256, 410, 18, 14), DARK)
+
+
+def lv_treehouse_8(s):  # a hand mirror
+    s.shape(stroke([(256, 300), (256, 460)], 34), PINK, PINK_D)
+    s.shape(ellipse(256, 200, 150, 160), PINK, PINK_D, light=True)
+    s.shape(ellipse(256, 200, 116, 126), SKY, SKY_D)
+    s.line(stroke([(190, 140), (230, 110)], 12), WHITE); s.line(stroke([(190, 190), (270, 120)], 12), WHITE)
+
+
+def lv_treehouse_9(s):  # a monkey
+    for x in (110, 402):
+        s.shape(ellipse(x, 240, 54), WOOD, WOOD_D); s.shape(ellipse(x, 240, 30), SAND, outline=False)
+    s.shape(ellipse(256, 250, 150, 140), WOOD, WOOD_D, light=True)
+    s.shape(union(ellipse(210, 230, 64, 70), ellipse(302, 230, 64, 70), ellipse(256, 310, 110, 70)), SAND, SAND_D)
+    face(s, 256, 240, 110)
+    s.fill(ellipse(240, 300, 6), WOOD_D); s.fill(ellipse(272, 300, 6), WOOD_D)
+
+
+def lv_treehouse_10(s):  # an echo bat
+    s.shape(poly([(256, 280), (60, 180), (110, 260), (70, 330), (160, 320), (256, 360), (352, 320), (442, 330), (402, 260), (452, 180)]), PURPLE_D, DARK_D)
+    s.shape(ellipse(256, 290, 70, 80), PURPLE, PURPLE_D, light=True)
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 30, 230), (256 + side * 60, 170), (256 + side * 66, 250)]), PURPLE, PURPLE_D)
+    face(s, 256, 290, 66)
+    for r in (40, 70):
+        s.line(arc(400, 120, r, 200, 300, 6), SKY_D)
+
+
+def lv_treehouse_11(s):  # a magnifying glass
+    s.shape(stroke([(330, 330), (440, 450)], 40), WOOD, WOOD_D)
+    s.shape(ellipse(220, 210, 150), GOLD, GOLD_D)
+    s.shape(ellipse(220, 210, 116), SKY, SKY_D)
+    s.line(arc(220, 210, 80, 200, 260, 14), WHITE)
+
+
+def lv_treehouse_12(s):  # the treehouse's concert medal
+    medal(s, LEAF, LEAF_D, WOOD)
+
+
+def lv_night_1(s):  # a ticking alarm clock
+    for x in (150, 362):
+        s.shape(ellipse(x, 110, 50), GOLD, GOLD_D)
+    s.shape(ellipse(256, 270, 170), RED, RED_D, light=True)
+    s.shape(ellipse(256, 270, 130), WHITE, WHITE_D)
+    s.line(stroke([(256, 270), (256, 180)], 12)); s.line(stroke([(256, 270), (320, 300)], 12))
+    for x in (160, 352):
+        s.shape(stroke([(x, 400), (x + (x - 256) * 0.3, 460)], 18), DARK)
+
+
+def lv_night_2(s):  # two maracas
+    for x, a, c, cd in ((180, 20, ORANGE, ORANGE_D), (332, -20, PINK, PINK_D)):
+        s.shape(stroke([(x, 300), (x + (256 - x) * 0.4, 460)], 26), WOOD, WOOD_D)
+        s.shape(ellipse(x, 210, 90, 120, angle=a), c, cd, light=True)
+        for k in range(3):
+            s.fill(ellipse(x - 30 + k * 30, 200 + (k % 2) * 40, 10), YELLOW)
+
+
+def lv_night_3(s):  # a sleepy bear
+    for x in (150, 362):
+        s.shape(ellipse(x, 140, 50), WOOD, WOOD_D); s.shape(ellipse(x, 140, 26), SAND, outline=False)
+    s.shape(ellipse(256, 270, 160, 150), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(256, 320, 70, 54), SAND, SAND_D)
+    s.line(arc(200, 250, 26, 20, 160, 8)); s.line(arc(312, 250, 26, 20, 160, 8))
+    s.fill(ellipse(256, 300, 18, 14), DARK)
+    s.shape(stroke([(380, 220), (380, 340)], 22), PINK, PINK_D)
+    s.shape(ellipse(380, 210, 26), PINK, PINK_D, lw=5)
+
+
+def lv_night_4(s):  # a metronome
+    s.shape(poly([(160, 440), (352, 440), (300, 80), (212, 80)]), WOOD, WOOD_D, light=True)
+    s.shape(poly([(200, 400), (312, 400), (280, 130), (232, 130)]), CREAM, CREAM_D)
+    s.shape(stroke([(256, 400), (320, 150)], 10), DARK)
+    s.shape(rrect(290, 190, 330, 230, 6), GOLD, GOLD_D, lw=5)
+
+
+def lv_night_5(s):  # a rocket going up
+    s.shape(union(ellipse(256, 240, 90, 170), poly([(256, 40), (200, 140), (312, 140)])), WHITE, WHITE_D, light=True)
+    s.shape(poly([(256, 40), (206, 130), (306, 130)]), RED, RED_D)
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 80, 300), (256 + side * 150, 400), (256 + side * 70, 380)]), RED, RED_D)
+    s.shape(ellipse(256, 230, 40), SKY, SKY_D)
+    s.shape(drop(256, 440, 40), ORANGE, outline=True)
+    s.shape(drop(256, 430, 20), YELLOW, outline=False)
+
+
+def lv_night_6(s):  # odd socks
+    for x, c, cd, a in ((170, RED, RED_D, 10), (342, BLUE, BLUE_D, -10)):
+        s.shape(union(rrect(x - 50, 100, x + 50, 330, 24), ellipse(x + (40 if a > 0 else -40), 360, 90, 60)), c, cd, light=True)
+        s.shape(rrect(x - 56, 90, x + 56, 140, 14), WHITE, WHITE_D)
+    for y in (190, 240):
+        s.line(stroke([(126, y), (214, y)], 10), YELLOW)
+    s.fill(ellipse(330, 220, 14), YELLOW); s.fill(ellipse(360, 280, 14), YELLOW)
+
+
+def lv_night_7(s):  # a thunder cloud
+    s.shape(union(ellipse(160, 230, 90), ellipse(270, 190, 110), ellipse(370, 240, 90), rrect(90, 230, 440, 320, 44)), GREY, GREY_D, light=True)
+    s.shape(poly([(270, 300), (200, 420), (260, 410), (220, 490), (330, 370), (270, 380), (310, 300)]), YELLOW, YELLOW_D)
+
+
+def lv_night_8(s):  # a racing rabbit
+    for x in (230, 280):
+        s.shape(ellipse(x, 120, 30, 90, angle=(x - 255) * 0.3), WHITE, WHITE_D); s.shape(ellipse(x, 130, 14, 60), PINK, outline=False)
+    s.shape(ellipse(256, 340, 130, 100), WHITE, WHITE_D, light=True)
+    s.shape(ellipse(256, 240, 90, 80), WHITE, WHITE_D, light=True)
+    face(s, 256, 240, 80)
+    for y in (300, 350, 400):
+        s.line(stroke([(60, y), (110, y)], 9), SKY_D)
+
+
+def lv_night_9(s):  # a long snake
+    pts = [(80 + t * 3.4, 300 + 80 * math.sin(t / 18)) for t in range(0, 100)]
+    s.shape(stroke(pts, 60), GREEN, GREEN_D)
+    for k in range(0, 100, 12):
+        x, y = pts[k]
+        s.fill(ellipse(x, y, 10), YELLOW)
+    s.shape(ellipse(420, 270, 50, 40), GREEN, GREEN_D)
+    s.eye(430, 260, 10)
+    s.line(stroke([(466, 280), (496, 290)], 5), RED)
+
+
+def lv_night_10(s):  # an umbrella, sunny or rainy
+    s.shape(stroke([(256, 200), (256, 420), (300, 440)], 14), DARK)
+    s.shape(union(minus(ellipse(256, 230, 200, 160), rrect(40, 230, 470, 420, 0)), rrect(56, 220, 456, 236, 4)), RED, RED_D, light=True)
+    for x in (156, 256, 356):
+        s.line(stroke([(x, 230), (x + (x - 256) * 0.1, 80)], 6), RED_D)
+    s.shape(drop(110, 330, 16), SKY, outline=True, lw=4)
+    s.shape(ellipse(420, 360, 40), YELLOW, YELLOW_D)
+
+
+def lv_night_11(s):  # a black cat
+    for side in (-1, 1):
+        s.shape(poly([(256 + side * 60, 170), (256 + side * 140, 70), (256 + side * 150, 200)]), DARK, DARK_D)
+    s.shape(ellipse(256, 280, 160, 140), DARK, DARK_D, light=True)
+    for x in (196, 316):
+        s.fill(ellipse(x, 260, 26, 30), YELLOW); s.fill(ellipse(x, 262, 8, 22), EYE)
+    s.fill(poly([(240, 310), (272, 310), (256, 326)]), PINK)
+    for side in (-1, 1):
+        s.line(stroke([(256 + side * 90, 330), (256 + side * 190, 320)], 6), GREY)
+
+
+def lv_night_12(s):  # the night sky's concert medal
+    medal(s, PURPLE, PURPLE_D, BLUE)
+
+
+def lv_fair_1(s):  # a bunch of balloons
+    for x, y, c, cd in ((170, 170, RED, RED_D), (340, 160, BLUE, BLUE_D), (256, 230, YELLOW, YELLOW_D)):
+        s.line(stroke([(x, y + 100), (256, 450)], 5), DARK)
+        s.shape(ellipse(x, y, 80, 96), c, cd, light=True)
+
+
+def lv_fair_2(s):  # a pinwheel
+    s.shape(stroke([(256, 260), (256, 460)], 18), WOOD, WOOD_D)
+    for k, (c, cd) in enumerate([(RED, RED_D), (YELLOW, YELLOW_D), (BLUE, BLUE_D), (GREEN, GREEN_D)]):
+        a = k * math.pi / 2
+        p0 = (256, 230)
+        p1 = (256 + 160 * math.cos(a), 230 + 160 * math.sin(a))
+        p2 = (256 + 160 * math.cos(a + math.pi / 2.6), 230 + 160 * math.sin(a + math.pi / 2.6))
+        s.shape(poly([p0, p1, p2]), c, cd)
+    s.shape(ellipse(256, 230, 22), WHITE, WHITE_D, lw=5)
+
+
+def lv_fair_3(s):  # the strongman's bell
+    s.shape(rrect(230, 120, 282, 440, 10), RED, RED_D)
+    for y in range(160, 420, 50):
+        s.line(stroke([(232, y), (280, y)], 5), WHITE)
+    s.shape(union(ellipse(256, 110, 80, 60), rrect(176, 100, 336, 140, 10)), GOLD, GOLD_D, light=True)
+    s.shape(ellipse(256, 150, 20), GOLD_D)
+    s.shape(rrect(170, 420, 342, 460, 12), WOOD, WOOD_D)
+    for x, y in ((140, 80), (380, 60), (390, 150)):
+        s.shape(star(x, y, 26, inner=0.4, points=4), YELLOW, None, lw=4)
+
+
+def lv_fair_4(s):  # a camera
+    s.shape(rrect(70, 160, 442, 400, 40), DARK, DARK_D, light=True)
+    s.shape(rrect(170, 110, 290, 170, 14), DARK, DARK_D)
+    s.shape(ellipse(256, 280, 100), GREY, GREY_D)
+    s.shape(ellipse(256, 280, 66), BLUE_D)
+    s.fill(ellipse(230, 254, 20), (255, 255, 255))
+    s.shape(rrect(360, 190, 410, 230, 8), YELLOW, YELLOW_D, lw=5)
+
+
+def lv_sit(s):  # a cushion
+    s.shape(rrect(80, 200, 432, 380, 80), TEAL, TEAL_D, light=True)
+    s.shape(ellipse(256, 290, 24), TEAL_D, lw=5)
+    for x, y in ((90, 210), (422, 210), (90, 370), (422, 370)):
+        s.shape(ellipse(x, y, 26), YELLOW, YELLOW_D, lw=5)
+
+
+def lv_find_c(s):  # a treasure map
+    s.shape(poly([(80, 120), (200, 90), (320, 130), (440, 100), (440, 400), (320, 430), (200, 390), (80, 420)]), SAND, SAND_D, light=True)
+    s.line(stroke([(120, 360), (180, 300), (250, 320), (300, 240)], 8), RED)
+    s.line(stroke([(330, 190), (390, 250)], 16), RED); s.line(stroke([(390, 190), (330, 250)], 16), RED)
+    s.shape(star(150, 170, 26), YELLOW, YELLOW_D, lw=4)
+
+
+def lv_fingers_right(s):  # a glove
+    s.shape(union(rrect(160, 250, 360, 440, 50), *[rrect(x - 26, y, x + 26, 300, 26) for x, y in ((190, 110), (240, 80), (290, 90), (340, 130))],
+                  ellipse(130, 300, 30, 70, angle=40)), YELLOW, YELLOW_D, light=True)
+    s.shape(rrect(150, 400, 370, 450, 16), RED, RED_D)
+
+
+def lv_fingers_left(s):  # two mittens on a string
+    s.line(arc(256, 150, 160, 200, 340, 8), DARK)
+    for x, c, cd in ((150, BLUE, BLUE_D), (362, PINK, PINK_D)):
+        s.shape(union(rrect(x - 70, 180, x + 70, 400, 70), ellipse(x + (80 if x > 256 else -80), 260, 30, 56)), c, cd, light=True)
+        s.shape(rrect(x - 74, 360, x + 74, 420, 18), WHITE, WHITE_D)
+
+
+def lv_beat(s):  # a conductor's baton
+    s.shape(stroke([(110, 420), (400, 110)], 14), WHITE, WHITE_D)
+    s.shape(stroke([(100, 430), (160, 370)], 40), WOOD, WOOD_D)
+    for r in (60, 110):
+        s.line(arc(400, 110, r, 110, 200, 7), GOLD_D)
+    note(s, 300, 400, BLUE, 20)
+
+
+def lv_white_keys(s):  # an alphabet train: an engine and two cars
+    s.shape(stroke([(40, 420), (470, 420)], 10), DARK)
+    for x, c, cd in ((130, RED, RED_D), (260, ORANGE, ORANGE_D), (390, YELLOW, YELLOW_D)):
+        s.shape(rrect(x - 56, 260, x + 56, 390, 14), c, cd, light=True)
+        s.shape(rrect(x - 30, 290, x + 30, 350, 8), WHITE, WHITE_D, lw=5)
+        for dx in (-30, 30):
+            s.shape(ellipse(x + dx, 400, 24), DARK)
+    s.shape(rrect(84, 190, 130, 260, 8), RED_D)
+    s.shape(ellipse(107, 160, 30, 20), GREY, outline=False)
+
+
+LEVELS = {name[3:]: fn for name, fn in list(globals().items()) if name.startswith("lv_") and callable(fn)}
+
+
 SUBJECTS = {
     "garden": [garden_1, garden_2, garden_3, garden_4, garden_5, garden_6, garden_7, garden_8, garden_9, garden_10],
     "pond": [pond_1, pond_2, pond_3, pond_4, pond_5, pond_6, pond_7, pond_8, pond_9, pond_10],
@@ -937,10 +1661,22 @@ def main():
     ap.add_argument("--sheet", help="also write a contact sheet of every sticker made here")
     ap.add_argument("--only", help="one sticker, e.g. pond_3")
     ap.add_argument("--place", help="one place's ten, e.g. fair")
+    ap.add_argument("--levels", action="store_true", help="2.5: the stones' own stickers (sticker_lv_<lesson>.webp) instead")
     args = ap.parse_args()
     RES.mkdir(parents=True, exist_ok=True)
     made = []
-    for place, fns in SUBJECTS.items():
+    if args.levels:
+        for key, fn in LEVELS.items():
+            name = f"sticker_lv_{key}"
+            if args.only and args.only != key:
+                continue
+            s = Sticker()
+            fn(s)
+            img = s.finish()
+            img.save(RES / f"{name}.webp", "WEBP", quality=88, method=6)
+            made.append((name, img))
+            print(name, (RES / f"{name}.webp").stat().st_size, "bytes")
+    for place, fns in ({} if args.levels else SUBJECTS).items():
         for n, fn in enumerate(fns, start=1):
             name = f"sticker_{place}_{n}"
             if args.only and args.only != f"{place}_{n}":

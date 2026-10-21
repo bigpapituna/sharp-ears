@@ -27,6 +27,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.data.WorldStore
 import com.bigpapituna.sharpears.engine.world.Rarity
+import com.bigpapituna.sharpears.engine.world.Decal
+import com.bigpapituna.sharpears.engine.world.LevelSticker
 import com.bigpapituna.sharpears.engine.world.Sticker
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
@@ -41,11 +43,17 @@ val ShinyPrism = listOf(Color(0xFFFF9AA2), Color(0xFFFFD27F), Color(0xFFB5EAD7),
 /** The colour a rarity shows in rings, card backs and labels. */
 fun Rarity.colour(): Color = when (this) { Rarity.COMMON -> Color(0xFFD9C7AE); Rarity.RARE -> RareBlue; Rarity.SHINY -> Color(0xFFC7B3F2) }
 
-/** The drawable of [sticker]. */
-fun stickerRes(sticker: Sticker): Int = WorldStore.stickerRes(sticker)
+/** The drawable of [sticker]: a bonus sticker's, or (2.5) a stone's own. */
+fun stickerRes(sticker: Decal): Int = when (sticker) {
+    is Sticker -> WorldStore.stickerRes(sticker)
+    is LevelSticker -> LEVEL_STICKER_RES.getValue(sticker.lessonId)
+}
+
+/** How rare a sticker looks: a stone's own sticker is plain. */
+val Decal.rarity: Rarity get() = (this as? Sticker)?.rarity ?: Rarity.COMMON
 
 /** A slight, stable tilt per sticker (degrees), as if stuck in by hand. */
-fun Sticker.tilt(): Float = (((id.hashCode() % 9) + 9) % 9 - 4) * 1.6f
+fun Decal.tilt(): Float = (((key.hashCode() % 9) + 9) % 9 - 4) * 1.6f
 
 /**
  * A sticker as it sits in the album or the world: its picture with a crisp soft shadow, a little tilted. A rare one
@@ -53,12 +61,12 @@ fun Sticker.tilt(): Float = (((id.hashCode() % 9) + 9) % 9 - 4) * 1.6f
  * animations off, the sheen then rests across it).
  */
 @Composable
-fun StickerImage(sticker: Sticker, modifier: Modifier = Modifier, tilt: Float = sticker.tilt(), shine: Boolean = true, shadow: Boolean = true) {
+fun StickerImage(sticker: Decal, modifier: Modifier = Modifier, tilt: Float = sticker.tilt(), shine: Boolean = true, shadow: Boolean = true) {
     val still = reducedMotion()
     val shiny = shine && sticker.rarity == Rarity.SHINY
     // The sheen sweeps across in 1.4 s, then rests 2.6 s: no frames while it rests.
     val sweep = remember { Animatable(0.45f) }
-    if (shiny && !still) LaunchedEffect(sticker.id) {
+    if (shiny && !still) LaunchedEffect(sticker.key) {
         while (true) {
             sweep.snapTo(0f)
             sweep.animateTo(1f, tween(1400, easing = LinearEasing))
@@ -123,7 +131,7 @@ fun DrawScope.sparkle(c: Offset, r: Float, color: Color, alpha: Float = 1f) {
 
 /** A sticker's shape only, in [color]: a gap in the album, the mystery in the "one more" preview. */
 @Composable
-fun StickerSilhouette(sticker: Sticker, color: Color, modifier: Modifier = Modifier, tilt: Float = 0f) {
+fun StickerSilhouette(sticker: Decal, color: Color, modifier: Modifier = Modifier, tilt: Float = 0f) {
     Image(painterResource(stickerRes(sticker)), contentDescription = null, colorFilter = ColorFilter.tint(color, BlendMode.SrcIn),
         modifier = modifier.graphicsLayer { rotationZ = tilt })
 }
