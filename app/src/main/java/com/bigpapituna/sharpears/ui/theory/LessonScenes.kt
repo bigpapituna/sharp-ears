@@ -534,7 +534,7 @@ internal fun phraseStaffSpace(base: Float, width: Float, weights: List<Float>, k
 /** The smallest a dense phrase's staff gets, as a share of its usual size. */
 internal const val PHRASE_MIN_SCALE = 0.4f
 
-internal fun DrawScope.phraseScene(v: PhraseVisual, t: Int, ink: StageInk) {
+internal fun DrawScope.phraseScene(v: PhraseVisual, t: Int, ink: StageInk, kid: Boolean = false) {
     val pad = 12.dp.toPx()
     val grand = v.hasRight && v.hasLeft
     val l = pianoFor(v.low, v.high, size.width - 2 * pad, size.height * 0.2f)
@@ -567,7 +567,7 @@ internal fun DrawScope.phraseScene(v: PhraseVisual, t: Int, ink: StageInk) {
     }
     x += sig * 1.15f * s + if (sig > 0) 0.8f * s else 0f
     val tp = progress(t, 1000, 350)
-    staves.forEach { st ->
+    if (!kid) staves.forEach { st ->   // no "4 over 4" for a kid
         text(ink, "${v.beats}", Offset(x + 0.9f * s, st.y(6)), TextKind.TITLE, pxSp(2.3f * s), ink.ink, alpha = smooth(tp * 2), scale = backOut(tp))
         text(ink, "4", Offset(x + 0.9f * s, st.y(2)), TextKind.TITLE, pxSp(2.3f * s), ink.ink, alpha = smooth(tp * 2), scale = backOut(tp))
     }

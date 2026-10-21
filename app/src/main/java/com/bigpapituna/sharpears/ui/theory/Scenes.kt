@@ -86,7 +86,7 @@ internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = M
             is PedalVisual -> pedalScene(visual, t, ink)
             is DynamicsVisual -> dynamicsScene(visual, t, ink)
             is ArticulationVisual -> articulationScene(visual, t, ink)
-            is PhraseVisual -> phraseScene(visual, t, ink)
+            is PhraseVisual -> phraseScene(visual, t, ink, kid)
             is LaneVisual -> laneScene(visual, t, ink)
             is SongMapVisual -> songMapScene(visual, t, ink)
             is MidiVisual -> midiScene(visual, t, ink)
