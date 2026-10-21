@@ -50,6 +50,15 @@ class RunEventsTest {
         assertNull(read.stars); assertEquals("READ", read.kind); assertNull(read.hands)
     }
 
+    @Test fun aTryLeftBeforeItsEndCountsWithItsWrongKeysAndHints() {
+        val rec = StepRecorder("pond-2", 1, play, 0)
+        rec.abandoned(tally(1, 2, 3, 3))
+        val e = rec.event(1, 9_000, passed = false)!!
+        assertEquals(true, e.left); assertEquals(1, e.tries); assertEquals(3, e.wrongKeys); assertEquals(listOf(3, 3), e.hintsUsed)
+        assertNull(e.stars); assertEquals(1, e.nearMisses); assertEquals(2, e.farMisses)
+        assertEquals("a copy is never a run under way", false, RunTally().apply { open = true }.copy().open)
+    }
+
     @Test fun aSongRunWritesTheRunItsWrongKeysAndOctaveHints() {
         val t = tally(2, 1, 3).apply { octave() }
         val events = RunEvents.song(7, "ode", Mode.PERFORM, Practice.BOTH, Report(emptyList(), 0, 1, Recap(18, 2, 0, 42, 20)), t, 95_000,

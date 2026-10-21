@@ -71,6 +71,13 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
     val log = RunLog()
     /** Where the run was hard: holds, wrong keys and misses by song time, for [TroubleSpots]. */
     val troubles = TroubleLog()
+    /**
+     * What the parent brief keeps of the run (engine/brief/RunTally): wrong keys by the note wanted, hints per stuck wait,
+     * octave hints, groups let go. The player feeds it and clears it when a fresh run starts. Kept here rather than as
+     * one more local in PlayerScreen: that composable is near the size where D8 allocated a null check to the wrong
+     * register (a `meta?.let` tested another parameter and crashed on a lesson's player, found on the emulator).
+     */
+    val tally = com.bigpapituna.sharpears.engine.brief.RunTally()
 
     /** The run so far, for feedback. */
     fun report() = log.report(score?.recap())

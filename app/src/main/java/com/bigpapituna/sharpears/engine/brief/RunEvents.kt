@@ -31,6 +31,15 @@ class StepRecorder(val lessonId: String, val stepIndex: Int, val step: Step, pri
         if (letGo) this.letGo = true
     }
 
+    /**
+     * A try left before it ended (Back, the lesson closed, the app going away from a step): its wrong keys and hints
+     * count, and it counts as a try, so a child who gives up mid-run is seen struggling.
+     */
+    fun abandoned(tally: RunTally) {
+        tries++
+        this.tally = this.tally.plus(tally)
+    }
+
     /** Tries so far. */
     val runs get() = tries
 

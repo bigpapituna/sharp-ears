@@ -156,9 +156,13 @@ fun LessonScreen(
     val last = index == lesson.steps.lastIndex
     // The parent brief's log (data/Briefs): each step's tries, let go, hints and time, written once as it is left.
     val stepLog = remember(index) { StepRecorder(lesson.id, index, step, ForegroundClock.app.nowMs()) }
-    val runTally = remember { arrayOfNulls<RunTally>(1) }      // the player's tally of the try that just ended
-    // Left without passing (Back, or the lesson closed) after a try: still a step the brief should see.
-    DisposableEffect(stepLog) { onDispose { if (stepLog.runs > 0) Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = bar?.first == Cheer.GOOD)) } }
+    val runTally = remember(index) { arrayOfNulls<RunTally>(1) }      // the player's tally of the try that just ended
+    // Left without passing (Back, or the lesson closed) after a try, or during one (the player hands over the unfinished
+    // try's tally as it goes, just before this runs): still a step the brief should see.
+    DisposableEffect(stepLog) { onDispose {
+        runTally[0]?.let { stepLog.abandoned(it); runTally[0] = null }
+        if (stepLog.runs > 0) Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = bar?.first == Cheer.GOOD))
+    } }
     // Bedtime (kids only): the goodbye once today's goal is reached; a lesson opened after it finds the pup asleep.
     val bedtime = rememberBedtimeStore()
     val gate = LocalParentGate.current
@@ -352,11 +356,10 @@ fun LessonScreen(
                                 onBack = onBack,
                                 onFinished = { exerciseEnded(step, it) },
                                 embedded = Embedded(if (kid) kidStateLabel(step) else stateLabel(step), labels = step.labels, ramp = step.kind == StepKind.RAMP,
-                                    special = step.kind.takeIf { it.needsMidi }),
+                                    special = step.kind.takeIf { it.needsMidi }, onTally = { runTally[0] = it }),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                                 anyOfLessons = com.bigpapituna.sharpears.engine.playground.ANY_OF_LESSONS,
                                 onWrongKey = { pupNow.react(PupReaction.HEAD_TILT) },
-                                onTally = { runTally[0] = it },
                                 letGo = com.bigpapituna.sharpears.engine.playground.StepRetry.isPlayground(lesson.id),
                             )
                         }

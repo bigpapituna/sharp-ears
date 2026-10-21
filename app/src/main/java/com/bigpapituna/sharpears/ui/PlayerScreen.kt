@@ -152,6 +152,8 @@ data class PlayerStart(
 data class Embedded(val state: String, val labels: Boolean = true, val autoStart: Boolean = true,
                     /** A ramp step: starts at 50%, plays again after each pass, ends only once the ramp reaches 100%. */
                     val ramp: Boolean = false,
+                    /** Just before onFinished: the run's tally for the parent brief's step log (LessonScreen's StepRecorder). */
+                    val onTally: ((RunTally) -> Unit)? = null,
                     /** A MIDI step: PEDAL (graded on the sustain pedal) or DYNAMICS (soft then loud). */
                     val special: com.bigpapituna.sharpears.engine.StepKind? = null)
 
@@ -185,12 +187,11 @@ fun PlayerScreen(
     letGo: Boolean = false,
     /** The run's recap was closed (Practice today goes on to its next part then). */
     onRecapClosed: () -> Unit = {},
-    /** Just before [onFinished]: the run's wrong keys near and far, hints per stuck wait, octave hints (the brief's step log). */
-    onTally: (RunTally) -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
-    var transpose by remember(original.id) { mutableIntStateOf(meta?.let { prefs.transpose(it.id) } ?: 0) }
+    // `meta` is read through the small functions at the end of this file (see savedTranspose), never `meta?.` here.
+    var transpose by remember(original.id) { mutableIntStateOf(savedTranspose(meta, prefs)) }
     val song = remember(original, transpose) { original.transposed(transpose) }
     /** Where a rebuilt transport (after a transpose) picks up. */
     var resumeAt by remember(original.id) { mutableStateOf<Double?>(null) }
@@ -262,8 +263,6 @@ fun PlayerScreen(
     LaunchedEffect(highFive) { if (highFive > 0) { showHighFive = true; delay(2400); showHighFive = false } }
     // The notes the player plays in the current run (touch, MIDI or mic), kept for "Hear my run".
     val recorder = remember { RunRecorder() }
-    // What the run did for the parent brief (engine/brief/RunTally): wrong keys by the note wanted, hints, octave hints.
-    val tally = remember { RunTally() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val runs = remember { RunStore(context) }
     var lastRun by remember { mutableStateOf<RunRecording?>(null) }
@@ -285,7 +284,7 @@ fun PlayerScreen(
     var touchRun by remember { mutableStateOf(false) }             // this run was played on the touch keys
 
     val tutorial = remember(song) {
-        meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs, song.groups.last().startMs) }
+        tutorialOf(meta, song, prefs)
     }
     val windowSize = LocalWindowInfo.current.containerSize
     val windowHeightDp = with(LocalDensity.current) { windowSize.height.toDp() }
@@ -304,7 +303,7 @@ fun PlayerScreen(
     var ramp by remember { mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null) }
     // Auto speed: the tempo managed last time (library songs), nudged up on good days.
     var autoOn by remember { mutableStateOf(false) }
-    var autoPercent by remember { mutableIntStateOf(meta?.let { prefs.autoSpeed(it.id)?.percent } ?: AutoSpeed.FIRST) }
+    var autoPercent by remember { mutableIntStateOf(savedAutoPercent(meta, prefs)) }
     var rampPercent by remember { mutableIntStateOf(0) }
     var backingOn by remember { mutableStateOf(false) }
 
@@ -415,7 +414,7 @@ fun PlayerScreen(
         if (micOn && octaveOn && transport.mode == Mode.WAIT) mic.octaveReset(transport.listenFor)
     }
     fun hintsEnd() {
-        tally.waitEnded()
+        transport.tally.waitEnded()
         waitCoach?.found()
         if (hintPlan.waiting || hintStep != HintStep.NONE || octaveShown != null) Log.d(TAG, "hints: wait over at $hintStep")
         hintPlan.end(); hintStep = HintStep.NONE; octaveShown = null; mic.octaveReset(emptySet())
@@ -443,7 +442,7 @@ fun PlayerScreen(
         val keys = transport.expected.map { it.midi }
         if (keys.isEmpty()) return
         Log.d(TAG, "let go: ${keys.map { noteName(it) }} after ${waitCoach?.tries} tries")
-        tally.letGo()
+        transport.tally.letGo()
         hintLine = com.bigpapituna.sharpears.engine.playground.PlaygroundLines.LET_GO
         voice.speakOverMic(com.bigpapituna.sharpears.engine.playground.PlaygroundLines.LET_GO)
         for (k in keys) if (transport.noteInput(k) == InputResult.GROUP_DONE) break
@@ -457,7 +456,7 @@ fun PlayerScreen(
     /** A wrong key from any input: counted, logged, and handed to whoever draws it (the skin's flash, the pup). */
     fun showWrongKey(played: Int, nearest: Int?, distance: Int?) {
         val k = WrongKey(played, nearest, distance, (++wrongKeys).toLong())
-        tally.wrong(played, nearest)
+        transport.tally.wrong(played, nearest)
         Log.d(TAG, "wrong key ${noteName(played)}" + (nearest?.let { " near ${noteName(it)}, $distance away, ${if (k.slip) "yellow" else "red"}" } ?: ""))
         distance?.let { wrongs.show(com.bigpapituna.sharpears.engine.skin.WrongKey(played, it)) }
         onWrongKey(k)
@@ -480,7 +479,8 @@ fun PlayerScreen(
             backingOn -> metro.barMs
             else -> 2 * metro.beatMs
         }
-        if (transport.fresh) { recorder.clear(); touchRun = false; tally.clear() }
+        if (transport.fresh) { recorder.clear(); touchRun = false; transport.tally.clear() }
+        transport.tally.open = true
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
         transport.play(leadInMs = leadIn); playing = true
@@ -580,7 +580,8 @@ fun PlayerScreen(
         val score = transport.score
         val run = if (transport.mode == Mode.PERFORM && score != null) score.recap() else null
         val extra = pedalGrade?.score() ?: loudness?.score()
-        onTally(tally.copy())
+        transport.tally.open = false
+        embedded?.onTally?.invoke(transport.tally.copy())
         onFinished(transport.report().copy(extraScore = extra, realMs = transport.runRealMs).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
@@ -594,7 +595,7 @@ fun PlayerScreen(
         val played = transport.mode != Mode.LISTEN && !transport.report().empty
         // The parent brief's log: the run, its wrong keys and octave hints (a duet partner gets the run too, below).
         val briefRun = if (!played) emptyList() else RunEvents.song(Briefs.now(), meta.id, transport.mode, transport.practice, transport.report(),
-            tally, transport.runRealMs.toLong(), fromTop = transport.scoreFromMs <= 0.0, duet = duet != null)
+            transport.tally, transport.runRealMs.toLong(), fromTop = transport.scoreFromMs <= 0.0, duet = duet != null)
         Briefs.logAll(briefRun)
         // The hardest bars of a Wait or Perform run, remembered for the library row.
         val spots = if (!played) null else when (transport.mode) {
@@ -772,7 +773,7 @@ fun PlayerScreen(
                     }
                     Log.d(TAG, "input mic -> WRONG ${noteName(e.midi)} at ${transport.positionMs.toLong()} ms (painted=$paint)")
                     if (!paint) Juice.onHeard()
-                    if (!paint && !mic.wrongPaintOff) tally.wrong(e.midi, e.nearest)    // not shown, still a wrong key (not the room's)
+                    if (!paint && !mic.wrongPaintOff) transport.tally.wrong(e.midi, e.nearest)    // not shown, still a wrong key (not the room's)
                     waitMiss()
                 }
             }
@@ -823,7 +824,9 @@ fun PlayerScreen(
             play()
         }
     }
-    DisposableEffect(song) { onDispose { savePosition(); apply(transport.pause()); if (lastRun == null) keepRun() } }
+    DisposableEffect(song) { onDispose {
+        if (transport.tally.open) embedded?.onTally?.invoke(transport.tally.copy())     // a lesson's try left before its end
+        savePosition(); apply(transport.pause()); if (lastRun == null) keepRun() } }
     // "Practice today": straight into a loop on the worst bar, for a fixed time.
     start.loopBar?.let { bar ->
         LaunchedEffect(song, ready) {
@@ -897,7 +900,7 @@ fun PlayerScreen(
                 // Stuck: the key glows, then the hand points at it, then the app plays it.
                 hintPlan.advance(android.os.SystemClock.elapsedRealtime())?.let { step ->
                     hintStep = step
-                    tally.hint(step.ordinal)
+                    transport.tally.hint(step.ordinal)
                     Log.d(TAG, "hints: $step on ${transport.expected.map { noteName(it.midi) }} after ${hintPlan.stepsMs[step.ordinal - 1] / 1000} s")
                     if (step == HintStep.PLAY) playHint()
                 }
@@ -927,7 +930,7 @@ fun PlayerScreen(
             mic.octaveCheck()?.let { h ->
                 Log.d(TAG, "octave hint: ${noteName(h.expected)} played ${if (h.playedOctaveOffset > 0) "an octave up" else "an octave down"}")
                 octaveShown = h
-                tally.octave()
+                transport.tally.octave()
                 say(h.line(kid))
             }
         }
@@ -1189,13 +1192,7 @@ fun PlayerScreen(
     }
 
     // A new two-hand song: suggest hands apart first, then together. Library songs only, never lessons or progressions.
-    var handsTip by remember(song) {
-        mutableStateOf(meta?.takeIf { embedded == null && !kid }?.let { m ->
-            val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
-            com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(m.id), prefs.progress(m.id).completed)
-                ?.takeIf { it != prefs.handsTipDismissed(m.id) }
-        })
-    }
+    var handsTip by remember(song) { mutableStateOf(handsTipOf(meta, song, prefs, show = embedded == null && !kid)) }
     LaunchedEffect(handsTip) { handsTip?.let { Log.d(TAG, "hands tip ${song.id}: $it") } }
     fun pickHands(p: Practice?) {
         val stage = handsTip ?: return
@@ -1279,6 +1276,27 @@ private fun keyLabels(setting: KeyLabels, range: IntRange): Map<Int, String> = w
 }
 
 private fun handColor(h: Hand) = if (h == Hand.RIGHT) RightHandColor else LeftHandColor
+
+/*
+ * `meta` read outside the composable. PlayerScreen is one very large composable (about 280 registers once dexed), and
+ * there D8 tested another register for `meta`'s null check (`meta?.let`, then `if (meta != null)`): every lesson's player
+ * (meta null) crashed with a NullPointerException as it opened (found on the Fold emulator, 2026-10-21, after unrelated
+ * edits moved the method's register allocation). In these small functions the null checks are plain.
+ */
+private fun savedTranspose(meta: SongMeta?, prefs: Prefs): Int = if (meta != null) prefs.transpose(meta.id) else 0
+
+private fun savedAutoPercent(meta: SongMeta?, prefs: Prefs): Int = meta?.let { prefs.autoSpeed(it.id)?.percent } ?: AutoSpeed.FIRST
+
+private fun tutorialOf(meta: SongMeta?, song: Song, prefs: Prefs): TutorialState? =
+    meta?.videos?.takeIf { it.isNotEmpty() }?.let { TutorialState(song.id, it, prefs, song.notes.first().startMs, song.groups.last().startMs) }
+
+/** The hands-apart tip for a two-hand library song, when [show] (the full player, a grown-up). */
+private fun handsTipOf(meta: SongMeta?, song: Song, prefs: Prefs, show: Boolean): String? {
+    if (meta == null || !show) return null
+    val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
+    return com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(meta.id), prefs.progress(meta.id).completed)
+        ?.takeIf { it != prefs.handsTipDismissed(meta.id) }
+}
 
 
 /** The lesson player's one row: play/pause, what the step asks (fixed by the step), live status, and the mic. */

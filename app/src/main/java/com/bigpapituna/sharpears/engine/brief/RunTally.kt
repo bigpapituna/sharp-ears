@@ -24,6 +24,8 @@ class RunTally {
     var letGos = 0; private set
 
     val wrongKeys get() = near + far
+    /** A run is under way and has not ended (the player sets it; a copy never carries it). */
+    var open = false
     /** One [HintDepth] per wait that needed a hint, in order (at most [MAX_HINTS]). */
     val hintsUsed: List<Int> get() = hints.toList()
 
@@ -47,7 +49,7 @@ class RunTally {
     fun letGo() { letGos++ }
 
     /** A fresh run starts: everything forgotten. */
-    fun clear() { pairs.clear(); hints.clear(); deepest = 0; near = 0; far = 0; octaves = 0; letGos = 0 }
+    fun clear() { pairs.clear(); hints.clear(); deepest = 0; near = 0; far = 0; octaves = 0; letGos = 0; open = false }
 
     /** This tally with [other]'s added (a lesson step's tries together). */
     fun plus(other: RunTally): RunTally = RunTally().also { t ->
