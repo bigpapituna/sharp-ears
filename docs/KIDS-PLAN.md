@@ -1,14 +1,14 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-## Status (2026-10-18, 2.3.0 integrated on branch `release-2.3`, versionCode 11)
+## Status (2026-10-21, 2.3.1 integrated on branch `release-2.3.1`, versionCode 12)
 
 Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
 
 - Profiles (up to eight), the picker, the new-kid flow, per-profile files and backup, the parent gate, the family wall
   with paw prints, latest sticker and the crown of the day, grown-up mode offered once after Beginner.
 - The kid skin: colour notes with animals, letters for readers, bites, stars without numbers, kid words, big keys,
-  slower speech (0.85) with the name said on recaps, hint escalation at 4, 8 and 12 s, the goodnight at the daily goal
-  and the paw calendar, the pup's head tilt on a wrong key.
+  slower speech (0.85) with the name said on recaps, hint escalation at 4, 8 and 12 s, a cheer at the daily goal (the
+  goodnight only with bedtime on, 2.3.1) and the paw calendar, the pup's head tilt on a wrong key.
 - Pup's Playground: all twelve lessons with their stages (flying pup, key hunts, drum, nap, concert), first on a kid's
   path and drawn on the pup's world; an extra unit for grown-ups.
 - For everyone: juice on every note, the living pup, sticker drops with the rare floor, the mystery egg, the album,
@@ -37,6 +37,16 @@ beat, ta and ti-ti, rests, the metronome, up or down, same or different, loud or
 happy or sad, a black-key jam, a concert) and the fair's four games (balloons, the carousel, the strongman, the photo
 booth). 76 Playground lessons on seven pages, each with its map scene, trail, ten stickers and finale, then the big
 kids' road. Grown-ups see all seven as Extra units. See CLAUDE.md, 2.3.0 status.
+
+2.3.1 (2026-10-21, branch `release-2.3.1`): bedtime is a parental control, off by default (Roy, 2026-10-20: the
+sleeping pup stopped kids from continuing). The daily goal earns a cheer once a day and lessons stay open; "Bedtime after
+the goal" in Settings > Family (behind the gate) brings back the goodnight and the sleeping lessons for that kid. The
+kid audit (docs/AUDIT-KID.md, 32 fixes) walked the map, the stages, songs, the corner and the finale as Mia and Leo: stage
+time counts toward the goal, a finale missed when the app closed plays on the next open, a kid's song gets a kid's bar (no
+times, loop, speed, chords, video or Hear my run), the mic starts on for kids and making a kid asks for it, no
+achievement banners or combo numbers on a kid's screens, sharing a certificate or card asks a grown-up, the gate shuts when
+the corner closes and its hold takes three seconds with animations off, stars count skipped and let-go rounds (one star),
+the octave hint in colours, and a lesson step survives the app being closed. See CLAUDE.md, 2.3.1 audit.
 
 Not yet:
 

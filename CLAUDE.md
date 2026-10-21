@@ -125,8 +125,8 @@ All six teams' work merged and wired (Theory last). Emulator only (emulator-5556
   them, engine/theory spokenTheory: "4/4" said "4 4", sharps and flats by name), the cheers (CHEER_TITLES) and the ear
   training lines with fixed words (prompts, note, step and progression answers, melody prompts per key and length).
   1789 lines; 844 recorded in Kokoro speaker 3 on 2026-10-13. After changing spoken copy: gradlew :app:testDebugUnitTest
-  --tests "*SpokenCatalogTest*" --rerun, then C:\devoice-toolsenv\Scripts\python -I scripts
-ender_voice.py.
+  --tests "*SpokenCatalogTest*" --rerun, then python -I scripts\render_voice.py --check (what a run would record and delete), then
+  C:\dev\voice-tools\venv\Scripts\python -I scripts\render_voice.py.
 - Jank (emulator-5556, 10 s twinkle wait run with injected mic): 76 to 87% janky, p50 61 ms, but a still Learn screen and the
   motion demo measured the same that afternoon (two emulators on one host, the composer at 65% CPU), so it says nothing
   about the player. Measure on the Fold with the profile build before release.
@@ -522,6 +522,70 @@ big kids' road. Grown-ups see all seven pages as Extra units on Learn, never as 
   No crash or ANR. Screenshots: app/build/screens/r23-*.png (not committed).
 - Not proven: everything on a real piano with a kid; part A's and part B's thresholds are tuned on PianoSynth only.
   workshop-3 and Basics' fingers-right are both titled "Finger numbers" (left as part A wrote it).
+
+## 2.3.1 audit (integrated 2026-10-21, branch `release-2.3.1`, versionCode 12; emulators only, not on Roy's phone yet)
+Four audit teams went over 2.3.0 plus the bedtime change (b061572) on their own branches; their reports are
+docs/AUDIT-ENGINE.md, AUDIT-ROBUST.md, AUDIT-ADULT.md and AUDIT-KID.md. 142 fixes (engine 28, robustness 37, adult 45,
+kid 32), about 131 distinct bugs: eleven were found and fixed by two teams and are kept as one implementation each.
+- Engine and content (JVM only): the matcher's late wrong-key report, Practice-tab thumbs on black keys and the chromatic
+  fingering, Row Row Row's and the hall's Ode fingers, chord reviews due on their calendar day, one streak on the home,
+  a 2.0 backup no longer wiping later files, damaged MIDI files, backwards A-B loops, Locale.ROOT for every number the
+  app formats, 340 game and Practice-today lines that had no recording. The suite went from 23 min to about 2 (the
+  hearing tests run on all cores, test/engine/playground/Parallel.kt).
+- Robustness (emulator): singleTop (one activity), the screen kept on while playing, stages letting go of the mic on
+  Home, the open screen saved as a route and reopened after a recreate or process death (a lesson at its step, a song at
+  its place, a kid's gated screens as their back screen, the picker asking again), mic hand-over between overlapping
+  screens (LocalLeaving), ForegroundClock (time off screen is never practice), a voice with no TTS engine, Kokoro released
+  while loading, the import index written whole, the debug build's Compose activities unexported, a cold-start fingering
+  memo (onCreate CPU 1567 -> 879 ms traced), backup rules (token, recordings, clips and the model stay home).
+- Adult (emulator-5554): the onboarding placement and mic permission, Listen and empty runs earning nothing, Practice
+  today's Back and recaps, games of skips earning nothing, mic and notification refusals explained, TalkBack (key names
+  "F sharp 4", panes, the week row), imported songs renamed or deleted, the A-B loop's swapped marks, landscape scrolls.
+- Kid (emulator-5558): stage time counts toward the goal, the goal's cheer after a lesson, a missed finale played on the
+  next open, a kid's song bar (no times, loop, speed, chords, video, Hear my run or combo), the mic on for kids and asked
+  for when a kid is made, no achievement banners for kids, sharing behind the gate, the gate shutting with the corner and
+  holding three real seconds with animations off, skipped and let-go games one star, the octave hint in colours.
+- Merge decisions (in the merge commits): crash reports keep robust's once-per-process hook and roster-name lambda with
+  one `StallWatch.scrubNames`; the stalls budget is robust's whole-report `overBudget` ordered by the engine's
+  `OLDEST_FIRST` stamps; imported song ids are the engine's ASCII ids with a code for names with no Latin letter;
+  robust's route restore replaces the kid audit's lesson-only saver (same behaviour, checked: "screen restored:
+  home:LEARN/lesson:1:playground-4" after `am kill`). The kid agent's unfinished let-go star cap was committed first.
+- Build: APKs are arm64-v8a only (the note under "Build types" above); the x86_64 emulators run them through ARM translation. Debug
+  APK 120.9 MB (120,877,029 bytes; 3514 voice files).
+- Voice workflow: after changing spoken copy run SpokenCatalogTest, then `python -I scripts/render_voice.py --check`
+  (no model needed; lists the lines a run would record and the files it would delete, says whether the list is older
+  than the code, exit 1 when a run is needed); a run refuses a stale list unless --force. Merged tree: 3514 lines (1117
+  kid at 0.85), all recorded, nothing to record or delete.
+- Tests: 931 JVM, green twice with --rerun (about 2 min each). FixtureTest session-155837 33/33, 0 false strikes, 0
+  wrong flashes (strict 33/33); StallReviewTest, StageHearingTest, SpokenCatalogTest green. Lint 0 errors (23 warnings,
+  9 hints, all older).
+- Emulator walk (5558 Fold, fresh install of the 2.3.1 APK): onboarding as Roy (mic asked and allowed, notifications
+  refused), Basics lesson 1, Twinkle in wait mode by touch to its recap, every Settings section with Microphone setup,
+  Privacy and Licences, Mia added through Settings > Family (gate), the picker, Mia's map, playground-1 to 3 from their
+  stones to their recaps (three stars each), the Play sheet and the Jam, My stickers, the goal's cheer with lessons
+  staying open, "Bedtime after the goal: on" then the asleep map and the goodnight, a kid's song bar, back to Roy through
+  the corner, backup export (3997 bytes, both profiles), dark mode home for both (a dark-mode recreate reopened
+  Settings). No crash or ANR in logcat (only the platform's codec queries). Screenshots: app/build/screens/r231-*.png.
+- Still open from the reports' "found, not fixed" lists:
+  - Engine: loud broadband noise can pass for a key (needs Roy's room recordings); a transposed song keeps its old
+    black-key spellings; the lesson time model's floors; "today" goes stale across midnight while the app stays open;
+    "This week" is the last seven days while the goal and paws run Monday to Sunday; the player's 60-day log is pruned by
+    date; one recording per text whatever the speed (kid lines heard by grown-ups at 0.85 and back); about 700 recordings
+    never played; near-duplicate lines and two lesson titles used twice ("Finger numbers", "Broken chords"); authored
+    chord spellings lost ("Db" shown as C sharp); 9 and add9 chords span a ninth in one hand; a last note played late can
+    miss when the song's tail is short; bar numbers from the first tempo; hand_l_3 decoded and never drawn; "Hear my run"
+    files never read back or deleted with a profile; an unreadable roster resets to the owner and reuses p1; a
+    hand-edited backup can carry a wrong type; the fingering solver can move the hand inside a five-key tune.
+  - Robustness: debug routes reachable by any installed app on the debug build (#38); a session WAV left without a
+    header after a kill (#39); the Jam header squeezed at font size 2.0 (#40); a debug route with `--es profile` opens
+    the app twice (#41).
+  - Adult: none open; mic detection, MIDI hot-plug, TalkBack speech, frame times, notifications and Google backup need a
+    real phone, piano or keyboard.
+  - Kid: none recorded (its agent was cut off; the 76-lesson walk table in AUDIT-KID.md was never filled in).
+  - Seen on this walk, not fixed: the pup's bubble on the kid map covers the stone to its left (its stars stay visible);
+    a clean wait-mode run at a slow touch pace still names a "hardest bar" (holds past 1.2 s count) and Practice today
+    then loops it; the onboarding says "Nothing is sent anywhere" (true until a review token is set on a debug build).
+- Not proven: everything on a real piano with a child, and frame times on the Fold with the profile build.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
