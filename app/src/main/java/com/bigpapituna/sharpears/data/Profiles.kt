@@ -78,7 +78,7 @@ class Profiles(
     fun switchTo(id: String) = save(state.value.switchTo(id), "switched to $id")
 
     /**
-     * Deletes [id] and its progress files. The owner cannot be deleted; deleting the current profile switches to the
+     * Deletes [id], its progress files and its event log. The owner cannot be deleted; deleting the current profile switches to the
      * first remaining one (the owner). Returns false when nothing was deleted.
      */
     fun delete(id: String): Boolean {
@@ -86,6 +86,7 @@ class Profiles(
         if (r == state.value) return false
         save(r, "deleted $id")
         ProfileFiles.filesOf(id, ProgressFiles.NAMES).forEach { app.deleteSharedPreferences(it) }
+        Briefs.forget(app, id)                          // and the brief's event log (files/events/<id>.log)
         return true
     }
 

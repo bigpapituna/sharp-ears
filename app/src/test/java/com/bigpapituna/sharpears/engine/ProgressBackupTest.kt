@@ -45,4 +45,19 @@ class ProgressBackupTest {
         val names = mapOf("name" to "Zoë 🎹", "tab" to "a\tb", "ctrl" to "x\u0001y")
         assertEquals(names, MiniJson.read(MiniJson.write(names)))
     }
+
+    /**
+     * The parent brief: the event logs ride in the same file under "events", each profile's lines as written. Version 1
+     * still: an older app reads the files and ignores the logs; a file from before the brief reads back with none.
+     */
+    @Test fun theEventLogsTravelBesideTheFilesAndOlderFilesHaveNone() {
+        val events = mapOf("p1" to listOf("{\"t\":5,\"e\":\"start\"}"), "owner" to listOf("{\"t\":6,\"e\":\"end\",\"ms\":60000}", "{\"t\":7,\"e\":\"x\"}"))
+        val text = ProgressBackup.encode(files, events)
+        val back = ProgressBackup.decodeBackup(text)
+        assertEquals(files, back.files)
+        assertEquals(events, back.events)
+        assertEquals("what an older app reads", files, ProgressBackup.decode(text))
+        assertEquals(null, ProgressBackup.decodeBackup(ProgressBackup.encode(files)).events)
+        assertEquals(emptyMap<String, List<String>>(), ProgressBackup.decodeBackup(ProgressBackup.encode(files, emptyMap())).events)
+    }
 }

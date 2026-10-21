@@ -34,4 +34,20 @@ class ProgressFilesCoverageTest {
         assertEquals(setOf("mic", "reports"), phoneWide)
         assertTrue("the mic setup travels in a backup", "mic" in ProgressFiles.NAMES && "mic" in ProfileFiles.SHARED)
     }
+
+    /**
+     * The parent brief's event logs are files, not preferences: the folders the app keeps under its files folder are the
+     * phone's (imported songs, run recordings, the voice model) or the per-profile logs, and the logs go into the backup,
+     * come back from it and are deleted with their profile.
+     */
+    @Test fun thePerProfileLogsAreBackedUpRestoredAndDeletedWithTheirProfile() {
+        val folders = sources.flatMap { f -> Regex("""File\(context\.filesDir, "([a-z]+)"""").findAll(f.readText()).map { it.groupValues[1] }.toList() }.toSet()
+        assertEquals(setOf("runs", "user", "kokoro"), folders)
+        assertEquals(listOf(EventLog.DIR), ProgressFiles.LOGS)
+        fun source(name: String) = sources.first { it.name == name }.readText()
+        val files = source("ProgressFiles.kt")
+        assertTrue("export carries the logs", Regex("""Briefs\.exportLogs\(""").containsMatchIn(files) && files.contains("ProgressBackup.encode(files, events)"))
+        assertTrue("import restores them", files.contains("Briefs.restoreLogs(context, backup.events"))
+        assertTrue("deleting a profile deletes its log", Regex("""fun delete\(id: String\)[\s\S]*?Briefs\.forget\(app, id\)""").containsMatchIn(source("Profiles.kt")))
+    }
 }

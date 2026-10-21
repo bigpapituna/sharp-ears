@@ -66,7 +66,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val context = androidx.compose.ui.platform.LocalContext.current
     // Progress export and import (Storage Access Framework: the player picks where the file goes).
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var importing by remember { mutableStateOf<Map<String, Map<String, Any>>?>(null) }
+    var importing by remember { mutableStateOf<com.bigpapituna.sharpears.engine.ProgressBackup.Backup?>(null) }
     var progressMessage by remember { mutableStateOf<String?>(null) }
     val exportTo = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -212,7 +212,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
         )
     }
-    importing?.let { files ->
+    importing?.let { backup ->
+        val files = backup.files
         AlertDialog(
             onDismissRequest = { importing = null },
             title = { Text("Replace your progress?") },
@@ -220,7 +221,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile (an older file: stickers and the pup's world stay),") + " and this cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
-                    com.bigpapituna.sharpears.data.ProgressFiles.replace(context, files)
+                    com.bigpapituna.sharpears.data.ProgressFiles.replace(context, backup)
                     importing = null
                     // Start again so every screen reads the imported values.
                     (context as? android.app.Activity)?.recreate()

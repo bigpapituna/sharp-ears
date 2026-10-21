@@ -17,9 +17,16 @@ import com.bigpapituna.sharpears.engine.family.Roster
  * "<name>.<profileId>" ([fileFor]). A backup carries every profile's files and the roster ("profiles"). 2.1 adds the
  * pup's world ("world": stickers, the jar, the outfit), the play corner ("play": today's quest, Pup says bests) and the
  * kid skin's bedtime dates ("skin"). 2.2 adds the kid home ("kid": each lesson's best stars, the finales played).
+ *
+ * The parent brief's event logs are files, not preferences (files/events/<profileId>.log, data/EventLog.kt): the backup
+ * carries them beside the files ("events", engine/ProgressBackup.kt) and an import puts them back ([replace]); deleting a
+ * profile deletes its log (Profiles.delete). [LOGS] names them for the coverage test.
  */
 object ProgressFiles {
     val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin", "kid")
+
+    /** Per-profile data kept as files under the app's files folder rather than preferences: backed up and deleted too. */
+    val LOGS = listOf(EventLog.DIR)
 
     /** The preference file [name] (one of [NAMES]) opens for [profileId]: "progress" for the owner, "progress.p3" otherwise. */
     fun fileFor(name: String, profileId: String): String = ProfileFiles.fileFor(name, profileId)
@@ -34,16 +41,18 @@ object ProgressFiles {
         val files = backupFiles(context).associateWith { f ->
             prefs(context, f).all.let { if (f == ProfileFiles.ROSTER) it - Profiles.KEY_GATE else it }   // the gate stays on this phone
         }
-        val text = ProgressBackup.encode(files)
+        val events = Briefs.exportLogs(context, roster(context).profiles.map { it.id })
+        val text = ProgressBackup.encode(files, events)
         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } ?: error("Could not open the file.")
-        Log.d(TAG, "progress: exported ${text.length} bytes, " + files.entries.joinToString { "${it.key}=${it.value.size}" })
+        Log.d(TAG, "progress: exported ${text.length} bytes, " + files.entries.joinToString { "${it.key}=${it.value.size}" } +
+            ", events " + events.entries.joinToString { "${it.key}=${it.value.size}" })
     }
 
     /** Reads a file picked by the player; throws [ProgressBackup.BadBackup] when it is not a progress file. */
-    fun read(context: Context, uri: Uri): Map<String, Map<String, Any>> {
+    fun read(context: Context, uri: Uri): ProgressBackup.Backup {
         val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
             ?: throw ProgressBackup.BadBackup("Could not open the file.")
-        return ProgressBackup.decode(text)
+        return ProgressBackup.decodeBackup(text)
     }
 
     /**
@@ -51,8 +60,10 @@ object ProgressFiles {
      * roster and replaces every profile; an older one (no roster) is the owner's alone, replaces only the files it holds
      * and leaves the other profiles be.
      * Anything that is not one of our files is ignored. Recreate the activity afterwards so every store reads it.
+     * The event logs follow the same rule (EventLog.restore): a backup with the roster replaces them all.
      */
-    fun replace(context: Context, files: Map<String, Map<String, Any>>) {
+    fun replace(context: Context, backup: ProgressBackup.Backup) {
+        val files = backup.files
         val plan = ProfileFiles.importPlan(files.keys, roster(context).profiles.map { it.id }, NAMES)
         for (file in plan.clear) {
             val e = prefs(context, file).edit().clear()
@@ -75,7 +86,9 @@ object ProgressFiles {
             val kept = roster(context).profiles.map { it.id }.toSet()
             plan.clear.filter { f -> ProfileFiles.profileOf(f, NAMES)?.let { it !in kept } == true }.forEach { context.deleteSharedPreferences(it) }
         }
+        Briefs.restoreLogs(context, backup.events, roster(context).profiles.map { it.id }, plan.allProfiles)
         Log.d(TAG, "progress: imported " + (if (plan.allProfiles) "all profiles: " else "the owner's files: ") +
-            plan.write.sorted().joinToString { "$it=${files[it]?.size ?: 0}" })
+            plan.write.sorted().joinToString { "$it=${files[it]?.size ?: 0}" } +
+            if (plan.allProfiles) ", events " + (backup.events?.entries?.joinToString { "${it.key}=${it.value.size}" } ?: "none (an older backup: logs cleared)") else "")
     }
 }
