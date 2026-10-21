@@ -704,9 +704,9 @@ class MainActivity : ComponentActivity() {
                                     BackHandler { advanceDaily(s, completed = false) }
                                     // Chord practice does not run the player, so its time is counted here.
                                     androidx.compose.runtime.DisposableEffect(s.index) {
-                                        val t0 = System.currentTimeMillis()
+                                        val t0 = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
                                         onDispose {
-                                            val secs = ((System.currentTimeMillis() - t0) / 1000).toInt()
+                                            val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - t0) / 1000).toInt()
                                             prefs.addPractice(java.time.LocalDate.now(), secs)
                                             if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
                                         }
@@ -1169,6 +1169,9 @@ class MainActivity : ComponentActivity() {
             else -> back
         }
     }
+
+    override fun onStart() { super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start() }
+    override fun onStop() { com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); super.onStop() }
 
     override fun onPause() {
         Juice.world?.flush()            // the treat jar saves every few notes; the rest now

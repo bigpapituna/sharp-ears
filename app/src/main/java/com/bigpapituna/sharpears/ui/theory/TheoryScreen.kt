@@ -134,7 +134,7 @@ fun TheoryScreen(
     var nav by remember { mutableStateOf(debugStart(context)) }
     val version = store.version.intValue
 
-    fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, System.currentTimeMillis()) }
+    fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()) }
     fun toPath() { voice.stop(); nav = Nav.Path }
 
     when (val n = nav) {
@@ -155,7 +155,7 @@ fun TheoryScreen(
             val (unit, lesson) = theoryLesson(n.lessonId)!!
             androidx.compose.runtime.key(n.lessonId) {
                 Quiz(unit, lesson, sampler, voice, n.startAt, onDone = { correct, total ->
-                    val secs = ((System.currentTimeMillis() - n.openedAt) / 1000).toInt()
+                    val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - n.openedAt) / 1000).toInt()
                     val f = store.finish(n.lessonId, correct, total, secs)
                     onPractice(secs)
                     onLessonDone(n.lessonId, f.percent)
@@ -205,7 +205,7 @@ private fun debugStart(context: android.content.Context): Nav {
     if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return Nav.Path
     val intent = (context as? Activity)?.intent ?: return Nav.Path
     val id = intent.getStringExtra("theory")?.takeIf { theoryLesson(it) != null } ?: return Nav.Path
-    val now = System.currentTimeMillis()
+    val now = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
     Log.d(TAG, "theory: debug start $id ${intent.getStringExtra("part") ?: "watch"}")
     return when (intent.getStringExtra("part")) {
         "quiz" -> Nav.Quiz(id, now, intent.getIntExtra("question", 0))

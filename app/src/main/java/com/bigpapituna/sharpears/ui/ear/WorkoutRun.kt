@@ -1,6 +1,5 @@
 package com.bigpapituna.sharpears.ui.ear
 
-import android.os.SystemClock
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,7 +73,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
     var index by remember { mutableIntStateOf(0) }
     var upNext by remember { mutableStateOf(true) }
     val results = remember { mutableStateListOf<WorkoutGame>() }
-    val started = remember { SystemClock.elapsedRealtime() }
+    val started = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }
     var seconds by remember { mutableIntStateOf(0) }
     // Integration: XP at the start, and the celebration waits one frame for the report so it can show the XP earned.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
@@ -85,7 +84,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
         index >= plan.items.size -> {
             val total = WorkoutResult(results.toList())
             LaunchedEffect(Unit) {
-                seconds = ((SystemClock.elapsedRealtime() - started) / 1000).toInt()
+                seconds = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - started) / 1000).toInt()
                 store.recordWorkout(total.score, total.rounds)
                 env.report(EarEvent.Workout(results.size, total.score, total.rounds, total.bestStreak, seconds))
                 reported = true

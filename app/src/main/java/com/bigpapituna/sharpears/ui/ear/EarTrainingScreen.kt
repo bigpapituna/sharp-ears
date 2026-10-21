@@ -114,7 +114,7 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
     // Integration: the XP this game earned (rounds and the game, reported through env.report) on the celebration.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtStart = remember { progress?.xp ?: 0 }
-    val started = remember { android.os.SystemClock.elapsedRealtime() }
+    val started = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }
     var newBest by remember { mutableStateOf<Boolean?>(null) }
     val done = newBest
     if (done == null) {
@@ -122,7 +122,7 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
             val best = store.saveBest(kind, level, trainer.score)
             store.played(kind)
             env.report(EarEvent.GameComplete(kind, level, trainer.score, trainer.rounds, trainer.bestStreak, best,
-                ((android.os.SystemClock.elapsedRealtime() - started) / 1000).toInt()))
+                ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - started) / 1000).toInt()))
             env.voice.speak("${trainer.score} out of ${trainer.rounds}." + if (best) " A new best." else "")
             newBest = best
         }
