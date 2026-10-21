@@ -97,7 +97,8 @@ class WorldTest {
             s = o.state
         }
         assertEquals(2, houseUps)
-        assertEquals(WearItem.entries.toList(), unlocked)
+        // 2.5: stickers no longer open things to wear; the practice ledger does (WardrobeTest).
+        assertTrue(unlocked.isEmpty())
         assertEquals(3, s.house)
     }
 
@@ -189,21 +190,25 @@ class WorldTest {
     }
 
     @Test fun dressUnlocksAndSlots() {
-        assertTrue(Dress.unlocked(0).isEmpty())
-        assertEquals(listOf(WearItem.BOW_TIE), Dress.unlocked(1))
-        assertEquals(listOf(WearItem.SUNGLASSES, WearItem.PARTY_HAT), Dress.newlyUnlocked(2, 6))
-        assertEquals(WearItem.SUNGLASSES to 2, Dress.next(1))
-        assertNull(Dress.next(30))
+        // The 2.1 rule survives for old saves only: what their stickers had opened stays open.
+        assertTrue(Wardrobe.legacy(0).isEmpty())
+        assertEquals(setOf(WearItem.BOW_TIE), Wardrobe.legacy(1))
+        assertEquals(setOf(WearItem.BOW_TIE, WearItem.SUNGLASSES, WearItem.PARTY_HAT), Wardrobe.legacy(6))
+        assertEquals(6, Wardrobe.legacy(30).size)
         // One per slot: a second hat replaces the first; the bow tie stays.
         var o = Outfit().toggle(WearItem.PARTY_HAT).toggle(WearItem.BOW_TIE).toggle(WearItem.TOP_HAT)
         assertEquals(setOf(WearItem.TOP_HAT, WearItem.BOW_TIE), o.items)
         o = o.toggle(WearItem.TOP_HAT)
         assertEquals(setOf(WearItem.BOW_TIE), o.items)
+        // Four slots combine.
+        val all = Outfit().with(WearItem.CROWN).with(WearItem.STAR_GLASSES).with(WearItem.KNIGHT).with(WearItem.WINGS)
+        assertEquals(4, all.items.size)
+        assertEquals(WearItem.BOW_TIE, all.with(WearItem.BOW_TIE).inSlot(WearSlot.BODY))
         // Locked items cannot be worn.
-        val s = WorldState(seed = 1L, history = DropHistory(owned = mapOf("garden-1" to 1, "garden-2" to 1)))
+        val s = WorldState(seed = 1L, wardrobe = setOf(WearItem.BOW_TIE))
         assertEquals(Outfit.NONE, World.wear(s, WearItem.SUNGLASSES).outfit)
         assertEquals(setOf(WearItem.BOW_TIE), World.wear(s, WearItem.BOW_TIE).outfit.items)
-        assertEquals(setOf(WearItem.BOW_TIE), Dress.allowed(Outfit(setOf(WearItem.BOW_TIE, WearItem.TOP_HAT)), 2).items)
+        assertEquals(setOf(WearItem.BOW_TIE), World.dress(s, Outfit(setOf(WearItem.BOW_TIE, WearItem.TOP_HAT))).outfit.items)
     }
 
     @Test fun serialisationRoundTrip() {
@@ -215,6 +220,14 @@ class WorldTest {
             outfit = Outfit(setOf(WearItem.SUNGLASSES, WearItem.SCARF)),
             pupSays = mapOf(day to 6, day.minusDays(1) to 3),
             latest = "pond-3",
+            ledger = Ledger(seconds = 4000, credited = mapOf(day to 600), days = 7, lastDay = day, streak = 3, best = 5,
+                threeStars = setOf("playground-1"), finales = setOf("garden"), songs = 4, songSparkles = 4, songDay = day, songsThatDay = 1),
+            wardrobe = setOf(WearItem.SUNGLASSES, WearItem.SCARF, WearItem.FLOWER_CROWN),
+            fresh = listOf(WearItem.FLOWER_CROWN),
+            practiceDay = day,
+            levels = setOf("playground-1"),
+            earned = listOf("garden-1", "lv:playground-1", "pond-3", "concert-10"),
+            placements = Placements(mapOf("garden:sky" to "lv:playground-1", "pond:water" to "pond-3")),
         )
         assertEquals(s, WorldState.decode(s.encode(), seed = 0L))
         assertEquals(WorldState(seed = 9L), WorldState.decode(null, seed = 9L))
@@ -226,5 +239,9 @@ class WorldTest {
         assertEquals(TreatJar.CAPACITY, odd.jar)
         assertNull(odd.latest)
         assertEquals(5L, odd.seed)
+        // A 2.4 world (no version): its sticker opened the bow tie, which stays open; the sticker waits in the tray.
+        assertEquals(setOf(WearItem.BOW_TIE), odd.wardrobe)
+        assertEquals(listOf("garden-2"), odd.tray)
+        assertTrue(odd.homesLine)
     }
 }

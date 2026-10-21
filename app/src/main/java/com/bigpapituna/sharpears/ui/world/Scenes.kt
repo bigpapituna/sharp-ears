@@ -24,8 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -54,7 +52,10 @@ import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.engine.kid.KidPages
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
 import com.bigpapituna.sharpears.engine.playground.PlaygroundPage
+import com.bigpapituna.sharpears.engine.world.Decal
+import com.bigpapituna.sharpears.engine.world.Decor
 import com.bigpapituna.sharpears.engine.world.Place
+import com.bigpapituna.sharpears.engine.world.SceneSlot
 import com.bigpapituna.sharpears.engine.world.Scenery
 import com.bigpapituna.sharpears.engine.world.Sticker
 import com.bigpapituna.sharpears.engine.world.Stickers
@@ -79,7 +80,7 @@ data class Anchor(val place: Place, val x: Float, val y: Float)
  * The points the integrator lays things on: the Playground's lesson stops along each scene's trail (2.2: one scene per
  * Playground page, engine/playground/Pages.kt, twelve stops each in three winding rows, engine/world/Trail.kt), the
  * dog house, the treat jar and the egg's nest in the garden, the stage in the concert hall, the gate to the big kids'
- * road. [item] is where each collected sticker sits.
+ * road. Stickers sit where the kid puts them (2.5, engine/world/Decor.kt).
  */
 object WorldAnchors {
     /** The scene a Playground page is drawn as. */
@@ -106,55 +107,10 @@ object WorldAnchors {
     /** Where the gate to the big kids' road stands in [place]'s scene of [count] stops, when it is the last page's. */
     fun gate(place: Place, count: Int = Trail.STOPS): Anchor = Trail.gate(place, count).let { Anchor(place, it.x, it.y) }
 
-    /** The smiling sun sticker, and where it sits at dusk: setting behind the far hills, its size a share of the width. */
-    const val SUN = "garden-2"
-    val SUNSET = Anchor(Place.GARDEN, 0.62f, 0.34f) to 0.15f
     val HOUSE = Anchor(Place.GARDEN, 0.28f, 0.40f)
     val JAR = Anchor(Place.GARDEN, 0.555f, 0.47f)
     val EGG = Anchor(Place.GARDEN, 0.74f, 0.47f)
     val STAGE = Anchor(Place.CONCERT, 0.50f, 0.38f)
-
-    /** Where a collected sticker sits in its place's scene, and how big (a share of the scene's width). */
-    fun item(s: Sticker): Pair<Anchor, Float> {
-        val (x, y, size) = ITEMS.getValue(s.id)
-        return Anchor(s.place, x, y) to size
-    }
-
-    private val ITEMS = mapOf(
-        "garden-1" to Triple(0.235f, 0.93f, 0.11f), "garden-2" to Triple(0.86f, 0.12f, 0.20f), "garden-3" to Triple(0.87f, 0.28f, 0.14f),
-        "garden-4" to Triple(0.465f, 0.93f, 0.10f), "garden-5" to Triple(0.95f, 0.57f, 0.11f), "garden-6" to Triple(0.695f, 0.93f, 0.11f),
-        "garden-7" to Triple(0.66f, 0.37f, 0.11f), "garden-8" to Triple(0.07f, 0.46f, 0.17f), "garden-9" to Triple(0.13f, 0.17f, 0.13f),
-        "garden-10" to Triple(0.585f, 0.14f, 0.27f),
-        "pond-1" to Triple(0.185f, 0.49f, 0.10f), "pond-2" to Triple(0.69f, 0.485f, 0.10f), "pond-3" to Triple(0.47f, 0.52f, 0.08f),
-        "pond-4" to Triple(0.76f, 0.20f, 0.14f), "pond-5" to Triple(0.31f, 0.485f, 0.10f), "pond-6" to Triple(0.94f, 0.45f, 0.12f),
-        "pond-7" to Triple(0.82f, 0.49f, 0.10f), "pond-8" to Triple(0.235f, 0.93f, 0.11f), "pond-9" to Triple(0.50f, 0.36f, 0.24f),
-        "pond-10" to Triple(0.20f, 0.12f, 0.20f),
-        "concert-1" to Triple(0.50f, 0.07f, 0.13f), "concert-2" to Triple(0.91f, 0.285f, 0.11f), "concert-3" to Triple(0.07f, 0.36f, 0.12f),
-        "concert-4" to Triple(0.63f, 0.36f, 0.10f), "concert-5" to Triple(0.76f, 0.375f, 0.12f), "concert-6" to Triple(0.26f, 0.325f, 0.21f),
-        "concert-7" to Triple(0.86f, 0.10f, 0.14f), "concert-8" to Triple(0.925f, 0.41f, 0.11f), "concert-9" to Triple(0.93f, 0.55f, 0.09f),
-        "concert-10" to Triple(0.15f, 0.09f, 0.16f),
-        // 2.3. The workshop: tools on the pegboard and the bench, the tuning fork on the piano being built, the rest on
-        // the floorboards between the stones.
-        "workshop-1" to Triple(0.385f, 0.13f, 0.10f), "workshop-2" to Triple(0.235f, 0.93f, 0.11f), "workshop-3" to Triple(0.79f, 0.075f, 0.12f),
-        "workshop-4" to Triple(0.09f, 0.355f, 0.085f), "workshop-5" to Triple(0.455f, 0.255f, 0.12f), "workshop-6" to Triple(0.695f, 0.93f, 0.10f),
-        "workshop-7" to Triple(0.535f, 0.13f, 0.09f), "workshop-8" to Triple(0.20f, 0.35f, 0.095f), "workshop-9" to Triple(0.465f, 0.93f, 0.10f),
-        "workshop-10" to Triple(0.32f, 0.335f, 0.105f),
-        // The treehouse: up in the branches and on the platforms, the kite caught in the leaves, the small things on the ground.
-        "treehouse-1" to Triple(0.235f, 0.94f, 0.085f), "treehouse-2" to Triple(0.30f, 0.29f, 0.11f), "treehouse-3" to Triple(0.505f, 0.405f, 0.095f),
-        "treehouse-4" to Triple(0.90f, 0.45f, 0.11f), "treehouse-5" to Triple(0.07f, 0.09f, 0.09f), "treehouse-6" to Triple(0.22f, 0.17f, 0.11f),
-        "treehouse-7" to Triple(0.695f, 0.94f, 0.10f), "treehouse-8" to Triple(0.865f, 0.235f, 0.08f), "treehouse-9" to Triple(0.465f, 0.94f, 0.08f),
-        "treehouse-10" to Triple(0.87f, 0.075f, 0.14f),
-        // The night sky: the moon sticker over the scene's own moon, the rest in the sky and on the hill.
-        "nightsky-1" to Triple(0.80f, 0.13f, 0.16f), "nightsky-2" to Triple(0.33f, 0.10f, 0.16f), "nightsky-3" to Triple(0.10f, 0.43f, 0.095f),
-        "nightsky-4" to Triple(0.465f, 0.95f, 0.07f), "nightsky-5" to Triple(0.62f, 0.42f, 0.12f), "nightsky-6" to Triple(0.11f, 0.20f, 0.12f),
-        "nightsky-7" to Triple(0.57f, 0.20f, 0.15f), "nightsky-8" to Triple(0.36f, 0.33f, 0.12f), "nightsky-9" to Triple(0.92f, 0.32f, 0.085f),
-        "nightsky-10" to Triple(0.81f, 0.465f, 0.10f),
-        // The fair: balloons and the big wheel in the sky, a prize by the tent, the snacks on the midway between the stones.
-        "fair-1" to Triple(0.10f, 0.11f, 0.11f), "fair-2" to Triple(0.235f, 0.95f, 0.09f), "fair-3" to Triple(0.465f, 0.95f, 0.09f),
-        "fair-4" to Triple(0.51f, 0.555f, 0.10f), "fair-5" to Triple(0.695f, 0.95f, 0.09f), "fair-6" to Triple(0.68f, 0.09f, 0.16f),
-        "fair-7" to Triple(0.95f, 0.64f, 0.075f), "fair-8" to Triple(0.165f, 0.525f, 0.10f), "fair-9" to Triple(0.235f, 0.62f, 0.08f),
-        "fair-10" to Triple(0.95f, 0.85f, 0.075f),
-    )
 
     /** The concert audience's seats, left to right. */
     fun seat(i: Int): Anchor = Anchor(Place.CONCERT, 0.07f + i * (0.86f / (Scenery.SEATS - 1)), 0.89f)
@@ -198,15 +154,21 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
                onSticker: ((Sticker) -> Unit)? = null, pupOnStage: Boolean = true,
                /** The garden's treat jar and egg: tapping them (null: they are only shown). */
                onJar: (() -> Unit)? = null, onEgg: (() -> Unit)? = null,
+               /**
+                * 2.5, decorate mode: draws every slot of the scene ([Decor.of]) with what sits in it (null: empty), in the
+                * scene's box (place it with [centerAt]). Null: the stickers stuck in the slots are just shown.
+                */
+               slots: (@Composable BoxWithConstraintsScope.(SceneSlot, Decal?) -> Unit)? = null,
                overlay: (@Composable BoxWithConstraintsScope.() -> Unit)? = null) {
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
     // The concert hall and the workshop have nothing that drifts: no clock, so the scene is painted once and never again
     // until it changes.
     val t = rememberSceneClock(running = place.moves)
     val owned = state.history.owned
-    val items = Scenery.items(place, owned)
+    // 2.5: the kid puts the stickers here (decorate mode); nothing is placed by the app any more.
+    val placed = state.placements.on(place)
     BoxWithConstraints(modifier.fillMaxWidth().aspectRatio(SCENE_RATIO).clip(RoundedCornerShape(20.dp))
-        .semantics { contentDescription = "${place.title}: ${items.size} of 10 stickers" + if (place == Place.GARDEN) ", dog house stage ${state.house}" else "" }) {
+        .semantics { contentDescription = place.title + (if (placed.isEmpty()) "" else ", ${placed.size} ${if (placed.size == 1) "sticker" else "stickers"} stuck here") + if (place == Place.GARDEN) ", dog house stage ${state.house}" else "" }) {
         val w = maxWidth
         val stage = state.house
         val egg = state.egg
@@ -266,20 +228,12 @@ fun PlaceScene(place: Place, state: WorldState, modifier: Modifier = Modifier,
             val a = WorldAnchors.STAGE
             Pup(Pose.PRACTICING, size = w * 0.26f, bounce = BounceSize.SMALL, modifier = Modifier.centerAt(a.x, a.y))
         }
-        items.forEach { s ->
-            // At dusk the smiling sun is setting: low over the far hills, its lower part gone behind them (not up in the
-            // sky beside the moon and the stars).
-            val setting = night && s.id == WorldAnchors.SUN
-            val (a, k) = if (setting) WorldAnchors.SUNSET else WorldAnchors.item(s)
-            val tap = if (onSticker == null) Modifier else Modifier.clickable(role = Role.Button) { onSticker(s) }
-            val sunset = if (!setting) Modifier else Modifier.drawWithContent { clipRect(bottom = size.height * 0.6f) { this@drawWithContent.drawContent() } }
-            // Kept whole inside the scene (a few anchors sit so near an edge that a tilted sticker was cut off there).
-            val halfX = k / 2f + 0.015f
-            val halfY = k * SCENE_RATIO / 2f + 0.015f
-            val cx = if (setting) a.x else a.x.coerceIn(halfX, 1f - halfX)
-            val cy = if (setting) a.y else a.y.coerceIn(halfY, 1f - halfY)
-            StickerImage(s, Modifier.centerAt(cx, cy).size(w * k).then(sunset).then(tap).semantics { contentDescription = s.name },
-                tilt = if (setting) 0f else s.tilt(), shadow = !setting)
+        if (slots != null) {
+            val at = placed.associate { it.first.id to it.second }
+            Decor.of(place).forEach { sl -> slots(sl, at[sl.id]) }
+        } else placed.forEach { (sl, d) ->
+            val tap = if (onSticker == null || d !is Sticker) Modifier else Modifier.clickable(role = Role.Button) { onSticker(d) }
+            StickerImage(d, Modifier.centerAt(sl.x, sl.y).size(w * sl.size).then(tap).semantics { contentDescription = "${d.name}, ${sl.name}" })
         }
         if (place == Place.CONCERT) Scenery.audience(owned).forEachIndexed { i, s ->
             val a = WorldAnchors.seat(i)

@@ -74,14 +74,15 @@ fun demoWorld(stickers: Int, notes: Int = 120, egg: Boolean = true, songIds: Lis
 }
 
 /** A reward for the reveal demo: one drop of [rarity], plus an egg's when [egg]; new unless [double]. */
-fun demoReward(rarity: Rarity, egg: Boolean, double: Boolean = false): Reward {
+fun demoReward(rarity: Rarity, egg: Boolean, double: Boolean = false, unlock: List<WearItem>? = null, level: Boolean = false): Reward {
     val first = Stickers.ALL.first { it.rarity == rarity && it.place == Place.POND }
     val drops = buildList {
         add(Drop(first, DropSource.LESSON, isNew = !double))
         if (egg) add(Drop(Stickers.ALL.first { it.rarity == Rarity.SHINY && it.place == Place.CONCERT }, DropSource.EGG, isNew = true))
     }
     return Reward(drops, eggLaid = false, eggHatched = egg, houseBefore = 1, houseAfter = if (egg) 2 else 1,
-        unlocked = if (egg) listOf(WearItem.SUNGLASSES) else emptyList(), record = if (egg) RecordUp("twinkle", Medal.SILVER, Medal.GOLD) else null)
+        unlocked = unlock ?: if (egg) listOf(WearItem.SUNGLASSES) else emptyList(), record = if (egg) RecordUp("twinkle", Medal.SILVER, Medal.GOLD) else null,
+        level = if (level) com.bigpapituna.sharpears.engine.world.LevelStickers.byLesson("pond-3") else null)
 }
 
 /**
@@ -116,7 +117,9 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                     when (part) {
                         "reveal" -> DropRevealOverlay(demoReward(
                             Rarity.entries.firstOrNull { it.name.equals(intent.getStringExtra("rarity"), true) } ?: Rarity.COMMON,
-                            egg = intent.getBooleanExtra("eggdrop", false), double = intent.getBooleanExtra("double", false)), onDone = onClose)
+                            egg = intent.getBooleanExtra("eggdrop", false), double = intent.getBooleanExtra("double", false),
+                            unlock = intent.getStringExtra("unlock")?.split(",")?.mapNotNull { WearItem.byId(it.trim()) },
+                            level = intent.getBooleanExtra("level", false)), onDone = onClose)
                         "onemore" -> {
                             // As the app will: the lesson's reward applied first, then the preview of the lesson after it.
                             val reward = remember { world.lessonComplete("demo") }
@@ -130,7 +133,7 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                         else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             when (part) {
-                                "album" -> AlbumView(world.state.album)
+                                "album" -> AlbumView(world.state)
                                 "world" -> {
                                     val place = Place.byId(intent.getStringExtra("place"))
                                     if (place != null) PlaceScene(place, world.state) else WorldMap(world.state)
@@ -151,6 +154,19 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                                     EggView(EggLook.HATCHED, Modifier.size(90.dp, 116.dp), open = 0.7f)
                                 }
                                 "dress" -> DressUp(world)
+                                // 2.5: every item on its own pup (--es slot head|face|body|back), for checking the drawing.
+                                "wardrobe" -> {
+                                    val slot = com.bigpapituna.sharpears.engine.world.WearSlot.entries.firstOrNull { it.name.equals(intent.getStringExtra("slot"), true) }
+                                    val px = intent.getIntExtra("size", 150).dp
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        WearItem.entries.filter { slot == null || it.slot == slot }.forEach { item ->
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Pup(Pose.WEAR_BASE, size = px, idle = false, outfit = Outfit(setOf(item)), bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
+                                                Text(item.label, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
+                                }
                                 "shelf" -> RecordsShelf(world.state.records, songs)
                                 "idle" -> IdleDemo()
                                 "card" -> WorldCard(world, onOpen = {})

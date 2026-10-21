@@ -93,6 +93,8 @@ import com.bigpapituna.sharpears.ui.motion.PupInput
 import com.bigpapituna.sharpears.ui.world.LocalPupOutfit
 import com.bigpapituna.sharpears.ui.world.Wear
 import com.bigpapituna.sharpears.ui.world.drawOutfit
+import com.bigpapituna.sharpears.ui.world.drawOutfitBehind
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -439,12 +441,13 @@ fun Pup(
     }
 }
 
-/** One pose's image, feet on the ground (bottom-aligned), with the outfit over the base pose. */
+/** One pose's image, feet on the ground (bottom-aligned), with the outfit over the base pose (and under it: a cape, wings). */
 @Composable
 private fun PoseImage(pose: Pose, outfit: Outfit, alpha: () -> Float) {
-    // A hat or headphones reach above the base image (Wear.box tops below 0). Where the box has no room over his head
-    // (a tight tile, a 44 dp pup in a row), he and his outfit shrink together, feet down, so nothing pokes out of it.
-    val above = if (pose == Pose.WEAR_BASE && !outfit.isEmpty) -minOf(0f, outfit.items.minOf { Wear.box(it).top }) else 0f
+    // A hat or a halo reaches above the base image (Wear.box tops below 0). Where the box has no room over his head (a
+    // tight tile, a 44 dp pup in a row), he and his outfit shrink together, feet down, so nothing pokes out of it.
+    val dressed = pose == Pose.WEAR_BASE && !outfit.isEmpty
+    val above = if (dressed) Wear.above(outfit) else 0f
     val fit = Modifier.fillMaxSize().graphicsLayer {
         this.alpha = alpha()
         if (above > 0f) {
@@ -454,13 +457,15 @@ private fun PoseImage(pose: Pose, outfit: Outfit, alpha: () -> Float) {
             scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0.5f, 1f)
         }
     }
+    // The image's own pixels onto the box, the way ContentScale.Fit with BottomCenter places it.
+    fun DrawScope.inBase(block: DrawScope.() -> Unit) {
+        val k = minOf(size.width / Wear.BASE_W, size.height / Wear.BASE_H)
+        translate((size.width - Wear.BASE_W * k) / 2f, size.height - Wear.BASE_H * k) { scale(k, Offset.Zero) { block() } }
+    }
+    if (dressed && Wear.behind(outfit).isNotEmpty()) Canvas(fit) { inBase { drawOutfitBehind(outfit) } }
     Image(painterResource(pose.res), contentDescription = null, contentScale = ContentScale.Fit, alignment = Alignment.BottomCenter,
         modifier = fit)
-    if (pose == Pose.WEAR_BASE && !outfit.isEmpty) Canvas(fit) {
-        // The image's own pixels onto the box, the way ContentScale.Fit with BottomCenter places it.
-        val k = minOf(size.width / Wear.BASE_W, size.height / Wear.BASE_H)
-        translate((size.width - Wear.BASE_W * k) / 2f, size.height - Wear.BASE_H * k) { scale(k, Offset.Zero) { drawOutfit(outfit) } }
-    }
+    if (dressed) Canvas(fit) { inBase { drawOutfit(outfit) } }
 }
 
 /** Little z's drifting up from a sleeping pup, one after another. */

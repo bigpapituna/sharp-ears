@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.world.Crown
+import com.bigpapituna.sharpears.engine.world.LedgerInput
+import com.bigpapituna.sharpears.engine.world.Outfit
 import com.bigpapituna.sharpears.engine.world.NextDrop
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.engine.world.PupSaysResult
@@ -50,19 +52,41 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     }
 
     /**
+     * Where the practice ledger reads the other stores (MainActivity sets it when the profile opens: the practice log,
+     * the three-star lessons, the pages walked). Null: the ledger only counts songs (the debug world, tests).
+     */
+    var ledgerSource: (() -> LedgerInput)? = null
+
+    /** The ledger synced from [ledgerSource]: minutes, days, three-star lessons, finales. Items it opens wait in fresh. */
+    fun sync(today: LocalDate = LocalDate.now()) {
+        val input = ledgerSource?.invoke() ?: return
+        val before = state
+        val s = World.syncLedger(before, input.practice, input.threeStars, input.walked, today)
+        if (s == before) return
+        set(s)
+        val opened = s.wardrobe - before.wardrobe
+        log("wardrobe: ledger ${s.ledger.minutes} min, ${s.ledger.days} days, best run ${s.ledger.best}, ${s.ledger.threeStars.size} three-star, " +
+            "${s.ledger.finales.size} pages, ${s.ledger.songs} songs = ${s.ledger.sparkles} sparkles" +
+            (if (opened.isEmpty()) "" else "; opened ${opened.joinToString { it.id }}"))
+    }
+
+    /**
      * A course lesson finished: a sticker (a Playground lesson passes its page's [place], KidPages.dropPlace),
-     * the egg hatching or laid. Show the returned [Reward] (ui/world DropReveal).
+     * the egg hatching or laid, the stone's own sticker on its first finish, and anything the ledger opened. Show the
+     * returned [Reward] (ui/world DropReveal, RewardExtras).
      */
     fun lessonComplete(lessonId: String, place: Place? = null): Reward {
-        val o = World.lessonComplete(state, place)
+        sync()
+        val o = World.lessonComplete(state, place, lessonId)
         set(o.state)
         brief(o.reward)
-        log("world: lesson $lessonId -> " + describe(o.reward) + ", album ${o.state.unique}/30, lessons ${o.state.lessons}")
+        log("world: lesson $lessonId -> " + describe(o.reward) + ", album ${o.state.unique}/${Stickers.ALL.size}, lessons ${o.state.lessons}")
         return o.reward
     }
 
     /** A song played to its end; [accuracy] for a Perform run (0..100), null for Wait or Listen. */
     fun songComplete(songId: String, accuracy: Int?): Reward {
+        sync()
         val o = World.songComplete(state, songId, accuracy)
         set(o.state)
         brief(o.reward)
@@ -125,6 +149,48 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
         log("world: outfit ${s.outfit.items.joinToString { it.id }.ifEmpty { "none" }}")
     }
 
+    /** The pup in [outfit] (the unlock reveal puts the new item on, and "No" puts the old outfit back). */
+    fun dress(outfit: Outfit) {
+        val s = World.dress(state, outfit)
+        if (s == state) return
+        set(s)
+        log("world: outfit ${s.outfit.items.joinToString { it.id }.ifEmpty { "none" }}")
+    }
+
+    /** Items opened and not shown yet, now shown (the finale's own reveal). */
+    fun announce(): List<WearItem> {
+        val (s, items) = World.announce(state)
+        if (items.isNotEmpty()) { set(s); log("wardrobe: announced ${items.joinToString { it.id }}") }
+        return items
+    }
+
+    /** Level stickers for stones finished before (2.5's first open, an import): into the tray, quietly. */
+    fun earnLevels(done: (String) -> Boolean) {
+        val s = World.earnLevels(state, done)
+        if (s == state) return
+        set(s)
+        log("world: ${s.levels.size - state.levels.size} level stickers for stones already walked")
+    }
+
+    /** [key] stuck in [slotId] on the map (from the tray, or moved from another slot). */
+    fun place(key: String, slotId: String) {
+        val s = World.place(state, key, slotId)
+        if (s == state) return
+        set(s)
+        log("decorate: $key in $slotId")
+    }
+
+    /** [key] back in the tray. */
+    fun unplace(key: String) {
+        val s = World.unplace(state, key)
+        if (s == state) return
+        set(s)
+        log("decorate: $key back in the tray")
+    }
+
+    /** The pup has said the stickers want new homes. */
+    fun homesSaid() { if (state.homesLine) { set(World.homesSaid(state)); log("decorate: homes line said") } }
+
     /** Best Perform runs from before the world (Prefs bests per song id), so the shelf starts with them. Once per open is fine. */
     fun mergeRecords(bests: Map<String, Int>) {
         val s = World.mergeRecords(state, bests)
@@ -139,7 +205,8 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
 
     private fun describe(r: Reward) = r.drops.joinToString { "${it.sticker.id} ${it.rarity.label.lowercase()} ${it.source.name.lowercase()}${if (it.isNew) " new" else " double"}" } +
         (if (r.eggLaid) ", egg laid" else "") + (if (r.houseUp) ", house ${r.houseAfter}" else "") +
-        (if (r.unlocked.isNotEmpty()) ", unlocked ${r.unlocked.joinToString { it.id }}" else "")
+        (if (r.unlocked.isNotEmpty()) ", unlocked ${r.unlocked.joinToString { it.id }}" else "") +
+        (r.level?.let { ", level sticker ${it.key}" } ?: "")
 
     companion object {
         /** The file name; the integrator adds it to ProgressFiles.NAMES so backup, import and profile deletion cover it. */

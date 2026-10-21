@@ -161,9 +161,65 @@ Star chimes on the recap (skin team): `WorldSounds.star(i)` for star i (0, 1, 2;
 
 ## 10. Dress-up shows where he sits in his base pose
 
-The outfit is drawn only over `Pose.WEAR_BASE`. Suggested homes for the base pose so kids see their pup dressed: the
-You hero when nothing else applies (instead of WELCOME) and the Songs greeting's resting pose. Items open at 1, 3, 6,
-10, 15 and 22 different stickers (bow tie, sunglasses, party hat, scarf, headphones, top hat), one per head, eyes and neck.
+The outfit is drawn only over `Pose.WEAR_BASE` (the kid map's pup stands in it while he wears anything; the dress-up
+screen, the reveal, the finale's certificate pup do not change). 2.1's rule (items at 1, 3, 6, 10, 15 and 22 different
+stickers) is gone; see section 11. Decision (2.5): every item, hats included, follows the base pose only. The other 30
+poses are separate paintings with the head in a different place each time, and there are no anchors measured on them;
+a hat drawn by guess on a jumping or sleeping pup looked worse than none. Painted per-pose hats (GEMINI-BRIEF B2) are the
+upgrade path.
+
+## 11. The wardrobe and the practice ledger (2.5)
+
+Sixty things to wear in four slots that combine (head, face, body, feet and back), engine/world/Wardrobe.kt, drawn in
+ui/world/Outfit.kt (layers, `Wear.box`) and WearHead/WearFace/WearBody/WearBack.kt. Items open from one practice ledger
+(`Ledger` in WorldState), never bought, never lost: what opened stays open whatever the ledger later says.
+
+What the integrator sends (all of it already in the stores; MainActivity.openApp sets it up):
+
+```kotlin
+world.ledgerSource = {
+    LedgerInput(
+        progress.practiceLog(),                                  // minutes and days: ProgressStore (merged with Prefs practice:<day>)
+        kidStore.allStars().filterValues { it >= 3 }.keys,       // three-star lessons: KidStore stars:<lesson>
+        kidStore.finales() + PLAYGROUND_PAGES.filter { prefs.lessonDone(it.lastLessonId) }.map { it.id })   // finales, the page just ended
+}
+world.earnLevels(prefs::lessonDone)    // stones finished before 2.5 earn their own stickers (into the tray)
+world.sync()                            // once per open; lessonComplete and songComplete sync again themselves
+```
+
+Songs played to the end are counted by `world.songComplete` itself (no source needed). `sync()` is idempotent: a day's
+seconds are credited once (Ledger.credited, a floor for days dropped from it), a three-star lesson or a page once.
+
+Rates (sparkles): a minute 1, a day with a minute or more 5, a lesson's first three stars 4, a song to its end 2 (five a
+day count), a page finale 20. The practice track's items need 12, 42, 87, 147, 237, 337, 447 sparkles, then 120 more
+each; one practice item a day at most. Rare items: each page's finale (flower crown, mermaid tail, ballerina dress, tiny
+guitar, fairy wings, the space set, lion mane), seven and fourteen days in a row, ten and twenty-five three-star lessons,
+twenty and sixty songs, forty days. Shiny: three pages (halo), the big kids' road (crown), thirty days (wizard hat),
+fifty three-star lessons (rainbow dress). WardrobeTest prints a typical kid's timeline (build/wardrobe-timeline.txt).
+
+New items wait in `WorldState.fresh` and are announced by the next finish screen: `Reward.unlocked` (lessonComplete,
+songComplete) and `RewardExtras` shows `WardrobeReveal` (the card flips in, he wears it at once, "Keep it on?" Yes / Not
+now). Pass `say` to `RewardExtras` so the pup says it. A page's rare item shows on its last lesson's finish, just before
+the finale (the page counts as walked from then).
+
+Show how close the next item is with `NextOutfitMeter(world.state.nextOutfit, reader)` (a ring for pre-readers, a bar
+for readers; no numbers) or `ProgressRing`. Debug (debug builds, with `--es profile <id>`): `--es wardrobe all|<ids>`,
+`--es wear <ids>`, `--es fresh <ids>` (revealed at the next finish), `--es screen worlddemo --es part wardrobe [--es
+slot head|face|body|back]` (every item on its own pup), `--es part reveal --es unlock <ids> --ez level true`.
+
+## 12. Stickers on the map, placed by the kid (2.5)
+
+Every scene has 12 to 14 named spots (engine/world/Decor.kt `SLOTS`), clear of the stones, the stars under them and the
+gate at a phone's width and the Fold's (DecorTest). `PlaceScene` draws what sits in them (`WorldState.placements`) and
+nothing else: the app no longer places stickers (`WorldAnchors.item` is gone; the concert hall's audience still fills
+itself). The kid map's decorate mode is ui/kid/Decorate.kt; the store calls are `world.place(key, slotId)`,
+`world.unplace(key)`; `world.state.tray` lists the unplaced ones. Keys: a bonus sticker's id ("pond-3") or a stone's own
+"lv:<lesson id>" (`Decal.byKey`). Each stone has its own sticker (`LevelStickers`), earned on its first finish
+(`Reward.level`, shown by `RewardExtras`). Old worlds (version 1) keep their items, their stickers go to the tray and
+`homesLine` makes the pup say "Your stickers want new homes. Where should they go?" once. Debug: `--es decor
+<key>@<slot>+<key>@<slot>` (`clear` empties every spot), `--ez homes true`.
+
+The parent brief has no picture of the world, so nothing there shows placements.
 
 ## Logs (tag SharpEars)
 

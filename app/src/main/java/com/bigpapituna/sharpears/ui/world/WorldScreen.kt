@@ -94,7 +94,7 @@ fun WorldScreen(world: WorldStore, songs: List<SongMeta>, onBack: () -> Unit, st
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (tab) {
                 WorldTab.WORLD -> WorldTabBody(world)
-                WorldTab.ALBUM -> AlbumView(world.state.album)
+                WorldTab.ALBUM -> AlbumView(world.state)
                 WorldTab.DRESS -> DressUp(world)
                 WorldTab.RECORDS -> RecordsShelf(world.state.records, songs, onSong = onSong)
             }

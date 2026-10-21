@@ -63,7 +63,16 @@ import com.bigpapituna.sharpears.engine.kid.RoadUnit
 import com.bigpapituna.sharpears.engine.kid.Stone
 import com.bigpapituna.sharpears.engine.kid.StoneState
 import com.bigpapituna.sharpears.engine.play.ConcertCardLayout
+import com.bigpapituna.sharpears.engine.world.Decal
+import com.bigpapituna.sharpears.engine.world.Decor
+import com.bigpapituna.sharpears.engine.world.LevelSticker
+import com.bigpapituna.sharpears.engine.world.LevelStickers
 import com.bigpapituna.sharpears.engine.world.Place
+import com.bigpapituna.sharpears.engine.world.SceneSlot
+import com.bigpapituna.sharpears.ui.world.StickerSilhouette
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxSize
 import com.bigpapituna.sharpears.engine.world.WorldState
 import com.bigpapituna.sharpears.ui.Accent
 import com.bigpapituna.sharpears.ui.PupGold
@@ -85,10 +94,11 @@ import com.bigpapituna.sharpears.engine.play.Box as CardBox
 
 /** How big things are on a scene [w] wide: the stones, the next stone, the pup, the gate. */
 internal class MapSizes(private val w: Dp) {
-    val stone: Dp = (w * 0.085f).coerceIn(36.dp, 60.dp)
-    val next: Dp = stone * 1.25f
-    val pup: Dp = (w * 0.105f).coerceIn(54.dp, 96.dp)
-    val gate: Dp = (w * 0.12f).coerceIn(46.dp, 88.dp)
+    // The same sizes engine/world/Decor.kt keeps the stickers' spots clear of (DecorTest).
+    val stone: Dp = Decor.stoneDp(w.value).dp
+    val next: Dp = Decor.nextDp(w.value).dp
+    val pup: Dp = Decor.pupDp(w.value).dp
+    val gate: Dp = Decor.gateDp(w.value).dp
     val bubble: TextStyle @Composable get() = if (w >= 560.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium
 }
 
@@ -105,6 +115,8 @@ internal fun Modifier.pinAt(x: Dp, y: Dp, ax: Float = 0.5f, ay: Float = 0.5f): M
 @Composable
 internal fun PageScene(page: MapPage, world: WorldState, modifier: Modifier = Modifier, onStone: (Stone) -> Unit,
                        onJar: (() -> Unit)?, onEgg: (() -> Unit)?, asleep: Boolean = false,
+                       /** 2.5: the scene's sticker spots (decorate mode and its long press); null: stuck stickers only shown. */
+                       spots: (@Composable BoxWithConstraintsScope.(SceneSlot, Decal?) -> Unit)? = null,
                        overlay: @Composable BoxWithConstraintsScope.(MapSizes) -> Unit) {
     Column(modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PageFlag(page)
@@ -112,7 +124,8 @@ internal fun PageScene(page: MapPage, world: WorldState, modifier: Modifier = Mo
             val sizes = MapSizes(maxWidth)
             PlaceScene(page.place, world, Modifier.fillMaxWidth(), stops = page.stones.size, pupOnStage = false,
                 onJar = onJar.takeIf { page.place == Place.GARDEN }, onEgg = onEgg.takeIf { page.place == Place.GARDEN },
-                stop = { i -> page.stones.getOrNull(i)?.let { s -> StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep, stars = false) } },
+                stop = { i -> page.stones.getOrNull(i)?.let { s -> StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep, stars = false, badge = badgeOf(s, world)) } },
+                slots = spots,
                 overlay = { overlay(sizes); StarsOver(page, sizes) })
         }
     }
@@ -140,8 +153,12 @@ private fun PageFlag(page: MapPage) {
  * Next: the accent, bigger, a play mark, a ring rippling out. Left behind (a big kid's skipped game, or a gap behind a
  * finale): plain stone with an empty paw, open to play. Ahead: pale and still, asleep until the pup gets there.
  */
+/** A stone's own sticker while it is still to earn (2.5): its shape shows on the stone. */
+internal fun badgeOf(stone: Stone, world: WorldState): LevelSticker? =
+    LevelStickers.byLesson(stone.lessonId)?.takeIf { it.lessonId !in world.levels }
+
 @Composable
-internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, asleep: Boolean = false, stars: Boolean = true) {
+internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, asleep: Boolean = false, stars: Boolean = true, badge: LevelSticker? = null) {
     val next = stone.state == StoneState.NEXT
     val d = if (next) sizes.next else sizes.stone
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -149,7 +166,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     // The next stone's ripple, read only where it is drawn: a frame of it repaints the pebble, never recomposes the stone.
     val ring = if (next && !still && !asleep) rememberInfiniteTransition(label = "stone")
         .animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing), RepeatMode.Restart), label = "ring") else null
-    val label = stone.title + ", " + when (stone.state) {
+    val label = stone.title + (badge?.let { ", it gives the ${it.name.lowercase()} sticker" } ?: "") + ", " + when (stone.state) {
         StoneState.DONE -> "done, " + com.bigpapituna.sharpears.engine.skin.Stars.spoken(stone.stars).lowercase()
         StoneState.NEXT -> if (asleep) "next, the pup is asleep" else "next, tap to play"
         StoneState.OPEN -> "open to play"
@@ -159,6 +176,12 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
         Box(Modifier.size(d * 1.1f, d).clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }) {
             Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring?.value ?: 0f, asleep) }
+            // The sticker this stone gives, as a shape on its shoulder until it is earned.
+            if (badge != null) Box(Modifier.align(Alignment.TopEnd).offset(x = d * 0.22f, y = -d * 0.24f).size(d * 0.56f)
+                .background(Color.White.copy(alpha = if (night) 0.75f else 0.88f), CircleShape)
+                .border(1.5.dp, WorldInk.copy(alpha = 0.35f), CircleShape).padding(d * 0.07f).clearAndSetSemantics { }) {
+                StickerSilhouette(badge, WorldInk.copy(alpha = 0.38f), Modifier.fillMaxSize())
+            }
         }
         if (stars && stone.state == StoneState.DONE && stone.stars > 0) StarsUnder(stone.stars, sizes.stone * 0.36f)
     }) { ms, c ->
@@ -334,6 +357,7 @@ internal fun roadHeight(stones: Int): Dp = ROAD_TOP + ROAD_STEP * stones + 24.dp
  */
 @Composable
 internal fun BigKidsRoad(units: List<RoadUnit>, onStone: (Stone) -> Unit, modifier: Modifier = Modifier, asleep: Boolean = false,
+                         world: WorldState? = null,
                          overlay: @Composable BoxWithConstraintsScope.(MapSizes) -> Unit) {
     val stones = units.flatMap { it.stones }
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -369,7 +393,7 @@ internal fun BigKidsRoad(units: List<RoadUnit>, onStone: (Stone) -> Unit, modifi
             val first = at
             u.stones.forEach { s ->
                 val (x, y) = roadSpot(at, w)
-                Box(Modifier.pinAt(x, y)) { StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep) }
+                Box(Modifier.pinAt(x, y)) { StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep, badge = world?.let { badgeOf(s, it) }) }
                 at++
             }
             // The unit's sign beside its first stone, on the side the road does not go on to (the pup's bubble takes the

@@ -683,6 +683,53 @@ compiled and its 1156 tests passed as merged; this step wired the pieces into th
   - Dictation is code-reviewed only (nothing spoken to the emulator); the share sheet was opened, no app picked.
   - Kid profiles and the AI brief need the Play Families policy and children's privacy rules checked before a public app.
 
+## 2.5 wardrobe and trail stickers (2026-10-21, branch `wardrobe`, emulator-5558 Fold only; version not bumped)
+Roy: more outfits "that kids could earn the more they play", not too hard, not too easy; and stickers earned along the
+trail "which they can place around the trail themselves". Clarified: a sticker per stone (every Playground lesson and the
+Basics stones), the drops and the egg stay as bonus stickers; 36+ items with full costumes.
+- The wardrobe (engine/world/Wardrobe.kt, tested): 60 items in four slots that combine (head 23, face 9, body 22, feet and
+  back 7), each with a kid's name ("Captain Pup", "Star Wizard"), a rarity look and a first-worn line; the 2.1 six are
+  still the first six. Ten full costumes come as sets (bee, ballet, rodeo, snowman, dino, space, knight, pirate, doctor,
+  firefighter), plus capes, the lion mane, the mermaid tail, princess, ballerina and rainbow dresses. Drawn in code over
+  pup_wear_base (ui/world/Outfit.kt + WearHead/WearFace/WearBody/WearBack.kt) with a back layer under the pup (capes,
+  wings, mane, packs); base pose only (decision in ui/world/INTEGRATION.md 10). Galleries: `--es screen worlddemo --es
+  part wardrobe [--es slot head|face|body|back]`.
+- Earning (the practice ledger, `Ledger` in WorldState; rates table at the top of Wardrobe.kt): sparkles from minutes
+  (1), days with a minute (5), first three stars on a lesson (4), songs to the end (2, five a day), page finales (20);
+  commons along a practice track (12, 42, 87, 147, 237, 337, 447, then +120 each; one a day at most), rares on
+  milestones (each finale, 7 and 14 days in a row, 10 and 25 three-star lessons, 20 and 60 songs, 40 days), shinies on
+  big ones (three pages, the road, 30 days, 50 three-star lessons). Never bought, never lost (open stays open; the ledger
+  only grows, a floor stops a pruned day counting twice). WardrobeTest's typical kid (five 10-minute sessions a week, two
+  lessons and a song each): item 1 at session 1, items 2 to 4 by session 7, the first rare on the garden's finale
+  (session 6), never two practice items in a session; 15 items after month 1, 30 after month 2, 35 after month 3, 48 by
+  month 6 (build/wardrobe-timeline.txt).
+- Shown: dress-up by slot with rarity borders, a sparkle for shinies, locked items faded with how they are earned; the
+  next outfit as a ring for pre-readers and a bar for readers (no numbers), also round My stickers' Dress up tab; the
+  next finish screen reveals a new item (card flip and jingle, he wears it at once, "Keep it on?" Yes / Not now, said by
+  the pup).
+- Trail stickers: 82 level stickers (engine/world/LevelStickers.kt; placeholders from `scripts/gen_stickers.py
+  --levels`), earned on a stone's first finish, shown as a shape on a white disc on the stone until then, revealed on the
+  finish screen with the pup's line. The album is page by page in stone order, each place's bonus stickers under its
+  page, then the road. Nothing is placed by the app any more: every scene has 12 to 14 named spots (engine/world/Decor.kt,
+  DecorTest keeps them off stones, stars and the gate at 328 and 720 dp), the kid places stickers in decorate mode
+  (ui/kid/Decorate.kt): a tap on the tray at the bottom of My stickers or a long press on a spot opens it, the tray takes
+  the buttons' place, tap a sticker then a spot (or a spot then a sticker), hold and drag works, tap a stuck one to move
+  it or put it back in the tray; the pup dances and says "Ooh, there!". Placements persist per profile (WorldStore),
+  survive finales, show on the map, the world tab and the finale (the decorated page, then its stones' stickers).
+- Old saves: version 1 worlds keep the items their stickers opened, their stickers go to the tray, the pup says "Your
+  stickers want new homes. Where should they go?" once; stones finished before earn their level stickers on the first open.
+- Voice: 147 new kid lines (item lines, sticker lines, decorate mode, the reveal) recorded at 0.85; 3661 voice files.
+- Tests: 1200 JVM (1187 before): WardrobeTest, DecorTest, StickerArtTest, WorldTest and WorldStoreTest updated;
+  MapAnchorsTest's sticker check moved to DecorTest. Lint 0 errors (28 warnings, as before).
+- Emulator (5558 Fold, Mia p1 pre-reader, Theo p2 reader): migration line on Mia's old world, the tray, decorate mode by
+  tap (garden) and by long press and drag (pond, dark), dress-up with a costume on, the pre-reader ring and reader bar,
+  three combos on the map, the reveal, the finale. Screenshots: app/build/screens/wardrobe-*.png (not committed). Debug:
+  `--es wardrobe all|<ids>`, `--es wear <ids>`, `--es fresh <ids>`, `--es decor <key>@<slot>+...|clear`, `--ez homes true`,
+  `--es screen worlddemo --es part reveal --es unlock <ids> --ez level true`.
+- Open: the grown-ups' World tab shows placements but has no decorate mode (kids only); dragging cannot scroll the map
+  (drop on a spot in view, or use taps); spots on pages not yet reached stay shut; the outfit shows on the base pose only;
+  all art is placeholder (GEMINI-BRIEF B2 and C2 have the prompts); nothing seen by a child yet.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

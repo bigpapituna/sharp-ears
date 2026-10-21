@@ -482,6 +482,12 @@ class MainActivity : ComponentActivity() {
         // The kid home's memory (2.2): each lesson's best stars, the finales played (kept for grown-ups too, never shown).
         val kidStore = KidStore(this, profile.id)
         openPrefs = prefs; openKid = kidStore
+        // 2.5, the wardrobe's practice ledger: minutes and days from the practice log, three-star lessons and pages walked
+        // from the kid store (a page whose last lesson is done counts at once: its rare item shows on that lesson's finish).
+        world.ledgerSource = {
+            com.bigpapituna.sharpears.engine.world.LedgerInput(progress.practiceLog(), kidStore.allStars().filterValues { it >= 3 }.keys,
+                kidStore.finales() + PLAYGROUND_PAGES.filter { it.lessonIds.isNotEmpty() && prefs.lessonDone(it.lastLessonId) }.map { it.id })
+        }
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
         val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
@@ -491,6 +497,10 @@ class MainActivity : ComponentActivity() {
         val theory = TheoryStore(this, profile.id)     // one store for the Learn card and the academy, so the card updates
         val micCheck = micCheckExercise()
         if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) kidDebugSeed(intent, prefs, kidStore, progress, bedtime)
+        // Stones finished before 2.5 earn their own stickers into the tray; the ledger catches up with what was played.
+        world.earnLevels(prefs::lessonDone)
+        world.sync()
+        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) worldDebugSeed(intent, world)
 
         // Debug builds accept extras to open a screen directly:
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
@@ -704,6 +714,8 @@ class MainActivity : ComponentActivity() {
                     }
                     // A kid finished a Playground page's last lesson (2.2): its finale plays when they leave the lesson.
                     var pendingFinale by remember { mutableStateOf<String?>(null) }
+                    // A sticker tapped in My stickers' tray (2.5): the map opens in decorate mode holding it.
+                    var decorateWith by remember { mutableStateOf<String?>(null) }
                     // A course lesson finished: progress, today's quest, its stars on the stone, and the pup's world (a sticker from
                     // the lesson's page; the egg laid or hatched).
                     fun lessonDone(l: CourseLesson, stars: Int): Reward {
@@ -1062,6 +1074,9 @@ class MainActivity : ComponentActivity() {
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) },
                                     onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") }),
                                 onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
+                                decor = com.bigpapituna.sharpears.ui.kid.DecorActions(world::place, world::unplace, say = {}),
+                                decorateWith = decorateWith, onDecorateStarted = { decorateWith = null },
+                                homesLine = world.state.homesLine, onHomesSaid = world::homesSaid,
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
                                     fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
@@ -1218,7 +1233,8 @@ class MainActivity : ComponentActivity() {
                         is Screen.KidStickers -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
                             com.bigpapituna.sharpears.ui.kid.KidStickersScreen(world, songs, onBack = { screen = s.back }, start = s.page,
-                                onSong = { openSong(it, back = s) })
+                                onSong = { openSong(it, back = s) }, reader = current.reader,
+                                onDecorate = { key -> decorateWith = key; screen = if (s.back is Screen.Home) s.back else Screen.Home() })
                         }
                         is Screen.Finale -> {
                             val page = PLAYGROUND_PAGES.firstOrNull { it.id == s.pageId }
@@ -1226,7 +1242,7 @@ class MainActivity : ComponentActivity() {
                             else {
                                 // Played once: the path walks on past the page from now on (engine/kid/KidMap.next).
                                 LaunchedEffect(page.id) { kidStore.finalePlayed(page.id) }
-                                com.bigpapituna.sharpears.ui.kid.FinaleScreen(page, current.name, world.state.album.page(KidPages.worldPlace(page)),
+                                com.bigpapituna.sharpears.ui.kid.FinaleScreen(page, current.name, world.state.album.page(KidPages.worldPlace(page)), world.state,
                                     com.bigpapituna.sharpears.engine.kid.LessonStars.ofPage(page.lessonIds, kidStore::stars), Finale.after(page),
                                     say = { voice.speak(it) }, sound = prefs.sound,
                                     onDone = { voice.stop(); screen = Screen.Home(kidFrom = page.id); maybeGoodnight("the ${page.id} finale") })
@@ -1327,6 +1343,28 @@ class MainActivity : ComponentActivity() {
      * stars and finales. --ez sleepy true reaches today's goal and says goodnight (the map shows the pup asleep);
      * --ez awake true lets a grown-up's one more lesson through today (the map awake whatever was played).
      */
+    /**
+     * Debug builds (2.5, the wardrobe and decorate mode): `--es wardrobe all|<ids>` opens items, `--es wear <ids>` dresses
+     * the pup, `--es fresh <ids>` queues items for the next finish screen's reveal, `--es decor <key>@<slot>+...` sticks
+     * stickers (`--es decor clear` empties every spot), `--ez homes true` brings the "new homes" line back. Ids by commas.
+     */
+    private fun worldDebugSeed(intent: android.content.Intent, world: WorldStore) {
+        fun items(extra: String) = intent.getStringExtra(extra)?.let { v ->
+            if (v == "all") com.bigpapituna.sharpears.engine.world.WearItem.entries.toList()
+            else v.split(",").mapNotNull { com.bigpapituna.sharpears.engine.world.WearItem.byId(it.trim()) }
+        }
+        var s = world.state
+        items("wardrobe")?.let { s = s.copy(wardrobe = s.wardrobe + it) }
+        items("wear")?.let { w -> s = s.copy(wardrobe = s.wardrobe + w, outfit = w.fold(com.bigpapituna.sharpears.engine.world.Outfit.NONE) { o, i -> o.with(i) }) }
+        items("fresh")?.let { f -> s = s.copy(wardrobe = s.wardrobe + f, fresh = f) }
+        intent.getStringExtra("decor")?.let { spec ->
+            s = if (spec == "clear") s.copy(placements = com.bigpapituna.sharpears.engine.world.Placements())
+            else spec.split("+").fold(s) { st, p -> com.bigpapituna.sharpears.engine.world.World.place(st, p.substringBefore("@"), p.substringAfter("@")) }
+        }
+        if (intent.getBooleanExtra("homes", false)) s = s.copy(homesLine = true)
+        if (s != world.state) world.debugSet(s)
+    }
+
     private fun kidDebugSeed(intent: android.content.Intent, prefs: Prefs, kid: KidStore, progress: ProgressStore,
                              bedtime: com.bigpapituna.sharpears.ui.skin.BedtimeStore) {
         val stars = intArrayOf(3, 2, 3, 1, 3, 2, 2, 3, 1, 3, 2, 3)

@@ -38,9 +38,10 @@ enum class Rarity(val label: String) {
  * scripts/gen_stickers.py until the painted ones replace them under the same names. [animal]s also take a seat in
  * the concert audience once collected.
  */
-data class Sticker(val place: Place, val n: Int, val name: String, val rarity: Rarity, val animal: Boolean = false) {
+data class Sticker(val place: Place, val n: Int, override val name: String, val rarity: Rarity, val animal: Boolean = false) : Decal {
     val id: String get() = "${place.id}-$n"
-    val resName: String get() = "sticker_${place.id}_$n"
+    override val key: String get() = id
+    override val resName: String get() = "sticker_${place.id}_$n"
 }
 
 /**

@@ -199,7 +199,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 e.reward?.let { rw ->
                     Column(Modifier.fillMaxWidth().bringIntoViewRequester(dropInView).slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (short) 84.dp else if (kid) 132.dp else 116.dp)
-                        com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle })
+                        com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle }, say = say)
                     }
                 }
             }

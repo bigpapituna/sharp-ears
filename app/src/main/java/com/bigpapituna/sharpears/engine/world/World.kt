@@ -8,6 +8,12 @@ import java.time.LocalDate
  * [history]), the stickers owned, lessons finished (an egg every [World.EGG_EVERY]), the egg waiting to hatch, the
  * treat jar, the record shelf (best Perform accuracy per song), the pup's outfit, Pup says bests of recent days
  * (for the crown of the day) and the latest sticker (for the family wall).
+ *
+ * 2.5: the practice [ledger] and the [wardrobe] it opened ([fresh]: opened but not shown yet, the next finish screen
+ * reveals them; [practiceDay]: when the last practice item opened, one a day), the stones' own stickers ([levels],
+ * lesson ids), every sticker in the order it was earned ([earned], keys; the tray lists the unplaced ones newest first),
+ * where the kid stuck them ([placements]), and [homesLine]: stickers placed by the app before 2.5 were moved to the
+ * tray, and the pup says so once.
  */
 data class WorldState(
     val seed: Long,
@@ -27,14 +33,27 @@ data class WorldState(
     val pupSays: Map<LocalDate, Int> = emptyMap(),
     /** The sticker given last. */
     val latest: String? = null,
+    val ledger: Ledger = Ledger(),
+    val wardrobe: Set<WearItem> = emptySet(),
+    val fresh: List<WearItem> = emptyList(),
+    val practiceDay: LocalDate? = null,
+    val levels: Set<String> = emptySet(),
+    val earned: List<String> = emptyList(),
+    val placements: Placements = Placements(),
+    val homesLine: Boolean = false,
 ) {
     val album: Album get() = Album.of(history.owned)
     val unique: Int get() = history.unique
     val house: Int get() = House.stage(unique)
-    val unlocked: List<WearItem> get() = Dress.unlocked(unique)
+    /** Items open to wear, in catalogue order. */
+    val unlocked: List<WearItem> get() = WearItem.entries.filter { it in wardrobe }
+    /** Stickers not stuck anywhere yet, newest first. */
+    val tray: List<String> get() = Placements.tray(earned, placements)
+    /** How close the next practice item is (null when the track is done). */
+    val nextOutfit: NextOutfit? get() = Wardrobe.next(ledger, wardrobe)
 
     fun encode(): String = MiniJson.write(linkedMapOf(
-        "v" to 1,
+        "v" to VERSION,
         "seed" to seed,
         "owned" to history.owned.filterValues { it > 0 }.toSortedMap(),
         "sinceRare" to history.sinceRare,
@@ -47,34 +66,91 @@ data class WorldState(
         "outfit" to outfit.items.map { it.id }.sorted(),
         "pupSays" to pupSays.entries.sortedBy { it.key }.associate { it.key.toString() to it.value },
         "latest" to latest,
+        "ledger" to linkedMapOf(
+            "seconds" to ledger.seconds,
+            "credited" to ledger.credited.entries.sortedBy { it.key }.associate { it.key.toString() to it.value },
+            "days" to ledger.days,
+            "lastDay" to ledger.lastDay?.toString(),
+            "streak" to ledger.streak,
+            "best" to ledger.best,
+            "threeStars" to ledger.threeStars.sorted(),
+            "finales" to ledger.finales.sorted(),
+            "songs" to ledger.songs,
+            "songSparkles" to ledger.songSparkles,
+            "songDay" to ledger.songDay?.toString(),
+            "songsThatDay" to ledger.songsThatDay,
+            "floor" to ledger.floor?.toString(),
+        ),
+        "wardrobe" to WearItem.entries.filter { it in wardrobe }.map { it.id },
+        "fresh" to fresh.map { it.id },
+        "practiceDay" to practiceDay?.toString(),
+        "levels" to levels.sorted(),
+        "earned" to earned,
+        "placed" to placements.at.toSortedMap(),
+        "homesLine" to homesLine,
     ))
 
     companion object {
+        /** 1: 2.1 to 2.4 (stickers placed by the app, items by sticker count). 2: 2.5, the wardrobe and decorate mode. */
+        const val VERSION = 2
+
         /**
          * Reads [text] back; anything missing or unreadable falls back to a fresh world with [seed] (an unknown sticker
-         * or item id from a newer version is dropped, not fatal).
+         * or item id from a newer version is dropped, not fatal). A version 1 world is moved on: what its stickers had
+         * opened stays open, its stickers go to the tray (oldest first in catalogue order) and the pup's line is due.
          */
         fun decode(text: String?, seed: Long): WorldState {
             if (text.isNullOrBlank()) return WorldState(seed)
             val m = runCatching { MiniJson.read(text) as? Map<*, *> }.getOrNull() ?: return WorldState(seed)
-            fun int(k: String) = (m[k] as? Number)?.toInt() ?: 0
-            fun ints(k: String) = (m[k] as? Map<*, *>)?.mapNotNull { (key, v) -> (v as? Number)?.let { key.toString() to it.toInt() } }?.toMap().orEmpty()
+            fun int(k: String, map: Map<*, *> = m) = (map[k] as? Number)?.toInt() ?: 0
+            fun ints(k: String, map: Map<*, *> = m) = (map[k] as? Map<*, *>)?.mapNotNull { (key, v) -> (v as? Number)?.let { key.toString() to it.toInt() } }?.toMap().orEmpty()
+            fun strings(k: String, map: Map<*, *> = m) = (map[k] as? List<*>).orEmpty().mapNotNull { it as? String }
+            fun date(v: Any?) = (v as? String)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            val owned = ints("owned").filter { Stickers.byId(it.key) != null && it.value > 0 }
+            val old = int("v") < 2
+            val l = m["ledger"] as? Map<*, *> ?: emptyMap<String, Any>()
+            val ledger = Ledger(
+                seconds = (l["seconds"] as? Number)?.toLong()?.coerceAtLeast(0) ?: 0,
+                credited = ints("credited", l).mapNotNull { (d, s) -> date(d)?.let { it to s } }.toMap(),
+                days = int("days", l).coerceAtLeast(0),
+                lastDay = date(l["lastDay"]),
+                streak = int("streak", l).coerceAtLeast(0),
+                best = int("best", l).coerceAtLeast(0),
+                threeStars = strings("threeStars", l).toSet(),
+                finales = strings("finales", l).toSet(),
+                songs = int("songs", l).coerceAtLeast(0),
+                songSparkles = int("songSparkles", l).coerceAtLeast(0),
+                songDay = date(l["songDay"]),
+                songsThatDay = int("songsThatDay", l).coerceAtLeast(0),
+                floor = date(l["floor"]),
+            )
+            val levels = strings("levels").filter { LevelStickers.byLesson(it) != null }.toSet()
+            val keys = owned.keys + levels.map { LevelSticker.PREFIX + it }
+            val wardrobe = if (old) Wardrobe.legacy(owned.size) else strings("wardrobe").mapNotNull(WearItem::byId).toSet()
+            val earned = if (old) Stickers.ALL.map { it.id }.filter { it in owned }
+                else strings("earned").filter { it in keys }.distinct().let { e -> e + keys.filter { it !in e }.sorted() }
+            val placements = if (old) Placements() else Placements((m["placed"] as? Map<*, *>).orEmpty()
+                .mapNotNull { (k, x) -> (x as? String)?.let { k.toString() to it } }.toMap()).valid(keys)
             return WorldState(
                 seed = (m["seed"] as? Number)?.toLong() ?: seed,
-                history = DropHistory(
-                    owned = ints("owned").filter { Stickers.byId(it.key) != null && it.value > 0 },
-                    sinceRare = int("sinceRare").coerceAtLeast(0),
-                    rolls = int("rolls").coerceAtLeast(0),
-                ),
+                history = DropHistory(owned = owned, sinceRare = int("sinceRare").coerceAtLeast(0), rolls = int("rolls").coerceAtLeast(0)),
                 lessons = int("lessons").coerceAtLeast(0),
                 egg = m["egg"] == true,
                 jar = int("jar").coerceIn(0, TreatJar.CAPACITY),
                 treats = int("treats").coerceAtLeast(0),
                 records = ints("records").mapValues { it.value.coerceIn(0, 100) },
                 outfit = Outfit((m["outfit"] as? List<*>).orEmpty().mapNotNull { WearItem.byId(it?.toString()) }
-                    .groupBy { it.slot }.map { it.value.first() }.toSet()),
-                pupSays = ints("pupSays").mapNotNull { (d, v) -> runCatching { LocalDate.parse(d) to v }.getOrNull() }.toMap(),
+                    .filter { it in wardrobe }.groupBy { it.slot }.map { it.value.first() }.toSet()),
+                pupSays = ints("pupSays").mapNotNull { (d, n) -> date(d)?.let { it to n } }.toMap(),
                 latest = (m["latest"] as? String)?.takeIf { Stickers.byId(it) != null },
+                ledger = ledger,
+                wardrobe = wardrobe,
+                fresh = strings("fresh").mapNotNull(WearItem::byId).filter { it in wardrobe }.distinct(),
+                practiceDay = date(m["practiceDay"]),
+                levels = levels,
+                earned = earned,
+                placements = placements,
+                homesLine = if (old) owned.isNotEmpty() else m["homesLine"] == true,
             )
         }
     }
@@ -91,13 +167,16 @@ data class Reward(
     val eggHatched: Boolean = false,
     val houseBefore: Int = 1,
     val houseAfter: Int = 1,
+    /** 2.5: items to wear that opened since the last finish screen, announced now. */
     val unlocked: List<WearItem> = emptyList(),
     val record: RecordUp? = null,
+    /** 2.5: the stone's own sticker, earned on its first finish. */
+    val level: LevelSticker? = null,
 ) {
     val houseUp: Boolean get() = houseAfter > houseBefore
     /** The rarest drop (the one the jingle and the pup react to). */
     val best: Drop? get() = drops.maxByOrNull { it.rarity.ordinal }
-    val isEmpty: Boolean get() = drops.isEmpty() && !eggLaid && unlocked.isEmpty() && record == null && !houseUp
+    val isEmpty: Boolean get() = drops.isEmpty() && !eggLaid && unlocked.isEmpty() && record == null && !houseUp && level == null
 }
 
 /**
@@ -121,9 +200,11 @@ object World {
 
     /**
      * A lesson finished: a sticker (from [place] for a Playground lesson, else the album's current place), the waiting
-     * egg hatches one rarity up, and every [EGG_EVERY]th lesson lays a new egg.
+     * egg hatches one rarity up, and every [EGG_EVERY]th lesson lays a new egg. 2.5: the first finish of a stone with
+     * its own sticker ([lessonId], [LevelStickers]) earns it into the tray, and items the ledger opened since the last
+     * finish screen are announced ([Reward.unlocked]).
      */
-    fun lessonComplete(s: WorldState, place: Place? = null): Outcome {
+    fun lessonComplete(s: WorldState, place: Place? = null, lessonId: String? = null): Outcome {
         val drop = Drops.roll(s.seed, s.history, DropSource.LESSON, place)
         var h = s.history.after(drop)
         val drops = mutableListOf(drop)
@@ -134,27 +215,72 @@ object World {
         }
         val lessons = s.lessons + 1
         val lay = lessons % EGG_EVERY == 0
-        return finish(s, s.copy(history = h, lessons = lessons, egg = lay), drops, eggLaid = lay, eggHatched = s.egg)
+        val level = LevelStickers.byLesson(lessonId)?.takeIf { it.lessonId !in s.levels }
+        val after = s.copy(history = h, lessons = lessons, egg = lay, levels = level?.let { s.levels + it.lessonId } ?: s.levels,
+            earned = s.earned + listOfNotNull(level?.key))
+        return finish(s, after, drops, eggLaid = lay, eggHatched = s.egg, level = level)
     }
 
     /**
      * A song played to its end: a sticker (everyone who finishes gets one), and for a Perform run ([accuracy] not null)
-     * the record shelf keeps the best and says when its medal moved up.
+     * the record shelf keeps the best and says when its medal moved up. 2.5: the ledger counts the song ([today]).
      */
-    fun songComplete(s: WorldState, songId: String, accuracy: Int?): Outcome {
+    fun songComplete(s: WorldState, songId: String, accuracy: Int?, today: LocalDate = LocalDate.now()): Outcome {
         val drop = Drops.roll(s.seed, s.history, DropSource.SONG)
         val before = s.records[songId]
         val up = accuracy?.let { Records.up(songId, before, it) }
         val records = if (accuracy == null) s.records else s.records + (songId to Records.best(before, accuracy))
-        return finish(s, s.copy(history = s.history.after(drop), records = records), listOf(drop), record = up)
+        val counted = unlock(s.copy(ledger = s.ledger.song(today)), today)
+        return finish(s, counted.copy(history = s.history.after(drop), records = records), listOf(drop), record = up)
     }
 
     private fun finish(before: WorldState, after: WorldState, drops: List<Drop>, eggLaid: Boolean = false, eggHatched: Boolean = false,
-                       record: RecordUp? = null): Outcome {
-        val state = after.copy(latest = drops.lastOrNull()?.sticker?.id ?: after.latest)
-        return Outcome(state, Reward(drops, eggLaid, eggHatched, before.house, state.house, Dress.newlyUnlocked(before.unique, state.unique), record))
+                       record: RecordUp? = null, level: LevelSticker? = null): Outcome {
+        val newKeys = drops.filter { it.isNew }.map { it.sticker.key }.distinct().filter { it !in after.earned }
+        val state = after.copy(latest = drops.lastOrNull()?.sticker?.id ?: after.latest, earned = after.earned + newKeys, fresh = emptyList())
+        return Outcome(state, Reward(drops, eggLaid, eggHatched, before.house, state.house, after.fresh, record, level))
     }
 
+    /**
+     * The ledger synced from the stores (Ledger.sync: [practice] seconds a day, [threeStars] lessons, [walked] pages) on
+     * [today], and whatever it opens: milestones at once, the next practice item if its sparkles are in and none opened
+     * today. New items wait in [WorldState.fresh] for the next finish screen.
+     */
+    fun syncLedger(s: WorldState, practice: Map<LocalDate, Int>, threeStars: Set<String>, walked: Set<String>, today: LocalDate = LocalDate.now()): WorldState =
+        unlock(s.copy(ledger = s.ledger.sync(practice, threeStars, walked)), today)
+
+    private fun unlock(s: WorldState, today: LocalDate): WorldState {
+        var st = s
+        // A practice item a day at most; milestones all at once.
+        val due = Wardrobe.due(st.ledger, st.wardrobe, today, st.practiceDay)
+        if (due.isEmpty()) return st
+        val practice = due.any { it.earn is Earn.Practice }
+        st = st.copy(wardrobe = st.wardrobe + due, fresh = st.fresh + due.filter { it !in st.fresh },
+            practiceDay = if (practice) today else st.practiceDay)
+        return st
+    }
+
+    /** The items waiting to be shown, now shown (a finish screen that is not a lesson's or a song's: the finale). */
+    fun announce(s: WorldState): Pair<WorldState, List<WearItem>> = s.copy(fresh = emptyList()) to s.fresh
+
+    /**
+     * Level stickers for stones finished before 2.5 (or on another phone): every [done] lesson with a sticker of its
+     * own that is not earned yet goes into the tray, quietly.
+     */
+    fun earnLevels(s: WorldState, done: (String) -> Boolean): WorldState {
+        val add = LevelStickers.ALL.filter { it.lessonId !in s.levels && done(it.lessonId) }
+        return if (add.isEmpty()) s else s.copy(levels = s.levels + add.map { it.lessonId }, earned = s.earned + add.map { it.key })
+    }
+
+    /** [key] stuck in [slotId] (a sticker the person owns; a slot in a place they have reached is the caller's rule). */
+    fun place(s: WorldState, key: String, slotId: String): WorldState =
+        if (key !in s.earned) s else s.copy(placements = s.placements.put(key, slotId), homesLine = false)
+
+    /** [key] back in the tray. */
+    fun unplace(s: WorldState, key: String): WorldState = s.copy(placements = s.placements.remove(key))
+
+    /** The pup said the stickers want new homes (once, after the move from 2.4). */
+    fun homesSaid(s: WorldState): WorldState = s.copy(homesLine = false)
     /** What finishing the next lesson (of [place], when it has one) would give, the same roll [lessonComplete] makes. */
     fun preview(s: WorldState, place: Place? = null): NextDrop {
         val drop = Drops.roll(s.seed, s.history, DropSource.LESSON, place)
@@ -180,7 +306,10 @@ object World {
 
     /** Puts [item] on or takes it off, if it is unlocked. */
     fun wear(s: WorldState, item: WearItem): WorldState =
-        if (s.unique < item.unlockAt) s else s.copy(outfit = s.outfit.toggle(item))
+        if (item !in s.wardrobe) s else s.copy(outfit = s.outfit.toggle(item))
+
+    /** The pup in [outfit] (items not open are left off). */
+    fun dress(s: WorldState, outfit: Outfit): WorldState = s.copy(outfit = Outfit(outfit.items.filter { it in s.wardrobe }.toSet()))
 
     /** Best Perform runs from before the world existed (Prefs), so the shelf starts full; the higher best wins. */
     fun mergeRecords(s: WorldState, bests: Map<String, Int>): WorldState =

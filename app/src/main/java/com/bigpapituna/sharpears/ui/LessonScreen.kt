@@ -410,7 +410,8 @@ fun LessonScreen(
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
     // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
-    val dropSlot: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound }) } }
+    val dropSlot: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
+        say = { line -> deps.voice.speak(line) }) } }
     val nextDrop = remember(reward, next) {
         val n = next
         if (reward == null || n == null) null
@@ -460,11 +461,11 @@ fun LessonScreen(
  * sees the lesson's [stars] first (2.2: the same stars land on its stone on the map).
  */
 @Composable
-private fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null) {
+private fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         stars?.takeIf { it > 0 }?.let { com.bigpapituna.sharpears.ui.skin.StarRow(it, size = 44.dp, sampler = sampler) }
         com.bigpapituna.sharpears.ui.world.DropReveal(reward, cardWidth = 120.dp)
-        com.bigpapituna.sharpears.ui.world.RewardExtras(reward)
+        com.bigpapituna.sharpears.ui.world.RewardExtras(reward, say = say)
     }
 }
 

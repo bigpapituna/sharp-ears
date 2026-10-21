@@ -46,8 +46,10 @@ Three things to know:
 - **Drops follow pages now**: a garden lesson drops garden stickers (2.1 dropped pond stickers from lessons 5 to 8 and
   concert stickers from 9 to 12 by number through `Place.ofPlaygroundLesson`, removed in 2.2.0). Twelve garden lessons
   plus the eggs usually fill most of the garden page by its finale, which is what the finale shows.
-- **Stickers keep off the stones** (2.2.0): each sticker's spot (`WorldAnchors.item`) sits in the trail's gaps;
-  MapAnchorsTest.stickersSitClearOfTheStones fails if a moved sticker or trail row would cover a stone or its stars.
+- **Stickers keep off the stones** (2.5): the kid sticks stickers in each scene's named spots (engine/world/Decor.kt),
+  which sit clear of the stones, their stars and the gate; DecorTest fails if a moved spot or trail row would cover one.
+  Decorate mode (ui/kid/Decorate.kt): a tap on a sticker in My stickers' tray, or a long press on a spot, starts it;
+  the tray replaces the three buttons; tap a sticker then a spot (or the reverse), or hold and drag; Done ends it.
 
 ## After merging `pages` and `kidhome`: check
 
