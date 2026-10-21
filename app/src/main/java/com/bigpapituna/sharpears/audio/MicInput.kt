@@ -438,9 +438,9 @@ class MicInput(private val context: Context) {
                 val wav = File(dir, "$name.wav")
                 Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
                 File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
-                // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
-                val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
-                while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
+                // About 80 clips of 30 s fit; whole reports go, oldest first.
+                val all = dir.listFiles().orEmpty().map { com.bigpapituna.sharpears.engine.StallWatch.SavedFile(it.name, it.length(), it.lastModified()) }
+                com.bigpapituna.sharpears.engine.StallWatch.overBudget(all, STALL_BUDGET).forEach { File(dir, it).delete() }
                 Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
                 reporter.flush()
             } catch (e: Exception) { Log.d(TAG, "mic: stuck moment $name not saved: $e") }

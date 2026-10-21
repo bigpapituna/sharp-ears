@@ -66,5 +66,21 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
             return if (at < 0) "profile=$kind\n$report"
             else (lines.take(at + 1) + "profile=$kind" + lines.drop(at + 1)).joinToString("\n")
         }
+
+        /**
+         * The names in the stalls folder to delete to bring it under [budget] bytes: whole reports (a clip, its report
+         * and its sent marker share a name), oldest written first, never the newest. By name, every answer-key and crash
+         * report went before the oldest stuck moment, sent or not; a lone sent marker deleted sent its report again.
+         */
+        fun overBudget(files: List<SavedFile>, budget: Long): List<String> {
+            var total = files.sumOf { it.bytes }
+            val reports = files.groupBy { it.name.substringBeforeLast('.') }.values.sortedBy { r -> r.minOf { it.modified } }
+            val out = ArrayList<String>()
+            for (r in reports.dropLast(1)) { if (total <= budget) break; total -= r.sumOf { it.bytes }; r.mapTo(out) { it.name } }
+            return out
+        }
     }
+
+    /** A file in the stalls folder: [modified] in ms, as File.lastModified. */
+    data class SavedFile(val name: String, val bytes: Long, val modified: Long)
 }
