@@ -76,7 +76,7 @@ private val BOW = listOf(Pose.CROWN, Pose.DANCING, Pose.STICKER)
 
 /**
  * The finale (2.2): a page of the Playground is done (its last lesson finished, the first time). The whole screen goes
- * to night with fireworks; the pup bows (crown, dance, sticker); "<Name> finished the garden!" is said with the kid's
+ * to night with fireworks; the pup bows (in his outfit first when he wears one, then crown, dance, sticker); "<Name> finished the garden!" is said with the kid's
  * name (the on-phone voice, [say]) and shown big; the page's album page shows complete or with its gaps; the
  * certificate (ui/kid/Certificate.kt) can go to someone; and the pup says where the path goes on ([after]: the next
  * page, or the big kids' road). "Keep going" ([onDone]) goes back to the map, which rolls on to the next stone.
@@ -93,7 +93,10 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
     val headline = remember(name, page) { KidLines.finished(name, page) }
     val onward = remember(after) { KidLines.onward(after) }
     val rise = remember { Animatable(if (still) 1f else 0f) }
-    var pose by remember { mutableStateOf(BOW.first()) }
+    // 2.5.0: dressed up, he bows first in his outfit (only the sitting base pose wears it), then crown, dance and sticker.
+    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
+    val bow = remember(dressed) { if (dressed) listOf(Pose.WEAR_BASE) + BOW else BOW }
+    var pose by remember { mutableStateOf(bow.first()) }
     val sayNow by rememberUpdatedState(say)
     LaunchedEffect(Unit) {
         Log.d(TAG, "finale: ${page.id} for $name, $stars stars, album ${album.collected}/${album.size}, then " +
@@ -106,7 +109,7 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
         sayNow(onward)
     }
     // With animations off the pup keeps his first bow (the fireworks hold still too), not a new pose every two seconds.
-    if (!still) LaunchedEffect(Unit) { var i = 0; while (true) { delay(1900); i++; pose = BOW[i % BOW.size] } }
+    if (!still) LaunchedEffect(bow) { var i = 0; while (true) { delay(1900); i++; pose = bow[i % bow.size] } }
     // Night: light status bar icons while the finale shows, the phone's own after.
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.DisposableEffect(Unit) {

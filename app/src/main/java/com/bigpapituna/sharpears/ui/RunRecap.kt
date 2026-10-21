@@ -140,7 +140,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         .animateFloat(0f, 360f, infiniteRepeatable(tween(45_000, easing = LinearEasing), RepeatMode.Restart), label = "spin") else null
     val r = e.recap
     val hardest = e.spots.firstOrNull()?.bar
+    // 2.5.0: a kid who dressed the pup sees him in the outfit on a good run (only the sitting base pose wears it, as on the map).
+    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
     val pose = when {
+        kid && dressed && (party || stars >= 2) -> Pose.WEAR_BASE
         party -> Pose.LEVEL_UP
         kid -> if (stars >= 2) Pose.GREAT_JOB else Pose.PRACTICING      // never a sad pup for a kid
         r != null -> when { r.accuracy >= 85 -> Pose.GREAT_JOB; r.accuracy >= 50 -> Pose.PRACTICING; else -> Pose.MISTAKE }

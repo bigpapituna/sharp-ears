@@ -168,6 +168,10 @@ poses are separate paintings with the head in a different place each time, and t
 a hat drawn by guess on a jumping or sleeping pup looked worse than none. Painted per-pose hats (GEMINI-BRIEF B2) are the
 upgrade path.
 
+2.5.0 (integration): so a dressed pup is seen where a kid looks, the same rule picks the base pose in two more places when
+he wears anything: a kid's song recap after a good run (two stars or more, or a new best) and the first bow of a page's
+finale (then crown, dance, sticker as before). A poor run keeps its own pose.
+
 ## 11. The wardrobe and the practice ledger (2.5)
 
 Sixty things to wear in four slots that combine (head, face, body, feet and back), engine/world/Wardrobe.kt, drawn in
@@ -189,6 +193,12 @@ world.sync()                            // once per open; lessonComplete and son
 
 Songs played to the end are counted by `world.songComplete` itself (no source needed). `sync()` is idempotent: a day's
 seconds are credited once (Ledger.credited, a floor for days dropped from it), a three-star lesson or a page once.
+
+Wired in 2.5.0: `ledgerSource` as above in `MainActivity.openApp`; `earnLevels` and `sync()` on every open; `lessonComplete`
+and `songComplete` sync first (a lesson's stars are recorded in the KidStore before, so its three stars count on its own
+finish); and every session's end (`Briefs.onSessionEnd`, the app leaving the screen or someone else taking over) syncs the
+open profile's world, so minutes played in a stage, a chord review or a song left half way are in the ledger before the next
+finish screen, which reveals whatever that opened.
 
 Rates (sparkles): a minute 1, a day with a minute or more 5, a lesson's first three stars 4, a song to its end 2 (five a
 day count), a page finale 20. The practice track's items need 12, 42, 87, 147, 237, 337, 447 sparkles, then 120 more
