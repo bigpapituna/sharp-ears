@@ -67,25 +67,31 @@ private fun Link(label: String, url: String) {
  */
 @Composable
 fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit) = TextPage("Privacy", onBack) {
-    Para("Sharp Ears has no account, no ads and no analytics. It does not send anything about you or your playing anywhere.")
+    Para("Sharp Ears has no account, no ads and no analytics. " + if (canRecord) "Apart from the review reports below, which you switch on, " +
+        "it sends nothing about you or your playing anywhere." else "It does not send anything about you or your playing anywhere.")
     Heading("Microphone")
-    Para("The microphone is used only to hear which piano notes you play. It listens only while a song, lesson, chord or ear training game, " +
-        "or the tuner has the mic switched on and the app is on screen. The sound is analysed on this phone and then discarded.")
+    Para("The microphone is used only to hear which piano notes you play. It listens only while a song, a lesson or Playground game, " +
+        "a chord or ear training game, the Jam, Pup says, Clap along, the tuner or Microphone setup is open with the mic on, and the app " +
+        "is on screen. The sound is analysed on this phone and then discarded.")
     if (canRecord) {
         Para("This is a private development build. With Keep practice recordings switched on, it saves your last 4 mic sessions " +
             "on this phone so note detection can be tuned from your playing, plus short clips when wait mode gets stuck, when you flag " +
             "something, or when the mic and a USB keyboard disagree. Anything said in the room ends up in those files. " +
             "They stay on the phone unless Send them for review is on: then, on Wi-Fi, those clips, crash reports and a weekly summary " +
-            "go to your own private GitHub repository. Switch either off, or delete the clips, in Microphone setup. " +
+            "go to your own private GitHub repository, where they stay. Switch either off, or delete the clips on this phone, in Microphone setup. " +
             "Sharing them, or switching sending on, is only ever started by you, from Microphone setup.")
         TextButton(onClick = onMicSetup) { Text("Microphone setup") }
     }
     Heading("What is stored")
-    Para("Your settings, song progress, best scores, practice minutes, lesson and chord progress, XP, level, achievements and goals, " +
-        "ear training scores, what you practised with the scales and warm-ups, and any MIDI files you import are kept in the app's " +
-        "private storage on this phone. Uninstalling the app removes them. Settings has a reset for progress (XP and achievements stay).")
+    Para("The names and pups of everyone who plays on this phone, and for each of them: settings, song progress, best scores, practice " +
+        "minutes, lesson and chord progress, XP, level, achievements and goals, ear training scores, what was practised with the scales " +
+        "and warm-ups, stickers and the pup's world. These and any MIDI files you import are kept in the app's " +
+        "private storage on this phone. Uninstalling the app removes them. If the phone's own backup to your Google account is on, it " +
+        "can carry them to a new phone; it never takes the mic recordings or the report token. Settings has a reset for progress " +
+        "(lessons, stickers, XP and achievements stay).")
     Heading("Internet")
-    Para("The app itself uses the internet only to show tutorial videos. When you open one, YouTube's embedded player loads " +
+    Para("The app itself uses the internet only to show tutorial videos" + (if (canRecord) " and, when that is on, to send review reports" else "") +
+        ". When you open a video, YouTube's embedded player loads " +
         "from YouTube and connects to Google, and YouTube's terms and Google's privacy policy apply to it. " +
         "Open in YouTube hands the video to the YouTube app or your browser.")
     Link("YouTube Terms of Service", "https://www.youtube.com/t/terms")

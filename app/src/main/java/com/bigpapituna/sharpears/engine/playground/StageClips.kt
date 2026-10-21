@@ -25,7 +25,7 @@ class StageClipWatch(val quietMs: Long = 8_000, val minSounds: Int = 3) {
     /** Something heard at [nowMs] that was not the round's key ("noise", "named E4", "pitch 63.2"). */
     fun sound(nowMs: Long, what: String) {
         if (since == Long.MIN_VALUE || saved) return
-        if (heard.size < 60) heard += "+%.2f s  %s".format((nowMs - since) / 1000.0, what)
+        if (heard.size < 60) heard += "+%.2f s  %s".format(java.util.Locale.ROOT, (nowMs - since) / 1000.0, what)
     }
 
     /** Sounds counted in the stretch so far. */

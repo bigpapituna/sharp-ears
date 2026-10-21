@@ -122,6 +122,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Keep") } })
     }
     if (adding) Dialog(onDismissRequest = { adding = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        com.bigpapituna.sharpears.ui.DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             NewProfileFlow(onDone = { profiles.create(it, switch = false); adding = false }, onCancel = { adding = false })
         }

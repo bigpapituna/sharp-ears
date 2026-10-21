@@ -110,6 +110,14 @@ class ProgressStoreTest {
         assertEquals("XP is kept", xp, store.xp)
     }
 
+    /** Audit: after Reset progress the Songs tab still said "Done for today: Twinkle. 11 min." over "0 of 10 min today". */
+    @Test fun resetClearsTodaysPracticeTodaySummary() {
+        val today = LocalDate.now()
+        prefs.saveDailySummary(today, "Done today: Twinkle, Twinkle, Little Star. 11 min.")
+        prefs.resetProgress()
+        assertNull(prefs.dailySummary(today))
+    }
+
     @Test fun lessonXpIsPaidOnce() {
         assertEquals(100, store.record(ProgressEvent.LessonComplete("sit")).xpGained)
         assertEquals(0, store.record(ProgressEvent.LessonComplete("sit")).xpGained)
@@ -214,6 +222,19 @@ class ProgressStoreTest {
         val st = store.streak(d0.plusDays(6))
         assertEquals(7, st.streak); assertEquals(1, st.freezes)
         assertTrue(store.snapshot(d0.plusDays(6)).longestStreak >= 7)
+    }
+
+    /**
+     * Audit: the log dropped every day more than 400 days before the practice being recorded, so one practice with the
+     * clock set far ahead (a dead clock battery, a game's time trick) erased the real log: back on the right date the
+     * streak was 1 and the heatmap empty. The newest 400 practice days are kept, whatever their dates.
+     */
+    @Test fun aPracticeWithTheClockAheadKeepsTheRealLog() {
+        for (i in 0..6) store.record(ProgressEvent.Practice(at(d0.plusDays(i.toLong())), 60))
+        store.record(ProgressEvent.Practice(at(d0.plusDays(500)), 60))
+        store.record(ProgressEvent.Practice(at(d0.plusDays(7)), 60))
+        assertEquals(8, store.streak(d0.plusDays(7)).streak)
+        assertEquals(9, store.practiceLog().size)
     }
 
     @Test fun answersPersistAcrossInstances() {

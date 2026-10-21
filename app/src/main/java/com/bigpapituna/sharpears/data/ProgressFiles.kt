@@ -48,7 +48,8 @@ object ProgressFiles {
 
     /**
      * Replaces the settings files with [files] (files missing from it are cleared). A backup from 2.1 on carries the
-     * roster and replaces every profile; an older one (no roster) is the owner's alone and leaves the other profiles be.
+     * roster and replaces every profile; an older one (no roster) is the owner's alone, replaces only the files it holds
+     * and leaves the other profiles be.
      * Anything that is not one of our files is ignored. Recreate the activity afterwards so every store reads it.
      */
     fun replace(context: Context, files: Map<String, Map<String, Any>>) {

@@ -63,10 +63,13 @@ fun RunReplay(song: Song, run: RunRecording, low: Int, high: Int, sampler: Sampl
         if (pos >= endMs) pos = startMs
         Log.d(TAG, "replay ${run.songId}: ${played.size} notes from ${pos.toLong()} ms at speed ${run.speed}")
         var last = withFrameNanos { it }
+        // Frames stop off screen: the first one back leaves the time away out (it played every skipped note at once).
+        var awayLast = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs()
         var next = played.indexOfFirst { it.startMs >= pos }.let { if (it < 0) played.size else it }
         while (playing && pos < endMs) {
             withFrameNanos { now ->
-                val to = pos + (now - last) / 1_000_000.0 * run.speed
+                val away = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs().let { a -> (a - awayLast).also { awayLast = a } }
+                val to = pos + ((now - last) / 1_000_000.0 - away).coerceAtLeast(0.0) * run.speed
                 last = now
                 var changed = false
                 sounding.removeAll { n -> (n.startMs + n.durationMs <= to).also { if (it) { sampler.noteOff(n.midi); changed = true } } }

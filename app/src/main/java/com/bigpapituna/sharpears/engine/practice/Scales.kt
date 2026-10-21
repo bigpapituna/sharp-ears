@@ -87,9 +87,10 @@ private val MINOR_RH: Map<Int, List<Int>> = mapOf(
     0 to C_RH, 1 to SHARP_MINOR_RH, 2 to C_RH, 3 to fingers("3 1 2 3 4 1 2 3"), 4 to C_RH,
     5 to fingers("1 2 3 4 1 2 3 4"), 6 to SHARP_MINOR_RH, 7 to C_RH, 8 to SHARP_MINOR_RH,
     9 to C_RH, 10 to fingers("2 1 2 3 1 2 3 4"), 11 to C_RH)
+// G sharp minor's left thumb takes B and E: the flat keys' 3 2 1 4 put it on F sharp in the natural and descending forms.
 private val MINOR_LH: Map<Int, List<Int>> = mapOf(
     0 to C_LH, 1 to FLAT_LH, 2 to C_LH, 3 to fingers("2 1 4 3 2 1 3 2"), 4 to C_LH, 5 to C_LH,
-    6 to fingers("4 3 2 1 3 2 1 4"), 7 to C_LH, 8 to FLAT_LH, 9 to C_LH, 10 to fingers("2 1 3 2 1 4 3 2"),
+    6 to fingers("4 3 2 1 3 2 1 4"), 7 to C_LH, 8 to fingers("3 2 1 3 2 1 4 3"), 9 to C_LH, 10 to fingers("2 1 3 2 1 4 3 2"),
     11 to fingers("4 3 2 1 4 3 2 1"))
 
 /** The one-octave table (8 numbers) for a 7-note scale, the root's pitch class and the hand. */
@@ -131,8 +132,23 @@ class Scale(val root: Int, val type: ScaleType, val octaves: Int = 1) {
 
     /** One finger per note going up. */
     fun fingering(hand: Hand): List<Int> =
-        if (type.tabled) extend(scaleTable(root, type.minorTable, hand), hand, octaves)
+        if (type.tabled) extend(table(hand), hand, octaves)
         else searched(ascending(hand), hand)
+
+    /**
+     * The one-octave table: the root's major or minor one ([ScaleType.minorTable]), or the root's other one where the
+     * first puts the thumb or the little finger on a black key of this scale, up or down (melodic minor's and dorian's
+     * raised sixth in C sharp and F sharp take the major table; mixolydian's flat seventh in E flat, A flat and B flat
+     * the minor one).
+     */
+    private fun table(hand: Hand): List<Int> {
+        val start = handRoot(root, hand)
+        val up = type.steps.map { start + it } + (start + 12)
+        val down = ((type.descent ?: type.steps).map { start + it } + (start + 12)).reversed()
+        fun fits(t: List<Int>) = (up.zip(t) + down.zip(t.reversed())).none { (m, f) -> isBlack(m) && (f == 1 || f == 5) }
+        val own = scaleTable(root, type.minorTable, hand)
+        return if (fits(own)) own else scaleTable(root, !type.minorTable, hand).takeIf(::fits) ?: own
+    }
 
     /** One finger per note of [upAndDown]. */
     fun fingeringUpAndDown(hand: Hand): List<Int> =
@@ -140,7 +156,7 @@ class Scale(val root: Int, val type: ScaleType, val octaves: Int = 1) {
         else searched(upAndDown(hand), hand)
 
     private fun searched(notes: List<Int>, hand: Hand): List<Int> {
-        if (type == ScaleType.CHROMATIC) return chromaticFingers(notes)
+        if (type == ScaleType.CHROMATIC) return chromaticFingers(notes, hand)
         val mirror = hand == Hand.LEFT
         val p = notes.map { listOf(if (mirror) -it else it) }
         return Fingering.solve(p, notes.map { listOf(isBlack(it)) }).map { it[0] }
@@ -177,18 +193,17 @@ internal fun noteLine(notes: List<Int>, beatsPerNote: Double, flats: Boolean): S
 /** 1.0 as "1", 0.5 as "0.5": the notation reads any decimal, this just keeps it short. */
 internal fun beat(x: Double): String = if (x == Math.rint(x)) x.toInt().toString() else x.toString()
 
-/** 1 on white keys, 3 on black keys, 2 on the white key that follows a white key (F after E, C after B). */
-private fun chromaticFingers(notes: List<Int>): List<Int> {
-    val out = notes.mapIndexed { i, m ->
-        when {
-            isBlack(m) -> 3
-            i > 0 && !isBlack(notes[i - 1]) -> 2
-            else -> 1
-        }
-    }.toMutableList()
-    // Finish on the thumb, like the other scales.
-    if (out.isNotEmpty() && !isBlack(notes.last())) out[out.lastIndex] = 1
-    return out
+/**
+ * 1 on white keys, 3 on black keys, and 2 where two white keys meet (E and F, B and C), whichever way the run goes: on F
+ * and C in the right hand, on E and B in the left, so the thumb passes on the next white key.
+ */
+private fun chromaticFingers(notes: List<Int>, hand: Hand): List<Int> = notes.mapIndexed { i, m ->
+    val pair = if (hand == Hand.RIGHT) m - 1 else m + 1          // the other white key of the two
+    when {
+        isBlack(m) -> 3
+        !isBlack(pair) && (notes.getOrNull(i - 1) == pair || notes.getOrNull(i + 1) == pair) -> 2
+        else -> 1
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------

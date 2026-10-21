@@ -230,8 +230,10 @@ fun ShareConcertButton(run: RunRecording?, songTitle: String, stars: Int, modifi
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // A kid hands the phone to a grown-up to send it: the share sheet reaches every app and contact (parent gate).
+    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedButton(enabled = !busy, onClick = {
+        OutlinedButton(enabled = !busy, onClick = { gate.guardForKids {
             busy = true; error = null
             scope.launch {
                 val title = ConcertFiles.title(name, songTitle)
@@ -240,7 +242,7 @@ fun ShareConcertButton(run: RunRecording?, songTitle: String, stars: Int, modifi
                 files.onSuccess { Share.files(context, it, title) }
                     .onFailure { Log.d(TAG, "concert: share failed: $it"); error = "Could not get it ready. Try again?" }
             }
-        }) {
+        } }) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             else Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))

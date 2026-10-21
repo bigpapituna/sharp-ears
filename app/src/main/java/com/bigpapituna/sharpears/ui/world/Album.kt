@@ -84,7 +84,7 @@ fun AlbumView(album: Album, modifier: Modifier = Modifier, showPup: Boolean = tr
 
 /** One place's page: a coloured tab with its name, "7 of 10", a filling bar, then the ten slots in two rows. */
 @Composable
-fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: (AlbumSlot) -> Unit = {}) {
+fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: ((AlbumSlot) -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
     val tint = page.place.colour()
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh).padding(16.dp),
@@ -102,7 +102,7 @@ fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: (Album
         }
         page.slots.chunked(5).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { s -> SlotTile(s, Modifier.weight(1f)) { onSlot(s) } }
+                row.forEach { s -> SlotTile(s, Modifier.weight(1f), onSlot?.let { f -> { f(s) } }) }
             }
         }
         if (page.complete) Text("Page complete", style = MaterialTheme.typography.labelLarge, color = c.primary)
@@ -111,13 +111,16 @@ fun AlbumPageView(page: AlbumPage, modifier: Modifier = Modifier, onSlot: (Album
 
 /** One slot: the sticker (with "x3" for doubles) or a dashed gap holding its faint shape and number. */
 @Composable
-private fun SlotTile(slot: AlbumSlot, modifier: Modifier, onClick: () -> Unit) {
+private fun SlotTile(slot: AlbumSlot, modifier: Modifier, onClick: (() -> Unit)?) {
     val c = MaterialTheme.colorScheme
     val s = slot.sticker
     val label = if (slot.owned) "${s.name}, ${s.rarity.label.lowercase()}" + (if (slot.count > 1) ", you have ${slot.count}" else "")
         else "Sticker ${s.n}, still to find"
     Box(modifier.aspectRatio(1f).pressScale().clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerLowest)
-        .clickable(onClick = onClick).semantics { contentDescription = label; role = Role.Button }, contentAlignment = Alignment.Center) {
+        // Only a page that opens its stickers (the album) makes them buttons; the finale's page is a picture (TalkBack
+        // found ten buttons there that did nothing).
+        .then(if (onClick == null) Modifier.semantics { contentDescription = label }
+            else Modifier.clickable(onClick = onClick).semantics { contentDescription = label; role = Role.Button }), contentAlignment = Alignment.Center) {
         if (slot.owned) {
             StickerImage(s, Modifier.fillMaxSize().padding(5.dp))
             if (slot.count > 1) Text("x${slot.count}", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurface,

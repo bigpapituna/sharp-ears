@@ -18,6 +18,10 @@ interface EarGame {
     val streak: Int
     val bestStreak: Int
     val finished: Boolean
+    /** Rounds given up with Skip. */
+    val skipped: Int get() = 0
+    /** Every round given up with Skip: nothing was played, so the game earns nothing (no XP, best or "played"). */
+    val allSkipped: Boolean get() = finished && skipped >= rounds
     fun prompt(): GameLine
     /** Played at the start of each round (and on Hear again): note groups in order, each group struck together. */
     fun toPlay(): List<List<Int>>
@@ -52,6 +56,7 @@ abstract class RoundGame(final override val kind: GameKind, final override val l
     final override var streak = 0; private set
     final override var bestStreak = 0; private set
     var roundOver = false; protected set
+    final override var skipped = 0; private set
     override val finished get() = round >= rounds
 
     protected fun endRound(clean: Boolean, line: GameLine): ChordGame.Answer {
@@ -60,7 +65,7 @@ abstract class RoundGame(final override val kind: GameKind, final override val l
         return ChordGame.Answer(ChordGame.Outcome.DONE, line, clean)
     }
 
-    override fun skip() { if (!roundOver) { roundOver = true; streak = 0 }; next() }
+    override fun skip() { if (!roundOver) { roundOver = true; streak = 0; skipped++ }; next() }
     override fun next() {
         if (!roundOver || finished) return
         round++

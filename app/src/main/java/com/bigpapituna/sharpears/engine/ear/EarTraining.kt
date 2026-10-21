@@ -65,6 +65,10 @@ interface EarTrainer {
     val streak: Int
     val bestStreak: Int
     val finished: Boolean
+    /** Rounds given up with Skip. */
+    val skipped: Int get() = 0
+    /** Every round given up with Skip: nothing was played, so the game earns nothing (no XP, best or "played"). */
+    val allSkipped: Boolean get() = finished && skipped >= rounds
     val roundOver: Boolean
     val answering: Answering
     /** The game plays the prompt again by itself after a wrong note (melody memory). */
@@ -104,6 +108,7 @@ abstract class TrainerBase(final override val kind: EarKind, final override val 
     final override var streak = 0; private set
     final override var bestStreak = 0; private set
     final override var roundOver = false; private set
+    final override var skipped = 0; private set
     /** Wrong answers this round. */
     var wrongs = 0; protected set
     override val finished get() = round >= rounds
@@ -122,7 +127,7 @@ abstract class TrainerBase(final override val kind: EarKind, final override val 
     override fun choose(id: Int): ChordGame.Answer = ignored()
 
     /** Gives up on this round (no point) and moves on. */
-    override fun skip() { if (!roundOver) { roundOver = true; streak = 0 }; next() }
+    override fun skip() { if (!roundOver) { roundOver = true; streak = 0; skipped++ }; next() }
 
     override fun next() {
         if (!roundOver || finished) return

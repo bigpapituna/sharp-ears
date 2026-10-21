@@ -25,9 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class NaturalVoice(private val context: Context, private val onIdle: () -> Unit) {
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "natural-voice") }
-    private val recorded: Set<String> = runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet())
+    /** The recorded lines' file names: listing 3000 assets took about 100 ms of the first frame, so the worker reads it. */
+    private val recorded: Set<String> by lazy { runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet()) }
     /** The Kokoro speaker the recordings were made with (scripts/render_voice.py writes it), so both halves match. */
-    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().readText().trim().toInt() }.getOrDefault(3)
+    private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().use { it.readText() }.trim().toInt() }.getOrDefault(3)
     private val modelDir = File(context.filesDir, "kokoro")
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
@@ -38,6 +39,8 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     /** Loaded once, on first use; [warmUp] starts it on its own thread so recorded lines never wait for it. */
     private val modelLoad = lazy { loadModel() }
     @Volatile private var modelFailed = false
+
+    init { worker.execute { recorded.size } }
 
     val modelInstalled get() = File(modelDir, "model.int8.onnx").exists()
     val busy get() = pending.get() > 0
@@ -50,6 +53,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     /** Says [text] after what is queued ([flush]: instead of it); a generated line at [speed] (Kokoro's, 1 = normal). */
     fun say(text: String, flush: Boolean, speed: Float = 1f) {
         if (flush) stop()
+        if (worker.isShutdown) { Log.d(TAG, "voice: released, dropped: $text"); return }   // a stale screen after a profile switch
         val gen = generation
         pending.incrementAndGet()
         worker.execute {
@@ -63,9 +67,15 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     fun stop() { generation++; playing?.countDown() }
 
     /** Loads the model ahead of the first generated line (a second or two), without speaking. */
-    fun warmUp() { if (modelInstalled) Thread({ modelLoad.value }, "natural-voice-load").start() }
+    fun warmUp() { if (modelInstalled) { warming = true; Thread({ modelLoad.value }, "natural-voice-load").start() } }
+    /** [warmUp] started loading: [release] must wait for that model and free it (a profile switch mid-load leaked it). */
+    @Volatile private var warming = false
 
-    fun release() { stop(); worker.execute { if (modelLoad.isInitialized()) modelLoad.value?.release() }; worker.shutdown() }
+    fun release() {
+        stop()
+        worker.execute { if (modelLoad.isInitialized() || warming) modelLoad.value?.release() }
+        worker.shutdown()
+    }
 
     private fun speakNow(text: String, gen: Int, speed: Float) {
         val file = recording(text)

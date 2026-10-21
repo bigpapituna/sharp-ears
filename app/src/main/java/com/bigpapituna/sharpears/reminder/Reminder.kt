@@ -80,10 +80,13 @@ object Reminder {
     }
 }
 
-/** The alarm went off (or the phone restarted): post the reminder, then set the next one. */
+/**
+ * The alarm went off: post the reminder, then set the next one. The phone restarted, changed time zone or had its clock
+ * set (a system broadcast, with an action; the alarm's own intent has none): only set the next one again.
+ */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) { Reminder.schedule(context); return }
+        if (intent.action != null) { Reminder.schedule(context); return }
         Reminder.post(context)
         Reminder.schedule(context)
     }

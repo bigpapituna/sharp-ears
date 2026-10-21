@@ -134,7 +134,7 @@ fun TheoryScreen(
     var nav by remember { mutableStateOf(debugStart(context)) }
     val version = store.version.intValue
 
-    fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, System.currentTimeMillis()) }
+    fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()) }
     fun toPath() { voice.stop(); nav = Nav.Path }
 
     when (val n = nav) {
@@ -155,7 +155,7 @@ fun TheoryScreen(
             val (unit, lesson) = theoryLesson(n.lessonId)!!
             androidx.compose.runtime.key(n.lessonId) {
                 Quiz(unit, lesson, sampler, voice, n.startAt, onDone = { correct, total ->
-                    val secs = ((System.currentTimeMillis() - n.openedAt) / 1000).toInt()
+                    val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - n.openedAt) / 1000).toInt()
                     val f = store.finish(n.lessonId, correct, total, secs)
                     onPractice(secs)
                     onLessonDone(n.lessonId, f.percent)
@@ -195,7 +195,7 @@ fun TheoryScreen(
     }
 }
 
-private fun clock(secs: Int) = "%d:%02d".format(secs / 60, secs % 60)
+private fun clock(secs: Int) = "%d:%02d".format(java.util.Locale.ROOT, secs / 60, secs % 60)
 
 /**
  * Debug builds only: `--es theory <lesson id>` opens a lesson ([--ei scene n]), `--es part quiz [--ei question n]` its
@@ -205,7 +205,7 @@ private fun debugStart(context: android.content.Context): Nav {
     if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return Nav.Path
     val intent = (context as? Activity)?.intent ?: return Nav.Path
     val id = intent.getStringExtra("theory")?.takeIf { theoryLesson(it) != null } ?: return Nav.Path
-    val now = System.currentTimeMillis()
+    val now = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
     Log.d(TAG, "theory: debug start $id ${intent.getStringExtra("part") ?: "watch"}")
     return when (intent.getStringExtra("part")) {
         "quiz" -> Nav.Quiz(id, now, intent.getIntExtra("question", 0))
@@ -375,7 +375,7 @@ private fun StartTag(modifier: Modifier) {
             moveTo(s.width / 2 - tail, s.height - tail - 1); lineTo(s.width / 2, s.height); lineTo(s.width / 2 + tail, s.height - tail - 1); close()
         }
     }
-    Text("START", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+    Text("Start", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
         modifier = modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape).background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
             .padding(start = 14.dp, end = 14.dp, top = 7.dp, bottom = 14.dp))
 }

@@ -15,10 +15,10 @@ class AnswerKey(private val windowMs: Long = 600, private val earlyMs: Long = 30
     private val heard = ArrayList<Ev>()     // mic strikes (heard or credited)
 
     /** A key pressed on the keyboard; [listened] is whether the mic was listening for that note then. */
-    fun key(nowMs: Long, midi: Int, listened: Boolean) { if (listened) keys += Ev(nowMs, midi).also(::pair) }
+    fun key(nowMs: Long, midi: Int, listened: Boolean) { if (listened) Ev(nowMs, midi).also { keys += it; pair(it) } }
 
     /** A note the mic reported. */
-    fun mic(nowMs: Long, midi: Int) { heard += Ev(nowMs, midi).also(::pair) }
+    fun mic(nowMs: Long, midi: Int) { Ev(nowMs, midi).also { heard += it; pair(it) } }
 
     /** Matches a new event with an unmatched one of the other kind: the mic up to [windowMs] after the key, or slightly before. */
     private fun pair(e: Ev) {

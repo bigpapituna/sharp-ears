@@ -102,7 +102,8 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: In
         delay(if (still) 2600 else 1700)
         sayNow(onward)
     }
-    LaunchedEffect(Unit) { var i = 0; while (true) { delay(1900); i++; pose = BOW[i % BOW.size] } }
+    // With animations off the pup keeps his first bow (the fireworks hold still too), not a new pose every two seconds.
+    if (!still) LaunchedEffect(Unit) { var i = 0; while (true) { delay(1900); i++; pose = BOW[i % BOW.size] } }
     // Night: light status bar icons while the finale shows, the phone's own after.
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.DisposableEffect(Unit) {

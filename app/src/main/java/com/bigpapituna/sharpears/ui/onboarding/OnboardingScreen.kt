@@ -69,9 +69,6 @@ import com.bigpapituna.sharpears.ui.Stat
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.profile.mono
 import com.bigpapituna.sharpears.ui.reducedMotion
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 private const val STEPS = 4
 
@@ -110,8 +107,21 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
         store.onboardingDone = true
         finished = true
     }
+    // "Microphone" picked: the microphone is asked for here, so the first lesson already hears the piano. It was not
+    // asked at all: the lesson ran on the screen's keys and said nothing while the player played the real piano.
+    var notifyOk by rememberSaveable { mutableStateOf(true) }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: microphone granted=$granted")
+        finish(notifyOk)
+    }
+    fun afterNotify(ok: Boolean) {
+        notifyOk = ok
+        if (useMic && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+        else finish(ok)
+    }
     // Android 13 and up ask before an app may post notifications; asked here, when the reminder is chosen.
-    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> finish(granted) }
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> afterNotify(granted) }
 
     if (finished) {
         val exp = Experience.fromOrdinal(experience) ?: Experience.NEVER
@@ -170,7 +180,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                 onClick = {
                     if (step < STEPS - 1) step++
                     else if (reminderOn && !Reminder.canNotify(context)) askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    else finish(true)
+                    else afterNotify(true)
                 },
                 enabled = canContinue, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp),
             ) { Text(if (step == STEPS - 1) "Finish" else "Continue") }
@@ -251,8 +261,9 @@ private fun HabitStep(
     onReminder: (Boolean) -> Unit, onPickTime: () -> Unit, onMic: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    val timeLabel = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
-        .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)).replace(' ', ' ')
+    // As the phone shows times: its 12 or 24-hour setting, as the picker uses (java.time's localized format ignores it).
+    val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
+        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, reminderMinutes / 60); set(java.util.Calendar.MINUTE, reminderMinutes % 60) }.time).replace(' ', ' ')
     PupSays(Pose.LISTENING, if (askReminder) "Nearly there. Two quick choices and we can start." else "Nearly there. One quick choice and we can start.",
         Modifier.fillMaxWidth(), size = 96.dp)
     StepTitle(if (askReminder) "A reminder, and how you play" else "How you play")

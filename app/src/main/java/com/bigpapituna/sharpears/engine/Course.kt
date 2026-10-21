@@ -200,6 +200,16 @@ fun Exercise.toSong(id: String, title: String): Song {
  */
 fun Exercise.withFingers(): Exercise {
     if (fingers.isNotBlank() && leftFingers.isNotBlank()) return this
+    // Worked out once per exercise: COURSE asks 64 times for 17 exercises (the Playground's bites share their tunes),
+    // and building it on the main thread before the first frame took 4 times as long without this.
+    val memo = Fingered.memo
+    if (memo.size > 256) memo.clear()
+    return memo.getOrPut(this) { workOutFingers() }
+}
+/** An object, not a top-level val: lessons built in other files' static initializers call withFingers in any order. */
+private object Fingered { val memo = java.util.concurrent.ConcurrentHashMap<Exercise, Exercise>() }
+
+private fun Exercise.workOutFingers(): Exercise {
     val song = toSong("fingers", "")
     val worked = Fingering.of(song)
     fun of(hand: Hand) = song.notes.filter { it.hand == hand }.map { worked[it] }.takeIf { it.isNotEmpty() && it.all { f -> f != null } }?.joinToString(" ")
@@ -748,7 +758,7 @@ private val TECHNIQUE_2 = listOf(
                     sn("C5", label = "Highest"), sn("G4"), sn("E4", NoteValue.WHOLE), stepMs = 420)),
             scene("Count one bar in before you start. Keep your eyes a beat ahead of your hands.",
                 phrase("E4:1 F4:1 G4:1 E4:1 D4:2 C4:2 E4:1 G4:1 C5:1 G4:1 E4:4", bpm = 72, lookAhead = true), Mood.LISTEN),
-            scene("And never stop for a wrong note: keep the beat going and fix it next time. The sight-reading drill in Practice gives you endless new lines.",
+            scene("And never stop for a wrong note: keep the beat going and fix it next time. The sight-reading drill in Learn gives you endless new lines.",
                 lane("C4:1 D4:1 E4:1 G4:1 F4:2 D4:2", bpm = 72), Mood.CHEER)),
         play("Read this line first, then play it. Look at the shape: where does it step, and where does it jump?",
             Exercise(right = "E4:1 F4:1 G4:1 E4:1 D4:2 C4:2 E4:1 G4:1 C5:1 G4:1 E4:4", bpm = 72.0, practice = Practice.RIGHT)),

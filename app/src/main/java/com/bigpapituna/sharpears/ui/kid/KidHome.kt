@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -261,7 +262,10 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
         while (true) { delay(7000); pointing = true; delay(3400); pointing = false }
     }
     val shown = if (pointing) KidLines.signpostShort(found) else line
-    val pose = when { asleep && yawned -> Pose.SLEEPING; asleep -> Pose.GOODNIGHT; pointing -> Pose.POINTING; else -> Pose.GET_READY }
+    // Dressed up (My stickers): he waits on his stone in his outfit, which only the sitting base pose wears (the map was
+    // the one home where a kid never saw the pup they dressed; the grown-ups' home shows him the same way).
+    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
+    val pose = when { asleep && yawned -> Pose.SLEEPING; asleep -> Pose.GOODNIGHT; pointing -> Pose.POINTING; dressed -> Pose.WEAR_BASE; else -> Pose.GET_READY }
     // GET_READY points to the right of the screen, POINTING to the left: mirrored when the bubble is on the left.
     val mirror = !asleep && !right
     val pup = rememberPupController(idle = !pointing && !asleep)
@@ -269,6 +273,7 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     val px = if (right) x - sizes.stone * 0.18f else x + sizes.stone * 0.18f
     Box(Modifier.pinAt(px, y + sizes.stone * 0.22f, ay = 1f).size(p)
         .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClickLabel = "Play the next game", onClick = onGo)
+        .semantics { contentDescription = if (asleep) "The pup, asleep" else "The pup" }   // TalkBack read a nameless button
         .graphicsLayer { if (mirror) scaleX = -1f }) {
         Pup(pose, size = p, controller = pup, idle = !pointing && !asleep, bounce = BounceSize.SMALL)
     }
@@ -315,7 +320,7 @@ private fun KidBubble(text: String, tailLeft: Boolean, style: androidx.compose.u
 @Composable
 private fun Whistle(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    Box(modifier.size(44.dp).clip(CircleShape).background(c.surfaceContainerHigh.copy(alpha = 0.85f))
+    Box(modifier.size(48.dp).clip(CircleShape).background(c.surfaceContainerHigh.copy(alpha = 0.85f))   // 48 dp: the touch minimum
         .clickable(role = Role.Button, onClickLabel = "Grown-ups", onClick = onClick).semantics { contentDescription = "Grown-ups" },
         contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(26.dp)) {
@@ -407,7 +412,9 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
             .padding(start = 24.dp, end = 24.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("For grown-ups", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             Text("Who's playing?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+            // Up to eight people: the row scrolls (on the cover screen a fifth one was squeezed to nothing).
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
                 corner.profiles.forEach { p ->
                     Column(Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClickLabel = "Play as ${p.name}") {
                         Log.d(TAG, "kid home: grown-ups switched to ${p.id}"); corner.onSwitch(p.id)

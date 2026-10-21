@@ -11,10 +11,12 @@ android {
         applicationId = "com.bigpapituna.sharpears"
         minSdk = 28   // Android 9: microphone addresses (bottom/back) need API 28
         targetSdk = 37
-        versionCode = 11
-        versionName = "2.3.0"
+        versionCode = 12
+        versionName = "2.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }   // the Fold and the emulator; keeps the speech library small
+        // The Fold's ABI only: the x86_64 emulators run arm64 apps through their ARM translation (the speech library loads
+        // only with the Kokoro model installed, which the emulators never have). x86_64 cost 26 MB of every install.
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     buildTypes {

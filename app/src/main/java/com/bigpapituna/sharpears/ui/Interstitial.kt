@@ -50,6 +50,7 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.engine.SessionPart
+import com.bigpapituna.sharpears.engine.doneIn
 import com.bigpapituna.sharpears.engine.SessionWords
 import kotlinx.coroutines.delay
 
@@ -120,7 +121,7 @@ private fun PartChips(parts: List<SessionPart>, index: Int, done: List<SessionPa
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         parts.forEachIndexed { i, p ->
             val now = i == index
-            val ticked = i < index && p in done
+            val ticked = i < index && p.doneIn(done)       // a chord part ends with the chords answered: still done
             val base = Modifier.semantics(mergeDescendants = true) {
                 contentDescription = SessionWords.chip(p, kid) + when { now -> ", next"; ticked -> ", done"; i < index -> ", skipped"; else -> "" }
             }

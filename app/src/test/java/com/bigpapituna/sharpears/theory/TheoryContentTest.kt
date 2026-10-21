@@ -58,6 +58,25 @@ class TheoryContentTest {
         }
     }
 
+    /**
+     * Audit: "D flat is the same key as" offered D sharp and E flat, one key under two names, so either could be ruled
+     * out as the other. Options that name notes name different keys.
+     */
+    @Test fun noteOptionsAreDifferentKeys() {
+        val letters = mapOf("C" to 0, "D" to 2, "E" to 4, "F" to 5, "G" to 7, "A" to 9, "B" to 11)
+        fun key(o: String): Int? = Regex("([A-G])( sharp| flat)?").matchEntire(o)?.let { m ->
+            Math.floorMod(letters.getValue(m.groupValues[1]) + when (m.groupValues[2]) { " sharp" -> 1; " flat" -> -1; else -> 0 }, 12)
+        }
+        var checked = 0
+        THEORY_LESSONS.forEach { (_, l) ->
+            l.quiz.filterIsInstance<Choice>().forEach { q ->
+                val keys = q.options.map(::key)
+                if (keys.all { it != null }) { checked++; assertEquals("${l.id}: ${q.prompt} ${q.options}", keys.size, keys.toSet().size) }
+            }
+        }
+        assertTrue(checked >= 2)
+    }
+
     /** Captions, titles, options and explanations: no em or en dashes; the words the pup says spell notes in words. */
     @Test fun copyFollowsTheHouseRules() {
         val dashes = Regex("[–—]| - ")

@@ -422,7 +422,8 @@ private fun DrawScope.hands(color: Color) {
 private fun DrawScope.clapBurst(now: Long, at: Long, onBeat: Boolean, still: Boolean) {
     val age = (now - at) / 1e9f
     if (age > 0.6f) return
-    val p = if (still) 1f else age / 0.6f
+    // With animations off the rays show still for the burst's time (p = 1 drew them fully faded: a clap showed nothing).
+    val p = if (still) 0f else age / 0.6f
     val c = Offset(size.width / 2, size.height * 0.18f)
     val color = (if (onBeat) PupGold else Ink).copy(alpha = 1f - p)
     for (k in 0 until 8) {

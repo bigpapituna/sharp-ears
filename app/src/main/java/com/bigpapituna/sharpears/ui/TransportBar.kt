@@ -24,17 +24,20 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.Mode
@@ -43,7 +46,7 @@ import com.bigpapituna.sharpears.engine.Section
 
 val SPEEDS = listOf(0.25, 0.5, 0.75, 1.0)
 
-fun formatTime(ms: Double): String { val s = (ms / 1000).toInt(); return "%d:%02d".format(s / 60, s % 60) }
+fun formatTime(ms: Double): String { val s = (ms / 1000).toInt(); return "%d:%02d".format(java.util.Locale.ROOT, s / 60, s % 60) }
 private fun speedLabel(s: Double) = "${s}x".replace(".0x", "x")
 
 /** Everything the bar shows; the player owns the state. */
@@ -81,6 +84,8 @@ data class BarState(
     val transpose: Int = 0,
     /** Duet (2.1): null hides the pill (one profile, or not a library song), "" offers it, a label says it is on. */
     val duet: String? = null,
+    /** A kid plays (audit 2026-10-20): no times, loop, speed, chord names, metronome, flag or transpose. */
+    val kid: Boolean = false,
 )
 
 class BarActions(
@@ -115,6 +120,17 @@ class BarActions(
  */
 @Composable
 fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
+    // Two fixed-height rows across a phone held sideways: at the phone's largest font sizes (up to 2x) the hands, the modes
+    // and the play button ran off the right edge. The bar's text stops growing at 1.15x, where the song slider still has
+    // room; the rest of the player follows the phone.
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale.coerceAtMost(MAX_FONT_SCALE))) { Bar(s, a, modifier) }
+}
+
+private const val MAX_FONT_SCALE = 1.15f
+
+@Composable
+private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier.padding(horizontal = 8.dp)) {
         Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -123,15 +139,17 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
                 Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (s.subtitle.isNotEmpty()) Text(s.subtitle, style = MaterialTheme.typography.bodySmall, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            // A duet plays both hands, one person each: the chooser is locked, so it shows as off rather than ignoring taps.
             Segments(listOf("Both" to Practice.BOTH, "L" to Practice.LEFT, "R" to Practice.RIGHT), s.practice, a.onPractice,
-                spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"))
+                spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"), enabled = s.duet.isNullOrEmpty())
             Segments(listOf("Listen" to Mode.LISTEN, "Wait" to Mode.WAIT, "Perform" to Mode.PERFORM), s.mode, a.onMode)
             FilledIconButton(onClick = a.onPlayPause, enabled = s.ready, modifier = Modifier.size(48.dp)) {
                 Icon(painterResource(if (s.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow),
                     contentDescription = if (!s.ready) "Loading sounds" else if (s.playing) "Pause" else "Play")
             }
         }
-        Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (s.kid) KidRow(s, a)
+        else Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(formatTime(s.positionMs), style = Numeric.merge(MaterialTheme.typography.labelLarge), modifier = Modifier.padding(start = 12.dp))
             Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
                 val accent = MaterialTheme.colorScheme.primary
@@ -200,6 +218,25 @@ fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * A kid's second row: where the song is, Duet and the microphone. The grown-ups' times, loop, speed, chord
+ * names, metronome, flag and transpose were all on a pre-reader's song (no chords or loops for kids, as in Practice today).
+ */
+@Composable
+private fun KidRow(s: BarState, a: BarActions) {
+    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Slider(
+            value = (s.positionMs / s.durationMs.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f),
+            onValueChange = { a.onSeek(it.toDouble() * s.durationMs) },
+            colors = SliderDefaults.colors(inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            modifier = Modifier.weight(1f).padding(horizontal = 12.dp).semantics { contentDescription = "Song position" },
+        )
+        s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
+        MicToggle(s, a.onMic)
+        // No tutorial video: its "Open in YouTube", YouTube's own links and the Sync controls are for grown-ups.
+    }
+}
+
 /** The loop walks through three states on one button; the label always says what the next tap does or what is set. */
 @Composable
 private fun LoopButton(s: BarState, onLoop: () -> Unit) {
@@ -233,11 +270,12 @@ private fun MicToggle(s: BarState, onMic: () -> Unit) {
 }
 
 @Composable
-private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T) -> Unit, spoken: Map<String, String> = emptyMap()) {
+private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T) -> Unit, spoken: Map<String, String> = emptyMap(),
+                         enabled: Boolean = true) {
     SingleChoiceSegmentedButtonRow {
         options.forEachIndexed { i, (label, value) ->
             SegmentedButton(
-                selected = value == selected, onClick = { onPick(value) },
+                selected = value == selected, onClick = { onPick(value) }, enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(i, options.size), icon = {},
                 modifier = Modifier.semantics { spoken[label]?.let { contentDescription = it } },
             ) { Text(label, maxLines = 1) }

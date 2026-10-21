@@ -143,6 +143,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 const val TAG = "SharpEars"
+/** The instance state's key for the open screen (see routeOf). */
+private const val ROUTE = "screen"
+/** The instance state's flag for "Who's playing today?" still waiting for an answer. */
+private const val PICKER = "picker"
 
 /**
  * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
@@ -199,12 +203,53 @@ private fun depthOf(s: Screen) = when (s) {
     is Screen.Finale -> 2
 }
 
+/**
+ * The screen as one line for the saved instance state, the screens it goes back to first ("home:LEARN/lesson:2:find-c"),
+ * so a recreate (a process the system stopped in the background, Don't keep activities, a dark mode or font size change)
+ * reopens it, a lesson at its step, instead of home. Practice today and generated songs (the mic check, progressions,
+ * practice patterns) save as where they go back to. Read by [MainActivity.screenAt].
+ */
+private fun routeOf(s: Screen): String = when (s) {
+    is Screen.Home -> "home:${s.tab.name}"
+    is Screen.Player -> if (s.meta == null) routeOf(s.back) else "${routeOf(s.back)}/song:${s.meta.id}"
+    is Screen.Lesson -> "${routeOf(s.back)}/lesson:${s.step}:${s.lesson.id}"
+    is Screen.MicSetup -> "${routeOf(s.back)}/micsetup"
+    is Screen.SightRead -> "${routeOf(s.back)}/sight:${s.level}"
+    is Screen.Daily -> "home:SONGS"
+    is Screen.Privacy -> "${routeOf(s.back)}/privacy"
+    is Screen.Licences -> "${routeOf(s.back)}/licences"
+    is Screen.Settings -> "${routeOf(s.back)}/settings"
+    is Screen.EarTraining -> "${routeOf(s.back)}/ear"
+    Screen.Onboarding -> "onboarding"
+    is Screen.Theory -> "${routeOf(s.back)}/theory"
+    is Screen.World -> "${routeOf(s.back)}/world:${s.tab.name}"
+    is Screen.Play -> "${routeOf(s.back)}/play:${s.toy.name}"
+    is Screen.KidSongs -> "${routeOf(s.back)}/kidsongs"
+    is Screen.KidStickers -> "${routeOf(s.back)}/kidstickers:${s.page.name}"
+    is Screen.Finale -> "finale:${s.pageId}"
+}
+
 /** The player is always dark, like a video; everything else follows the system. */
 private fun playerShown(s: Screen) = s is Screen.Player ||
     (s is Screen.Daily && !s.between && s.plan.parts[s.index].let { it is SessionPart.Loop || it is SessionPart.Song })
 
 /** The stage: the player, or a Practice today part that runs one. */
 private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
+
+/** Screens played at the piano, hands off the phone for minutes: the screen stays on (see [KeepScreenOnWhile]). */
+private fun keepsScreenOn(s: Screen) = s is Screen.Player || s is Screen.Lesson || s is Screen.Daily || s is Screen.SightRead ||
+    s is Screen.Play || s is Screen.EarTraining || s is Screen.Theory || s is Screen.Finale
+
+/**
+ * The screen stays on while [stage] or while the mic listens (chord games, the tuner): a phone's 30 s timeout used to
+ * switch the screen off under a child playing a lesson, which stopped the mic and the lesson with it.
+ */
+@androidx.compose.runtime.Composable
+private fun KeepScreenOnWhile(mic: MicInput, stage: Boolean) {
+    val on = stage || mic.source.value != null
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, on) { view.keepScreenOn = on; onDispose { view.keepScreenOn = false } }
+}
 
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
@@ -221,10 +266,16 @@ class MainActivity : ComponentActivity() {
     private var openKind: com.bigpapituna.sharpears.engine.family.ProfileKind? = null
     /** A kid reads or not, as the app was opened (a big kid's course path differs, so a change reopens it too). */
     private var openReader: Boolean? = null
+    /** Launches of this activity's content ([openApp] with fromLaunch), so a new one forgets the last one's screen. */
+    private var launches = 0
+    /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
+    private var shownRoute: String? = null
+    private var restoreRoute: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        restoreRoute = savedInstanceState?.getString(ROUTE)
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -236,7 +287,8 @@ class MainActivity : ComponentActivity() {
         val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
         // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
         if (mic.keepRecordings) {
-            mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            val app = applicationContext      // read at crash time, never this activity (the handler outlives it)
+            mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?") { Profiles(app).all.map { it.name } }
             mic.reporter.weeklySummary(Prefs(this, Profile.OWNER_ID).practice())
             mic.reporter.flush()
         }
@@ -248,11 +300,12 @@ class MainActivity : ComponentActivity() {
                 if (openId != null && (openId != id || openKind != kind || openReader != reader)) openApp(fromLaunch = false)
             }
         }
-        // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
+        // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us;
+        // a recreate while it still asked (the process stopped in the background) asks again rather than open as the last player.
         val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
         // The world's jingles and the note tick (one SoundPool for the app; Settings > Sound switches them with the rest).
         WorldSounds.init(this)
-        if (profiles.roster.needsPicker && savedInstanceState == null && !debugRoute && debugProfile == null) showPicker()
+        if (profiles.roster.needsPicker && (savedInstanceState == null || savedInstanceState.getBoolean(PICKER)) && !debugRoute && debugProfile == null) showPicker()
         else openApp(fromLaunch = true)
     }
 
@@ -299,6 +352,9 @@ class MainActivity : ComponentActivity() {
         if (newKid) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
         // Kids read the keys by their pads: every white key labelled (a letter, or an animal before reading), until a grown-up picks.
         if (profile.isKid && !prefs.keyLabelsChosen) prefs.keyLabels = com.bigpapituna.sharpears.data.KeyLabels.ALL
+        // Kids skip the onboarding that asks about the mic, so their lessons' player steps, concerts and songs opened
+        // with it off and heard nothing a kid played (the stages listen anyway). On until someone switches it off.
+        if (profile.isKid && !prefs.micDefaultChosen) prefs.micDefault = true
         // The pup's world for this profile: stickers, the jar every note feeds, the outfit; the shelf starts with old bests.
         val world = WorldStore(this, profile.id)
         world.mergeRecords(repo.all().associate { it.id to prefs.progress(it.id).bestAccuracy }.filterValues { it >= 0 })
@@ -309,7 +365,7 @@ class MainActivity : ComponentActivity() {
         val kidStore = KidStore(this, profile.id)
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
-        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader)
+        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
         val bedtime = com.bigpapituna.sharpears.ui.skin.BedtimeStore(this, profile.id)
         val practiceStore = PracticeStore(this, profile.id)
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
@@ -360,7 +416,8 @@ class MainActivity : ComponentActivity() {
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = debuggable && intent.getBooleanExtra("dump", false)
         val route = intent.getStringExtra("screen")?.takeIf { debuggable }
-        val first: Screen = when {
+        // A debug route with a bad value (an unknown lesson or song, "prog:x") opens home instead of crashing the launch.
+        val first: Screen = runCatching { when {
             route == "chords" -> Screen.Home(HomeTab.CHORDS,
                 when (intent.getStringExtra("tab")) {
                     "dictionary" -> ChordsTab.DICTIONARY; "practice" -> ChordsTab.PRACTICE; "progressions" -> ChordsTab.PROGRESSIONS
@@ -406,7 +463,7 @@ class MainActivity : ComponentActivity() {
                 Screen.Player(progressionSong(PROGRESSIONS[i.toInt()], k.toInt()), null, debugStart, seekMs, Screen.Home(HomeTab.CHORDS, ChordsTab.PROGRESSIONS))
             }
             else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
-        }
+        } }.getOrElse { Log.d(TAG, "debug route failed, opening home: $it"); Screen.Home() }
 
         val startDaily = debuggable && intent.getBooleanExtra("daily", false)
         // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
@@ -418,14 +475,25 @@ class MainActivity : ComponentActivity() {
             else -> first
         }
         if (newKid) Log.d(TAG, "profiles: new kid ${profile.id} opens on ${(opening as? Screen.Lesson)?.lesson?.id}")
+        // A recreate reopens the screen that was open (see routeOf); a route that no longer resolves opens as a launch would.
+        val reopened = restoreRoute?.takeIf { fromLaunch }?.let { r ->
+            runCatching { screenAt(r, prefs, profile.isKid) }.onSuccess { Log.d(TAG, "screen restored: $r") }
+                .onFailure { Log.d(TAG, "screen not restored ($r): $it") }.getOrNull()
+        }
+        restoreRoute = null
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
         if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
 
-        setContent { androidx.compose.runtime.key(profile.id) {
-            var screen by remember { mutableStateOf(opening) }
+        // A launch (onCreate, the picker, a debug route through onNewIntent) starts a fresh composition; a profile's kind
+        // changing keeps the screen it is on.
+        val opened = if (fromLaunch) ++launches else launches
+        setContent { androidx.compose.runtime.key(profile.id, opened) {
+            var screen by remember { mutableStateOf(reopened ?: opening) }
+            androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen) }
+            KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
@@ -467,7 +535,9 @@ class MainActivity : ComponentActivity() {
                         prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
-                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                        // A kid starts a two-hand song on the tune (the right hand), as the grown-ups' hands tip advises.
+                        val hands = if (profile.isKid && song.notes.any { it.hand == Hand.RIGHT }) Practice.RIGHT else Practice.BOTH
+                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, hands, mic = prefs.micDefault && mic.hasPermission()),
                             if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
                     }
                     // "Practice today": due chords, the next lesson, then the Continue song's worst bar (or the song).
@@ -539,7 +609,7 @@ class MainActivity : ComponentActivity() {
                         Log.d(TAG, "daily: $summary")
                         voice.speak(if (profile.isKid) com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(profile.name)
                             else "Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
-                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), PracticeStats.streak(prefs.practice(), java.time.LocalDate.now()))
+                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), progress.streak().streak)
                         screen = Screen.Home()
                     }
                     fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null) {
@@ -595,6 +665,8 @@ class MainActivity : ComponentActivity() {
                     AnimatedContent(screen, Modifier.fillMaxSize(), label = "screen", contentKey = { it::class },
                         transitionSpec = screenTransitions(still, isStage = ::isStage, depth = ::depthOf)) { s ->
                     // Each screen keeps its own theme while it animates out (the home does not turn dark under the curtain).
+                    // A screen on its way out is off screen for onScreen(): its mic stops before the next screen's starts.
+                    androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.LocalLeaving provides (s::class != screen::class)) {
                     SharpEarsTheme(dark = playerShown(s) || systemDark) {
                     when (s) {
                         is Screen.Player -> {
@@ -611,7 +683,7 @@ class MainActivity : ComponentActivity() {
                             // leads to the page's finale instead (and today's goodbye waits until after it).
                             val finaleAhead = profile.isKid && remember(l.id) { Finale.trigger(l.id, kidStore.finales()) != null }
                             val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales())
-                                else path.after(l)
+                                else path.after(l) { prefs.lessonDone(it) }
                             val leave = {
                                 val f = pendingFinale
                                 if (f != null) { pendingFinale = null; voice.stop(); screen = Screen.Finale(f) } else screen = s.back
@@ -640,12 +712,18 @@ class MainActivity : ComponentActivity() {
                                     parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                    BackHandler { advanceDaily(s, completed = false) }
+                                    // Back is "Skip the rest": the chords answered count, and the session ends here (left open,
+                                    // it took over Chords > Daily afterwards).
+                                    fun endChords(n: Int) {
+                                        part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
+                                        advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
+                                    }
+                                    BackHandler { val n = lessons.sessionIndex; lessons.endSession(); endChords(n) }
                                     // Chord practice does not run the player, so its time is counted here.
                                     androidx.compose.runtime.DisposableEffect(s.index) {
-                                        val t0 = System.currentTimeMillis()
+                                        val t0 = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
                                         onDispose {
-                                            val secs = ((System.currentTimeMillis() - t0) / 1000).toInt()
+                                            val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - t0) / 1000).toInt()
                                             prefs.addPractice(java.time.LocalDate.now(), secs)
                                             if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
                                         }
@@ -655,10 +733,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
                                         DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily }, sound = { prefs.sound },
-                                            onEnd = { n ->
-                                                part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
-                                                advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
-                                            })
+                                            onEnd = ::endChords)
                                     }
                                 }
                                 is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -676,15 +751,21 @@ class MainActivity : ComponentActivity() {
                                     val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
                                     val m = songs.first { it.id == id }
                                     val song = remember(id) { repo.load(m) }
+                                    // Played here, it is the Continue song (Songs said "Start here" after a whole session of it).
+                                    LaunchedEffect(id) { prefs.lastSongId = id }
                                     val partStart = remember(s.index) { System.currentTimeMillis() }
+                                    // A song part played to its end shows its recap first (stars, XP, the sticker it dropped);
+                                    // closing the recap, or Back, goes on. It went on at once before, so none of it was seen.
+                                    var ranToEnd by remember(s.index) { mutableStateOf(false) }
                                     androidx.compose.runtime.key(s.index) {
                                         PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value,
                                             if (part is SessionPart.Song) prefs.progress(id).let { if (it.completed) 0.0 else it.lastPositionMs.toDouble() } else 0.0,
                                             dump, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission(),
                                                 loopBar = (part as? SessionPart.Loop)?.bar, timeLimitMs = if (part is SessionPart.Loop) 120_000L else null),
                                             // Leaving the song after a minute or more of it counts; leaving at once does not.
-                                            onBack = { advanceDaily(s, completed = System.currentTimeMillis() - partStart >= 60_000) },
-                                            onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
+                                            onBack = { advanceDaily(s, completed = ranToEnd || System.currentTimeMillis() - partStart >= 60_000) },
+                                            onFinished = { if (part is SessionPart.Song) ranToEnd = true },
+                                            onRecapClosed = { if (ranToEnd) advanceDaily(s, completed = true) },
                                             chordTrack = lessons.songChords.value[id],
                                             onTimeUp = {
                                                 if (part is SessionPart.Loop) quest(QuestEvent.LoopDone(part.songId, part.bar))
@@ -786,10 +867,15 @@ class MainActivity : ComponentActivity() {
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
                             var corner by remember { mutableStateOf(false) }
+                            // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
+                            // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
+                            LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
                             // After the last page's finale the pup says it once: the big kids' road is open.
                             val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
-                            // A finale left waiting (its lesson was left another way): it plays now.
-                            LaunchedEffect(pendingFinale) { pendingFinale?.let { pendingFinale = null; screen = Screen.Finale(it) } }
+                            // A finale left waiting (its lesson was left another way, or the app was closed before): it plays now.
+                            LaunchedEffect(pendingFinale) {
+                                (pendingFinale ?: Finale.owed(prefs::lessonDone, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
+                            }
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
                                 onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
                                 onToy = { t -> screen = Screen.Play(t, home) },
@@ -818,7 +904,7 @@ class MainActivity : ComponentActivity() {
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) }),
-                                onGrownUpsClosed = { corner = false },
+                                onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
                                     fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
@@ -828,7 +914,8 @@ class MainActivity : ComponentActivity() {
                                             Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
                                             profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
                                         } },
-                                        onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                        // A grown-up's answer too: a kid's tap on "Not yet" put the one-time offer away for good.
+                                        onLater = { gate.guard { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") } })
                                 } })
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
@@ -851,9 +938,15 @@ class MainActivity : ComponentActivity() {
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                                 onToday = ::startDaily,
+                                                onRename = { m, title -> repo.rename(m, title); Log.d(TAG, "song ${m.id} renamed"); libraryVersion++ },
+                                                onDelete = { m ->
+                                                    repo.delete(m)
+                                                    if (prefs.lastSongId == m.id) prefs.lastSongId = null
+                                                    Log.d(TAG, "song ${m.id} deleted"); libraryVersion++
+                                                },
                                             ),
                                             // The week in minutes, for grown-ups (a kid's home has no numbers).
-                                            practice = remember(pv, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now()) },
+                                            practice = remember(pv, progress.version.intValue, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now(), progress.streak().streak) },
                                             today = remember(pv, lv, lessons.songPacks.value) {
                                                 val plan = todayPlan()
                                                 // Debug --ez emptyToday true: the panel with nothing due (for screenshots).
@@ -973,6 +1066,7 @@ class MainActivity : ComponentActivity() {
                     }
                     }
                     }
+                    }
                     if (goodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         com.bigpapituna.sharpears.ui.skin.Goodbye(current.name,
                             remember { com.bigpapituna.sharpears.engine.family.PawWeek.of(progress.practiceLog(), java.time.LocalDate.now()) },
@@ -1009,7 +1103,9 @@ class MainActivity : ComponentActivity() {
                     // A kid's session ends on the sticker, not on XP (KIDS-PLAN 3.4): XP still adds up underneath for grown-up
                     // mode later, but no level-up screen full of numbers.
                     if (current.isKid) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
-                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                    // Nor achievement banners ("One week streak", "100 minutes"): they unlock underneath, unseen by a kid.
+                    if (current.isKid) LaunchedEffect(progress.toasts.size) { progress.toasts.clear() }
+                    if (!isStage(screen) && !current.isKid) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = current.isKid || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
                     // The parent gate, over everything while an action waits for a grown-up.
@@ -1056,6 +1152,62 @@ class MainActivity : ComponentActivity() {
         }
         if (intent.getBooleanExtra("awake", false)) { bedtime.oneMoreOn = today; Log.d(TAG, "kid debug: lessons open today") }
     }
+
+    /**
+     * The activity is singleTop (manifest): the launcher icon, the reminder's notification and `adb shell am start` bring
+     * this one back instead of stacking a second MainActivity on it (each with its own mic, voice, MIDI and sampler).
+     * Debug builds: a route in the new intent (--es screen, song, lesson, profile, --ez daily) opens as a fresh launch would.
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (!debuggable || (listOf("screen", "song", "lesson", "profile").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
+        setIntent(intent)
+        intent.getStringExtra("profile")?.let(profiles::switchTo)
+        openApp(fromLaunch = true)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        shownRoute?.let { outState.putString(ROUTE, it) }
+        if (openId == null) outState.putBoolean(PICKER, true)
+    }
+
+    /**
+     * The screen [route] names (see [routeOf]), each part going back to the one before it. A song reopens in wait mode at
+     * its saved position, as from the library. A kid's Settings, Mic setup, Privacy and Licences sit behind the parent
+     * gate, which a recreate closes: they reopen as the screen they go back to.
+     */
+    private fun screenAt(route: String, prefs: Prefs, kid: Boolean): Screen = route.split("/").fold<String, Screen>(Screen.Home()) { back, part ->
+        val arg = part.substringAfter(":", "")
+        when (part.substringBefore(":")) {
+            "home" -> Screen.Home(HomeTab.valueOf(arg))
+            "song" -> repo.all().first { it.id == arg }.let { m ->
+                val p = prefs.progress(m.id)
+                Screen.Player(repo.load(m), m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                    if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
+            }
+            "lesson" -> arg.substringAfter(":").let { id -> COURSE.flatMap { it.lessons }.first { it.id == id } }
+                .let { Screen.Lesson(it, back, arg.substringBefore(":").toInt().coerceIn(0, it.steps.lastIndex)) }
+            "micsetup" -> if (kid) back else Screen.MicSetup(back)
+            "sight" -> Screen.SightRead(back, arg.toInt())
+            "privacy" -> if (kid) back else Screen.Privacy(back)
+            "licences" -> if (kid) back else Screen.Licences(back)
+            "settings" -> if (kid) back else Screen.Settings(back)
+            "ear" -> Screen.EarTraining(back)
+            "onboarding" -> Screen.Onboarding
+            "theory" -> Screen.Theory(back)
+            "world" -> Screen.World(back, WorldTab.valueOf(arg))
+            "play" -> Screen.Play(Toy.valueOf(arg), back)
+            "kidsongs" -> Screen.KidSongs(back)
+            "kidstickers" -> Screen.KidStickers(back, StickerPage.valueOf(arg))
+            "finale" -> Screen.Finale(arg)
+            else -> back
+        }
+    }
+
+    override fun onStart() { super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start() }
+    override fun onStop() { com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); super.onStop() }
 
     override fun onPause() {
         Juice.world?.flush()            // the treat jar saves every few notes; the rest now

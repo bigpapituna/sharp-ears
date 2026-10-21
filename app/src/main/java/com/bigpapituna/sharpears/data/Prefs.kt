@@ -51,6 +51,8 @@ class Prefs(context: Context, val profileId: String) {
     var micDefault: Boolean
         get() = p.getBoolean("micDefault", false)
         set(v) = edit { putBoolean("micDefault", v) }
+    /** The mic was ever switched on or off here (the onboarding, the player's mic button); a kid starts with it on until then. */
+    val micDefaultChosen: Boolean get() = p.contains("micDefault")
 
     /** Kokoro (recorded and on-phone) instead of the phone's own text-to-speech voices. */
     var naturalVoice: Boolean
@@ -182,7 +184,8 @@ class Prefs(context: Context, val profileId: String) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") }
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") ||
+            it.startsWith("daily:") }      // today's "Done for today: ... 11 min." went on showing the minutes just cleared
         edit { keys.forEach(::remove) }
     }
 

@@ -46,6 +46,14 @@ class ProfileTest {
         assertEquals(0, Profile.kid("Mia", -3, true).avatar)
     }
 
+    /** Audit: a name cut at 20 UTF-16 units could keep half an emoji, a broken glyph that the backup wrote as "?". */
+    @Test fun aLongNameIsNeverCutInsideAnEmoji() {
+        val name = Profile.cleanName("a".repeat(19) + "🎹 Mia")
+        assertEquals("a".repeat(19), name)
+        assertEquals("Zoë 🎹", Profile.cleanName("Zoë 🎹"))
+        assertEquals(name, Profile.decode(Profile.kid(name, 0, true, id = "p1").encode())!!.name)
+    }
+
     @Test fun grownUpModeTakesTheAdultDefaultsAndKeepsWhoTheyAre() {
         val kid = Profile.kid("Mia", 5, reader = false, id = "p2", createdAt = 99)
         val grown = kid.withKind(ProfileKind.ADULT)
@@ -64,6 +72,18 @@ class ProfileTest {
             Profile.owner(42).copy(hintSeconds = listOf(5, 9, 14), micOffsetDb = -1.5, colourNotes = true),
         )
         for (p in all) assertEquals(p, Profile.decode(p.encode()))
+    }
+
+    /**
+     * Audit: a pre-reader switched to grown-up mode came back from the file as a reader (the grown-up defaults set
+     * reader, and decode never read it back), so switching back to kid mode after a restart gave them letters and the
+     * reader's goal.
+     */
+    @Test fun aGrownUpWhoWasAPreReaderStaysOneThroughTheFile() {
+        val grown = Profile.kid("Mia", 5, reader = false, id = "p2").withKind(ProfileKind.ADULT)
+        val back = Profile.decode(grown.encode())!!
+        assertEquals(grown, back)
+        assertEquals(Profile.KID_GOAL_PRE_READER, back.withKind(ProfileKind.KID).dailyGoalMin)
     }
 
     @Test fun olderOrBrokenTextReadsSafely() {

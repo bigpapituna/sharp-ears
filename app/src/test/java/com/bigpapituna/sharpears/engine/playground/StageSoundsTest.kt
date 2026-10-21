@@ -60,8 +60,10 @@ class StageSoundsTest {
 
     @Test fun noSoundIsEverAKeyWithEveryKeyExpected() {
         val bad = mutableListOf<String>()
+        val cases = sounds.flatMap { s -> listOf(0.0, -12.0, -24.0).map { s to it } }
+        val each = cases.zip(parallelMap(cases) { (s, gain) -> heard(load(s, gain), (21..108).toSet(), strict = true) }).toMap()
         for (s in sounds) for (gain in listOf(0.0, -12.0, -24.0)) {
-            val ev = heard(load(s, gain), (21..108).toSet(), strict = true)
+            val ev = each.getValue(s to gain)
             if (ev.any { it is MicEvent.Strike || it is MicEvent.Wrong })
                 bad += "$s at $gain dB was heard as ${ev.map { (it as? MicEvent.Strike)?.midi?.let(::noteName) ?: it.toString() }}"
         }
@@ -76,8 +78,10 @@ class StageSoundsTest {
             // 2.3: the workshop's left hand, the photo booth's songs.
             (listOf(StageKeys.LEFT_FIVE) + SHELF.map { StageKeys.of(photoExercise(it)) }).distinct().map { it to it.map { k -> setOf(k) } }
         val bad = mutableListOf<String>()
+        val cases = sounds.flatMap { s -> listOf(0.0, -12.0, -24.0).flatMap { g -> sets.map { Triple(s, g, it) } } }
+        val each = cases.zip(parallelMap(cases) { (s, gain, sg) -> heard(load(s, gain), sg.first, strict = true, groups = sg.second) }).toMap()
         for (s in sounds) for (gain in listOf(0.0, -12.0, -24.0)) for ((set, groups) in sets) {
-            val ev = heard(load(s, gain), set, strict = true, groups = groups)
+            val ev = each.getValue(Triple(s, gain, set to groups))
             if (ev.any { it is MicEvent.Strike || it is MicEvent.Wrong }) bad += "$s at $gain dB with ${set.map(::noteName)} was heard as $ev"
         }
         assertTrue(bad.joinToString("; "), bad.isEmpty())

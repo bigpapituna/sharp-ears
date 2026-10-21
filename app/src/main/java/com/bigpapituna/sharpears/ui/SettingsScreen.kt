@@ -60,9 +60,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** The daily reminder is the phone owner's (one alarm per phone); other profiles do not see it. */
                    showReminder: Boolean = true) {
     var pickTime by remember { mutableStateOf(false) }
-    // The reminder time as the phone shows times (6:30 PM, or 18:30).
-    val timeLabel = java.time.LocalTime.of(prefs.reminderMinutes / 60, prefs.reminderMinutes % 60)
-        .format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)).replace(' ', ' ')
+    // The reminder time as the phone shows times (6:30 PM, or 18:30): its 12 or 24-hour setting, as the picker uses.
+    val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
+        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, prefs.reminderMinutes / 60); set(java.util.Calendar.MINUTE, prefs.reminderMinutes % 60) }.time).replace(' ', ' ')
     val context = androidx.compose.ui.platform.LocalContext.current
     // Progress export and import (Storage Access Framework: the player picks where the file goes).
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -84,9 +84,12 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         }
     }
     // Android 13 and up ask before an app may post notifications: asked when the reminder is switched on.
+    // Refused (or refused twice, when Android stops asking and the switch did nothing at all): say where to allow them.
+    var notifyRefused by remember { mutableStateOf(false) }
     val askNotify = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "reminder: notification permission granted=$granted")
         prefs.reminderOn = granted
+        notifyRefused = !granted
         onReminder()
     }
     // Re-read after each write so the controls show the saved values.
@@ -159,6 +162,17 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             if (showReminder) TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
                 contentDescription = "Reminder time, $timeLabel, tap to change"
             }) { Text("Time: $timeLabel") }
+            // Checked again on coming back from the phone's settings.
+            val shown = onScreen()
+            val blocked = remember(shown, v, notifyRefused) { !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) }
+            if (showReminder && blocked && (notifyRefused || prefs.reminderOn)) {
+                Text("Notifications are off for Sharp Ears, so no reminder can show. Allow them in the phone's settings.",
+                    style = MaterialTheme.typography.bodySmall, color = dim)
+                TextButton(onClick = {
+                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                }) { Text("Open notification settings") }
+            }
 
             Section("Progress")
             Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
@@ -170,7 +184,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             }
             progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
             Text("Reset clears resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records. " +
-                "Chord lessons, XP and achievements are kept.",
+                "Learn and chord lessons, stickers, XP and achievements are kept.",
                 style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
             TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
 
@@ -203,7 +217,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             onDismissRequest = { importing = null },
             title = { Text("Replace your progress?") },
             text = { Text("The file holds ${files.values.sumOf { it.size }} saved settings. They replace everything the app remembers now" +
-                (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile,") + " and this cannot be undone.") },
+                (if ("profiles" in files) ", for everyone on this phone," else " for the owner's profile (an older file: stickers and the pup's world stay),") + " and this cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     com.bigpapituna.sharpears.data.ProgressFiles.replace(context, files)
@@ -220,7 +234,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         title = { Text("Reset progress?") },
         // XP and achievements stay on purpose: they record what was done, and a reset should not take that away.
         text = { Text("Resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records " +
-            "will be cleared. Your XP, level and achievements are kept.") },
+            "will be cleared. Your lessons, stickers, XP, level and achievements are kept.") },
         confirmButton = { TextButton(onClick = { prefs.resetProgress(); onResetProgress(); confirmReset = false }) { Text("Reset") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
     )

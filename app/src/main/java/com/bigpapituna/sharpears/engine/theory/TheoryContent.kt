@@ -151,7 +151,7 @@ private val unitKeyboard = TheoryUnit("keys", 1, "The keyboard", "Octaves, the b
         scene("Which name to use depends on the key you're in. You'll see why in the scales unit.",
             keys("C4", "B4", listOf(kf("A#4", "In B♭ major it's B♭", names = mapOf("A#4" to "B♭"))), stepMs = 1500), Mood.THINK),
     ), listOf(
-        choice("D flat is the same key as", listOf("C sharp", "D sharp", "E flat"), 0, "The black key between C and D has both names."),
+        choice("D flat is the same key as", listOf("C sharp", "D sharp", "D"), 0, "The black key between C and D has both names."),
         choice("Another name for G sharp is", listOf("A flat", "G flat", "A sharp"), 0, "The key just above G is the key just below A."),
         play("Play E flat.", "Eb4", "E flat is the same key as D sharp.", flats = true),
         choice("Two names for the same key are called", listOf("enharmonic", "chromatic", "octaves"), 0, "Enharmonic names sound the same and look different."),

@@ -96,11 +96,40 @@ class ChordGamesTest {
         assertEquals(1, g.score)
     }
 
+    /** Audit: Hear it served C augmented after A flat augmented, the same three keys, as a new round. */
+    @Test fun aRoundNeverAsksForTheSameKeysAgain() {
+        for (kind in listOf(GameKind.BUILD, GameKind.HEAR, GameKind.MAJOR_MINOR)) for (level in kind.levels.indices) for (seed in 1L..200L) {
+            val g = ChordGame(kind, level, seed = seed)
+            var prev = g.target
+            repeat(9) {
+                g.skip()
+                assertTrue("$kind $level seed $seed: ${chordTitle(prev)} then ${chordTitle(g.target)}", g.target.pitchClasses != prev.pitchClasses)
+                prev = g.target
+            }
+        }
+    }
+
     @Test fun aRoundOfTenEnds() {
         val g = ChordGame(GameKind.BUILD, 2, seed = 1)
         repeat(10) { g.target.pitchClasses.forEach { pc -> g.input(60 + pc) }; g.next() }
         assertTrue(g.finished)
         assertEquals(10, g.score); assertEquals(10, g.bestStreak)
         assertEquals(ChordGame.Outcome.IGNORED, g.input(60).outcome)
+    }
+
+    @Test fun aGameOfOnlySkipsEarnsNothing() {
+        // Ten Skips paid 40 XP, a "Good effort!" and a best of 0; the screen now leaves without any of it.
+        val skipped = ChordGame(GameKind.HEAR, 0, seed = 2)
+        repeat(10) { assertFalse(skipped.allSkipped); skipped.skip() }
+        assertTrue(skipped.finished); assertEquals(10, skipped.skipped); assertTrue(skipped.allSkipped)
+        // One round answered, even wrongly, is a game played.
+        val tried = ChordGame(GameKind.BUILD, 0, seed = 2)
+        tried.input(60 + (tried.target.root + tried.target.type.intervals[1]) % 12)
+        tried.input(60 + (tried.target.root + tried.target.type.intervals[2]) % 12)
+        repeat(10) { tried.skip() }
+        assertTrue(tried.finished); assertEquals(9, tried.skipped); assertFalse(tried.allSkipped)
+        val intervals = IntervalGame(0, seed = 4)
+        repeat(10) { intervals.skip() }
+        assertTrue(intervals.allSkipped)
     }
 }

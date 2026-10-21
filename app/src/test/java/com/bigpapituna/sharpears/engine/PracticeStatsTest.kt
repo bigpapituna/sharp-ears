@@ -14,6 +14,9 @@ class PracticeStatsTest {
         assertEquals(42, PracticeStats.weekMinutes(s, today))
         assertEquals(4, PracticeStats.streak(s, today))
         assertEquals("This week: 42 min, 4 days in a row", PracticeStats.summary(s, today))
+        // Only today so far: the week says what the goal line over it says (16 min, not 17).
+        assertEquals("This week: 16 min", PracticeStats.summary(days(0L to 1000), today))
+        assertEquals("Goal met, 16 min today", com.bigpapituna.sharpears.engine.progress.DailyGoal.line(1000, 10))
     }
 
     @Test fun streakStillCountsBeforeTodaysPractice() {
@@ -25,6 +28,19 @@ class PracticeStatsTest {
     @Test fun omittedWhenZeroAndNoStreakForOneDay() {
         assertNull(PracticeStats.summary(days(8L to 3000), today))
         assertEquals("This week: 1 min", PracticeStats.summary(days(0L to 20), today))
+    }
+
+    /**
+     * Audit: the home's week line and "Done for today" counted the player's 60-day log with no freezes, while the
+     * greeting and You count every practice with the freezes earned: with Oct 8 missed after a full week, the home said
+     * "2 days in a row" next to a 9-day streak. Both now show the profile's streak.
+     */
+    @Test fun theWeekLineShowsTheProfilesStreak() {
+        val today = LocalDate.of(2026, 10, 10)
+        val days = (1..10).filter { it != 8 }.map { LocalDate.of(2026, 10, it) }
+        val profile = com.bigpapituna.sharpears.engine.progress.Streaks.compute(days.toSet(), today).streak
+        assertEquals(9, profile)
+        assertEquals("This week: 30 min, 9 days in a row", PracticeStats.summary(days.associateWith { 300 }, today, profile))
     }
 
     @Test fun keepsSixtyDays() {

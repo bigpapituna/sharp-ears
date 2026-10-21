@@ -234,7 +234,7 @@ val NIGHT_SKY: CourseLevel = CourseLevel(NIGHT_SKY_ID, "Pup's Night Sky",
     lesson(9, "Long or short", "Was the note long like a yawn, or short like a hop?",
         read(
             scene("Some notes are long, like a big yawn. Some are short, like a hop.", lane("C4:4 C4:0.5 r:0.5 C4:0.5 r:0.5 C4:0.5 r:1.5", bpm = 72), Mood.LISTEN),
-            scene("Listen to my note. Tap long if it held on, or short if it hopped away.", touch("C4 E4 G4", Touch.LEGATO, Touch.STACCATO), Mood.POINT)),
+            scene("Listen to my note. Tap long if it held on, or short if it hopped away.", touch("C4 E4 G4", Touch.LEGATO, Touch.STACCATO, labels = listOf("Long", "Short")), Mood.POINT)),
         tapStep("Listen to my note. Was it long or short? Tap!", LONG_OR_SHORT),
         perform("Now play long and short notes with me. Hold the long ones!", LONG_SHORT),
         play("In Twinkle, the star note at the end is long. Hold on to it!", TWINKLE.copy(practice = Practice.RIGHT).bite())),

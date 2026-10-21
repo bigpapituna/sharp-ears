@@ -148,7 +148,7 @@ internal fun SlidingSegments(
     BoxWithConstraints(modifier.height(height).clip(CircleShape).background(well).padding(3.dp)) {
         val w = maxWidth / labels.size
         val x by animateDpAsState(w * selected, if (still) tween(0) else spring(dampingRatio = 0.75f, stiffness = 600f), label = "thumb")
-        Box(Modifier.offset(x = x).width(w).fillMaxHeight().clip(CircleShape).background(thumb))
+        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(x.roundToPx(), 0) }.width(w).fillMaxHeight().clip(CircleShape).background(thumb))
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
                 Row(Modifier.width(w).fillMaxHeight().clip(CircleShape)

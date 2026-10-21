@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -178,6 +179,8 @@ fun PlayerScreen(
      * stretches with nothing played), and the pup says "Good try, let's keep going".
      */
     letGo: Boolean = false,
+    /** The run's recap was closed (Practice today goes on to its next part then). */
+    onRecapClosed: () -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
@@ -188,6 +191,14 @@ fun PlayerScreen(
     if (embedded == null) DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+    // The stage is always dark: light status bar icons over it (with a light phone theme they were dark on black). Set
+    // again after each configuration change, which puts the edge-to-edge style back (the turn to landscape is one).
+    if (embedded == null) DisposableEffect(androidx.compose.ui.platform.LocalConfiguration.current) {
+        val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        val lightBars = bars.isAppearanceLightStatusBars
+        bars.isAppearanceLightStatusBars = false
+        onDispose { bars.isAppearanceLightStatusBars = lightBars }
     }
     val labels = embedded?.labels ?: true
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
@@ -223,6 +234,7 @@ fun PlayerScreen(
     val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    lights.showCombo = !kid                                       // a kid's lane counts no streak
     // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
     val wrongs = rememberWrongFlash(slow = start.lightSlow)
     val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
@@ -321,7 +333,7 @@ fun PlayerScreen(
         tail.addLast(java.time.LocalTime.now().toString().take(12) + "  " + line)
         while (tail.size > 60) tail.removeFirst()
     }
-    fun at(ms: Double) = "%d:%02d".format((ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
+    fun at(ms: Double) = "%d:%02d".format(java.util.Locale.ROOT, (ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
     // Keyboard as answer key (MIDI on USB with the mic on: the mic plays, the keyboard checks it). Mismatches close
     // together go into one clip, saved once things have been quiet for 3 s.
     val answerKey = remember { com.bigpapituna.sharpears.engine.AnswerKey() }
@@ -563,8 +575,12 @@ fun PlayerScreen(
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
         }
+        // A run the player played: not Listen (the app plays it), and not one that reached nothing (Play pressed at the
+        // end, after a seek or the seek bar dragged there, was a "Clean run!" with a sticker and 50 XP, and wiped the
+        // song's hardest bars).
+        val played = transport.mode != Mode.LISTEN && !transport.report().empty
         // The hardest bars of a Wait or Perform run, remembered for the library row.
-        val spots = when (transport.mode) {
+        val spots = if (!played) null else when (transport.mode) {
             Mode.WAIT -> TroubleSpots.forWait(song, transport.troubles)
             Mode.PERFORM -> TroubleSpots.forPerform(song, transport.troubles)
             Mode.LISTEN -> null
@@ -586,15 +602,14 @@ fun PlayerScreen(
             prefs.saveTroubleBars(meta.id, spots)
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
-        if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
+        if (played) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
         val wasCompleted = prefs.progress(meta.id).completed
         // The recap shows the XP this run earned and the level bar, as lessons do.
         val xpBefore = progress?.xp
         fun xp(gained: Int?) = gained?.takeIf { it > 0 }
         fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
         val timeMs = transport.runRealMs.toLong()
-        // A run the player played (not one the app played in Listen) drops a sticker and counts for today's quest.
-        val played = transport.mode != Mode.LISTEN
+        // A run the player played drops a sticker and counts for today's quest.
         val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
         if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), kid)
             .forEach { Log.d(TAG, "quest: ${it.kind} done by ${song.id}") }
@@ -616,7 +631,7 @@ fun PlayerScreen(
             val right = if (duet?.leftId == profile.id) p.name else profile.name
             Duet.recapLine(left, right, stars)
         }
-        if (run != null) {
+        if (run != null && played) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
@@ -626,6 +641,10 @@ fun PlayerScreen(
                 reward = reward, duetLine = duetLine)
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
+        } else if (!played) {
+            // Listen (the app played it) or nothing reached: it opens at the top again, not marked played, no song XP.
+            prefs.savePosition(meta.id, 0)
+            Log.d(TAG, (if (transport.mode == Mode.LISTEN) "listened through " else "nothing played in the run of ") + song.id)
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
@@ -669,6 +688,8 @@ fun PlayerScreen(
             }
         }
     }
+    // A keyboard unplugged with keys down sends no note-offs: they stayed lit until the player closed.
+    LaunchedEffect(midi.connected.value) { if (midi.connected.value == null) held.clear() }
 
     // The sustain pedal (MIDI CC 64): graded in pedal steps, shown on the strip under the keys.
     LaunchedEffect(midi) {
@@ -690,12 +711,15 @@ fun PlayerScreen(
     DisposableEffect(micOn, mode, visible, voiceHolds, between, replaying) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
         // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying) {
+        val listens = micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying
+        val truth = micOn
+        if (listens) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
         if (micOn) midi.onTruth = mic::onMidiTruth
-        onDispose { stallEnd("left"); mic.stop(); midi.onTruth = null }
+        // Only what this effect started: a leaving player's last dispose used to stop the next screen's mic.
+        onDispose { stallEnd("left"); if (listens) mic.stop(); if (truth) midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
         transport.chordSlack = if (micOn) 1 else 0
@@ -711,13 +735,13 @@ fun PlayerScreen(
                     Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} src=mic rise=${"%.1f".format(e.riseDb)}dB delay=${e.delayMs?.let { "%.0fms".format(it) } ?: "?"}" +
                         (e.inferredFrom?.let { " (inferred from ${noteName(it)})" } ?: ""))
                     if (midi.connected.value != null) answerKey.mic(System.currentTimeMillis(), e.midi)
-                    stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(e.riseDb)} dB" +
+                    stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     mic.noiseWatch.right(android.os.SystemClock.elapsedRealtime())
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
-                    val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(e.riseDb)} dB"
+                    val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB"
                     tail("mic: $what")
                     stallWatch.heard(System.currentTimeMillis(), what)
                     val paint = mic.paintsWrongKeys
@@ -749,6 +773,8 @@ fun PlayerScreen(
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
+        // Refused (twice, and Android stops asking): the mic button did nothing at all; the pup says where to allow it.
+        if (!granted) hintLine = MIC_REFUSED_LINE
         if (granted) { micOn = true; prefs.micDefault = true; progress?.record(ProgressEvent.FeatureUsed("mic")); if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
@@ -811,6 +837,9 @@ fun PlayerScreen(
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
+        // Frames stop while the app is off screen (Home, the screen locked): the first frame back must not play the song
+        // on by the time away (it jumped 40 s) nor count it as practice, so the step leaves out the time away.
+        var awayLast = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs()
         var wasWaiting = transport.waiting
         if (wasWaiting) { stallBegin(); hintsBegin() }   // resumed in the middle of a wait
         var listening = transport.listenFor
@@ -818,9 +847,11 @@ fun PlayerScreen(
         while (transport.playing) {
             withFrameNanos { now ->
                 val before = transport.positionMs
-                practiceMs[0] += (now - last) / 1_000_000.0
+                val away = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs().let { a -> (a - awayLast).also { awayLast = a } }
+                val step = ((now - last) / 1_000_000.0 - away).coerceAtLeast(0.0)
+                practiceMs[0] += step
                 if (practiceMs[0] >= 15_000) flushPractice()
-                val events = transport.tick((now - last) / 1_000_000.0)
+                val events = transport.tick(step)
                 if (events.isNotEmpty()) apply(events)
                 // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
                 // The Perform count-in always clicks, metronome or not.
@@ -876,7 +907,7 @@ fun PlayerScreen(
             mic.octaveCheck()?.let { h ->
                 Log.d(TAG, "octave hint: ${noteName(h.expected)} played ${if (h.playedOctaveOffset > 0) "an octave up" else "an octave down"}")
                 octaveShown = h
-                say(h.line)
+                say(h.line(kid))
             }
         }
     }
@@ -884,15 +915,18 @@ fun PlayerScreen(
     val moving = playing && !waitingNow && transport.positionMs >= 0
     val showVideo = videoOn && tutorial != null
 
+    // The bar needs the playhead to a tenth of a second (a slider pixel is a few hundred ms of a song): read per frame, the
+    // whole bar recomposed 60 times a second while a song played.
+    val barPosition by remember { derivedStateOf { kotlin.math.floor(position / 100.0) * 100.0 } }
     @Composable
-    fun Bar() = TransportBar(
-        BarState(playing, ready, maxOf(position, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
+    fun Bar() = OwnScope { TransportBar(
+        BarState(playing, ready, maxOf(barPosition, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
             midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
             // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
             subtitle = listOfNotNull(
                 if (transpose != 0) "${if (transpose > 0) "Up" else "Down"} ${kotlin.math.abs(transpose)} ${if (kotlin.math.abs(transpose) == 1) "semitone" else "semitones"}" else null,
                 meta?.composer?.takeIf { it.isNotEmpty() },
-                song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
+                song.sections.lastOrNull { it.startMs <= barPosition }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
@@ -902,10 +936,11 @@ fun PlayerScreen(
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
-                position < transport.anchorMs -> if (playing) "Get ready" else ""
+                barPosition < transport.anchorMs -> if (playing) "Get ready" else ""
                 kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
+            kid = kid,
             duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
                 ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(
@@ -921,7 +956,9 @@ fun PlayerScreen(
             onLoop = {
                 when {
                     loopStart == null -> setLoop(transport.positionMs.coerceAtLeast(0.0), null)
-                    loopEnd == null -> setLoop(loopStart, transport.positionMs)
+                    // An end marked before the start (the seek bar went back) swapped nothing: the bar showed "0:20-0:10"
+                    // and nothing looped. The two now swap; the same spot twice waits for an end somewhere else.
+                    loopEnd == null -> { val a = loopStart!!; val b = transport.positionMs.coerceAtLeast(0.0); if (b != a) setLoop(minOf(a, b), maxOf(a, b)) }
                     else -> setLoop(null, null)
                 }
             },
@@ -945,7 +982,7 @@ fun PlayerScreen(
             }) else null,
         ),
         modifier = Modifier.fillMaxWidth(),
-    )
+    ) }
     if (flagging) FlagDialog(onDismiss = { flagging = false }) { what, note ->
         flagging = false
         val name = "flag-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
@@ -1009,10 +1046,10 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
             // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
-            Dialog(onDismissRequest = { recap = null },
+            Dialog(onDismissRequest = { recap = null; onRecapClosed() },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                 RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
-                    onClose = { recap = null },
+                    onClose = { recap = null; onRecapClosed() },
                     onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
                     songTitle = meta?.title ?: song.title, run = lastRun,
                     // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
@@ -1023,6 +1060,7 @@ fun PlayerScreen(
         if (pickingDuet) Dialog(onDismissRequest = { pickingDuet = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             SharpEarsTheme(dark = androidx.compose.foundation.isSystemInDarkTheme()) {
+                DialogBarsFollowTheme()
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     // One readable column, centred on a wide screen.
                     Box(contentAlignment = Alignment.TopCenter) {
@@ -1093,8 +1131,9 @@ fun PlayerScreen(
         }
     }
 
-    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks.
-    LaunchedEffect(laneBox, position, playing) {
+    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks. Only with
+    // --ez dump: keyed on the position, it made the whole player recompose (and relaunch this effect) on every frame.
+    if (debugDump) LaunchedEffect(laneBox, position, playing) {
         val box = laneBox ?: return@LaunchedEffect
         if (playing) return@LaunchedEffect
         delay(400)
@@ -1130,7 +1169,7 @@ fun PlayerScreen(
 
     // A new two-hand song: suggest hands apart first, then together. Library songs only, never lessons or progressions.
     var handsTip by remember(song) {
-        mutableStateOf(meta?.takeIf { embedded == null }?.let { m ->
+        mutableStateOf(meta?.takeIf { embedded == null && !kid }?.let { m ->
             val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
             com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(m.id), prefs.progress(m.id).completed)
                 ?.takeIf { it != prefs.handsTipDismissed(m.id) }
@@ -1149,6 +1188,8 @@ fun PlayerScreen(
     fun HandsTipRow() {
         val stage = handsTip ?: return
         if (duet != null) return                       // a duet plays both hands, one person each: no hands advice
+        // Already playing the hand it suggests (picked on the bar): "Start with the right hand alone?" over R was noise.
+        if (stage == "right" && practice == Practice.RIGHT || stage == "left" && practice == Practice.LEFT) return
         Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(when (stage) {
@@ -1220,6 +1261,13 @@ private fun handColor(h: Hand) = if (h == Hand.RIGHT) RightHandColor else LeftHa
 
 
 /** The lesson player's one row: play/pause, what the step asks (fixed by the step), live status, and the mic. */
+/**
+ * Runs [content] in a recompose scope of its own. A local composable function (PlayerScreen's Bar) has none, so its
+ * state reads recomposed the whole player: the playhead, read by the bar, did that on every frame.
+ */
+@Composable
+private fun OwnScope(content: @Composable () -> Unit) = content()
+
 @Composable
 private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: Boolean, onPlayPause: () -> Unit, onMic: () -> Unit, status: String) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,

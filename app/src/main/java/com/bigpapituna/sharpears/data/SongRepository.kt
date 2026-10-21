@@ -46,7 +46,9 @@ class SongRepository(private val context: Context) {
         parseIndex(context.assets.open("songs/index.json").bufferedReader().use { it.readText() })
     }
 
-    fun imported(): List<SongMeta> = if (userIndex.exists()) parseIndex(userIndex.readText()) else emptyList()
+    /** A damaged index (a write cut short by a full disk or a killed process) reads as no imports, not a crash on every launch. */
+    fun imported(): List<SongMeta> = if (!userIndex.exists()) emptyList() else runCatching { parseIndex(userIndex.readText()) }
+        .getOrElse { android.util.Log.d(com.bigpapituna.sharpears.TAG, "imported songs: index unreadable, ignored ($it)"); emptyList() }
 
     fun all() = bundled + imported().filter { u -> bundled.none { it.id == u.id } }
 
@@ -68,7 +70,7 @@ class SongRepository(private val context: Context) {
             ?: throw ImportException("Could not open the file.")
         val name = displayName(uri)?.substringBeforeLast('.') ?: "Imported song"
         val meta = into ?: SongMeta(
-            id = "user-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "song" },
+            id = userSongId(name),
             file = "", title = name, composer = "", difficulty = "imported", hands = HandRule.Auto,
             license = "personal use, not bundled", attribution = "Imported from your device",
         ).let { it.copy(file = "user/${it.id}.mid") }
@@ -78,13 +80,22 @@ class SongRepository(private val context: Context) {
         return meta
     }
 
+    /** A new title for an imported song; its id, file and scores stay. */
+    fun rename(meta: SongMeta, title: String) {
+        if (imported().any { it.id == meta.id }) writeUserIndex(imported().map { if (it.id == meta.id) it.copy(title = title) else it })
+    }
+
     fun delete(meta: SongMeta) {
         File(context.filesDir, meta.file).delete()
         if (imported().any { it.id == meta.id }) writeUserIndex(imported().filter { it.id != meta.id })
     }
 
-    private fun writeUserIndex(list: List<SongMeta>) =
-        userIndex.writeText(JSONObject().put("songs", JSONArray(list.map(::toJson))).toString(2))
+    /** Whole or not at all: written beside the index, then renamed over it. */
+    private fun writeUserIndex(list: List<SongMeta>) {
+        val tmp = File(userDir, "index.json.tmp")
+        tmp.writeText(JSONObject().put("songs", JSONArray(list.map(::toJson))).toString(2))
+        if (!tmp.renameTo(userIndex)) { tmp.delete(); throw java.io.IOException("Could not save the song list.") }
+    }
 
     private fun displayName(uri: Uri): String? =
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
@@ -92,6 +103,13 @@ class SongRepository(private val context: Context) {
         }
 
     companion object {
+        /**
+         * The id of a song imported from a file called [name]: "user-" and its letters and digits. A name with none of
+         * them (all Chinese, Arabic, emoji) gets a code from the name, so two such songs never replace each other.
+         */
+        fun userSongId(name: String): String = "user-" + name.lowercase(java.util.Locale.ROOT).replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-').ifEmpty { "song-" + Integer.toHexString(name.hashCode()) }
+
         /** Throws [ImportException] with a readable message when [bytes] is not a usable MIDI file. */
         fun validate(bytes: ByteArray, meta: SongMeta) {
             val song = try { SmfParser.parse(bytes, meta.id, meta.title, meta.hands) }

@@ -91,6 +91,14 @@ object Finale {
     fun trigger(lessonId: String, seen: Set<String>, pages: List<PlaygroundPage> = PLAYGROUND_PAGES): PlaygroundPage? =
         pages.firstOrNull { it.lessonIds.isNotEmpty() && it.lastLessonId == lessonId && it.id !in seen }
 
+    /**
+     * A finale owed and never shown: a page whose last lesson is [done] but whose finale has not played ([seen]). It
+     * plays as the kid leaves that lesson; when the app was closed or killed in between, the kid home plays it the next
+     * time it opens (before, it was lost for good: the map had already walked on past the page).
+     */
+    fun owed(done: (String) -> Boolean, seen: Set<String>, pages: List<PlaygroundPage> = PLAYGROUND_PAGES): PlaygroundPage? =
+        pages.firstOrNull { it.lessonIds.isNotEmpty() && it.id !in seen && done(it.lastLessonId) }
+
     /** Where the path goes after [page]'s finale. */
     sealed interface After {
         /** The next page, its first stone. */

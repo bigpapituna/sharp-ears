@@ -264,8 +264,10 @@ class MicInput(private val context: Context) {
         stop = true
         val was = thread
         was?.join(1000)
-        thread = null
-        main.post { source.value = null; level.floatValue = -120f; if (was != null) onStopped?.invoke() }
+        synchronized(threadLock) { if (thread === was) thread = null }
+        // Not when a start followed at once (Microphone setup picking a mic): it cleared the new mic's name, which then read
+        // "Starting" for as long as the mic ran.
+        main.post { if (thread == null) { source.value = null; level.floatValue = -120f }; if (was != null) onStopped?.invoke() }
     }
 
     private fun launch(label: String, body: () -> Unit) {
@@ -274,11 +276,27 @@ class MicInput(private val context: Context) {
         matcher.reset()
         matcher.trace = if (traceOn()) { msg -> Log.d(TAG, "matcher $msg") } else null
         source.value = label
-        thread = Thread({
+        val t = Thread({
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
             try { body() } catch (e: Exception) { Log.d(TAG, "mic: thread failed: $e") }
-        }, "sharpears-mic").apply { start() }
+            finally { endedByItself() }
+        }, "sharpears-mic")
+        thread = t           // before start(): a loop that fails at once must find itself here to clear it
+        t.start()
     }
+
+    /**
+     * The capture loop ended without [stop] (the mic would not start, a read error, the input taken away): the mic is
+     * free again, so [listening] stops holding the voice's lines and the next [start] opens it afresh. Before this a
+     * dead loop stayed in [thread] and every later start() returned true without listening.
+     */
+    private fun endedByItself() {
+        val me = Thread.currentThread()
+        synchronized(threadLock) { if (thread !== me || stop) return; thread = null }
+        Log.d(TAG, "mic: the capture loop ended by itself")
+        main.post { source.value = null; level.floatValue = -120f; onStopped?.invoke() }
+    }
+    private val threadLock = Any()
 
     // ---- capture loops ----
 
@@ -289,10 +307,10 @@ class MicInput(private val context: Context) {
     @Volatile private var clockNanos = 0L
 
     private fun loopMic(rec: AudioRecord) {
-        rec.startRecording()
         val buf = FloatArray(512)
         framesRead = 0
         try {
+            rec.startRecording()          // inside the try: a refused start still releases the recorder below
             while (!stop) {
                 val n = rec.read(buf, 0, buf.size, AudioRecord.READ_BLOCKING)
                 if (n <= 0) { Log.d(TAG, "mic: read returned $n"); break }
@@ -304,7 +322,7 @@ class MicInput(private val context: Context) {
                 handle(buf, n)
             }
         } finally {
-            rec.stop(); rec.release()
+            runCatching { rec.stop() }; rec.release()
             Log.d(TAG, "mic: stopped after ${framesRead / RATE} s")
         }
     }
@@ -352,7 +370,12 @@ class MicInput(private val context: Context) {
         if (!rawFrames.isEmpty) rawFrames.send(if (n == buf.size) buf else buf.copyOf(n))
         // The writer is read inside the lock: stopRecording() nulls and closes it under the same lock, and a stale
         // reference taken outside would append to a closed file (EBADF at the end of every recording).
-        synchronized(this) { writer?.append(buf, n) }
+        synchronized(this) {
+            // A full disk ends the debug recording, never the listening (an exception here used to kill the mic thread).
+            try { writer?.append(buf, n) } catch (e: java.io.IOException) {
+                Log.d(TAG, "mic: recording stopped: $e"); runCatching { writer?.close() }; writer = null
+            }
+        }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         val deaf = this.deaf
         if (deaf) lastDeafNanos = System.nanoTime()
@@ -393,7 +416,7 @@ class MicInput(private val context: Context) {
     fun clipMark(): Long = ringFrames
 
     /** Stuck moments saved for review (each a .wav clip and a .txt report). */
-    fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+    fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.lastModified() }.orEmpty()
     /** Everything in the stalls folder (clips, reports, flags, crashes, summaries, sent markers), for sharing. */
     fun stallFiles(): List<File> = stallDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
     private fun stallDir() = File(context.getExternalFilesDir(null), "stalls")
@@ -411,15 +434,18 @@ class MicInput(private val context: Context) {
         val clip = FloatArray(n) { ring[((from + it) % ring.size).toInt()] }
         val tagged = com.bigpapituna.sharpears.engine.StallWatch.tagProfile(report, profileKind)
         Thread {
-            val dir = stallDir().apply { mkdirs() }
-            val wav = File(dir, "$name.wav")
-            Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-            File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
-            // ponytail: oldest first by name (time-stamped); about 80 clips of 30 s fit
-            val all = dir.listFiles().orEmpty().sortedBy { it.name }.toMutableList()
-            while (all.sumOf { it.length() } > STALL_BUDGET && all.size > 2) all.removeAt(0).delete()
-            Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
-            reporter.flush()
+            // A full or missing disk loses this clip, never the app (an exception on this thread was a crash mid-lesson).
+            try {
+                val dir = stallDir().apply { mkdirs() }
+                val wav = File(dir, "$name.wav")
+                Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
+                File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format(java.util.Locale.ROOT, (fromMark - from) / RATE.toDouble()))
+                // About 80 clips of 30 s fit; whole reports go, oldest first.
+                val all = dir.listFiles().orEmpty().map { com.bigpapituna.sharpears.engine.StallWatch.SavedFile(it.name, it.length(), it.lastModified()) }
+                com.bigpapituna.sharpears.engine.StallWatch.overBudget(all, STALL_BUDGET).forEach { File(dir, it).delete() }
+                Log.d(TAG, "mic: stuck moment saved ${wav.name} (${wav.length() / 1024} KB)")
+                reporter.flush()
+            } catch (e: Exception) { Log.d(TAG, "mic: stuck moment $name not saved: $e") }
         }.start()
     }
 
@@ -436,7 +462,8 @@ class MicInput(private val context: Context) {
     /** Debug builds save every live mic session (session-HHmmss.wav + .notes), keeping the last five, for offline replay. */
     private fun autoRecord() {
         val dir = File(context.getExternalFilesDir(null), "fixtures")
-        dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.name }?.dropLast(8)?.forEach { it.delete() }
+        // By time, not name: session-HHmmss has no date, so by name the newest went first after midnight.
+        dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.lastModified() }?.dropLast(8)?.forEach { it.delete() }
         // ponytail: keeps the 4 newest sessions (8 files); a size cap if sessions get long
         startRecording("session-" + java.time.LocalTime.now().toString().take(8).replace(":", ""))
     }
@@ -457,8 +484,9 @@ class MicInput(private val context: Context) {
             truth.append("# sharp ears fixture: sample,midi,velocity (velocity 0 = released)\n")
             truth.append("# mic=${source.value} rate=$RATE recorded=${java.time.LocalDateTime.now()}\n")
             recordStartFrame = framesRead
+            // No room (or no storage): no recording, but the mic goes on listening.
+            writer = try { Wav.Writer(f, RATE) } catch (e: java.io.IOException) { Log.d(TAG, "mic: cannot record ${f.name}: $e"); return null }
             recordFile = f
-            writer = Wav.Writer(f, RATE)
         }
         recording.value = label
         Log.d(TAG, "mic: recording ${f.absolutePath}")
@@ -470,7 +498,8 @@ class MicInput(private val context: Context) {
             writer?.close(); writer = null
             recordFile.also { recordFile = null }
         } ?: return
-        File(f.path.removeSuffix(".wav") + ".notes").writeText(truth.toString())
+        runCatching { File(f.path.removeSuffix(".wav") + ".notes").writeText(truth.toString()) }
+            .onFailure { Log.d(TAG, "mic: ${f.name} notes not saved: $it") }
         recording.value = null
         Log.d(TAG, "mic: saved ${f.name} (${f.length() / 1024} KB) and ${truth.lines().count { it.isNotBlank() && !it.startsWith("#") }} MIDI events")
     }

@@ -30,7 +30,8 @@ object SpokenCatalog {
     fun key(text: String): String = MessageDigest.getInstance("SHA-1").digest(normalize(text).toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }.take(16)
 
-    fun all(): List<String> {
+    /** [library]: the bundled songs' titles (assets/songs/index.json), which Practice today names before a song part. */
+    fun all(library: List<String> = emptyList()): List<String> {
         val lines = linkedSetOf<String>()
         fun add(s: String) { lines += normalize(s) }
 
@@ -68,6 +69,9 @@ object SpokenCatalog {
         // 2.2.1: the player's hints (the octave hint, "Your turn." after the app plays the keys, the noisy-room offer).
         com.bigpapituna.sharpears.engine.hints.OctaveHint.LINES.forEach(::add)
         earLines().forEach(::add)
+        // Audit 2026-10-20: the chord and ear games' fixed lines, and Practice today's song part.
+        gameLines().forEach(::add)
+        library.forEach { add(SessionPart.Song(it, it, 0.0, 0.0).next) }
         // 2.1: the kid skin's words, the Playground's call-outs, the play corner, and Practice today said the kid way.
         kidLines().forEach(::add)
         return lines.toList()
@@ -92,10 +96,43 @@ object SpokenCatalog {
         // 2.2.1: the treat jar the kid home taps, and the noisy-room offer in a kid's words.
         addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
         add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)
+        addAll(com.bigpapituna.sharpears.engine.hints.OctaveHint.KID_LINES)       // audit 2026-10-20: the octave hint, a kid's way
         add(RunWords.kidLessonLine(null))
         add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
         for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))
     }.map(::normalize).distinct()
+
+    /**
+     * The chord and ear games' lines with fixed words (Chords > Play, Ear training): the prompts, the Major or minor
+     * verdicts, the wrong keys that name no chord tone, and the scale-degree game's keys outside the key. Build it's
+     * "D is not in C major" (504 of them) and the interval answers that name both notes stay generated on the phone.
+     */
+    private fun gameLines(): List<String> = buildList {
+        add(ChordGame(GameKind.HEAR, 0, seed = 0).prompt().spoken)
+        for (level in GameKind.MAJOR_MINOR.levels.indices) add(ChordGame(GameKind.MAJOR_MINOR, level, seed = 0).prompt().spoken)
+        add(IntervalGame(0, seed = 0).prompt().spoken)
+        for (n in listOf(3, 5)) add("Play it back: $n notes.")
+        add("Not quite. From the start."); add("Not quite. Here are the notes, from the start.")
+        add("Those notes are not a major or minor chord. Try again."); add("Those notes are not a seven or major seven chord. Try again.")
+        val why = listOf(
+            Triple(ChordType.MAJOR, ChordType.MINOR, "the middle note is a half step higher than in"),
+            Triple(ChordType.MINOR, ChordType.MAJOR, "the middle note is a half step lower than in"),
+            Triple(ChordType.DOM7, ChordType.MAJ7, "the top note is a half step lower than in"),
+            Triple(ChordType.MAJ7, ChordType.DOM7, "the top note is a half step higher than in"))
+        for (root in 0..11) for ((type, other, words) in why) for (lead in listOf("Yes. That was", "That was"))
+            add("$lead ${chordSpoken(Chord(root, type))}: $words ${chordSpoken(Chord(root, other))}.")
+        for (pc in 0..11) { add("${spokenPitch(pc)} is not in the chord."); add("${spokenPitch(pc)} is not in the chord. Here are the notes.") }
+        for (p in (-12..12) - 0) for (shown in listOf("", " Here is the note."))
+            add("That was ${withArticle(intervalName(p))} ${if (p > 0) "up" else "down"}.$shown")
+        for (dir in listOf("up", "down")) for (shown in listOf("", " Here is the note.")) add("That was more than an octave $dir.$shown")
+        val keys = (0..2).flatMap { com.bigpapituna.sharpears.engine.ear.ScaleDegreeGame.keysFor(it) }.distinct()
+        for ((tonic, minor) in keys) for (pc in 0..11) {
+            val scale = if (minor) com.bigpapituna.sharpears.engine.ear.MINOR_SCALE else com.bigpapituna.sharpears.engine.ear.MAJOR_SCALE
+            if (Math.floorMod(pc - tonic, 12) in scale) continue
+            val line = "${com.bigpapituna.sharpears.engine.ear.spellSpoken(pc, com.bigpapituna.sharpears.engine.ear.flatKey(tonic, minor))} is not in ${keySpoken(tonic, minor)}."
+            add(line); add("$line Here is the note.")
+        }
+    }
 
     /** How fast the kid lines are recorded (KIDS-PLAN 3.8: the pup speaks slower to kids). */
     const val KID_SPEED = 0.85

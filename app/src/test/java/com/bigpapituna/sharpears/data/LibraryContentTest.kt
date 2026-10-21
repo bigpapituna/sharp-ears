@@ -76,6 +76,23 @@ class LibraryContentTest {
         try { SongRepository.validate("hello".toByteArray(), meta); fail("text accepted") } catch (_: ImportException) {}
     }
 
+    /**
+     * Audit: an imported file's id kept only a to z and digits, so every name without them ("月光", "夜想曲") became
+     * "user-song" and the second import replaced the first (file, index entry, best and position); and a Turkish phone
+     * lowercased "IMAGINE" to "ımagıne", which lost its i's.
+     */
+    @Test fun importedSongsKeepTheirOwnIds() {
+        val ids = listOf("月光", "夜想曲", "🎹🎵", "Für Elise", "Imagine", "Imported song").map(SongRepository::userSongId)
+        assertEquals(ids.toString(), ids.size, ids.toSet().size)
+        assertEquals(listOf("user-f-r-elise", "user-imagine", "user-imported-song"), ids.takeLast(3))
+        assertTrue(ids.toString(), ids.all { Regex("user-[a-z0-9-]+").matches(it) })
+        val before = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"))
+            assertEquals("user-imagine", SongRepository.userSongId("IMAGINE"))
+        } finally { java.util.Locale.setDefault(before) }
+    }
+
     @Test fun lessonPacksNameRealChordsAndProgressions() {
         val packs = File(assets, "lessons").listFiles { f -> f.extension == "json" }!!.sortedBy { it.name }
         assertTrue(packs.size >= 6)
@@ -137,5 +154,16 @@ class LibraryContentTest {
             assertEquals("lesson ${lesson.id}", title, lesson.title)
         }
         assertTrue("lessons named after songs: $named", named >= 10)
+    }
+
+    @Test fun importedSongsInAnyScriptGetTheirOwnIds() {
+        assertEquals("user-moonlight-sonata-1", SongRepository.userSongId("Moonlight Sonata (1)"))
+        val ids = listOf("سلام", "مرحبا", "Привет", "नमस्ते", "小星星", "きらきら星").map(SongRepository::userSongId)
+        assertEquals(ids.toString(), ids.size, ids.toSet().size)
+        assertTrue(ids.toString(), ids.none { it == "user-song" || '/' in it })
+        // Merged with the engine audit's fix (importedSongsKeepTheirOwnIds): a name with no Latin letter or digit gets a
+        // code from the name, so even names of punctuation alone never share an id.
+        assertTrue(SongRepository.userSongId("!!!").startsWith("user-song-"))
+        assertTrue(SongRepository.userSongId("!!!") != SongRepository.userSongId("???"))
     }
 }

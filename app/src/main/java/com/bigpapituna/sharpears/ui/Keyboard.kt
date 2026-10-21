@@ -287,7 +287,12 @@ fun Keyboard(
         }
         // Remembered once; it reads the latest callbacks when TalkBack activates a key.
         val tap = remember { { m: Int -> on(m, 90); off(m) } }
-        layout?.let { KeySemantics(it, tap, colours) }
+        // Each key's node is exactly the key: the 48 dp minimum touch target widened every narrow key's node over its
+        // neighbours, so explore-by-touch named the key to the right of the finger.
+        val vc = androidx.compose.ui.platform.LocalViewConfiguration.current
+        val exact = remember(vc) { object : androidx.compose.ui.platform.ViewConfiguration by vc {
+            override val minimumTouchTargetSize = androidx.compose.ui.unit.DpSize.Zero } }
+        layout?.let { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalViewConfiguration provides exact) { KeySemantics(it, tap, colours) } }
     }
 }
 
@@ -304,7 +309,7 @@ private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit, colours: Boolean
                 Modifier.offset { IntOffset(k.left.toInt(), k.top.toInt()) }
                     .size((k.right - k.left).toDp(), (k.bottom - k.top).toDp())
                     .clearAndSetSemantics {
-                        contentDescription = noteName(k.midi) + if (colours) ", ${NoteColours.colourName(k.midi)}" else ""
+                        contentDescription = com.bigpapituna.sharpears.engine.spokenKey(k.midi) + if (colours) ", ${NoteColours.colourName(k.midi)}" else ""
                         role = Role.Button
                         onClick { tap(k.midi); true }
                     },

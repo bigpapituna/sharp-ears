@@ -35,6 +35,21 @@ class LessonStarsTest {
         assertEquals("out-of-range steps are clamped", 3, LessonStars.ofLesson(listOf(7, 3)))
     }
 
+    /** Audit 2026-10-20: Next through every game of a lesson (a concert too) earned three stars, as "nothing graded". */
+    @Test fun skippingEveryGameIsOneStarNotThree() {
+        val pages = com.bigpapituna.sharpears.engine.playground.PLAYGROUND_LEVELS.flatMap { it.lessons }
+        for (id in listOf("playground-12", "pond-12", "hall-12", "workshop-1", "night-11", "fair-4")) {
+            val lesson = pages.first { it.id == id }
+            // A kid taps Next on every step but the last; a last step that is a picture is finished with Finish.
+            val skipped = lesson.steps.dropLast(1).mapNotNull(LessonStars::ofSkip)
+            assertEquals("$id has games to skip", true, skipped.isNotEmpty())
+            assertEquals(id, 1, LessonStars.ofLesson(skipped))
+        }
+        val p4 = pages.first { it.id == "playground-4" }
+        assertEquals("pictures and listening are not graded", listOf(null, null), p4.steps.take(2).map(LessonStars::ofSkip))
+        assertEquals(LessonStars.SKIPPED, LessonStars.ofSkip(p4.steps[2]))
+    }
+
     @Test fun theStoneKeepsItsBest() {
         assertEquals(2, LessonStars.best(null, 2))
         assertEquals(2, LessonStars.best(0, 2))
@@ -48,5 +63,15 @@ class LessonStarsTest {
         val stars = mapOf("a" to 3, "b" to 2, "c" to 0)
         assertEquals(3, LessonStars.ofPage(listOf("a", "b", "c")) { stars[it] ?: 0 })
         assertEquals(1, LessonStars.ofPage(listOf("c")) { stars[it] ?: 0 })
+    }
+
+    /** Audit 2026-10-20: a stage whose rounds were all let go (nothing played or heard) was given three stars. */
+    @Test fun roundsLetGoCapTheStars() {
+        fun stage(letGo: Int, rounds: Int, wrong: Int = 0) = Report(emptyList(), 0, wrong, null, letGoRounds = letGo, rounds = rounds)
+        assertEquals("nothing let go", 3, LessonStars.ofRun(stage(0, 3)))
+        assertEquals("one of three let go", 2, LessonStars.ofRun(stage(1, 3)))
+        assertEquals("half let go", 1, LessonStars.ofRun(stage(2, 4)))
+        assertEquals("all let go", 1, LessonStars.ofRun(stage(3, 3)))
+        assertEquals("never more than the wrong keys allow", 1, LessonStars.ofRun(stage(1, 3, wrong = 6)))
     }
 }

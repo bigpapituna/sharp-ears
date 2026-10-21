@@ -21,9 +21,11 @@ import java.util.concurrent.Executors
  * Off until a token is set (in Microphone setup, or scripts/set-report-token.ps1 from the PC; either way it lives only
  * in this app's private storage, never in the code, a log or a report) and the switch in Microphone setup is on. Only on Wi-Fi or another unmetered network.
  */
-class Reporter(private val context: Context) {
+class Reporter(context: Context) {
+    // The app's context: MicInput is made per Activity, and the crash hook outlives it.
+    private val context: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("reports", Context.MODE_PRIVATE)
-    private val worker = Executors.newSingleThreadExecutor { Thread(it, "reports") }
+    private val worker get() = WORKER
     private val dir get() = File(context.getExternalFilesDir(null), "stalls")
 
     val hasToken get() = !prefs.getString("token", null).isNullOrBlank()
@@ -117,16 +119,21 @@ class Reporter(private val context: Context) {
     fun saveText(name: String, text: String) { dir.mkdirs(); File(dir, "$name.txt").writeText(text) }
 
     /** Catches crashes: each is saved with its stack trace and the app's recent log, and goes out on the next start. */
-    fun catchCrashes(version: String) {
+    fun catchCrashes(version: String, names: () -> Collection<String> = { rosterNames() }) {
+        // Once per process: every MainActivity made (a recreate after dark mode or a language change, an import) asks again, and each
+        // handler chained on the last kept its activity alive and saved the same crash once more.
+        synchronized(Reporter::class.java) { if (crashHandlerSet) return; crashHandlerSet = true }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             runCatching {
                 val log = runCatching {
                     ProcessBuilder("logcat", "-d", "-t", "200", "--pid=${android.os.Process.myPid()}").start().inputStream.bufferedReader().readText()
                 }.getOrDefault("(log unavailable)")
-                saveText("crash-" + stamp(), "title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
+                val who = runCatching { names() }.getOrDefault(emptyList())     // the players' names never leave in a report
+                saveText("crash-" + stamp(), com.bigpapituna.sharpears.engine.StallWatch.scrubNames(
+                    "title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
                     "# sharp ears crash\nversion=$version thread=${t.name} device=${android.os.Build.MODEL} android=${android.os.Build.VERSION.RELEASE}\n\n" +
-                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"))
+                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"), who))
             }
             previous?.uncaughtException(t, e)
         }
@@ -164,5 +171,16 @@ class Reporter(private val context: Context) {
 
     private fun stamp() = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 
-    private companion object { const val DEFAULT_REPO = "bigpapituna/sharp-ears" }
+    /** The roster's names, read at crash time: the log holds the voice's lines and saved file names, which name the kids. */
+    private fun rosterNames(): List<String> = runCatching {
+        com.bigpapituna.sharpears.engine.family.Roster.decode(context.getSharedPreferences(com.bigpapituna.sharpears.engine.family.ProfileFiles.ROSTER,
+            Context.MODE_PRIVATE).getString(Profiles.KEY_ROSTER, null)).profiles.map { it.name }
+    }.getOrDefault(emptyList())
+
+    private companion object {
+        const val DEFAULT_REPO = "bigpapituna/sharp-ears"
+        /** One sending thread for the process (a Reporter is made with every MicInput, so with every activity). */
+        val WORKER: java.util.concurrent.ExecutorService = Executors.newSingleThreadExecutor { Thread(it, "reports").apply { isDaemon = true } }
+        var crashHandlerSet = false
+    }
 }

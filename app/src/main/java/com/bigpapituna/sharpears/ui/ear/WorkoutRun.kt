@@ -1,6 +1,5 @@
 package com.bigpapituna.sharpears.ui.ear
 
-import android.os.SystemClock
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,7 +62,7 @@ internal fun TrainerHost(trainer: EarTrainer, env: EarEnv, label: String?, onExi
     if (trainer is RhythmTapGame) RhythmPlay(trainer, env, label, onExit, onFinished) else KeysPlay(trainer, env, label, onExit, onFinished)
 }
 
-private fun clock(seconds: Int) = "${seconds / 60}:${"%02d".format(seconds % 60)}"
+private fun clock(seconds: Int) = "${seconds / 60}:${"%02d".format(java.util.Locale.ROOT, seconds % 60)}"
 
 /**
  * The daily workout: the games of [plan] back to back, each started from a short "next up" screen, and one
@@ -74,18 +73,21 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
     var index by remember { mutableIntStateOf(0) }
     var upNext by remember { mutableStateOf(true) }
     val results = remember { mutableStateListOf<WorkoutGame>() }
-    val started = remember { SystemClock.elapsedRealtime() }
+    val started = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }
     var seconds by remember { mutableIntStateOf(0) }
     // Integration: XP at the start, and the celebration waits one frame for the report so it can show the XP earned.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtStart = remember { progress?.xp ?: 0 }
     var reported by remember { mutableStateOf(false) }
+    // A workout whose every round was skipped played nothing: no streak day, no XP, no celebration.
+    var anyPlayed by remember { mutableStateOf(false) }
 
     when {
         index >= plan.items.size -> {
             val total = WorkoutResult(results.toList())
             LaunchedEffect(Unit) {
-                seconds = ((SystemClock.elapsedRealtime() - started) / 1000).toInt()
+                if (!anyPlayed) { android.util.Log.d(com.bigpapituna.sharpears.TAG, "ear: workout with every round skipped, nothing earned"); onExit(); return@LaunchedEffect }
+                seconds = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - started) / 1000).toInt()
                 store.recordWorkout(total.score, total.rounds)
                 env.report(EarEvent.Workout(results.size, total.score, total.rounds, total.bestStreak, seconds))
                 reported = true
@@ -111,7 +113,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
             val trainer = remember(index) { newTrainer(item.kind, item.level, rounds = item.rounds) }
             TrainerHost(trainer, env, "Game ${index + 1} of ${plan.items.size}", onExit) {
                 results += WorkoutGame(item.kind, item.level, trainer.score, trainer.rounds, trainer.bestStreak)
-                store.played(item.kind)
+                if (!trainer.allSkipped) { anyPlayed = true; store.played(item.kind) }
                 index++; upNext = true
             }
         }
@@ -136,7 +138,7 @@ private fun UpNext(plan: WorkoutPlan, index: Int, results: List<WorkoutGame>, on
                 val done = results.getOrNull(i)
                 val now = i == index
                 val lift by animateDpAsState(if (now) 10.dp else 0.dp, label = "lift")
-                Column(Modifier.weight(1f).fillMaxHeight().offset(y = -lift).clip(RoundedCornerShape(18.dp))
+                Column(Modifier.weight(1f).fillMaxHeight().offset { androidx.compose.ui.unit.IntOffset(0, -lift.roundToPx()) }.clip(RoundedCornerShape(18.dp))
                     .background(if (now) c.primaryContainer else c.surfaceContainerHigh)
                     .then(if (now) Modifier.border(2.dp, c.primary, RoundedCornerShape(18.dp)) else Modifier)
                     .graphicsLayer { alpha = if (done == null && !now) 0.7f else 1f }

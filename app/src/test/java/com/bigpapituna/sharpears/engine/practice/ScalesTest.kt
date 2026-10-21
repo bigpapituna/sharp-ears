@@ -100,6 +100,46 @@ class ScalesTest {
         }
     }
 
+    /**
+     * Audit: the tests above judge every minor form on harmonic minor's notes, which hid the thumb on a black key in
+     * G sharp natural minor's left hand (F sharp), C sharp and F sharp melodic minor's and dorian's right hand (the
+     * raised sixth), G sharp dorian's left hand and E flat, A flat and B flat mixolydian's left hand. Every seven-note
+     * scale, judged on its own notes up and down (melodic minor comes down natural): no thumb or little finger on a black
+     * key, and every crossing a hand can make.
+     */
+    @Test fun everyTabledScaleKeepsTheThumbOffItsBlackKeys() {
+        for (type in ScaleType.entries.filter { it.tabled }) for (root in 0..11) for (hand in Hand.entries) for (oct in 1..2) {
+            val s = Scale(root, type, oct)
+            val f = s.fingeringUpAndDown(hand)
+            val what = "${s.name} $hand x$oct $f"
+            s.upAndDown(hand).zip(f).forEach { (m, x) -> assertFalse("$what: finger $x on black ${m}", isBlack(m) && (x == 1 || x == 5)) }
+            s.fingering(hand).zipWithNext().forEach { (a, b) ->
+                if (hand == Hand.RIGHT) assertTrue(what, b == a + 1 || b == 1 || (a == 1 && b in 2..3))
+                else assertTrue(what, b == a - 1 || (a == 1 && b in 2..4) || (b == 1 && a in 2..3))
+            }
+        }
+        assertEquals(listOf(3, 2, 1, 3, 2, 1, 4, 3), Scale(8, ScaleType.NATURAL_MINOR).fingering(Hand.LEFT))
+        assertEquals(listOf(2, 3, 1, 2, 3, 4, 1, 2), Scale(1, ScaleType.MELODIC_MINOR).fingering(Hand.RIGHT))
+        assertEquals(listOf(2, 3, 4, 1, 2, 3, 1, 2), Scale(6, ScaleType.MELODIC_MINOR).fingering(Hand.RIGHT))
+    }
+
+    /**
+     * Audit: the chromatic scale put 2 on any white key after a white key, so coming down from C the right hand played
+     * C and B with finger 2, and the left hand went up E 1, F 2. By the book: 1 on white keys, 3 on black ones, and where
+     * two white keys meet 2 on F and C in the right hand, on E and B in the left, in both directions.
+     */
+    @Test fun theChromaticScaleIsFingeredByTheBook() {
+        val c = Scale(0, ScaleType.CHROMATIC)
+        assertEquals("1 3 1 3 1 2 3 1 3 1 3 1 2 1 3 1 3 1 3 2 1 3 1 3 1", c.fingeringUpAndDown(Hand.RIGHT).joinToString(" "))
+        assertEquals("1 3 1 3 2 1 3 1 3 1 3 2 1 2 3 1 3 1 3 1 2 3 1 3 1", c.fingeringUpAndDown(Hand.LEFT).joinToString(" "))
+        for (root in 0..11) for (hand in Hand.entries) for (oct in 1..2) {
+            val s = Scale(root, ScaleType.CHROMATIC, oct)
+            val notes = s.upAndDown(hand); val f = s.fingeringUpAndDown(hand)
+            for (i in 1 until notes.size) assertTrue("${s.name} $hand x$oct $f at $i", f[i] != f[i - 1])
+            notes.zip(f).forEach { (m, x) -> assertTrue("${s.name} $hand $f", if (isBlack(m)) x == 3 else x in 1..2) }
+        }
+    }
+
     @Test fun arpeggiosHaveOneFingerPerNote() {
         for (type in ArpeggioType.entries) for (root in 0..11) for (oct in 1..2) for (hand in Hand.entries) {
             val a = Arpeggio(root, type, oct)

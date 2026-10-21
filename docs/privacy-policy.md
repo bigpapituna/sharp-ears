@@ -35,7 +35,8 @@ The app stores, in its private storage on your device only:
 
 All of it is kept in the app's own settings files on your device. This information is not transmitted to us or to
 anyone else. Uninstalling the app deletes it. You can reset progress in Settings (XP and achievements are kept until
-you uninstall), and export it to a file you choose.
+you uninstall), and export it to a file you choose. If your device backs up apps to your Google account, Android's own
+backup may include these settings files (never microphone recordings), so a new phone can restore them.
 
 ## MIDI keyboards
 

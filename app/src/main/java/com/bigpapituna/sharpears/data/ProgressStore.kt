@@ -222,9 +222,11 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         val before = p.getLong("totalSeconds", 0)      // XP counts this store's own total, so Prefs seconds are never paid twice
         val ownDay = p.getInt("day:$day", 0) + e.seconds
         val last = p.getString("lastPractice", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        val stale = p.all.keys.filter { it.startsWith("day:") }.filter {
-            runCatching { LocalDate.parse(it.removePrefix("day:")).isBefore(day.minusDays(KEEP_DAYS)) }.getOrDefault(false)
-        }
+        // The newest KEEP_DAYS practice days stay (counted, not dated): one practice with the clock set ahead must not
+        // drop every real day before it.
+        val stale = p.all.keys.filter { it.startsWith("day:") }
+            .mapNotNull { k -> runCatching { LocalDate.parse(k.removePrefix("day:")) }.getOrNull()?.let { k to it } }
+            .sortedByDescending { it.second }.drop(KEEP_DAYS.toInt()).map { it.first }
         edit {
             putLong("totalSeconds", before + e.seconds)
             putInt("day:$day", ownDay)
