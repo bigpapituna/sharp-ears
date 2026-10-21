@@ -877,7 +877,7 @@ fun PlayerScreen(
             mic.octaveCheck()?.let { h ->
                 Log.d(TAG, "octave hint: ${noteName(h.expected)} played ${if (h.playedOctaveOffset > 0) "an octave up" else "an octave down"}")
                 octaveShown = h
-                say(h.line)
+                say(h.line(kid))
             }
         }
     }
