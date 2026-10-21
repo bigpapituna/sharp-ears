@@ -98,8 +98,10 @@ private const val IN_TUNE_CENTS = 5.0
 @Composable
 fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) {
     var allowed by remember { mutableStateOf(mic.hasPermission()) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
+    var refused by remember { mutableStateOf(false) }       // refused twice, Android stops asking: say where to allow it
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it; refused = !it }
     val visible = onScreen()
+    LaunchedEffect(visible) { if (visible && !allowed) allowed = mic.hasPermission() }
     var micFailed by remember { mutableStateOf(false) }
     val tracker = remember { PitchTracker(MicInput.RATE) }
     var reading by remember { mutableStateOf<TunerReading?>(null) }
@@ -147,6 +149,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
                 Spacer(Modifier.size(8.dp))
                 Text("Allow microphone")
             }
+            if (refused) com.bigpapituna.sharpears.ui.MicRefusedNote()
         } else {
             val r = reading
             val inTune = r != null && abs(r.cents) <= IN_TUNE_CENTS
@@ -161,7 +164,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
                 color = if (inTune) c.tertiary else c.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().semantics {
                     liveRegion = LiveRegionMode.Polite
-                    contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}"
+                    contentDescription = if (r == null) "No note heard" else "${com.bigpapituna.sharpears.engine.spokenKey(r.result.midi)}, ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}"
                 })
         }
         Spacer(Modifier.height(4.dp))

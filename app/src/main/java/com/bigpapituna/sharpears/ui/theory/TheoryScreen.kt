@@ -375,7 +375,7 @@ private fun StartTag(modifier: Modifier) {
             moveTo(s.width / 2 - tail, s.height - tail - 1); lineTo(s.width / 2, s.height); lineTo(s.width / 2 + tail, s.height - tail - 1); close()
         }
     }
-    Text("START", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+    Text("Start", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
         modifier = modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape).background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
             .padding(start = 14.dp, end = 14.dp, top = 7.dp, bottom = 14.dp))
 }

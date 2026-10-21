@@ -65,6 +65,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
@@ -202,7 +203,9 @@ fun Celebration(
         if (secondary != null && onSecondary != null) TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
     }
     val bottomMotion = Modifier.graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f }
-    Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }
+    // A pane of its own: it takes the taps and, as a pane, hides the screen under it from TalkBack (its buttons were
+    // still reachable and could be activated through the celebration).
+    Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }.semantics { paneTitle = title }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         Confetti(title, Modifier.fillMaxSize())
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {

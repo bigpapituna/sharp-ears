@@ -758,7 +758,7 @@ private val TECHNIQUE_2 = listOf(
                     sn("C5", label = "Highest"), sn("G4"), sn("E4", NoteValue.WHOLE), stepMs = 420)),
             scene("Count one bar in before you start. Keep your eyes a beat ahead of your hands.",
                 phrase("E4:1 F4:1 G4:1 E4:1 D4:2 C4:2 E4:1 G4:1 C5:1 G4:1 E4:4", bpm = 72, lookAhead = true), Mood.LISTEN),
-            scene("And never stop for a wrong note: keep the beat going and fix it next time. The sight-reading drill in Practice gives you endless new lines.",
+            scene("And never stop for a wrong note: keep the beat going and fix it next time. The sight-reading drill in Learn gives you endless new lines.",
                 lane("C4:1 D4:1 E4:1 G4:1 F4:2 D4:2", bpm = 72), Mood.CHEER)),
         play("Read this line first, then play it. Look at the shape: where does it step, and where does it jump?",
             Exercise(right = "E4:1 F4:1 G4:1 E4:1 D4:2 C4:2 E4:1 G4:1 C5:1 G4:1 E4:4", bpm = 72.0, practice = Practice.RIGHT)),

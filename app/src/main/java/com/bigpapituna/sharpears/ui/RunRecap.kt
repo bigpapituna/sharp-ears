@@ -34,6 +34,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -172,7 +173,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val pupSize = if (short) min(maxHeight * 0.34f, 150.dp) else if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
-                    Pup(pose, size = pupSize, onTap = {}, modifier = Modifier.graphicsLayer {
+                    // Held in the run's pose (as on a lesson's celebration): left alone he dozed off on the recap.
+                    Pup(pose, size = pupSize, onTap = {}, idle = false, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
                         val s = 0.5f + 0.5f * m.rise.value; scaleX = s; scaleY = s; alpha = m.rise.value.coerceIn(0f, 1f)
                         transformOrigin = TransformOrigin(0.5f, 1f)
@@ -189,10 +191,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                         modifier = Modifier.widthIn(max = 420.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) })
                 }
             }
-            // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up).
+            // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up). On a
+            // phone held sideways it lands below the numbers' space: once they have counted, the column glides to it.
+            val dropInView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            if (short && e.reward != null) LaunchedEffect(e) { delay(if (still) 300L else 2900L); dropInView.bringIntoView() }
             val drop: @Composable ColumnScope.() -> Unit = {
                 e.reward?.let { rw ->
-                    Column(Modifier.fillMaxWidth().slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().bringIntoViewRequester(dropInView).slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (short) 84.dp else if (kid) 132.dp else 116.dp)
                         com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle })
                     }

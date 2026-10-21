@@ -43,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -135,6 +137,15 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
     LaunchedEffect(Unit) {
         val at = rows.indexOfFirst { (it is PathRow.Stop && it.lesson == next) || (it is PathRow.Scene && next in it.lessons) }
         if (at > 0) list.scrollToItem(at - 1)      // two rows above the next stop (the header is item 0), so it sits in view
+        // Held sideways, a phone has room for those two rows (a trophy, a banner) and no more: the stop sat below the fold.
+        // Then the stop goes a third of the way down instead.
+        if (at < 0) return@LaunchedEffect
+        val info = androidx.compose.runtime.snapshotFlow { list.layoutInfo }.first { it.viewportSize.height > 0 }
+        val stop = info.visibleItemsInfo.firstOrNull { it.index == at + 1 }
+        if (stop == null || stop.offset + stop.size > info.viewportEndOffset) {
+            list.scrollToItem(at + 1)
+            list.scrollBy(-info.viewportSize.height / 3f)
+        }
     }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item(key = "head") {
@@ -179,7 +190,8 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                             MapStop(l, i + 1, state) { open = if (open == l.id) null else l.id }
                         }
                     })
-                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next) { open = null; onOpen(r.lesson) }
+                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
+                    extra = path.levelOf(r.lesson)?.let(path::isExtra) == true)
                 is PathRow.Trophy -> UnitTrophy(r.level, r.level.lessons.all { done(it.id) })
             }
         }
@@ -338,7 +350,7 @@ private fun StopButton(state: StopState, number: Int, title: String, kind: Lesso
 
 /** The card a tapped stop opens: title, what it covers, its steps as a row of icons, and the way in. */
 @Composable
-private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onStart: () -> Unit) {
+private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onStart: () -> Unit, extra: Boolean = false) {
     val density = LocalDensity.current
     val shape = remember(density) {
         val tail = with(density) { 10.dp.toPx() }; val r = with(density) { 20.dp.toPx() }
@@ -367,7 +379,8 @@ private fun LessonCard(lesson: CourseLesson, done: Boolean, next: Boolean, onSta
                 modifier = Modifier.padding(start = 10.dp))
         }
         ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Text(when { done -> "Practise again"; next -> "Start"; else -> "Jump ahead" })
+            // A grown-up's Playground games are never next, so they are not "ahead" of anything.
+            Text(when { done -> "Practise again"; next -> "Start"; extra -> "Try it"; else -> "Jump ahead" })
         }
     }
 }

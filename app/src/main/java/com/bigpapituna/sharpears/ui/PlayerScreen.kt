@@ -179,6 +179,8 @@ fun PlayerScreen(
      * stretches with nothing played), and the pup says "Good try, let's keep going".
      */
     letGo: Boolean = false,
+    /** The run's recap was closed (Practice today goes on to its next part then). */
+    onRecapClosed: () -> Unit = {},
 ) {
     val activity = LocalActivity.current ?: return
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
@@ -189,6 +191,14 @@ fun PlayerScreen(
     if (embedded == null) DisposableEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+    // The stage is always dark: light status bar icons over it (with a light phone theme they were dark on black). Set
+    // again after each configuration change, which puts the edge-to-edge style back (the turn to landscape is one).
+    if (embedded == null) DisposableEffect(androidx.compose.ui.platform.LocalConfiguration.current) {
+        val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        val lightBars = bars.isAppearanceLightStatusBars
+        bars.isAppearanceLightStatusBars = false
+        onDispose { bars.isAppearanceLightStatusBars = lightBars }
     }
     val labels = embedded?.labels ?: true
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
@@ -564,8 +574,12 @@ fun PlayerScreen(
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
         }
+        // A run the player played: not Listen (the app plays it), and not one that reached nothing (Play pressed at the
+        // end, after a seek or the seek bar dragged there, was a "Clean run!" with a sticker and 50 XP, and wiped the
+        // song's hardest bars).
+        val played = transport.mode != Mode.LISTEN && !transport.report().empty
         // The hardest bars of a Wait or Perform run, remembered for the library row.
-        val spots = when (transport.mode) {
+        val spots = if (!played) null else when (transport.mode) {
             Mode.WAIT -> TroubleSpots.forWait(song, transport.troubles)
             Mode.PERFORM -> TroubleSpots.forPerform(song, transport.troubles)
             Mode.LISTEN -> null
@@ -587,15 +601,14 @@ fun PlayerScreen(
             prefs.saveTroubleBars(meta.id, spots)
             Log.d(TAG, "trouble spots ${song.id}: " + spots.joinToString { "bar ${it.bar} (" + "%.1f".format(it.score) + ")" })
         }
-        if (transport.mode != Mode.LISTEN) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
+        if (played) { prefs.addHandDone(meta.id, transport.practice); Log.d(TAG, "hands done ${song.id}: ${prefs.handsDone(meta.id)}") }
         val wasCompleted = prefs.progress(meta.id).completed
         // The recap shows the XP this run earned and the level bar, as lessons do.
         val xpBefore = progress?.xp
         fun xp(gained: Int?) = gained?.takeIf { it > 0 }
         fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
         val timeMs = transport.runRealMs.toLong()
-        // A run the player played (not one the app played in Listen) drops a sticker and counts for today's quest.
-        val played = transport.mode != Mode.LISTEN
+        // A run the player played drops a sticker and counts for today's quest.
         val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
         if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), kid)
             .forEach { Log.d(TAG, "quest: ${it.kind} done by ${song.id}") }
@@ -617,7 +630,7 @@ fun PlayerScreen(
             val right = if (duet?.leftId == profile.id) p.name else profile.name
             Duet.recapLine(left, right, stars)
         }
-        if (run != null) {
+        if (run != null && played) {
             val r = run
             // Only a run from the top counts as a best score.
             val best = transport.scoreFromMs <= 0.0 && r.accuracy > 0 && prefs.saveScore(meta.id, r.accuracy)
@@ -627,6 +640,10 @@ fun PlayerScreen(
                 reward = reward, duetLine = duetLine)
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
+        } else if (!played) {
+            // Listen (the app played it) or nothing reached: it opens at the top again, not marked played, no song XP.
+            prefs.savePosition(meta.id, 0)
+            Log.d(TAG, (if (transport.mode == Mode.LISTEN) "listened through " else "nothing played in the run of ") + song.id)
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))
@@ -670,6 +687,8 @@ fun PlayerScreen(
             }
         }
     }
+    // A keyboard unplugged with keys down sends no note-offs: they stayed lit until the player closed.
+    LaunchedEffect(midi.connected.value) { if (midi.connected.value == null) held.clear() }
 
     // The sustain pedal (MIDI CC 64): graded in pedal steps, shown on the strip under the keys.
     LaunchedEffect(midi) {
@@ -753,6 +772,8 @@ fun PlayerScreen(
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
+        // Refused (twice, and Android stops asking): the mic button did nothing at all; the pup says where to allow it.
+        if (!granted) hintLine = MIC_REFUSED_LINE
         if (granted) { micOn = true; prefs.micDefault = true; progress?.record(ProgressEvent.FeatureUsed("mic")); if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
@@ -933,7 +954,9 @@ fun PlayerScreen(
             onLoop = {
                 when {
                     loopStart == null -> setLoop(transport.positionMs.coerceAtLeast(0.0), null)
-                    loopEnd == null -> setLoop(loopStart, transport.positionMs)
+                    // An end marked before the start (the seek bar went back) swapped nothing: the bar showed "0:20-0:10"
+                    // and nothing looped. The two now swap; the same spot twice waits for an end somewhere else.
+                    loopEnd == null -> { val a = loopStart!!; val b = transport.positionMs.coerceAtLeast(0.0); if (b != a) setLoop(minOf(a, b), maxOf(a, b)) }
                     else -> setLoop(null, null)
                 }
             },
@@ -1021,10 +1044,10 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
             // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
-            Dialog(onDismissRequest = { recap = null },
+            Dialog(onDismissRequest = { recap = null; onRecapClosed() },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                 RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
-                    onClose = { recap = null },
+                    onClose = { recap = null; onRecapClosed() },
                     onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
                     songTitle = meta?.title ?: song.title, run = lastRun,
                     // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
@@ -1035,6 +1058,7 @@ fun PlayerScreen(
         if (pickingDuet) Dialog(onDismissRequest = { pickingDuet = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             SharpEarsTheme(dark = androidx.compose.foundation.isSystemInDarkTheme()) {
+                DialogBarsFollowTheme()
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     // One readable column, centred on a wide screen.
                     Box(contentAlignment = Alignment.TopCenter) {
@@ -1162,6 +1186,8 @@ fun PlayerScreen(
     fun HandsTipRow() {
         val stage = handsTip ?: return
         if (duet != null) return                       // a duet plays both hands, one person each: no hands advice
+        // Already playing the hand it suggests (picked on the bar): "Start with the right hand alone?" over R was noise.
+        if (stage == "right" && practice == Practice.RIGHT || stage == "left" && practice == Practice.LEFT) return
         Row(Modifier.fillMaxWidth().height(48.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(when (stage) {

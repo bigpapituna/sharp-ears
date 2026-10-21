@@ -14,6 +14,9 @@ class PracticeStatsTest {
         assertEquals(42, PracticeStats.weekMinutes(s, today))
         assertEquals(4, PracticeStats.streak(s, today))
         assertEquals("This week: 42 min, 4 days in a row", PracticeStats.summary(s, today))
+        // Only today so far: the week says what the goal line over it says (16 min, not 17).
+        assertEquals("This week: 16 min", PracticeStats.summary(days(0L to 1000), today))
+        assertEquals("Goal met, 16 min today", com.bigpapituna.sharpears.engine.progress.DailyGoal.line(1000, 10))
     }
 
     @Test fun streakStillCountsBeforeTodaysPractice() {

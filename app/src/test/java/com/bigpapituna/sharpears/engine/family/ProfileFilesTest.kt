@@ -57,7 +57,8 @@ class ProfileFilesTest {
 
     /**
      * Audit (noted in 2.2.1, not fixed then): a 2.0 backup cleared every plain file, so importing one wiped the owner's
-     * world (stickers, the dog house), skin, recital and kid stars, which 2.0 never had. It replaces what it holds.
+     * world (stickers, the dog house), skin, recital and kid stars, which 2.0 never had. It replaces what it holds. (The adult audit
+     * found and fixed the same, its aBackupFrom20KeepsTheOwnersNewerFiles; one test kept.)
      */
     @Test fun aBackupFrom20KeepsTheOwnersLaterFiles() {
         val now = names + listOf("world", "play", "skin", "kid")                                           // ProgressFiles.NAMES since 2.2

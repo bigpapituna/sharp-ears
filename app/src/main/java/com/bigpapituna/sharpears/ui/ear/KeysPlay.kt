@@ -99,7 +99,9 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     val flash = remember { mutableStateMapOf<Int, Color>() }                    // judged keys, for a moment
     val glow = remember { mutableStateMapOf<Int, Color>() }                     // keys the app is playing
     val scope = rememberCoroutineScope()
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it) micOn = true else hint = com.bigpapituna.sharpears.ui.MIC_REFUSED_LINE to false     // refused: where to allow it
+    }
     val seen = version
     val round = trainer.round
     val finished = trainer.finished

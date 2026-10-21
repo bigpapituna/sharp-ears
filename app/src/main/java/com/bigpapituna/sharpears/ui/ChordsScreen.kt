@@ -218,7 +218,7 @@ private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
                 }
                 Box(Modifier.pressScale(0.9f).size(56.dp).clip(CircleShape).background(RightHandColor)
                     .clickable(role = Role.Button) { if (job != null) stop() else play() }
-                    .semantics { contentDescription = if (job != null) "Stop" else "Play ${chord.name}" },
+                    .semantics { contentDescription = if (job != null) "Stop" else "Play ${com.bigpapituna.sharpears.engine.chordSpoken(chord)}" },
                     contentAlignment = Alignment.Center) {
                     Icon(painterResource(if (job != null) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null,
                         tint = PanelColor, modifier = Modifier.size(28.dp))
@@ -309,7 +309,7 @@ private fun ChordTrainer(
     val keyFlash = remember { mutableStateMapOf<Int, Color>() }               // a burst on the keys: green when a chord lands, warm on a slip
     val scope = rememberCoroutineScope()
     val touched = remember { mutableStateMapOf<Int, Color>() }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true else flash = MIC_REFUSED_LINE to false }
 
     val current = remember(version, drill) { drill.current }
     val voicing = current.voicing(0)
@@ -378,8 +378,9 @@ private fun ChordTrainer(
                 Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(current.name, style = MaterialTheme.typography.displayMedium)
             }
-            Stat("Correct", drill.correct)
-            Stat("Streak", drill.streak)
+            // The running counts belong to the open-ended Practice tab: a session's drill is one chord, so they read 0 or
+            // 1 and went back to 0 on every chord ("1 of 5" says where a session stands).
+            if (pup) { Stat("Correct", drill.correct); Stat("Streak", drill.streak) }
         }
         // Feedback line: fixed height so the keyboard does not jump when it appears.
         Text(flash?.first ?: "", color = if (flash?.second == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -456,7 +457,7 @@ private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, s
             Modifier.padding(horizontal = 20.dp).widthIn(max = 520.dp).fillMaxWidth(), height = 40.dp,
             descriptions = PROGRESSION_KEYS.map { "Key of ${rootName(it)}" })
         PupLine(if (playing != null) Pose.LISTENING else Pose.LEARNING,
-            "Tap a row to hear it. Practice opens it in the player: chords in the right hand, roots in the left.",
+            "Tap a row to hear it. Practise opens it in the player: chords in the right hand, roots in the left.",
             Modifier.padding(horizontal = 16.dp))
         PROGRESSIONS.forEachIndexed { pi, p ->
             val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
@@ -465,7 +466,7 @@ private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, s
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(p.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { job?.cancel(); onPlay(p, key) }) { Text("Practice") }
+                    TextButton(onClick = { job?.cancel(); onPlay(p, key) }) { Text("Practise") }
                 }
                 // The chords as tiles that light one after another while it plays.
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -523,8 +524,8 @@ private fun Lessons(
         ) {
             val due = today.count { mastery[it.id]?.seen == true }
             Text("Today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(if (today.isEmpty()) "All caught up" else "${com.bigpapituna.sharpears.engine.plural(today.size, "chord")} to practice", style = MaterialTheme.typography.headlineMedium)
-            if (today.isEmpty()) PupSays(Pose.RESTING, "Come back tomorrow, or practice any pack below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
+            Text(if (today.isEmpty()) "All caught up" else "${com.bigpapituna.sharpears.engine.plural(today.size, "chord")} to practise", style = MaterialTheme.typography.headlineMedium)
+            if (today.isEmpty()) PupSays(Pose.RESTING, "Come back tomorrow, or practise any pack below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
                 style = MaterialTheme.typography.bodyLarge)
             else Text(
                 if (due == 0) "All new. Chords you play cleanly come back less often." else "$due to review and ${today.size - due} new.",
@@ -558,7 +559,7 @@ private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur
             pack.level >= 6 -> pack.items.joinToString("  ") { (it as? LessonItem.ChordItem)?.chord?.name ?: "" }
             else -> "$learned of ${pack.items.size} started" + (if (c.due > 0) ", ${c.due} due" else "") + (if (c.mastered > 0) ", ${c.mastered} mastered" else "")
         },
-        action = if (unlocked) "Practice" else null,
+        action = if (unlocked) "Practise" else null,
         onAction = { store.startSession(cur.queue(mastery, now, newLimit = 8, only = pack).ifEmpty { pack.items.take(8) }) },
         dim = !unlocked,
     )

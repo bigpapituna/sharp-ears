@@ -18,6 +18,8 @@ import com.bigpapituna.sharpears.engine.playground.PlaygroundPage
 class CoursePath(
     val firstUnitId: String, val bigKid: Boolean = false, private val course: List<CourseLevel> = COURSE,
     pages: List<PlaygroundPage> = PLAYGROUND_PAGES,
+    /** Where the first-run questions placed a grown-up ("Some years": the left-hand scale); null starts at the beginning. */
+    private val startAt: () -> String? = { null },
 ) {
     /** The Playground's levels, in page order. */
     private val playgroundIds: List<String> = (listOf(PLAYGROUND_ID) + pages.map { it.levelId }).distinct()
@@ -49,18 +51,29 @@ class CoursePath(
     private fun suggestable(level: CourseLevel, lesson: CourseLesson): Boolean =
         !isExtra(level) && !(bigKid && level.id in shortListed && lesson.id !in BIG_KID_LESSONS)
 
-    /** The next lesson to suggest: the first suggestable one not [done]; null when the course is finished. */
-    fun next(done: (String) -> Boolean): CourseLesson? = lessons.firstOrNull { (lv, l) -> suggestable(lv, l) && !done(l.id) }?.second
+    /**
+     * The next lesson to suggest: the first suggestable one not [done]; null when the course is finished. A placement
+     * ([startAt]) is where suggestions begin; the lessons before it come round once everything after it is done.
+     */
+    fun next(done: (String) -> Boolean): CourseLesson? {
+        fun first(from: Int) = lessons.drop(from).firstOrNull { (lv, l) -> suggestable(lv, l) && !done(l.id) }?.second
+        return first(startAt()?.let(::indexOf)?.coerceAtLeast(0) ?: 0) ?: first(0)
+    }
 
     /**
      * The lesson after [lesson] for "Next lesson": the following one on the path, skipping what is not suggested (a
      * big kid's other games). Inside the extra unit, its next lesson; at the end of the main course, null.
+     * With [done], lessons already done are passed over and, past the last one, it is where [next] points (so a lesson
+     * replayed for review leads on to the one Learn's Start, Practice today and the quest suggest, not to a done one).
      */
-    fun after(lesson: CourseLesson): CourseLesson? {
+    fun after(lesson: CourseLesson, done: ((String) -> Boolean)? = null): CourseLesson? {
         val i = lessons.indexOfFirst { it.second.id == lesson.id }
         if (i < 0) return null
         val extra = isExtra(lessons[i].first)
-        return lessons.drop(i + 1).firstOrNull { (lv, l) -> if (extra) lv == lessons[i].first else suggestable(lv, l) }?.second
+        val following = lessons.drop(i + 1).firstOrNull { (lv, l) ->
+            done?.invoke(l.id) != true && if (extra) lv == lessons[i].first else suggestable(lv, l)
+        }?.second
+        return following ?: if (done == null || extra) null else next { it == lesson.id || done(it) }
     }
 
     /** The unit [lesson] belongs to. */

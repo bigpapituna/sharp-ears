@@ -362,7 +362,7 @@ class MainActivity : ComponentActivity() {
         val kidStore = KidStore(this, profile.id)
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
-        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader)
+        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
         val bedtime = com.bigpapituna.sharpears.ui.skin.BedtimeStore(this, profile.id)
         val practiceStore = PracticeStore(this, profile.id)
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
@@ -678,7 +678,7 @@ class MainActivity : ComponentActivity() {
                             // leads to the page's finale instead (and today's goodbye waits until after it).
                             val finaleAhead = profile.isKid && remember(l.id) { Finale.trigger(l.id, kidStore.finales()) != null }
                             val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales())
-                                else path.after(l)
+                                else path.after(l) { prefs.lessonDone(it) }
                             val leave = {
                                 val f = pendingFinale
                                 if (f != null) { pendingFinale = null; voice.stop(); screen = Screen.Finale(f) } else screen = s.back
@@ -707,7 +707,13 @@ class MainActivity : ComponentActivity() {
                                     parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                    BackHandler { advanceDaily(s, completed = false) }
+                                    // Back is "Skip the rest": the chords answered count, and the session ends here (left open,
+                                    // it took over Chords > Daily afterwards).
+                                    fun endChords(n: Int) {
+                                        part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
+                                        advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
+                                    }
+                                    BackHandler { val n = lessons.sessionIndex; lessons.endSession(); endChords(n) }
                                     // Chord practice does not run the player, so its time is counted here.
                                     androidx.compose.runtime.DisposableEffect(s.index) {
                                         val t0 = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
@@ -722,10 +728,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
                                         DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily }, sound = { prefs.sound },
-                                            onEnd = { n ->
-                                                part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
-                                                advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
-                                            })
+                                            onEnd = ::endChords)
                                     }
                                 }
                                 is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -743,15 +746,21 @@ class MainActivity : ComponentActivity() {
                                     val id = if (part is SessionPart.Loop) part.songId else (part as SessionPart.Song).songId
                                     val m = songs.first { it.id == id }
                                     val song = remember(id) { repo.load(m) }
+                                    // Played here, it is the Continue song (Songs said "Start here" after a whole session of it).
+                                    LaunchedEffect(id) { prefs.lastSongId = id }
                                     val partStart = remember(s.index) { System.currentTimeMillis() }
+                                    // A song part played to its end shows its recap first (stars, XP, the sticker it dropped);
+                                    // closing the recap, or Back, goes on. It went on at once before, so none of it was seen.
+                                    var ranToEnd by remember(s.index) { mutableStateOf(false) }
                                     androidx.compose.runtime.key(s.index) {
                                         PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value,
                                             if (part is SessionPart.Song) prefs.progress(id).let { if (it.completed) 0.0 else it.lastPositionMs.toDouble() } else 0.0,
                                             dump, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission(),
                                                 loopBar = (part as? SessionPart.Loop)?.bar, timeLimitMs = if (part is SessionPart.Loop) 120_000L else null),
                                             // Leaving the song after a minute or more of it counts; leaving at once does not.
-                                            onBack = { advanceDaily(s, completed = System.currentTimeMillis() - partStart >= 60_000) },
-                                            onFinished = { if (part is SessionPart.Song) advanceDaily(s, completed = true) },
+                                            onBack = { advanceDaily(s, completed = ranToEnd || System.currentTimeMillis() - partStart >= 60_000) },
+                                            onFinished = { if (part is SessionPart.Song) ranToEnd = true },
+                                            onRecapClosed = { if (ranToEnd) advanceDaily(s, completed = true) },
                                             chordTrack = lessons.songChords.value[id],
                                             onTimeUp = {
                                                 if (part is SessionPart.Loop) quest(QuestEvent.LoopDone(part.songId, part.bar))
@@ -918,6 +927,12 @@ class MainActivity : ComponentActivity() {
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
                                                 onMic = { gate.guardForKids { screen = Screen.MicSetup(s) } },
                                                 onToday = ::startDaily,
+                                                onRename = { m, title -> repo.rename(m, title); Log.d(TAG, "song ${m.id} renamed"); libraryVersion++ },
+                                                onDelete = { m ->
+                                                    repo.delete(m)
+                                                    if (prefs.lastSongId == m.id) prefs.lastSongId = null
+                                                    Log.d(TAG, "song ${m.id} deleted"); libraryVersion++
+                                                },
                                             ),
                                             // The week in minutes, for grown-ups (a kid's home has no numbers).
                                             practice = remember(pv, progress.version.intValue, current.isKid) { if (current.isKid) null else PracticeStats.summary(prefs.practice(), java.time.LocalDate.now(), progress.streak().streak) },

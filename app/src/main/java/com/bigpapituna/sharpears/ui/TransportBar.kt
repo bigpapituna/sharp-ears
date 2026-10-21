@@ -137,8 +137,9 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                 Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (s.subtitle.isNotEmpty()) Text(s.subtitle, style = MaterialTheme.typography.bodySmall, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            // A duet plays both hands, one person each: the chooser is locked, so it shows as off rather than ignoring taps.
             Segments(listOf("Both" to Practice.BOTH, "L" to Practice.LEFT, "R" to Practice.RIGHT), s.practice, a.onPractice,
-                spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"))
+                spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"), enabled = s.duet.isNullOrEmpty())
             Segments(listOf("Listen" to Mode.LISTEN, "Wait" to Mode.WAIT, "Perform" to Mode.PERFORM), s.mode, a.onMode)
             FilledIconButton(onClick = a.onPlayPause, enabled = s.ready, modifier = Modifier.size(48.dp)) {
                 Icon(painterResource(if (s.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow),
@@ -247,11 +248,12 @@ private fun MicToggle(s: BarState, onMic: () -> Unit) {
 }
 
 @Composable
-private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T) -> Unit, spoken: Map<String, String> = emptyMap()) {
+private fun <T> Segments(options: List<Pair<String, T>>, selected: T, onPick: (T) -> Unit, spoken: Map<String, String> = emptyMap(),
+                         enabled: Boolean = true) {
     SingleChoiceSegmentedButtonRow {
         options.forEachIndexed { i, (label, value) ->
             SegmentedButton(
-                selected = value == selected, onClick = { onPick(value) },
+                selected = value == selected, onClick = { onPick(value) }, enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(i, options.size), icon = {},
                 modifier = Modifier.semantics { spoken[label]?.let { contentDescription = it } },
             ) { Text(label, maxLines = 1) }

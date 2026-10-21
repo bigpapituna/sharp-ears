@@ -282,7 +282,11 @@ private fun WeekDots(d: ProfileData) {
                 val day = start.plusDays(i.toLong())
                 val did = day in d.practicedDays
                 val future = day.isAfter(d.today)
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // One node per day ("Tuesday, practised"): TalkBack read only the letters, never which days were done.
+                Column(Modifier.clearAndSetSemantics {
+                    contentDescription = day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()) +
+                        when { did -> ", practised"; future -> ""; else -> ", not practised" }
+                }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(Modifier.size(26.dp).clip(CircleShape)
                         .background(if (did) c.primary else c.surfaceContainerHighest)
                         .then(if (day == d.today && !did) Modifier.border(2.dp, c.primary, CircleShape) else Modifier),

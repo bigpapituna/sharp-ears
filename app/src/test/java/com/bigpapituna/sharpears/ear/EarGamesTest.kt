@@ -116,4 +116,17 @@ class EarGamesTest {
         val g = (1L..200L).map { MelodyMemoryGame(1, it) }.first { it.tonicPc == 5 }
         while (!g.finished) { val a = g.melody.map { g.input(it) }.last(); assertFalse(a.line!!.text, a.line!!.text.contains("#")); g.next() }
     }
+
+    @Test fun aGameOfOnlySkipsEarnsNothing() {
+        for (kind in EarKind.entries) {
+            val skipped = newTrainer(kind, 0, seed = 6)
+            while (!skipped.finished) { assertFalse(skipped.allSkipped); skipped.skip() }
+            assertTrue("$kind", skipped.allSkipped)
+            val played = newTrainer(kind, 0, seed = 6)
+            cheat(played)
+            while (!played.finished) played.skip()
+            assertFalse("$kind: one round answered is a game played", played.allSkipped)
+            assertEquals(played.rounds - 1, played.skipped)
+        }
+    }
 }

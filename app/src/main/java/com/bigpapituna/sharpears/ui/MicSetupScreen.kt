@@ -84,7 +84,10 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                    guardToken: (() -> Unit) -> Unit = { it() }) {
     BackHandler(onBack = onBack)
     var granted by remember { mutableStateOf(mic.hasPermission()) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    // Refused twice, Android stops asking: "Allow microphone" then did nothing at all. Refused, the way to the phone's
+    // settings shows; coming back from there checks again.
+    var refused by remember { mutableStateOf(false) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it; refused = !it }
     var micAddress by remember { mutableStateOf(mic.micAddress) }
     var heard by remember { mutableIntStateOf(0) }
     var last by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
@@ -96,6 +99,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
 
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
     val visible = onScreen()
+    LaunchedEffect(visible) { if (visible && !granted) granted = mic.hasPermission() }
     DisposableEffect(granted, micAddress, visible) {
         val on = granted && visible
         if (on) {
@@ -125,16 +129,22 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Microphone setup", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         }
         if (!granted) {
-            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. Nothing is recorded or sent anywhere.",
+            // Honest for this build: debug builds keep recordings by default (Keep practice recordings, below once allowed).
+            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. " + if (mic.canRecord)
+                "This test build keeps recent sessions on the phone, and you can turn that off here." else "Nothing is recorded or sent anywhere.",
                 size = 88.dp, style = MaterialTheme.typography.bodyLarge)
             Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
+            if (refused) MicRefusedNote()
             return@Column
         }
 
         Text("Microphone", style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            mic.builtInMics().forEach { (address, label) ->
-                FilterChip(selected = (micAddress ?: "bottom") == address, onClick = { micAddress = address }, label = { Text(label) })
+            val mics = mic.builtInMics()
+            mics.forEach { (address, label) ->
+                // None picked yet: start() takes the first built-in mic the phone lists, so that chip is the one selected
+                // ("Bottom" showed selected whatever was used, and no chip at all where no mic is called "bottom").
+                FilterChip(selected = (micAddress ?: mics.firstOrNull()?.first) == address, onClick = { micAddress = address }, label = { Text(label) })
             }
         }
         Text(mic.source.value ?: "Starting", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -159,7 +169,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
         Slider(sensitivity, { sensitivity = it }, valueRange = -80f..-40f, onValueChangeFinished = {
             mic.saveConfig(mic.matcher.config.copy(sensitivityDb = sensitivity.toDouble())); Log.d(TAG, "mic sensitivity=$sensitivity")
-        })
+        }, modifier = Modifier.semantics { contentDescription = "Sensitivity" })     // TalkBack said only "slider" and a percent
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Show wrong keys heard by the mic", style = MaterialTheme.typography.titleMedium)
@@ -173,7 +183,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Raise it if right notes light up as wrong.", style = MaterialTheme.typography.bodySmall)
             Slider(wrongDb, { wrongDb = it }, valueRange = 3f..15f, onValueChangeFinished = {
                 mic.saveConfig(mic.matcher.config.copy(wrongOnsetDb = wrongDb.toDouble())); Log.d(TAG, "mic wrongOnsetDb=$wrongDb")
-            })
+            }, modifier = Modifier.semantics { contentDescription = "Wrong-key trigger" })
         }
 
         if (mic.canRecord) {
@@ -185,7 +195,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                     Text("Keep practice recordings", style = MaterialTheme.typography.titleMedium)
                     Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing, " +
                         "plus a short clip whenever wait mode is stuck on the same notes for 5 seconds (up to 250 MB, oldest deleted first). " +
-                        "They never leave the phone unless you copy them off. Talking in the room is recorded too.",
+                        "They leave the phone only if you copy them off or switch on Send them for review. Talking in the room is recorded too.",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") },
@@ -312,5 +322,25 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             }
             savedNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
+    }
+}
+
+/** What the mic buttons say once the microphone was refused (Android may have stopped asking). */
+const val MIC_REFUSED_LINE = "The microphone is off for Sharp Ears. Allow it in the phone's settings, under Permissions."
+
+/**
+ * Shown once the microphone was refused. After two refusals Android stops asking, so the only way left is the app's
+ * page in the phone's settings (Permissions, Microphone); this opens it.
+ */
+@Composable
+fun MicRefusedNote(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("The microphone is off for Sharp Ears. To turn it on, allow it in the phone's settings, under Permissions.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)))
+        }) { Text("Open the phone's settings") }
     }
 }
