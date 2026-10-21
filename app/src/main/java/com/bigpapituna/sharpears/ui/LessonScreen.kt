@@ -396,14 +396,17 @@ fun LessonScreen(
         if (reward == null || n == null) null
         else world?.preview(com.bigpapituna.sharpears.engine.kid.KidPages.dropPlace(n.id))
     }
-    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow) {
+    // Bedtime on and a grown-up's one more spent with this lesson: the next one sleeps, so no way on into its asleep screen.
+    val nextAsleep = kid && finished && progress != null && !holdGoodnight &&
+        !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)
+    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
         { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = { voice.stop(); onNext() }, title = next.title) }
     } else null
     if (finished && !goodnight) {
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
-            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" },
-            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null) onBack() else (onNext ?: onBack)() },
+            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" },
+            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
         ) else Celebration(
