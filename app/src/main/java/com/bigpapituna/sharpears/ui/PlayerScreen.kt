@@ -234,6 +234,7 @@ fun PlayerScreen(
     val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    lights.showCombo = !kid                                       // a kid's lane counts no streak
     // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
     val wrongs = rememberWrongFlash(slow = start.lightSlow)
     val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
@@ -906,7 +907,7 @@ fun PlayerScreen(
             mic.octaveCheck()?.let { h ->
                 Log.d(TAG, "octave hint: ${noteName(h.expected)} played ${if (h.playedOctaveOffset > 0) "an octave up" else "an octave down"}")
                 octaveShown = h
-                say(h.line)
+                say(h.line(kid))
             }
         }
     }
@@ -939,6 +940,7 @@ fun PlayerScreen(
                 kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
+            kid = kid,
             duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
                 ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(
@@ -1167,7 +1169,7 @@ fun PlayerScreen(
 
     // A new two-hand song: suggest hands apart first, then together. Library songs only, never lessons or progressions.
     var handsTip by remember(song) {
-        mutableStateOf(meta?.takeIf { embedded == null }?.let { m ->
+        mutableStateOf(meta?.takeIf { embedded == null && !kid }?.let { m ->
             val twoHands = song.notes.any { it.hand == Hand.LEFT } && song.notes.any { it.hand == Hand.RIGHT }
             com.bigpapituna.sharpears.engine.handsTip(twoHands, prefs.handsDone(m.id), prefs.progress(m.id).completed)
                 ?.takeIf { it != prefs.handsTipDismissed(m.id) }

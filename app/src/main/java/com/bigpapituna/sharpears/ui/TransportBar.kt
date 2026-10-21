@@ -84,6 +84,8 @@ data class BarState(
     val transpose: Int = 0,
     /** Duet (2.1): null hides the pill (one profile, or not a library song), "" offers it, a label says it is on. */
     val duet: String? = null,
+    /** A kid plays (audit 2026-10-20): no times, loop, speed, chord names, metronome, flag or transpose. */
+    val kid: Boolean = false,
 )
 
 class BarActions(
@@ -146,7 +148,8 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                     contentDescription = if (!s.ready) "Loading sounds" else if (s.playing) "Pause" else "Play")
             }
         }
-        Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (s.kid) KidRow(s, a)
+        else Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(formatTime(s.positionMs), style = Numeric.merge(MaterialTheme.typography.labelLarge), modifier = Modifier.padding(start = 12.dp))
             Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
                 val accent = MaterialTheme.colorScheme.primary
@@ -212,6 +215,25 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
             }
             MoreMenu(s, a)
         }
+    }
+}
+
+/**
+ * A kid's second row: where the song is, Duet and the microphone. The grown-ups' times, loop, speed, chord
+ * names, metronome, flag and transpose were all on a pre-reader's song (no chords or loops for kids, as in Practice today).
+ */
+@Composable
+private fun KidRow(s: BarState, a: BarActions) {
+    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Slider(
+            value = (s.positionMs / s.durationMs.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f),
+            onValueChange = { a.onSeek(it.toDouble() * s.durationMs) },
+            colors = SliderDefaults.colors(inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            modifier = Modifier.weight(1f).padding(horizontal = 12.dp).semantics { contentDescription = "Song position" },
+        )
+        s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
+        MicToggle(s, a.onMic)
+        // No tutorial video: its "Open in YouTube", YouTube's own links and the Sync controls are for grown-ups.
     }
 }
 

@@ -32,6 +32,18 @@ class OctaveHintTest {
         assertEquals("That's the right note, but one octave down. Try higher.", OctaveHint.Hint(69, -1).line)
     }
 
+    /** Audit 2026-10-20: a kid at the piano heard the grown-ups' "one octave up. Try lower." */
+    @Test fun aKidHearsColoursNotOctaves() {
+        val up = OctaveHint.Hint(69, 1); val down = OctaveHint.Hint(69, -1)
+        assertEquals(up.line, up.line(kid = false))
+        assertEquals(OctaveHint.UP_KID, up.line(kid = true))
+        assertEquals(OctaveHint.DOWN_KID, down.line(kid = true))
+        for (l in OctaveHint.KID_LINES) {
+            assertTrue(l, "octave" !in l.lowercase() && "note" !in l.lowercase() && "wrong" !in l.lowercase() && l.none(Char::isDigit))
+            assertTrue(l, l in com.bigpapituna.sharpears.engine.SpokenCatalog.kidLines())
+        }
+    }
+
     @Test fun somethingStrongerSinceBlocksIt() {
         val h = OctaveHint()
         h.reset(setOf(69))

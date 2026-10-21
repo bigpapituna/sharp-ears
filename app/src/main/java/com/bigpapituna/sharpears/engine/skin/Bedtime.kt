@@ -32,6 +32,14 @@ object Bedtime {
     fun lessonOpen(kid: Boolean, practisedSec: Int, goalMin: Int, grownUpSaidOn: LocalDate? = null, today: LocalDate = LocalDate.now(), bedtime: Boolean = false): Boolean =
         !kid || !bedtime || !goalReached(practisedSec, goalMin) || grownUpSaidOn == today
 
+    /**
+     * A grown-up's "one more lesson" is one lesson: true when a lesson just finished used today's [grownUpSaidOn]
+     * (bedtime on, the goal reached), so the caller clears it and the lessons sleep again. Before, one "one more" opened
+     * every lesson for the rest of the day.
+     */
+    fun oneMoreSpent(kid: Boolean, practisedSec: Int, goalMin: Int, grownUpSaidOn: LocalDate?, today: LocalDate, bedtime: Boolean): Boolean =
+        kid && bedtime && goalReached(practisedSec, goalMin) && grownUpSaidOn == today
+
     /** Songs and the Jam never close: the goodbye ends lessons only. */
     const val SONGS_OPEN = true
 }

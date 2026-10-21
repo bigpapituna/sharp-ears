@@ -258,7 +258,7 @@ internal fun rememberStageRun(exercise: Exercise, id: String, deps: LessonDeps, 
                 run.ended = true
                 Log.d(TAG, "playground: run ${run.rounds.song.id} ended, ${run.done}/${run.count} rounds, ${run.letGo.size} let go, " +
                     "${run.rounds.transport.log.wrongKeys} slips")
-                ended(run.rounds.report())
+                ended(run.rounds.report().copy(letGoRounds = run.letGo.size, rounds = run.count))
                 break
             }
         }

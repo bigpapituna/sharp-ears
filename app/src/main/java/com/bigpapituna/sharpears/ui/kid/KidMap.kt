@@ -112,8 +112,8 @@ internal fun PageScene(page: MapPage, world: WorldState, modifier: Modifier = Mo
             val sizes = MapSizes(maxWidth)
             PlaceScene(page.place, world, Modifier.fillMaxWidth(), stops = page.stones.size, pupOnStage = false,
                 onJar = onJar.takeIf { page.place == Place.GARDEN }, onEgg = onEgg.takeIf { page.place == Place.GARDEN },
-                stop = { i -> page.stones.getOrNull(i)?.let { s -> StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep) } },
-                overlay = { overlay(sizes) })
+                stop = { i -> page.stones.getOrNull(i)?.let { s -> StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep, stars = false) } },
+                overlay = { overlay(sizes); StarsOver(page, sizes) })
         }
     }
 }
@@ -141,7 +141,7 @@ private fun PageFlag(page: MapPage) {
  * finale): plain stone with an empty paw, open to play. Ahead: pale and still, asleep until the pup gets there.
  */
 @Composable
-internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, asleep: Boolean = false) {
+internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, asleep: Boolean = false, stars: Boolean = true) {
     val next = stone.state == StoneState.NEXT
     val d = if (next) sizes.next else sizes.stone
     val night = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -151,7 +151,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
         .animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing), RepeatMode.Restart), label = "ring") else null
     val label = stone.title + ", " + when (stone.state) {
         StoneState.DONE -> "done, " + com.bigpapituna.sharpears.engine.skin.Stars.spoken(stone.stars).lowercase()
-        StoneState.NEXT -> "next, tap to play"
+        StoneState.NEXT -> if (asleep) "next, the pup is asleep" else "next, tap to play"
         StoneState.OPEN -> "open to play"
         StoneState.LATER -> "later"
     }
@@ -160,7 +160,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
             .semantics { contentDescription = label }) {
             Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring?.value ?: 0f, asleep) }
         }
-        if (stone.state == StoneState.DONE && stone.stars > 0) StarsUnder(stone.stars, sizes.stone * 0.36f)
+        if (stars && stone.state == StoneState.DONE && stone.stars > 0) StarsUnder(stone.stars, sizes.stone * 0.36f)
     }) { ms, c ->
         // The stone is what is centred on the trail; its stars hang under it, outside its box.
         val pebble = ms[0].measure(c.copy(minWidth = 0, minHeight = 0))
@@ -172,10 +172,25 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     }
 }
 
+/**
+ * A page's walked stones' stars, where [StoneView] would hang them (just under each stone), but drawn over the pup, his
+ * bubble and the signpost: the pup is taller than the gap between the trail's rows, and on rows two and three his head
+ * hid the middle star of the walked stone above him.
+ */
+@Composable
+private fun BoxWithConstraintsScope.StarsOver(page: MapPage, sizes: MapSizes) {
+    val at = WorldAnchors.stops(page.place, page.stones.size)
+    page.stones.forEachIndexed { i, s ->
+        val a = at.getOrNull(i) ?: return@forEachIndexed
+        if (s.state == StoneState.DONE && s.stars > 0)
+            StarsUnder(s.stars, sizes.stone * 0.36f, Modifier.pinAt(maxWidth * a.x, maxHeight * a.y + sizes.stone * 0.36f, ay = 0f))
+    }
+}
+
 /** Three little stars, [stars] of them gold. */
 @Composable
-private fun StarsUnder(stars: Int, size: Dp) {
-    Row(Modifier.clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(size * 0.08f)) {
+private fun StarsUnder(stars: Int, size: Dp, modifier: Modifier = Modifier) {
+    Row(modifier.clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(size * 0.08f)) {
         repeat(3) { i ->
             Canvas(Modifier.size(size).graphicsLayer { translationY = if (i == 1) -size.toPx() * 0.12f else 0f }) {
                 if (i < stars) drawStar(PupGold, WorldInk, this.size.width * 0.08f)

@@ -240,6 +240,8 @@ private fun PhotoCard(song: ShelfSong, stars: Int, take: List<Pair<Int, Long>>, 
     var image by remember { mutableStateOf<Bitmap?>(null) }
     var busy by remember { mutableStateOf(false) }
     val develop = remember { Animatable(0f) }
+    // A kid hands the phone to a grown-up to send it: the share sheet reaches every app and contact (parent gate).
+    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     LaunchedEffect(Unit) {
         image = withContext(Dispatchers.Default) { drawPhotoCard(context, name, song.title, stars, PHOTO_W / 2, PHOTO_H / 2) }
         deps.voice.speak(FairLines.PLAYBACK, interrupt = true)
@@ -263,14 +265,14 @@ private fun PhotoCard(song: ShelfSong, stars: Int, take: List<Pair<Int, Long>>, 
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(enabled = !busy && develop.value >= 1f, onClick = {
+            OutlinedButton(enabled = !busy && develop.value >= 1f, onClick = { gate.guardForKids {
                 busy = true
                 scope.launch {
                     val file = runCatching { withContext(Dispatchers.IO) { packPhotoCard(context, name, song.title, stars) } }
                     busy = false
                     file.onSuccess { Share.files(context, listOf(it), ConcertFiles.title(name, song.title)) }.onFailure { Log.d(TAG, "photo card: share failed: $it") }
                 }
-            }) {
+            } }) {
                 if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Send to someone", color = Ink)
             }
             ChunkyButton(onClick = onDone) { Text("Keep going") }

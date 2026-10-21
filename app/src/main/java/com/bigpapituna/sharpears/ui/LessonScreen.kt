@@ -200,6 +200,10 @@ fun LessonScreen(
             tookSecs = (com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - openedAt) / 1000
             lessonStars = com.bigpapituna.sharpears.engine.kid.LessonStars.ofLesson(stepStars.toList())
             reward = onDone(lessonStars)
+            // A grown-up's "one more" (bedtime on) is spent with this lesson: the next one sleeps again.
+            if (kid && progress != null && Bedtime.oneMoreSpent(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) {
+                bedtime.oneMoreOn = null; Log.d(TAG, "bedtime: one more lesson spent on ${lesson.id}")
+            }
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
             voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
@@ -243,7 +247,7 @@ fun LessonScreen(
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to lessons") }
+                IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = if (kid) "Back to the map" else "Back to lessons") }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     if (!kid) Text("${level.title}, lesson ${path.numberOf(lesson)}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
@@ -359,7 +363,11 @@ fun LessonScreen(
                 scenes != null && !scenes.last -> ChunkyButton(onClick = { scenes.go(scenes.index + 1) }) { Text("Next") }
                 last && step.exercise == null -> ChunkyButton(onClick = { complete() }) { Text("Finish") }
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
-                else -> ChunkyButton(onClick = { go(index + 1); run++ }) { Text("Next") }
+                else -> ChunkyButton(onClick = {
+                    // A graded step skipped counts as one star, so Next through every game is not three stars.
+                    if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it }
+                    go(index + 1); run++
+                }) { Text("Next") }
             }
         }
     }
@@ -368,6 +376,15 @@ fun LessonScreen(
             bar = null
             if (cheer == Cheer.GOOD) complete() else { feedback = null; run++ }
         })
+    }
+    // Today's goal reached with this lesson, bedtime off: the goal's cheer, once a day, after the pup's line (songs and
+    // finales cheer in MainActivity). Checked once the last step's player or stage has written its time.
+    if (kid && finished && progress != null && !holdGoodnight) LaunchedEffect(Unit) {
+        if (!bedtime.bedtime && Bedtime.sayWellDone(true, progress.secondsToday(today), progress.goalMinutes, bedtime.wellDoneOn, today)) {
+            bedtime.wellDoneOn = today
+            voice.speak(com.bigpapituna.sharpears.engine.SessionWords.wellDone(who.name))
+            Log.d(TAG, "bedtime: goal cheered after ${lesson.id}")
+        }
     }
     // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
@@ -379,14 +396,17 @@ fun LessonScreen(
         if (reward == null || n == null) null
         else world?.preview(com.bigpapituna.sharpears.engine.kid.KidPages.dropPlace(n.id))
     }
-    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow) {
+    // Bedtime on and a grown-up's one more spent with this lesson: the next one sleeps, so no way on into its asleep screen.
+    val nextAsleep = kid && finished && progress != null && !holdGoodnight &&
+        !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)
+    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
         { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = { voice.stop(); onNext() }, title = next.title) }
     } else null
     if (finished && !goodnight) {
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
-            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null -> "All lessons"; onNext != null -> "Next lesson"; else -> "Done" },
-            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null) onBack() else (onNext ?: onBack)() },
+            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" },
+            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
         ) else Celebration(

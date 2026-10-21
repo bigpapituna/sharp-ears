@@ -352,6 +352,9 @@ class MainActivity : ComponentActivity() {
         if (newKid) { progress.goalMinutes = profile.dailyGoalMin; progress.onboardingDone = true }
         // Kids read the keys by their pads: every white key labelled (a letter, or an animal before reading), until a grown-up picks.
         if (profile.isKid && !prefs.keyLabelsChosen) prefs.keyLabels = com.bigpapituna.sharpears.data.KeyLabels.ALL
+        // Kids skip the onboarding that asks about the mic, so their lessons' player steps, concerts and songs opened
+        // with it off and heard nothing a kid played (the stages listen anyway). On until someone switches it off.
+        if (profile.isKid && !prefs.micDefaultChosen) prefs.micDefault = true
         // The pup's world for this profile: stickers, the jar every note feeds, the outfit; the shelf starts with old bests.
         val world = WorldStore(this, profile.id)
         world.mergeRecords(repo.all().associate { it.id to prefs.progress(it.id).bestAccuracy }.filterValues { it >= 0 })
@@ -532,7 +535,9 @@ class MainActivity : ComponentActivity() {
                         prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
-                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
+                        // A kid starts a two-hand song on the tune (the right hand), as the grown-ups' hands tip advises.
+                        val hands = if (profile.isKid && song.notes.any { it.hand == Hand.RIGHT }) Practice.RIGHT else Practice.BOTH
+                        screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, hands, mic = prefs.micDefault && mic.hasPermission()),
                             if (p.completed) 0.0 else p.lastPositionMs.toDouble(), back)
                     }
                     // "Practice today": due chords, the next lesson, then the Continue song's worst bar (or the song).
@@ -862,10 +867,15 @@ class MainActivity : ComponentActivity() {
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
                             var corner by remember { mutableStateOf(false) }
+                            // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
+                            // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
+                            LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
                             // After the last page's finale the pup says it once: the big kids' road is open.
                             val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
-                            // A finale left waiting (its lesson was left another way): it plays now.
-                            LaunchedEffect(pendingFinale) { pendingFinale?.let { pendingFinale = null; screen = Screen.Finale(it) } }
+                            // A finale left waiting (its lesson was left another way, or the app was closed before): it plays now.
+                            LaunchedEffect(pendingFinale) {
+                                (pendingFinale ?: Finale.owed(prefs::lessonDone, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
+                            }
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
                                 onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
                                 onToy = { t -> screen = Screen.Play(t, home) },
@@ -894,7 +904,7 @@ class MainActivity : ComponentActivity() {
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) }),
-                                onGrownUpsClosed = { corner = false },
+                                onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
                                     fun answered() { bedtime.grownUpOffered = true; grownUpOffered = true }
@@ -904,7 +914,8 @@ class MainActivity : ComponentActivity() {
                                             Log.d(TAG, "profiles: ${current.id} switched to grown-up mode after Beginner")
                                             profiles.setKind(current.id, com.bigpapituna.sharpears.engine.family.ProfileKind.ADULT)
                                         } },
-                                        onLater = { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") })
+                                        // A grown-up's answer too: a kid's tap on "Not yet" put the one-time offer away for good.
+                                        onLater = { gate.guard { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") } })
                                 } })
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
@@ -1092,7 +1103,9 @@ class MainActivity : ComponentActivity() {
                     // A kid's session ends on the sticker, not on XP (KIDS-PLAN 3.4): XP still adds up underneath for grown-up
                     // mode later, but no level-up screen full of numbers.
                     if (current.isKid) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
-                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                    // Nor achievement banners ("One week streak", "100 minutes"): they unlock underneath, unseen by a kid.
+                    if (current.isKid) LaunchedEffect(progress.toasts.size) { progress.toasts.clear() }
+                    if (!isStage(screen) && !current.isKid) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = current.isKid || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
                     // The parent gate, over everything while an action waits for a grown-up.

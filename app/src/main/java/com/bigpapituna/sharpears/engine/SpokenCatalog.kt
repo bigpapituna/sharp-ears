@@ -96,6 +96,7 @@ object SpokenCatalog {
         // 2.2.1: the treat jar the kid home taps, and the noisy-room offer in a kid's words.
         addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
         add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)
+        addAll(com.bigpapituna.sharpears.engine.hints.OctaveHint.KID_LINES)       // audit 2026-10-20: the octave hint, a kid's way
         add(RunWords.kidLessonLine(null))
         add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
         for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))

@@ -21,6 +21,8 @@ class OctaveHint(val holdMs: Long = 2_000, val windowMs: Long = 6_000) {
     data class Hint(val expected: Int, val playedOctaveOffset: Int) {
         /** The pup's line, shown and spoken. */
         val line: String get() = if (playedOctaveOffset > 0) UP else DOWN
+        /** The same said to a kid: no "octave" or "note", the colour they see (their keys wear the same colour every octave). */
+        fun line(kid: Boolean): String = if (!kid) line else if (playedOctaveOffset > 0) UP_KID else DOWN_KID
     }
 
     private class Moment(val atMs: Long, val riseDb: Double, val expected: Int, val offset: Int)   // offset 0: a rival
@@ -69,6 +71,10 @@ class OctaveHint(val holdMs: Long = 2_000, val windowMs: Long = 6_000) {
     companion object {
         const val UP = "That's the right note, but one octave up. Try lower."
         const val DOWN = "That's the right note, but one octave down. Try higher."
+        const val UP_KID = "Nearly! That one is too high. Find the same colour lower down."
+        const val DOWN_KID = "Nearly! That one is too low. Find the same colour higher up."
+        /** The kid's two, recorded with the kid lines (slower). */
+        val KID_LINES = listOf(UP_KID, DOWN_KID)
         /** Every line the hints say (the voice catalog records them). */
         val LINES = listOf(UP, DOWN, HintPlan.YOUR_TURN, NoiseWatch.LINE)
 
