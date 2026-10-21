@@ -14,10 +14,13 @@ object PracticeStats {
         return n
     }
 
-    /** Minutes over the last seven days, today included (any practice shows as at least 1 minute). */
+    /**
+     * Whole minutes over the last seven days, today included (any practice shows as at least 1 minute). Counted down,
+     * as the goal line above it is: rounded, one day's 16.6 minutes read "Goal met, 16 min today" over "This week: 17 min".
+     */
     fun weekMinutes(seconds: Map<LocalDate, Int>, today: LocalDate): Int {
         val total = (0L..6L).sumOf { seconds[today.minusDays(it)] ?: 0 }
-        return if (total == 0) 0 else maxOf(1, (total + 30) / 60)
+        return if (total == 0) 0 else maxOf(1, total / 60)
     }
 
     /** "This week: 42 min, 4 days in a row", or null when there was no practice this week. A streak shows from 2 days. */
