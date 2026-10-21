@@ -24,17 +24,20 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.Mode
@@ -115,6 +118,17 @@ class BarActions(
  */
 @Composable
 fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
+    // Two fixed-height rows across a phone held sideways: at the phone's largest font sizes (up to 2x) the hands, the modes
+    // and the play button ran off the right edge. The bar's text stops growing at 1.15x, where the song slider still has
+    // room; the rest of the player follows the phone.
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale.coerceAtMost(MAX_FONT_SCALE))) { Bar(s, a, modifier) }
+}
+
+private const val MAX_FONT_SCALE = 1.15f
+
+@Composable
+private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier.padding(horizontal = 8.dp)) {
         Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
