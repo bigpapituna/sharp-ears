@@ -12,6 +12,8 @@ class ForegroundClock(private val time: () -> Long) {
     @Synchronized fun stop() { if (stoppedAt < 0) stoppedAt = time() }
     @Synchronized fun start() { if (stoppedAt >= 0) { away += time() - stoppedAt; stoppedAt = -1 } }
     @Synchronized fun nowMs(): Long = time().let { t -> t - away - if (stoppedAt >= 0) t - stoppedAt else 0 }
+    /** All the time spent off screen so far; the player takes its growth between two frames off the frame's step. */
+    @Synchronized fun awayMs(): Long = away + if (stoppedAt >= 0) time() - stoppedAt else 0
 
     companion object {
         /** The app's own, on the monotonic clock. */

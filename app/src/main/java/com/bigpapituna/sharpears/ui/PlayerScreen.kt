@@ -815,6 +815,9 @@ fun PlayerScreen(
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
+        // Frames stop while the app is off screen (Home, the screen locked): the first frame back must not play the song
+        // on by the time away (it jumped 40 s) nor count it as practice, so the step leaves out the time away.
+        var awayLast = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs()
         var wasWaiting = transport.waiting
         if (wasWaiting) { stallBegin(); hintsBegin() }   // resumed in the middle of a wait
         var listening = transport.listenFor
@@ -822,9 +825,11 @@ fun PlayerScreen(
         while (transport.playing) {
             withFrameNanos { now ->
                 val before = transport.positionMs
-                practiceMs[0] += (now - last) / 1_000_000.0
+                val away = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs().let { a -> (a - awayLast).also { awayLast = a } }
+                val step = ((now - last) / 1_000_000.0 - away).coerceAtLeast(0.0)
+                practiceMs[0] += step
                 if (practiceMs[0] >= 15_000) flushPractice()
-                val events = transport.tick((now - last) / 1_000_000.0)
+                val events = transport.tick(step)
                 if (events.isNotEmpty()) apply(events)
                 // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
                 // The Perform count-in always clicks, metronome or not.
