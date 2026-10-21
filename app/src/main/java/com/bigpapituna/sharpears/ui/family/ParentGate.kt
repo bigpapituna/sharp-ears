@@ -160,7 +160,7 @@ fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit) {
 
 /** Step one: press and hold the pup; the ring fills in three seconds and drains back if he is let go early. */
 @Composable
-private fun HoldThePup(onHeld: () -> Unit) {
+internal fun HoldThePup(onHeld: () -> Unit) {
     val still = reducedMotion()
     val ring = remember { Animatable(0f) }
     var pressed by remember { mutableStateOf(false) }
