@@ -145,6 +145,7 @@ object ConcertFiles {
     fun typeOf(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
         "wav" -> "audio/wav"
         "png" -> "image/png"
+        "pdf" -> "application/pdf"
         "jpg", "jpeg" -> "image/jpeg"
         "zip" -> "application/zip"
         "txt" -> "text/plain"
