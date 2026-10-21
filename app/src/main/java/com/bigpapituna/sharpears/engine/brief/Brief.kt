@@ -28,7 +28,7 @@ data class Brief(
     /** Epoch ms when it was written; the screen shows "Refresh" against it. */
     val writtenAt: Long,
 ) {
-    data class Recommendation(val text: String, val candidate: Findings.Candidate)
+    data class Recommendation(val text: String, val candidate: Candidate)
     data class Section(val title: String, val body: String)
     enum class Writer { AI, TEMPLATE }
 }
