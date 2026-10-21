@@ -66,6 +66,12 @@ class AskBriefTest {
         assertTrue((none + week).none { "Mia" in it })
     }
 
+    @Test fun aGrownUpsOwnWeekAsksInTheFirstPerson() {
+        val mine = AskRules.starters(BriefSamples.adult(Period.WEEK, 1_800_000_000_000L, java.time.ZoneOffset.UTC))
+        assertTrue(mine.toString(), mine.none { " they " in " $it " || " we " in " $it " })
+        assertTrue(mine.toString(), "What should I do next?" in mine || "How much should I practise?" in mine)
+    }
+
     @Test fun dictationTextJoinsWithOneSpaceAndCapitalisesASentenceStart() {
         assertEquals("Why is it hard", DictationText.append("", "why is it hard"))
         assertEquals("Why is it hard", DictationText.append("   ", " why is it hard "))

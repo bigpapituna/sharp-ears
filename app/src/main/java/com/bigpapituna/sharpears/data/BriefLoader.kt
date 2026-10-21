@@ -16,7 +16,8 @@ import com.bigpapituna.sharpears.ui.skin.BedtimeStore
 object BriefLoader {
     fun findings(context: Context, profile: Profile, period: Period, now: Long = System.currentTimeMillis()): Findings {
         val app = context.applicationContext
-        val events = Briefs.read(profile.id) + listOfNotNull(Briefs.sessionSoFar(profile.id))
+        // The open session's provisional end is stamped [now], the findings' own clock (one stamped later is left out).
+        val events = Briefs.read(profile.id) + listOfNotNull(Briefs.sessionSoFar(profile.id, at = now))
         val current = CurrentSettings(
             goalMinutes = runCatching { ProgressStore(app, Prefs(app, profile.id)).goalMinutes }.getOrNull(),
             bedtimeOn = runCatching { BedtimeStore(app, profile.id).bedtime }.getOrNull(),

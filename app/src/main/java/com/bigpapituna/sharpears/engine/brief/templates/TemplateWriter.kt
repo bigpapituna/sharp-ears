@@ -45,6 +45,8 @@ class TemplateWriter(
         val better = f.trends.filter { it.direction != Direction.STEADY && it.good == true }
         for (fact in f.facts) {
             if (facts.size >= 3) break
+            // Visits with no practice minutes (the app opened, a look around, the toys) are not "the piano came out" times.
+            if (fact.kind == com.bigpapituna.sharpears.engine.brief.FactKind.SESSIONS && f.stats.totals.practiceMinutes == 0) continue
             // The first trend that says more about the same number ("six days, up from two") stands in for its plain fact.
             val matching = if (usedTrends.isNotEmpty()) null else TREND_OF[fact.kind]?.let { k -> better.firstOrNull { it.kind == k } }
             val viaTrend = matching?.let { trendLine(c, it) }

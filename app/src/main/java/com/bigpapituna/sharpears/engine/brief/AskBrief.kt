@@ -69,8 +69,9 @@ object AskRules {
         if (FlagKind.PRACTICE_DIPPED in kinds) add("Is this a normal amount of practice?")
         if (FlagKind.HINT_DEPENDENCE in kinds) add("Is it bad that the app plays the key?")
         add("What went well?")
-        add("What should we do next?")
-        add("How much should they practise?")
+        // "My week" is a grown-up asking about themselves: I, not we or they.
+        if (f.profileKind == ProfileKind.ADULT) { add("What should I do next?"); add("How much should I practise?") }
+        else { add("What should we do next?"); add("How much should they practise?") }
     }.distinct().take(3)
 }
 

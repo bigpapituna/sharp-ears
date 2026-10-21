@@ -296,6 +296,8 @@ class MainActivity : ComponentActivity() {
     private val duetNext = mutableStateOf<DuetNext?>(null)
     /** The weekly brief's notification asked for this person's brief and period (all builds; closed by Back). */
     private val briefRequest = mutableStateOf<Pair<String, com.bigpapituna.sharpears.engine.brief.Period>?>(null)
+    /** Debug: that brief over sample findings offering every action (ui/brief/BriefDemo.kt, sampleActionsEnv). */
+    private var briefSamples = false
 
     /**
      * The parent brief's doors into the app (ui/brief/AppEffects.kt, step 3 of the brief): Replay, Practise together and the
@@ -307,6 +309,8 @@ class MainActivity : ComponentActivity() {
         override fun openLesson(who: Profile, lessonId: String) = runOnUiThread {
             val lesson = COURSE.flatMap { it.lessons }.firstOrNull { it.id == lessonId } ?: return@runOnUiThread
             Log.d(TAG, "brief: open lesson $lessonId for ${who.id}")
+            // A grown-up chose it behind the gate: after today's goodnight it is their "one more lesson", as on the asleep screen.
+            if (who.isKid) com.bigpapituna.sharpears.ui.skin.BedtimeStore(this@MainActivity, who.id).oneMoreOn = java.time.LocalDate.now()
             go(who, Screen.Lesson(lesson, if (who.isKid) Screen.Home() else Screen.Home(HomeTab.LEARN)))
         }
 
@@ -362,6 +366,7 @@ class MainActivity : ComponentActivity() {
         // The weekly brief's notification (all builds): that person's brief opens over whatever shows first. After a recreate,
         // only what was still open then (the launch intent keeps its extras, and the brief may have been closed since).
         briefRequest.value = if (savedInstanceState != null) savedInstanceState.getString(BRIEF)?.let(::briefOf) else briefFrom(intent)
+        briefSamples = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("brief_samples", false)
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -1292,7 +1297,9 @@ class MainActivity : ComponentActivity() {
         val who = roster.profiles.firstOrNull { it.id == id }
         if (who == null) { LaunchedEffect(id) { briefRequest.value = null; Log.d(TAG, "brief: notification for $id, who is gone") }; return }
         SharpEarsTheme(dark = isSystemInDarkTheme()) {
-            val env = com.bigpapituna.sharpears.ui.brief.rememberBriefEnv()
+            val env = com.bigpapituna.sharpears.ui.brief.rememberBriefEnv().let { live ->
+                if (briefSamples) remember(live) { com.bigpapituna.sharpears.ui.brief.sampleActionsEnv(live) } else live
+            }
             val close = { briefRequest.value = null; if (openKid) gate.close() }
             if (who.isKid) com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(env, roster.profiles.filter { it.isKid }, onClose = close, initial = id, period = period)
             else com.bigpapituna.sharpears.ui.brief.MyWeekDialog(env, who, onClose = close, period = period)
@@ -1361,6 +1368,7 @@ class MainActivity : ComponentActivity() {
         // The weekly brief's notification on an app already running: its brief opens over the screen that is up.
         briefFrom(intent)?.let { req ->
             Log.d(TAG, "brief: notification opens ${req.first} ${req.second}")
+            briefSamples = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("brief_samples", false)
             briefRequest.value = req
             return
         }

@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.brief.Brief
 import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import com.bigpapituna.sharpears.engine.brief.RecommendationKind
+import com.bigpapituna.sharpears.engine.brief.ActionId
+import com.bigpapituna.sharpears.engine.brief.FlagKind
 import com.bigpapituna.sharpears.engine.brief.BriefSamples
 import com.bigpapituna.sharpears.engine.brief.Effects
 import com.bigpapituna.sharpears.engine.brief.IdTitles
@@ -181,4 +184,35 @@ private fun NotifyDemo(profileId: String, onExit: () -> Unit) {
         Log.d(TAG, "brief demo: notify $line")
     }
     Box(Modifier.fillMaxSize().paper(), contentAlignment = Alignment.Center) { androidx.compose.material3.Text(line, style = MaterialTheme.typography.titleLarge) }
+}
+
+/**
+ * Debug (2.4 integration walk): the app's own brief env, its real action cards and stores, over made-up findings that
+ * offer every action of the menu across the three tabs, for the profile the brief opens on. Opened with the weekly
+ * notification's extras plus `--ez brief_samples true` (debug builds only):
+ * `adb shell am start -n com.bigpapituna.sharpears/.MainActivity --es brief_profile p1 --es brief_period DAY --ez brief_samples true`.
+ * Session: Replay for stars (playground-2), Practise together on Twinkle (a duet), Open the next page (after the garden).
+ * Today: Teacher mode (after Twinkle), Focus on the garden, Fresh start on the garden. Week: Set as next (playground-8),
+ * Practise together with nothing chosen (the song pick), Bedtime on.
+ */
+fun sampleActionsEnv(live: BriefEnv): BriefEnv = BriefEnv(live.titles, live.serviceFor,
+    loadFindings = { p, period, now -> actionSamples(p, period, now, live.zone) },
+    effectsFor = live.effectsFor, record = live.record, weekly = live.weekly, now = live.now, zone = live.zone)
+
+internal fun actionSamples(p: Profile, period: Period, now: Long, zone: ZoneId): com.bigpapituna.sharpears.engine.brief.Findings {
+    fun c(kind: com.bigpapituna.sharpears.engine.brief.RecommendationKind, action: com.bigpapituna.sharpears.engine.brief.ActionId,
+          params: Map<String, String>, because: com.bigpapituna.sharpears.engine.brief.FlagKind) =
+        com.bigpapituna.sharpears.engine.brief.Candidate(kind, action, params, because)
+    val candidates = when (period) {
+        Period.SESSION -> listOf(c(RecommendationKind.POLISH, ActionId.REPLAY_FOR_STARS, mapOf("lesson" to "playground-2"), FlagKind.LOW_STARS),
+            c(RecommendationKind.TOGETHER, ActionId.PRACTISE_TOGETHER, mapOf("song" to "twinkle"), FlagKind.LEFT_HAND_BEHIND),
+            c(RecommendationKind.NEXT_STEP, ActionId.PACE_UNLOCK, mapOf("page" to "garden"), FlagKind.CRUISING))
+        Period.DAY -> listOf(c(RecommendationKind.NEW_MUSIC, ActionId.TEACHER_ASSIGN, mapOf("after" to "twinkle"), FlagKind.MASTERED_SONG),
+            c(RecommendationKind.FOCUS, ActionId.PACE_FOCUS, mapOf("page" to "garden"), FlagKind.SCATTERED),
+            c(RecommendationKind.FOCUS, ActionId.FRESH_START, mapOf("page" to "garden"), FlagKind.PAGE_STRUGGLE))
+        Period.WEEK -> listOf(c(RecommendationKind.UNSTICK, ActionId.SET_NEXT, mapOf("lesson" to "playground-8"), FlagKind.STUCK_LESSON),
+            c(RecommendationKind.ROUTINE, ActionId.PRACTISE_TOGETHER, emptyMap(), FlagKind.PRACTICE_DIPPED),
+            c(RecommendationKind.SETTINGS, ActionId.SETTING, mapOf("setting" to "bedtime", "value" to "true"), FlagKind.LONG_DAYS))
+    }
+    return BriefSamples.kid(period, now, zone, reader = p.reader).copy(candidates = candidates)
 }

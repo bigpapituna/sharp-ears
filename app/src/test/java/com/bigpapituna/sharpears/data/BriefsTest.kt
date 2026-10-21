@@ -46,6 +46,10 @@ class BriefsTest {
         practice += 150
         assertEquals(150, Briefs.sessionSoFar("p1")!!.practiceSec)
         assertNull(Briefs.sessionSoFar("p2"))
+        // Stamped at the findings' "now" when asked: Insights leaves out anything later, and the practice with it.
+        val asOf = Briefs.sessionSoFar("p1", at = 900)!!
+        assertEquals(900L, asOf.at)
+        assertEquals(150, asOf.practiceSec)
         Briefs.sessionStart("p2")                                  // a switch: p1's ends first
         practice += 30
         Briefs.sessionEnd(); Briefs.sessionEnd()

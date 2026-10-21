@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
@@ -191,10 +192,13 @@ fun KidCardStepHost(step: KidCardStep, profile: Profile, say: (String) -> Unit) 
     fun done() { step.next = null; go() }
     BackHandler { done() }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            KidBriefCard(card, say, onShowMum = { mum = true })
-            com.bigpapituna.sharpears.ui.ChunkyButton(onClick = ::done, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()) { Text(step.label) }
+        // Centred on the screen, scrolling when it does not fit (a phone held sideways in the player).
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = 16.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
+                KidBriefCard(card, say, onShowMum = { mum = true })
+                com.bigpapituna.sharpears.ui.ChunkyButton(onClick = ::done, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()) { Text(step.label) }
+            }
         }
     }
     if (mum) ShowMumDialog(env, profile, onClose = { mum = false })

@@ -109,9 +109,14 @@ object Briefs {
      * The open session as a provisional end now (not logged), for a session note while the session is still open: add it
      * to the events given to Insights.compute. Null when no session is open, or it is someone else's.
      */
-    fun sessionSoFar(profileId: String): BriefEvent.SessionEnded? = open?.takeIf { it.profileId == profileId }?.let(::soFar)
+    fun sessionSoFar(profileId: String, at: Long? = null): BriefEvent.SessionEnded? = open?.takeIf { it.profileId == profileId }?.let { soFar(it, at) }
 
-    private fun soFar(o: Open) = BriefEvent.SessionEnded(now(), (ForegroundClock.app.nowMs() - o.startFg).coerceAtLeast(0),
+    /**
+     * [at]: when the provisional end is stamped. A reader computing findings "as of" a moment passes it: Insights drops
+     * events after its `now`, and an end stamped a few ms later (read after the findings' clock) was dropped with its
+     * practice, so every session note and the pup's card read an open session as no practice at all.
+     */
+    private fun soFar(o: Open, at: Long? = null) = BriefEvent.SessionEnded(at ?: now(), (ForegroundClock.app.nowMs() - o.startFg).coerceAtLeast(0),
         (practiceSeconds() - o.practice0).coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
 
     // ---- profiles and backup ----

@@ -240,7 +240,8 @@ class BriefExport(private val context: Context) {
             card.recycle()
             val pdf = File(dir, pdfName)
             val pages = x.pdf(blocks, pdf)
-            Log.d(TAG, "brief: exported ${png.name} (${png.length() / 1024} KB) and ${pdf.name} (${pages} page${if (pages == 1) "" else "s"}, ${pdf.length() / 1024} KB)")
+            // The files are named after the person; the log never is (crash reports carry recent logcat).
+            Log.d(TAG, "brief: exported a ${period.name} brief: png (${png.length() / 1024} KB) and pdf (${pages} page${if (pages == 1) "" else "s"}, ${pdf.length() / 1024} KB)")
             return listOf(png, pdf)
         }
     }
