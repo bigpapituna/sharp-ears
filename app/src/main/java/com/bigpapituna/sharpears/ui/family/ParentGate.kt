@@ -167,7 +167,11 @@ private fun HoldThePup(onHeld: () -> Unit) {
     LaunchedEffect(pressed) {
         if (pressed) {
             val left = ((1f - ring.value) * ParentGateRules.HOLD_MS).toInt()
-            ring.animateTo(1f, tween(left, easing = LinearEasing))
+            // Real seconds whatever the system's animation scale: at 0 ("remove animations") the tween ended at once and
+            // a short tap passed the hold. The ring is the hold's clock, not decoration.
+            kotlinx.coroutines.withContext(object : androidx.compose.ui.MotionDurationScale { override val scaleFactor = 1f }) {
+                ring.animateTo(1f, tween(left, easing = LinearEasing))
+            }
             Log.d(TAG, "gate: held for three seconds")
             onHeld()
         } else ring.animateTo(0f, tween(if (still) 0 else 350))
