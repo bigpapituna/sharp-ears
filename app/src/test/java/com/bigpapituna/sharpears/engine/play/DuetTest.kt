@@ -43,4 +43,16 @@ class DuetTest {
         assertEquals("Mia played the left hand and Roy the right. Good playing, both of you.", Duet.recapLine("Mia", "Roy", 0))
         assertEquals("A played the left hand and B the right. Three stars each!", Duet.recapLine("A", "B", 5))
     }
+
+    @Test fun practiseTogetherSeatsTheOpenGrownUpElseTheOwnerElseAnyGrownUp() {
+        val P = com.bigpapituna.sharpears.engine.family.Profile
+        val roy = P.owner(); val nadia = P.adult("Nadia", 4, id = "p3"); val mia = P.kid("Mia", 2, reader = false, id = "p1"); val theo = P.kid("Theo", 5, reader = true, id = "p2")
+        val roster = listOf(roy, mia, theo, nadia)
+        assertEquals("open as Nadia (Settings > Family)", "p3", Duet.grownUpFor(mia, "p3", roster))
+        assertEquals("open as the kid (the whistle corner): the owner", roy.id, Duet.grownUpFor(mia, "p1", roster))
+        assertEquals("open as another kid: the owner", roy.id, Duet.grownUpFor(mia, "p2", roster))
+        assertEquals("a grown-up's own week: the other grown-up", "p3", Duet.grownUpFor(roy, roy.id, roster))
+        assertNull("nobody else grown up", Duet.grownUpFor(roy, roy.id, listOf(roy, mia)))
+        assertEquals("the duet: the grown-up on the left hand", Hand.LEFT, Duet(Duet.grownUpFor(mia, null, roster)!!, mia.id).handOf(roy.id))
+    }
 }

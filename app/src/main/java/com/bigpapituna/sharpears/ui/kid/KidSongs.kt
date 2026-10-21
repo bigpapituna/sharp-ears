@@ -50,6 +50,7 @@ import com.bigpapituna.sharpears.data.SongMeta
 import com.bigpapituna.sharpears.data.SongRepository
 import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.kid.KidSongs
+import com.bigpapituna.sharpears.engine.kid.ShelfSong
 import com.bigpapituna.sharpears.engine.kid.SongFacts
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.PupSays
@@ -69,9 +70,15 @@ private val factsCache = HashMap<String, Pair<SongFacts, List<Int>>>()
  * The kid's songs (2.2): only the songs played by colour ([KidSongs]: easy, the app's own, every note a white key, so
  * each is one colour and one animal), as big tiles with the tune's first notes in their colours and the name. No
  * stats, no records, no imports. A tap opens the song in the player (wait mode, colour notes on).
+ *
+ * 2.4, the parent brief: songs a grown-up put on the [shelf] (Teacher mode) come first, each with the grown-up's note
+ * (tap the note and [say] reads it aloud: it is made on the phone, like every line with a name); [duetWith] names the
+ * grown-up when the song picked here opens as a duet with them (Practise together).
  */
 @Composable
-fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMeta) -> Unit, onBack: () -> Unit) {
+fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMeta) -> Unit, onBack: () -> Unit,
+                   shelf: List<ShelfSong> = emptyList(), duetWith: String? = null, say: ((String) -> Unit)? = null) {
+    val assigned = remember(shelf, songs) { shelf.mapNotNull { s -> songs.firstOrNull { it.id == s.songId && repo.available(it) }?.let { it to s.note } } }
     var list by remember { mutableStateOf<List<KidSong>?>(null) }
     LaunchedEffect(songs) {
         list = withContext(Dispatchers.Default) {
@@ -103,11 +110,30 @@ fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMet
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp, top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                PupSays(Pose.PRACTICING, if (list?.isEmpty() == true) "No colour songs on this phone yet." else "Pick a song! Follow the colours.",
-                    Modifier.widthIn(max = 560.dp).padding(bottom = 4.dp), size = 84.dp)
+                PupSays(Pose.PRACTICING, when {
+                    duetWith != null -> "Pick a song to play with $duetWith!"
+                    list?.isEmpty() == true && assigned.isEmpty() -> "No colour songs on this phone yet."
+                    else -> "Pick a song! Follow the colours."
+                }, Modifier.widthIn(max = 560.dp).padding(bottom = 4.dp), size = 84.dp)
             }
-            items(list.orEmpty(), key = { it.meta.id }) { s -> SongTile(s) { onSong(s.meta) } }
+            items(assigned, key = { "shelf:" + it.first.id }) { (m, note) -> ShelfTile(m, note, say) { onSong(m) } }
+            items(list.orEmpty().filter { s -> assigned.none { it.first.id == s.meta.id } }, key = { it.meta.id }) { s -> SongTile(s) { onSong(s.meta) } }
         }
+    }
+}
+
+/** A song a grown-up put on the shelf: "From your grown-up", its name, big, and their note (tap to hear it). */
+@Composable
+private fun ShelfTile(meta: SongMeta, note: String, say: ((String) -> Unit)?, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.primaryContainer)
+        .clickable(role = Role.Button, onClickLabel = "Play ${meta.title}", onClick = onClick).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("From your grown-up", style = MaterialTheme.typography.labelLarge, color = c.onPrimaryContainer.copy(alpha = 0.8f))
+        Text(meta.title, style = MaterialTheme.typography.titleLarge, color = c.onPrimaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodyLarge, color = c.onPrimaryContainer, maxLines = 4, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clip(RoundedCornerShape(12.dp)).then(if (say != null) Modifier.clickable(role = Role.Button, onClickLabel = "Hear the note") { say(note) } else Modifier)
+                .background(c.surface.copy(alpha = 0.6f)).padding(horizontal = 12.dp, vertical = 8.dp))
     }
 }
 

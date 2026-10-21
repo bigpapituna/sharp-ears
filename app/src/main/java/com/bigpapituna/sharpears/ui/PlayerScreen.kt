@@ -142,6 +142,8 @@ data class PlayerStart(
     val midiScript: String? = null,
     /** Two people, one hand each (2.1, engine/play/Duet): both hands are played and both get the run. */
     val duet: Duet? = null,
+    /** Open with the duet picker showing (2.4, the parent brief's "Practise together" from a grown-up's own week). */
+    val pickDuet: Boolean = false,
 )
 
 /**
@@ -231,7 +233,7 @@ fun PlayerScreen(
     var mode by remember { mutableStateOf(start.mode) }
     // A duet plays both hands, one person each; the hand chooser is locked meanwhile.
     var duet by remember { mutableStateOf(start.duet) }
-    var pickingDuet by remember { mutableStateOf(false) }
+    var pickingDuet by remember { mutableStateOf(start.pickDuet && start.duet == null) }
     var practice by remember { mutableStateOf(if (start.duet != null) Practice.BOTH else start.practice) }
     var micOn by remember { mutableStateOf(start.mic || start.inject != null) }
     var loopStart by remember { mutableStateOf<Double?>(null) }

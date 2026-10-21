@@ -41,6 +41,17 @@ data class Duet(val leftId: String, val rightId: String) {
         fun partnerRun(songId: String, accuracy: Int?, partnerBest: Int?, partnerCompleted: Boolean): ProgressEvent.SongRun =
             ProgressEvent.SongRun(songId, accuracy, newBest = accuracy != null && accuracy > (partnerBest ?: -1), firstCompletion = !partnerCompleted)
 
+        /**
+         * The grown-up who sits down with [child] for the parent brief's "Practise together" (2.4): the grown-up the app is
+         * open as ([openId], when that is a grown-up other than the child), else the phone's owner, else any other grown-up;
+         * null when there is none (then the duet picker asks).
+         */
+        fun grownUpFor(child: com.bigpapituna.sharpears.engine.family.Profile, openId: String?,
+                       roster: List<com.bigpapituna.sharpears.engine.family.Profile>): String? {
+            val grownUps = roster.filter { !it.isKid && it.id != child.id }
+            return (grownUps.firstOrNull { it.id == openId } ?: grownUps.firstOrNull { it.isOwner } ?: grownUps.firstOrNull())?.id
+        }
+
         /** The recap's line: "Mia played the left hand and Theo the right. Two stars each!" */
         fun recapLine(leftName: String, rightName: String, stars: Int): String {
             val s = when (stars.coerceIn(0, 3)) {

@@ -113,14 +113,14 @@ class BriefEnv(
          * The app's own: findings from the event logs, the writers from [BriefAi] (the AI writer over the templates, or the
          * templates alone when AI briefs are off or this build has no key), the action cards through [AppEffects].
          */
-        fun live(context: Context, profiles: com.bigpapituna.sharpears.data.Profiles?): BriefEnv {
+        fun live(context: Context, profiles: com.bigpapituna.sharpears.data.Profiles?, nav: BriefNav? = null): BriefEnv {
             val app = context.applicationContext
             val titles = AppTitles(app)
             return BriefEnv(
                 titles = titles,
                 serviceFor = { p -> liveService(app, p) },
                 loadFindings = { p, period, now -> BriefLoader.findings(app, p, period, now) },
-                effectsFor = { p -> AppEffects(app, profiles, p) },
+                effectsFor = { p -> AppEffects(app, profiles, p, nav) },
                 record = { p, id, params -> Briefs.logFor(p.id) { BriefEvent.ParentAction(it, id, params) } },
                 weekly = object : WeeklyAccess {
                     override fun get(profile: Profile) = BriefStore(app, profile.id).weeklyOrDefault(profile.isKid)
@@ -143,7 +143,8 @@ fun liveService(context: Context, profile: Profile): BriefService {
 fun rememberBriefEnv(): BriefEnv {
     val context = LocalContext.current
     val profiles = LocalProfiles.current
-    return remember(context, profiles) { BriefEnv.live(context, profiles) }
+    val nav = LocalBriefNav.current
+    return remember(context, profiles, nav) { BriefEnv.live(context, profiles, nav) }
 }
 
 /** Lesson titles from the course, song titles from the library, page titles from the Playground: all on the phone. */

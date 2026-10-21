@@ -93,4 +93,38 @@ class KidStoreTest {
         mia.debugForget()
         assertTrue(mia.allStars().isEmpty() && mia.finales().isEmpty())
     }
+
+    // ---- 2.4: what a grown-up set from the parent brief ----
+
+    @Test fun thePinFocusEarlyPagesAndShelfAreKeptPerProfileAndAPlayedPinGoes() {
+        val mia = store("p1")
+        val v = mia.version.intValue
+        mia.pin = com.bigpapituna.sharpears.engine.kid.Pin("pond-5", 2_000L)
+        mia.focus = "pond"
+        mia.early = setOf("garden")
+        mia.shelf = listOf(com.bigpapituna.sharpears.engine.kid.ShelfSong("twinkle", "Slowly, with me", 10L, after = "hot-cross-buns"))
+        assertTrue("the map hears each change", mia.version.intValue >= v + 4)
+        val again = store("p1")
+        assertEquals(com.bigpapituna.sharpears.engine.kid.Pace("pond-5", "pond", setOf("garden")), again.pace(now = 1_000L))
+        assertEquals("a pin past its day is left out", null, again.pace(now = 2_000L).pin)
+        assertEquals("Slowly, with me", again.shelf.single().note)
+        assertTrue("another kid's walk is untouched", store("p2").pace(0L) == com.bigpapituna.sharpears.engine.kid.Pace.NONE && store("p2").shelf.isEmpty())
+        again.lessonPlayed("pond-4")
+        assertEquals("pond-5", again.pin?.lessonId)
+        again.lessonPlayed("pond-5")
+        assertEquals(null, store("p1").pin)
+        again.focus = null; again.early = emptySet(); again.shelf = emptyList()
+        assertEquals(com.bigpapituna.sharpears.engine.kid.Pace.NONE, store("p1").pace(0L))
+    }
+
+    @Test fun aFreshStartForgetsStarsAndItsUndoPutsThemBack() {
+        val mia = store("p1")
+        mia.recordStars("pond-1", 3); mia.recordStars("pond-2", 1); mia.recordStars("garden-1", 2)
+        mia.finalePlayed("pond")
+        mia.forgetStars(listOf("pond-1", "pond-2"))
+        assertEquals(mapOf("garden-1" to 2), mia.allStars())
+        assertEquals("finales stay", setOf("pond"), mia.finales())
+        mia.restoreStars(mapOf("pond-1" to 3, "pond-2" to 1))
+        assertEquals(mapOf("pond-1" to 3, "pond-2" to 1, "garden-1" to 2), store("p1").allStars())
+    }
 }

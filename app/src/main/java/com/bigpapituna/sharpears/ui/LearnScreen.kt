@@ -114,8 +114,10 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 /** The course in this person's order (2.1): a kid's starts in the Playground, a grown-up's at Basics. */
                 path: CoursePath = CoursePath("basics"),
                 /** A kid who finished Beginner: the offer of grown-up mode, at the top of the path (null: none). */
-                grownUp: (@Composable () -> Unit)? = null) {
-    val next = path.next(done)
+                grownUp: (@Composable () -> Unit)? = null,
+                /** A lesson a grown-up pinned as the next one from the parent brief (2.4): Start opens it while its day lasts. */
+                pinned: CourseLesson? = null) {
+    val next = pinned ?: path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
     var open by remember { mutableStateOf<String?>(null) }

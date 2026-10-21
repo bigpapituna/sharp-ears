@@ -272,4 +272,59 @@ class KidMapTest {
             assertEquals("the fair is a short page", 4, KidMap.build(path, { false }, { 0 }, emptySet()).pages.last().stones.size)
         }
     }
+
+    // ---- 2.4: a grown-up's pace from the parent brief (engine/kid/Pace.kt) ----
+
+    @Test fun aPinnedLessonIsThePupsStoneEvenWalkedAndTheStonesUpToTheWalkStayOpen() {
+        val done = ids("g" to 6)
+        val m = KidMap.build(kid, { it in done }, { 2 }, emptySet(), pages, Pace(pin = "g-3"))
+        assertEquals("g-3", m.next)
+        assertEquals(StoneState.NEXT, m.stone("g-3")?.state)
+        assertEquals("its stars still show", 2, m.stone("g-3")?.stars)
+        assertEquals("the walk's next is still open to play", StoneState.OPEN, m.stone("g-7")?.state)
+        assertEquals(StoneState.LATER, m.stone("g-8")?.state)
+        // A pin ahead of the walk opens the stones between.
+        val ahead = KidMap.build(kid, { it in done }, { 2 }, emptySet(), pages, Pace(pin = "p-2"))
+        assertEquals("p-2", ahead.next)
+        assertEquals(1, ahead.nextPage)
+        assertEquals(StoneState.OPEN, ahead.stone("p-1")?.state)
+        assertEquals(StoneState.LATER, ahead.stone("p-3")?.state)
+        // No pace: the map as before.
+        assertEquals(KidMap.build(kid, { it in done }, { 2 }, emptySet(), pages), KidMap.build(kid, { it in done }, { 2 }, emptySet(), pages, Pace.NONE))
+    }
+
+    @Test fun aPageOpenedEarlyIsWalkedPastItsGapsStayOpen() {
+        val done = ids("g" to 5)
+        assertEquals("g-6", KidMap.next(kid, { it in done }, emptySet(), pages)?.id)
+        val m = KidMap.build(kid, { it in done }, { 3 }, emptySet(), pages, Pace(early = setOf("garden")))
+        assertEquals("p-1", m.next)
+        assertEquals(StoneState.OPEN, m.stone("g-6")?.state)
+        assertEquals(StoneState.OPEN, m.stone("g-12")?.state)
+        assertEquals("the garden's finale is still to come", "garden", Finale.trigger("g-12", emptySet(), pages)?.id)
+    }
+
+    @Test fun focusHidesTheLaterPagesAndTheRoadAndKeepsThePupOnTheFocusPage() {
+        val done = ids("g" to 12, "p" to 3)
+        val m = KidMap.build(kid, { it in done }, { 2 }, setOf("garden"), pages, Pace(focus = "pond"))
+        assertEquals(listOf("garden", "pond"), m.pages.map { it.page.id })
+        assertFalse(m.roadOpen)
+        assertEquals("p-4", m.next)
+        // Walked past the focus page (a page opened early): the pup comes back to its first lesson not done.
+        val past = KidMap.build(kid, { it in done }, { 2 }, setOf("garden"), pages, Pace(focus = "garden"))
+        assertEquals(listOf("garden"), past.pages.map { it.page.id })
+        assertEquals("every garden stone walked: the one with the fewest stars", "g-4",
+            KidMap.next(kid, { it in done }, setOf("garden"), pages, Pace(focus = "garden"), stars = { if (it == "g-4") 1 else 3 })?.id)
+        assertEquals(StoneState.NEXT, KidMap.build(kid, { it in done }, { if (it == "g-4") 1 else 3 }, setOf("garden"), pages, Pace(focus = "garden")).stone("g-4")?.state)
+        // A pin on a page focus hides is left out until focus is lifted.
+        assertEquals("p-4", KidMap.next(kid, { it in done }, setOf("garden"), pages, Pace(pin = "h-1", focus = "pond"))?.id)
+    }
+
+    @Test fun aPinOnTheRoadKeepsTheRoadOpenToItsUnit() {
+        val done = ids("g" to 12, "p" to 12, "h" to 5)
+        val m = KidMap.build(kid, { it in done }, { 3 }, setOf("garden", "pond", "hall"), pages, Pace(pin = "n-2"))
+        assertTrue(m.roadOpen)
+        assertEquals("n-2", m.next)
+        assertEquals(listOf("basics", "beginner"), m.road.map { it.levelId })
+        assertEquals(StoneState.OPEN, m.stone("b-1")?.state)
+    }
 }

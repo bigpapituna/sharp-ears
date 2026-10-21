@@ -199,6 +199,9 @@ private sealed interface Screen {
     data class Finale(val pageId: String) : Screen
 }
 
+/** Practise together with nothing chosen (the parent brief, 2.4): the next song [whoId] picks opens as a duet with [partnerId]. */
+private data class DuetNext(val whoId: String, val partnerId: String?)
+
 /** The play corner's toy as the brief's log names it. */
 private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS -> ToyKind.PUP_SAYS; Toy.CLAP -> ToyKind.CLAP_ALONG }
 
@@ -278,6 +281,77 @@ class MainActivity : ComponentActivity() {
     /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
     private var shownRoute: String? = null
     private var restoreRoute: String? = null
+    /** The open profile's preferences and kid memory, so a parent brief action's change shows at once ([briefNav] changed). */
+    private var openPrefs: Prefs? = null
+    private var openKid: KidStore? = null
+    /** A screen a parent brief action opens ([briefNav]), taken by the open composition. */
+    private val navRequest = mutableStateOf<Screen?>(null)
+    /** Counts those, so a lesson an action opens again starts fresh (its LessonScreen is keyed by it). */
+    private val navCount = mutableIntStateOf(0)
+    /** A screen an action asked for someone who is not open: the app opens as them on it ([openApp]). */
+    private var pendingOpen: Pair<String, Screen>? = null
+    /** Practise together with nothing chosen: the next song picked opens as a duet. */
+    private val duetNext = mutableStateOf<DuetNext?>(null)
+    /** The weekly brief's notification asked for this person's brief and period (all builds; closed by Back). */
+    private val briefRequest = mutableStateOf<Pair<String, com.bigpapituna.sharpears.engine.brief.Period>?>(null)
+
+    /**
+     * The parent brief's doors into the app (ui/brief/AppEffects.kt, step 3 of the brief): Replay, Practise together and the
+     * duet's song pick open screens for the child the brief is about, switching to them first when someone else is open,
+     * and a change to someone's path (Set as next, Fresh start, Focus, Open the next page, Teacher mode) is read again by
+     * the open map. Called from the action's worker thread: everything here runs on the main thread.
+     */
+    private val briefNav = object : com.bigpapituna.sharpears.ui.brief.BriefNav {
+        override fun openLesson(who: Profile, lessonId: String) = runOnUiThread {
+            val lesson = COURSE.flatMap { it.lessons }.firstOrNull { it.id == lessonId } ?: return@runOnUiThread
+            Log.d(TAG, "brief: open lesson $lessonId for ${who.id}")
+            go(who, Screen.Lesson(lesson, if (who.isKid) Screen.Home() else Screen.Home(HomeTab.LEARN)))
+        }
+
+        override fun openSong(who: Profile, songId: String, duet: Boolean) = runOnUiThread {
+            val m = repo.all().firstOrNull { it.id == songId && repo.available(it) } ?: return@runOnUiThread
+            val song = runCatching { repo.load(m) }.getOrNull() ?: return@runOnUiThread
+            val partner = if (duet) com.bigpapituna.sharpears.engine.play.Duet.grownUpFor(who, openId, profiles.all) else null
+            Log.d(TAG, "brief: open song $songId for ${who.id}" + if (duet) " as a duet with ${partner ?: "a partner they pick"}" else "")
+            go(who, Screen.Player(song, m, briefStart(who, Prefs(this@MainActivity, who.id), duet, partner), 0.0,
+                if (who.isKid) Screen.KidSongs(Screen.Home()) else Screen.Home(HomeTab.SONGS)))
+        }
+
+        override fun pickSong(who: Profile, duet: Boolean) = runOnUiThread {
+            duetNext.value = if (duet) DuetNext(who.id, com.bigpapituna.sharpears.engine.play.Duet.grownUpFor(who, openId, profiles.all)) else null
+            Log.d(TAG, "brief: ${who.id} picks a song" + if (duet) " for a duet" else "")
+            go(who, if (who.isKid) Screen.KidSongs(Screen.Home()) else Screen.Home(HomeTab.SONGS))
+        }
+
+        override fun changed(who: Profile) = runOnUiThread {
+            if (who.id == openId) { openPrefs?.let { it.version.intValue++ }; openKid?.let { it.version.intValue++ } }
+        }
+    }
+
+    /** How a song a brief action opens starts: a kid's duet with the grown-up on the left hand, a grown-up's with the picker open. */
+    private fun briefStart(who: Profile, prefs: Prefs, duet: Boolean, partnerId: String?): PlayerStart {
+        val micOn = prefs.micDefault && mic.hasPermission()
+        return when {
+            !duet -> PlayerStart(Mode.WAIT, mic = micOn)
+            who.isKid && partnerId != null -> PlayerStart(Mode.WAIT, Practice.BOTH, mic = micOn, duet = com.bigpapituna.sharpears.engine.play.Duet(partnerId, who.id))
+            else -> PlayerStart(Mode.WAIT, Practice.BOTH, mic = micOn, pickDuet = true)
+        }
+    }
+
+    /** Opens [to] as [who]: at once when they are open, else after the app opens as them (the brief's dialog closes either way). */
+    private fun go(who: Profile, to: Screen) {
+        briefRequest.value = null
+        navCount.intValue++
+        if (who.id == openId) {
+            if (who.isKid) gate.close()          // the phone goes back to the child: a grown-up's open gate does not stay open for them
+            navRequest.value = to
+        } else {
+            pendingOpen = who.id to to
+            val wasOpen = openId != null
+            profiles.switchTo(who.id)            // the profile flow reopens the app as them, on [to]
+            if (!wasOpen) openApp(fromLaunch = false)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -381,6 +455,7 @@ class MainActivity : ComponentActivity() {
         val playStore = PlayStore(this, profile.id)
         // The kid home's memory (2.2): each lesson's best stars, the finales played (kept for grown-ups too, never shown).
         val kidStore = KidStore(this, profile.id)
+        openPrefs = prefs; openKid = kidStore
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
         val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
@@ -489,7 +564,7 @@ class MainActivity : ComponentActivity() {
         // the first Playground game (Back from it goes to the Learn path).
         val opening = when {
             newKid && first == Screen.Home() && !startDaily ->
-                KidMap.next(path, prefs::lessonDone, kidStore.finales())?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
+                KidMap.next(path, prefs::lessonDone, kidStore.finales(), pace = kidStore.pace(), stars = kidStore::stars)?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
             !progress.onboardingDone && first == Screen.Home() && !startDaily -> Screen.Onboarding
             else -> first
         }
@@ -500,6 +575,9 @@ class MainActivity : ComponentActivity() {
                 .onFailure { Log.d(TAG, "screen not restored ($r): $it") }.getOrNull()
         }
         restoreRoute = null
+        // A parent brief action for this person, asked while someone else was open ([briefNav]): the app opens on its screen.
+        val requested = pendingOpen?.takeIf { it.first == profile.id }?.second
+        pendingOpen = null
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
         if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
         intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
@@ -510,15 +588,25 @@ class MainActivity : ComponentActivity() {
         // changing keeps the screen it is on.
         val opened = if (fromLaunch) ++launches else launches
         setContent { androidx.compose.runtime.key(profile.id, opened) {
-            var screen by remember { mutableStateOf(reopened ?: opening) }
+            var screen by remember { mutableStateOf(requested ?: reopened ?: opening) }
             androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen) }
+            // A parent brief action's screen for the person open now ([briefNav]: Replay, Practise together).
+            val asked = navRequest.value
+            LaunchedEffect(asked) { if (asked != null) { voice.stop(); screen = asked; navRequest.value = null } }
+            // Practise together with nothing chosen waits on the songs; leaving them without picking one drops it.
+            LaunchedEffect(screen) {
+                val sc = screen
+                val onSongs = sc is Screen.KidSongs || sc is Screen.Player || (sc is Screen.Home && sc.tab == HomeTab.SONGS && !profile.isKid)
+                if (!onSongs && duetNext.value != null) { duetNext.value = null; Log.d(TAG, "brief: the duet's song pick was left") }
+            }
             KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
             // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
-                LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit) {
+                LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
+                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
                 Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
@@ -554,6 +642,12 @@ class MainActivity : ComponentActivity() {
                         prefs.lastSongId = m.id
                         Log.d(TAG, "song ${song.id}: ${song.notes.size} notes, ${song.groups.size} groups, ${song.durationMs} ms, " +
                             "right=${song.notes.count { it.hand == Hand.RIGHT }} left=${song.notes.count { it.hand == Hand.LEFT }} resume=${p.lastPositionMs}")
+                        // Practise together (the parent brief) with nothing chosen: the song picked now is the duet.
+                        duetNext.value?.takeIf { it.whoId == profile.id }?.let { d ->
+                            duetNext.value = null
+                            screen = Screen.Player(song, m, briefStart(profile, prefs, duet = true, partnerId = d.partnerId), 0.0, back)
+                            return
+                        }
                         // A kid starts a two-hand song on the tune (the right hand), as the grown-ups' hands tip advises.
                         val hands = if (profile.isKid && song.notes.any { it.hand == Hand.RIGHT }) Practice.RIGHT else Practice.BOTH
                         screen = Screen.Player(song, m, PlayerStart(Mode.WAIT, hands, mic = prefs.micDefault && mic.hasPermission()),
@@ -588,6 +682,7 @@ class MainActivity : ComponentActivity() {
                     // the lesson's page; the egg laid or hatched).
                     fun lessonDone(l: CourseLesson, stars: Int): Reward {
                         prefs.markLessonDone(l.id); progress.record(ProgressEvent.LessonComplete(l.id))
+                        kidStore.lessonPlayed(l.id)          // a lesson pinned as the next stone (the parent brief) has been played
                         quest(QuestEvent.LessonDone(l.id))
                         kidStore.recordStars(l.id, stars)
                         if (profile.isKid) Finale.trigger(l.id, kidStore.finales())?.let { page ->
@@ -596,13 +691,17 @@ class MainActivity : ComponentActivity() {
                         }
                         return world.lessonComplete(l.id, KidPages.dropPlace(l.id))
                     }
+                    // The next lesson to suggest: a kid's next stone on the map, a grown-up's Learn path; a lesson a grown-up pinned
+                    // from the parent brief comes first while its day lasts (engine/kid/Pace.kt).
+                    fun nextLesson(): CourseLesson? = if (profile.isKid) KidMap.next(path, prefs::lessonDone, kidStore.finales(), pace = kidStore.pace(), stars = kidStore::stars)
+                        else kidStore.pace().pin?.let(path::lesson) ?: path.next { prefs.lessonDone(it) }
                     // Where Songs is: the kid's own list for a kid, the Songs tab for a grown-up.
                     fun songsScreen(back: Screen = Screen.Home()): Screen = if (profile.isKid) Screen.KidSongs(back) else Screen.Home(HomeTab.SONGS)
                     fun todayPlan(): SessionPlan {
                         val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
                         val asleep = profile.isKid && bedtime.goodnightOn == java.time.LocalDate.now()
-                        val next = if (asleep) null else path.next { prefs.lessonDone(it) }
+                        val next = if (asleep) null else nextLesson()
                         // A kid's session is short (KIDS-PLAN 3.9): the next game or lesson and a whole song, no chord
                         // review and no bar on a loop.
                         val song = continueMeta()?.let { m ->
@@ -702,14 +801,15 @@ class MainActivity : ComponentActivity() {
                             // A kid (2.2): "one more" is the next stone on the map; a page's last lesson, finished the first time,
                             // leads to the page's finale instead (and today's goodbye waits until after it).
                             val finaleAhead = profile.isKid && remember(l.id) { Finale.trigger(l.id, kidStore.finales()) != null }
-                            val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales())
+                            val next = if (finaleAhead) null else if (profile.isKid) KidMap.next(path, { it == l.id || prefs.lessonDone(it) }, kidStore.finales(),
+                                pace = kidStore.pace().let { if (it.pin == l.id) it.copy(pin = null) else it }, stars = kidStore::stars)
                                 else path.after(l) { prefs.lessonDone(it) }
                             val leave = {
                                 val f = pendingFinale
                                 if (f != null) { pendingFinale = null; voice.stop(); screen = Screen.Finale(f) } else screen = s.back
                             }
                             BackHandler { voice.stop(); leave() }
-                            androidx.compose.runtime.key(l.id) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
+                            androidx.compose.runtime.key(l.id, navCount.intValue) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
                                 midiScript = s.midiScript, startScene = s.scene,
                                 onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
@@ -882,7 +982,7 @@ class MainActivity : ComponentActivity() {
                             val home = s.copy(kidFrom = null)
                             val pv = prefs.version.intValue
                             val kv = kidStore.version.intValue
-                            val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales()) }
+                            val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales(), pace = kidStore.pace()) }
                             val today = remember { java.time.LocalDate.now() }
                             val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
@@ -1014,7 +1114,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
+                                        val kv = kidStore.version.intValue
                                         LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
+                                            pinned = remember(pv, kv) { kidStore.pace().pin?.let(path::lesson) },
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
                                             onEar = { screen = Screen.EarTraining(s) },
@@ -1065,7 +1167,11 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.KidSongs -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
-                            com.bigpapituna.sharpears.ui.kid.KidSongsScreen(songs, repo, onSong = { openSong(it, back = s) }, onBack = { screen = s.back })
+                            val kv = kidStore.version.intValue
+                            com.bigpapituna.sharpears.ui.kid.KidSongsScreen(songs, repo, onSong = { openSong(it, back = s) }, onBack = { screen = s.back },
+                                shelf = remember(kv) { kidStore.shelf },
+                                duetWith = duetNext.value?.takeIf { it.whoId == profile.id }?.partnerId?.let { id -> roster.profiles.firstOrNull { it.id == id }?.name },
+                                say = { voice.speak(it, interrupt = true) })
                         }
                         is Screen.KidStickers -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }

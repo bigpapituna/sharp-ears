@@ -40,33 +40,63 @@ object KidMap {
      * The stone the pup stands at: the path's next lesson ([CoursePath.next], so a big kid's short list holds), where
      * a page whose finale has played counts as walked. Its gaps stay open to play, but the pup has moved on to the
      * next page's first stone or, after the last page, to the big kids' road.
+     *
+     * A grown-up's [pace] (2.4, the parent brief's actions) comes first: a pinned lesson is the next stone (unless focus
+     * hides its page); a page opened early counts as walked; under focus the pup never goes past the focus page: when the
+     * walk is beyond it, he stands on its first lesson not done, else on its stone with the fewest [stars].
      */
-    fun next(path: CoursePath, done: (String) -> Boolean, finales: Set<String>, pages: List<PlaygroundPage> = PLAYGROUND_PAGES): CourseLesson? =
-        path.next { id -> done(id) || KidPages.pageOf(id, pages)?.id?.let { it in finales } == true }
+    fun next(path: CoursePath, done: (String) -> Boolean, finales: Set<String>, pages: List<PlaygroundPage> = PLAYGROUND_PAGES,
+             pace: Pace = Pace.NONE, stars: (String) -> Int = { 0 }): CourseLesson? {
+        val end = focusEnd(path, pages, pace.focus)
+        pace.pin?.let(path::lesson)?.takeIf { end == null || path.indexOf(it.id) <= end }?.let { return it }
+        val walk = walk(path, done, finales, pages, pace.early)
+        if (end == null || (walk != null && path.indexOf(walk.id) <= end)) return walk
+        val onPage = pages.first { it.id == pace.focus }.lessonIds.mapNotNull(path::lesson)
+        return onPage.firstOrNull { !done(it.id) } ?: onPage.minByOrNull { stars(it.id) }
+    }
+
+    /** The path's next with pages whose finale played, or that a grown-up opened past early, counted as walked. */
+    private fun walk(path: CoursePath, done: (String) -> Boolean, finales: Set<String>, pages: List<PlaygroundPage>, early: Set<String>): CourseLesson? =
+        path.next { id -> done(id) || KidPages.pageOf(id, pages)?.id?.let { it in finales || it in early } == true }
+
+    /** The path index of the focus page's last lesson (pages after it are hidden), or null without focus. */
+    private fun focusEnd(path: CoursePath, pages: List<PlaygroundPage>, focus: String?): Int? =
+        focus?.let { f -> pages.firstOrNull { it.id == f } }?.lessonIds?.maxOfOrNull { path.indexOf(it) }?.takeIf { it >= 0 }
 
     /**
      * The map for a kid on [path]: [done] says which lessons are finished, [stars] their best stars (0 for none),
      * [finales] the pages whose finale has played. A page lesson missing from the course (a page still being written)
      * is left off; a page may hold fewer stones than its scene's twelve.
+     *
+     * With a [pace]: the pup stands on the pinned stone (walked or not); stones up to the walk's next stay open; under
+     * focus the pages after the focus page and the road are not drawn.
      */
     fun build(path: CoursePath, done: (String) -> Boolean, stars: (String) -> Int, finales: Set<String>,
-              pages: List<PlaygroundPage> = PLAYGROUND_PAGES): KidMapModel {
-        val next = next(path, done, finales, pages)
+              pages: List<PlaygroundPage> = PLAYGROUND_PAGES, pace: Pace = Pace.NONE): KidMapModel {
+        val next = next(path, done, finales, pages, pace, stars)
+        val walk = walk(path, done, finales, pages, pace.early)
         val nextAt = next?.let { path.indexOf(it.id) } ?: -1
+        // Stones up to the walk's next stay open (it among them), and those before the pup's stone: a pin or focus closes none.
+        val walkAt = walk?.let { path.indexOf(it.id) } ?: Int.MAX_VALUE
+        val end = focusEnd(path, pages, pace.focus)
         fun stone(l: CourseLesson): Stone {
             val at = path.indexOf(l.id)
             val state = when {
+                l.id == next?.id && (l.id == pace.pin || end != null) -> StoneState.NEXT      // pinned or focused: the pup stands here even when walked
                 done(l.id) -> StoneState.DONE
                 l.id == next?.id -> StoneState.NEXT
-                next == null || at < nextAt -> StoneState.OPEN
+                next == null || at < nextAt || at <= walkAt -> StoneState.OPEN
                 else -> StoneState.LATER
             }
             return Stone(l.id, l.title, state, if (done(l.id)) stars(l.id).coerceIn(0, 3) else 0)
         }
-        val mapPages = pages.map { page -> MapPage(page, KidPages.worldPlace(page), page.lessonIds.mapNotNull { id -> path.lesson(id)?.let(::stone) }) }
-        val roadOpen = next == null || KidPages.pageOf(next.id, pages) == null
-        val road = if (!roadOpen) emptyList() else roadUnits(path, next).map { lv -> RoadUnit(lv.id, lv.title, lv.lessons.map(::stone)) }
-        return KidMapModel(mapPages, roadOpen, road, next?.id, next?.let { n -> pages.indexOfFirst { n.id in it.lessonIds } } ?: -1)
+        val shown = if (end == null) pages else pages.take(pages.indexOfFirst { it.id == pace.focus } + 1)
+        val mapPages = shown.map { page -> MapPage(page, KidPages.worldPlace(page), page.lessonIds.mapNotNull { id -> path.lesson(id)?.let(::stone) }) }
+        val roadOpen = end == null && (walk == null || KidPages.pageOf(walk.id, pages) == null)
+        // The road reaches the unit of the walk's next stone, or of a pinned road lesson further on.
+        val roadTo = if (walk == null) null else listOfNotNull(walk, next).maxBy { path.indexOf(it.id) }
+        val road = if (!roadOpen) emptyList() else roadUnits(path, roadTo).map { lv -> RoadUnit(lv.id, lv.title, lv.lessons.map(::stone)) }
+        return KidMapModel(mapPages, roadOpen, road, next?.id, next?.let { n -> shown.indexOfFirst { n.id in it.lessonIds } } ?: -1)
     }
 
     /**
