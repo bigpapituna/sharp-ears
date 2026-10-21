@@ -15,7 +15,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.bigpapituna.sharpears.engine.KeyboardLayout
-import com.bigpapituna.sharpears.engine.noteName
 import com.bigpapituna.sharpears.ui.LeftHandColor
 import com.bigpapituna.sharpears.ui.RightHandColor
 import com.bigpapituna.sharpears.ui.motion.DarkStageHand
@@ -41,7 +40,7 @@ fun PointingHand(midi: Int, right: Boolean, lowMidi: Int, highMidi: Int, modifie
     val tap by rememberInfiniteTransition(label = "point").animateFloat(0f, 1f,
         infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tap")
     val press = if (still) 1f else tap
-    Canvas(modifier.clipToBounds().semantics { contentDescription = "The hand points at ${noteName(midi)}" }) {
+    Canvas(modifier.clipToBounds().semantics { contentDescription = "The hand points at ${com.bigpapituna.sharpears.engine.spokenKey(midi)}" }) {
         if (midi !in lowMidi..highMidi || size.width <= 0f) return@Canvas
         val l = KeyboardLayout(lowMidi, highMidi, size.width, size.height)
         val k = l.rect(midi)

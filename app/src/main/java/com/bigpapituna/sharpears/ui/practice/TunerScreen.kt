@@ -164,7 +164,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
                 color = if (inTune) c.tertiary else c.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().semantics {
                     liveRegion = LiveRegionMode.Polite
-                    contentDescription = if (r == null) "No note heard" else "${r.result.name}, ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}"
+                    contentDescription = if (r == null) "No note heard" else "${com.bigpapituna.sharpears.engine.spokenKey(r.result.midi)}, ${com.bigpapituna.sharpears.engine.plural(r.cents.roundToInt(), "cent")}"
                 })
         }
         Spacer(Modifier.height(4.dp))

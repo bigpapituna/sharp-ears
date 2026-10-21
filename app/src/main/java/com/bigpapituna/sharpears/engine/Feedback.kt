@@ -54,6 +54,9 @@ private val WORDS = listOf("zero", "one", "two", "three", "four", "five", "six",
 fun spokenNote(midi: Int, flats: Boolean = false): String =
     (if (flats) SPOKEN_FLATS else SPOKEN_PC)[midi % 12] + if (midi % 12 == 0) " " + WORDS[(midi / 12 - 1).coerceIn(0, 10)] else ""
 
+/** A key's name for TalkBack, as the keys and notes write it with the sharp as a word: "D sharp 4", "C4" ("D#4" was read "D number 4"). */
+fun spokenKey(midi: Int): String = noteName(midi).replace("#", " sharp ")
+
 /** A pitch class as words, no octave: "E flat". */
 fun spokenPitch(pc: Int): String = SPOKEN_PC[((pc % 12) + 12) % 12]
 

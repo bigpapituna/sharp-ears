@@ -14,6 +14,10 @@ class FeedbackTest {
         assertEquals("C four", spokenNote(60))
         assertEquals("C five", spokenNote(72))
         assertEquals("E flat", spokenPitch(3))
+        // TalkBack's key names: the sharp as a word, every octave said (it read "F#4" as "F number 4").
+        assertEquals("F sharp 4", spokenKey(66))
+        assertEquals("C4", spokenKey(60))
+        assertEquals("A sharp 2", spokenKey(46))
     }
 
     /** Audit: Play at a song's end (after a seek) passed no group, yet counted as a clean run with a sticker and XP. */

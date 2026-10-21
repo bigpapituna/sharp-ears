@@ -218,7 +218,7 @@ private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
                 }
                 Box(Modifier.pressScale(0.9f).size(56.dp).clip(CircleShape).background(RightHandColor)
                     .clickable(role = Role.Button) { if (job != null) stop() else play() }
-                    .semantics { contentDescription = if (job != null) "Stop" else "Play ${chord.name}" },
+                    .semantics { contentDescription = if (job != null) "Stop" else "Play ${com.bigpapituna.sharpears.engine.chordSpoken(chord)}" },
                     contentAlignment = Alignment.Center) {
                     Icon(painterResource(if (job != null) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null,
                         tint = PanelColor, modifier = Modifier.size(28.dp))

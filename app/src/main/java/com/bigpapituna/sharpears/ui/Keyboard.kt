@@ -309,7 +309,7 @@ private fun KeySemantics(l: KeyboardLayout, tap: (Int) -> Unit, colours: Boolean
                 Modifier.offset { IntOffset(k.left.toInt(), k.top.toInt()) }
                     .size((k.right - k.left).toDp(), (k.bottom - k.top).toDp())
                     .clearAndSetSemantics {
-                        contentDescription = noteName(k.midi) + if (colours) ", ${NoteColours.colourName(k.midi)}" else ""
+                        contentDescription = com.bigpapituna.sharpears.engine.spokenKey(k.midi) + if (colours) ", ${NoteColours.colourName(k.midi)}" else ""
                         role = Role.Button
                         onClick { tap(k.midi); true }
                     },
