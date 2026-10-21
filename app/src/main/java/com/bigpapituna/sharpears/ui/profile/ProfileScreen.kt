@@ -100,7 +100,9 @@ private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onSettings: () -> Unit,
-                  kid: Boolean = false, world: (@Composable () -> Unit)? = null, paws: (@Composable () -> Unit)? = null) {
+                  kid: Boolean = false, world: (@Composable () -> Unit)? = null, paws: (@Composable () -> Unit)? = null,
+                  /** A grown-up's "My week" card (the parent brief, 2.4), under today's panel; null hides it. */
+                  brief: (@Composable () -> Unit)? = null) {
     val today = remember { LocalDate.now() }
     val v = store.version.intValue + prefs.version.intValue
     val data = remember(v) { ProfileData(store, prefs, today) }
@@ -116,6 +118,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
             item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp).padding(top = 12.dp)) { Hero(data) } }
         } else item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings); Hero(data) } }
         item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }) } }
+        if (!kid) brief?.let { b -> item(key = "brief") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { b() } } }
         if (!kid) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
         item(key = "stats") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { StatsRow(data.snap) } }
         item(key = "bars") {

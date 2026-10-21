@@ -36,6 +36,7 @@ import com.bigpapituna.sharpears.engine.brief.Period
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.ui.DialogBarsFollowTheme
 import com.bigpapituna.sharpears.ui.family.Gated
+import com.bigpapituna.sharpears.ui.family.ParentGateHost
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 
 /*
@@ -55,6 +56,8 @@ fun ParentBriefDialog(
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Gated(onCancel = onClose) { ParentBriefScreen(env, children, onBack = onClose, initialChild = initial, initialPeriod = period) }
+            // An action card asks the gate again once it has shut: drawn in this window, over the brief (not under it).
+            ParentGateHost()
         }
     }
 }
@@ -66,6 +69,7 @@ fun MyWeekDialog(env: BriefEnv, me: Profile, onClose: () -> Unit, period: Period
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             ParentBriefScreen(env, listOf(me), onBack = onClose, initialPeriod = period, showChildren = false, title = "My week")
+            ParentGateHost()
         }
     }
 }

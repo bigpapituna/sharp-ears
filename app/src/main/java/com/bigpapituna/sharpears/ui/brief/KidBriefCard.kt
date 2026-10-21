@@ -114,6 +114,8 @@ fun ShowMumDialog(env: BriefEnv, profile: Profile, onClose: () -> Unit, startPas
             if (!passed) LightGate(onPass = { passed = true }, onCancel = onClose)
             else ParentBriefScreen(env, listOf(profile), onBack = onClose, initialPeriod = Period.SESSION, periods = listOf(Period.SESSION),
                 showChildren = false, title = "${profile.name}'s session note")
+            // An action in the note asks the full parent gate: drawn in this window, over the note.
+            com.bigpapituna.sharpears.ui.family.ParentGateHost()
         }
     }
 }
@@ -131,4 +133,69 @@ fun LightGate(onPass: () -> Unit, onCancel: () -> Unit) {
             HoldThePup(onPass)
         }
     }
+}
+
+/**
+ * The child's card as a step after a finish screen (2.4): [rememberKidCardStep] reads the session and asks the writers while
+ * the celebration plays ([ready] true once the lesson or song is finished), [KidCardStep.then] wraps the finish button's way
+ * on so the card shows first when one is due, and [KidCardStepHost] draws it full screen with Show Mum and a Continue that
+ * goes where the button was going. Once per session (KidCardWords.due, BriefStore.cardSession), never for a grown-up, never
+ * for a quiet session; when the writers are slow the button simply goes on.
+ */
+@androidx.compose.runtime.Stable
+class KidCardStep internal constructor(private val store: BriefStore?) {
+    internal var card by mutableStateOf<KidCard?>(null)
+    internal var session = 0L
+    internal var next by mutableStateOf<(() -> Unit)?>(null)
+    internal var label = ""
+
+    /** [action], with the card first when one is ready for this session; the card's button then says [label]. */
+    fun then(label: String, action: () -> Unit): () -> Unit = {
+        if (card != null && next == null && store != null && store.cardSession != session) {
+            store.cardSession = session
+            this.label = label
+            next = action
+        } else action()
+    }
+}
+
+@Composable
+fun rememberKidCardStep(profile: Profile, ready: Boolean): KidCardStep {
+    val context = LocalContext.current
+    val env = if (profile.isKid) rememberBriefEnv() else null
+    val step = remember(profile.id) { KidCardStep(if (profile.isKid) BriefStore(context.applicationContext, profile.id) else null) }
+    LaunchedEffect(ready, profile.id) {
+        if (!ready || env == null || step.card != null) return@LaunchedEffect
+        val store = BriefStore(context.applicationContext, profile.id)
+        val f = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { env.loadFindings(profile, Period.SESSION, env.now()) }.getOrNull() }
+            ?: return@LaunchedEffect
+        val start = f.range.fromMs.takeIf { !f.isEmpty }
+        if (!KidCardWords.due(f.stats.totals.practiceMinutes * 60, start, store.cardSession.takeIf { it != 0L })) {
+            android.util.Log.d(com.bigpapituna.sharpears.TAG, "brief: no card for ${profile.id} (a quiet session or shown already)")
+            return@LaunchedEffect
+        }
+        step.session = start ?: return@LaunchedEffect
+        step.card = env.serviceFor(profile).kidCard(f, profile.name)
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "brief: card for ${profile.id} ready (${step.card?.writtenBy})")
+    }
+    return step
+}
+
+/** Draws [step]'s card over the finish screen while it is up; Continue goes on, Show Mum opens the grown-up's note. */
+@Composable
+fun KidCardStepHost(step: KidCardStep, profile: Profile, say: (String) -> Unit) {
+    val go = step.next ?: return
+    val card = step.card ?: return
+    val env = rememberBriefEnv()
+    var mum by remember { mutableStateOf(false) }
+    fun done() { step.next = null; go() }
+    BackHandler { done() }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            KidBriefCard(card, say, onShowMum = { mum = true })
+            com.bigpapituna.sharpears.ui.ChunkyButton(onClick = ::done, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()) { Text(step.label) }
+        }
+    }
+    if (mum) ShowMumDialog(env, profile, onClose = { mum = false })
 }

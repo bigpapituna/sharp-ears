@@ -151,6 +151,8 @@ const val TAG = "SharpEars"
 private const val ROUTE = "screen"
 /** The instance state's flag for "Who's playing today?" still waiting for an answer. */
 private const val PICKER = "picker"
+/** The saved instance state's key for the weekly brief the notification opened, while it is still open. */
+private const val BRIEF = "brief"
 
 /**
  * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
@@ -357,6 +359,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         restoreRoute = savedInstanceState?.getString(ROUTE)
+        // The weekly brief's notification (all builds): that person's brief opens over whatever shows first. After a recreate,
+        // only what was still open then (the launch intent keeps its extras, and the brief may have been closed since).
+        briefRequest.value = if (savedInstanceState != null) savedInstanceState.getString(BRIEF)?.let(::briefOf) else briefFrom(intent)
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -399,9 +404,25 @@ class MainActivity : ComponentActivity() {
             SharpEarsTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val roster by profiles.rosterFlow.collectAsState()
-                    ProfilePicker(roster,
-                        onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
-                        onAdd = { p -> if (profiles.create(p) != null) openApp(fromLaunch = true) })
+                    var weekly by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }
+                    androidx.compose.runtime.CompositionLocalProvider(LocalProfiles provides profiles, LocalParentGate provides gate,
+                        com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
+                        ProfilePicker(roster,
+                            onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
+                            onAdd = { p ->
+                                val made = profiles.create(p)
+                                // A kid's weekly brief: the day and time chosen at the end of the flow (Sunday at 6 pm unless changed),
+                                // as Settings > Family does.
+                                if (made != null && made.isKid) {
+                                    com.bigpapituna.sharpears.data.BriefStore(this@MainActivity, made.id).weekly = weekly ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
+                                    com.bigpapituna.sharpears.reminder.BriefReminder.schedule(this@MainActivity, made)
+                                }
+                                if (made != null) openApp(fromLaunch = true)
+                            },
+                            onWeekly = { weekly = it })
+                        BriefFromNotification(roster, openKid = false)
+                        ParentGateHost(gate)
+                    }
                 }
             }
         }
@@ -791,10 +812,17 @@ class MainActivity : ComponentActivity() {
                         is Screen.Player -> {
                             // A run that reached its end (a song, a progression) may be where a kid's goal was reached.
                             var ranToEnd by remember { mutableStateOf(false) }
-                            PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
-                                s.startMs, dump, s.start, onBack = { screen = s.back; if (ranToEnd) maybeGoodnight("a song") },
-                                onFinished = { ranToEnd = true },
-                                chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
+                            // A kid leaving a library song played to its end: the pup's card first (the parent brief, 2.4).
+                            val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(current, ready = profile.isKid && ranToEnd && s.meta != null)
+                            Box(Modifier.fillMaxSize()) {
+                                PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
+                                    s.startMs, dump, s.start, onBack = cardStep.then("All done!") { screen = s.back; if (ranToEnd) maybeGoodnight("a song") },
+                                    onFinished = { ranToEnd = true },
+                                    chordTrack = s.meta?.let { lessons.songChords.value[it.id] })
+                                if (profile.isKid) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                                    com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, current, say = { voice.speak(it, interrupt = true) })
+                                }
+                            }
                         }
                         is Screen.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             val l = s.lesson
@@ -988,6 +1016,8 @@ class MainActivity : ComponentActivity() {
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
                             var corner by remember { mutableStateOf(false) }
+                            // The parent brief from the corner (2.4): every kid on the phone, this one's tab first.
+                            var briefOpen by remember { mutableStateOf(false) }
                             // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
                             // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
                             LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
@@ -1024,7 +1054,8 @@ class MainActivity : ComponentActivity() {
                                 grownUps = if (!corner) null else com.bigpapituna.sharpears.ui.kid.GrownUpCorner(roster.profiles, current.id,
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
-                                    onSwitch = { id -> corner = false; profiles.switchTo(id) }),
+                                    onSwitch = { id -> corner = false; profiles.switchTo(id) },
+                                    onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") }),
                                 onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
@@ -1038,6 +1069,10 @@ class MainActivity : ComponentActivity() {
                                         // A grown-up's answer too: a kid's tap on "Not yet" put the one-time offer away for good.
                                         onLater = { gate.guard { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") } })
                                 } })
+                            if (briefOpen) com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(),
+                                roster.profiles.filter { it.isKid }, initial = current.id,
+                                // Closed, the phone is the kid's again: the gate shuts as it does with the corner.
+                                onClose = { briefOpen = false; gate.close(); Log.d(TAG, "gate: closed with the parent brief") })
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.SONGS) { screen = Screen.Home() }
                             val lv = lessons.version.intValue
@@ -1161,7 +1196,9 @@ class MainActivity : ComponentActivity() {
                                         kid = current.isKid,
                                         // The pup's world in one card: the garden, and a way into the album, dress-up and the records.
                                         world = { com.bigpapituna.sharpears.ui.world.WorldCard(world, onOpen = { tab -> screen = Screen.World(s, tab) }) },
-                                        paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = current.isKid) })
+                                        paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = current.isKid) },
+                                        // The parent brief about themselves (2.4): a card that opens their week, no gate.
+                                        brief = if (current.isKid) null else { { com.bigpapituna.sharpears.ui.brief.MyWeekCard(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(), current) } })
                                 }
                             }
                         }
@@ -1235,12 +1272,46 @@ class MainActivity : ComponentActivity() {
                     if (!isStage(screen) && !current.isKid) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = current.isKid || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
+                    // The weekly brief's notification asked for someone's brief (2.4).
+                    BriefFromNotification(roster, openKid = current.isKid)
                     // The parent gate, over everything while an action waits for a grown-up.
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }
                 }
             }
             }
         } }
+    }
+
+    /**
+     * The weekly brief's notification asked for someone's brief ([briefRequest]): a kid's opens the parent brief on their tab
+     * and that period, behind the parent gate; a grown-up's opens their own week. Closing it on a kid's screen shuts the gate.
+     */
+    @androidx.compose.runtime.Composable
+    private fun BriefFromNotification(roster: com.bigpapituna.sharpears.engine.family.Roster, openKid: Boolean) {
+        val (id, period) = briefRequest.value ?: return
+        val who = roster.profiles.firstOrNull { it.id == id }
+        if (who == null) { LaunchedEffect(id) { briefRequest.value = null; Log.d(TAG, "brief: notification for $id, who is gone") }; return }
+        SharpEarsTheme(dark = isSystemInDarkTheme()) {
+            val env = com.bigpapituna.sharpears.ui.brief.rememberBriefEnv()
+            val close = { briefRequest.value = null; if (openKid) gate.close() }
+            if (who.isKid) com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(env, roster.profiles.filter { it.isKid }, onClose = close, initial = id, period = period)
+            else com.bigpapituna.sharpears.ui.brief.MyWeekDialog(env, who, onClose = close, period = period)
+        }
+    }
+
+    /** The weekly notification's extras ([BriefReminder.EXTRA_PROFILE], [BriefReminder.EXTRA_PERIOD]), or null. */
+    private fun briefFrom(intent: android.content.Intent?): Pair<String, com.bigpapituna.sharpears.engine.brief.Period>? {
+        val id = intent?.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PROFILE) ?: return null
+        val period = intent.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PERIOD)
+        return briefOf("$id|${period ?: "WEEK"}")
+    }
+
+    /** "<profile id>|<PERIOD>" back to the request (a bad period is the week). */
+    private fun briefOf(s: String): Pair<String, com.bigpapituna.sharpears.engine.brief.Period>? {
+        val id = s.substringBefore('|').takeIf { it.isNotBlank() } ?: return null
+        val period = com.bigpapituna.sharpears.engine.brief.Period.entries.firstOrNull { it.name == s.substringAfter('|', "") }
+            ?: com.bigpapituna.sharpears.engine.brief.Period.WEEK
+        return id to period
     }
 
     /**
@@ -1287,6 +1358,12 @@ class MainActivity : ComponentActivity() {
      */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        // The weekly brief's notification on an app already running: its brief opens over the screen that is up.
+        briefFrom(intent)?.let { req ->
+            Log.d(TAG, "brief: notification opens ${req.first} ${req.second}")
+            briefRequest.value = req
+            return
+        }
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         if (!debuggable || (listOf("screen", "song", "lesson", "profile").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
         setIntent(intent)
@@ -1297,6 +1374,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         shownRoute?.let { outState.putString(ROUTE, it) }
+        briefRequest.value?.let { (id, period) -> outState.putString(BRIEF, "$id|${period.name}") }
         if (openId == null) outState.putBoolean(PICKER, true)
     }
 

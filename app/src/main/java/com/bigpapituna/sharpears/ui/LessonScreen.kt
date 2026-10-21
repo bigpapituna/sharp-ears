@@ -422,11 +422,14 @@ fun LessonScreen(
     val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
         { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = { voice.stop(); onNext() }, title = next.title) }
     } else null
+    // The pup's card for the session (the parent brief, 2.4): read while the celebration plays, shown after its button.
+    val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(who, ready = kid && finished)
     if (finished && !goodnight) {
+        val kidPrimary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" }
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
-            primary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" },
-            onPrimary = { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
+            primary = kidPrimary,
+            onPrimary = cardStep.then(kidPrimary) { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
         ) else Celebration(
@@ -441,6 +444,7 @@ fun LessonScreen(
             xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
             reward = dropSlot, oneMore = oneMore,
         )
+        if (kid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })
     }
     // The goodbye after the lesson that reached the goal: shown once today.
     if (goodnight) {

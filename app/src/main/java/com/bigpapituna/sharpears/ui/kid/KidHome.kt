@@ -95,7 +95,9 @@ import kotlinx.coroutines.delay
 
 /** What the grown-ups' corner offers once the parent gate is passed. */
 class GrownUpCorner(val profiles: List<Profile>, val currentId: String, val onSettings: () -> Unit, val onMicSetup: () -> Unit,
-                    val onSwitch: (String) -> Unit)
+                    val onSwitch: (String) -> Unit,
+                    /** The parent brief (2.4): each child's session, day and week (null: no row). */
+                    val onBrief: (() -> Unit)? = null)
 
 /** Said once a day per kid when the home first shows (a pre-reader hears what the bubble says). */
 private val greeted = HashSet<String>()
@@ -424,6 +426,7 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
                     }
                 }
             }
+            corner.onBrief?.let { CornerRow("Parent brief", R.drawable.ic_book, it) }
             CornerRow("Settings", R.drawable.ic_settings, corner.onSettings)
             CornerRow("Microphone setup", R.drawable.ic_mic, corner.onMicSetup)
         }

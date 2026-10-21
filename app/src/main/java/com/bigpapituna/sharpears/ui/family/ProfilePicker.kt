@@ -80,9 +80,11 @@ import com.bigpapituna.sharpears.ui.reducedMotion
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> Unit) {
+fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> Unit,
+                  /** A new kid's weekly brief time, chosen at the end of the flow (the caller stores it once the profile exists). */
+                  onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null) {
     var adding by rememberSaveable { mutableStateOf(false) }
-    if (adding) { NewProfileFlow(onDone = onAdd, onCancel = { adding = false }); return }
+    if (adding) { NewProfileFlow(onDone = onAdd, onCancel = { adding = false }, onWeekly = onWeekly); return }
     // Centred on the screen, scrolling when eight people do not fit.
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing)) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
