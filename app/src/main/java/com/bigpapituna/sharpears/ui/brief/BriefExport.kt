@@ -90,22 +90,26 @@ class BriefExport(private val context: Context) {
 
     /** Writes the pages of [blocks] to [file] as a Letter PDF; returns the page count. */
     fun pdf(blocks: List<ExportBlock>, file: File): Int {
-        val pages = ExportLayout.paginate(blocks, metrics)
+        // The one-minute read is a little over a page: shrunk onto one page rather than spilling a few lines onto a second.
+        val (column, contentH) = ExportLayout.column(blocks, metrics)
+        val fit = ExportLayout.fitOnePage(contentH)
+        val pages = if (fit != null) listOf(ExportPage(column, contentH)) else ExportLayout.paginate(blocks, metrics)
+        val shrink = fit ?: 1f
         val doc = PdfDocument()
         try {
-            pages.forEachIndexed { n, page -> drawPage(doc, page, n + 1, pages.size) }
+            pages.forEachIndexed { n, page -> drawPage(doc, page, n + 1, pages.size, shrink) }
             file.outputStream().use { doc.writeTo(it) }
         } finally { doc.close() }
         return pages.size
     }
 
-    private fun drawPage(doc: PdfDocument, page: ExportPage, number: Int, of: Int) {
+    private fun drawPage(doc: PdfDocument, page: ExportPage, number: Int, of: Int, shrink: Float) {
         val p = doc.startPage(PdfDocument.PageInfo.Builder(ExportLayout.PDF_PAGE_W, ExportLayout.PDF_PAGE_H, number).create())
         val c = p.canvas
         c.drawColor(Ink.WHITE)
         c.save()
         c.translate(ExportLayout.PDF_MARGIN.toFloat(), ExportLayout.PDF_MARGIN.toFloat())
-        c.scale(ExportLayout.PDF_SCALE, ExportLayout.PDF_SCALE)
+        c.scale(ExportLayout.PDF_SCALE * shrink, ExportLayout.PDF_SCALE * shrink)
         page.items.forEach { draw(c, it) }
         c.restore()
         if (of > 1) {

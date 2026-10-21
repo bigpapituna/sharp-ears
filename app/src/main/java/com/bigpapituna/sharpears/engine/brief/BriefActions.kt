@@ -213,6 +213,8 @@ object ActionCopy {
         val lesson = p["lesson"]?.let(t::lesson)
         val song = p["song"]?.let(t::song)
         val page = p["page"]?.let(t::page)
+        /** The page title inside a sentence: "the pond". */
+        val pageIn = page?.let(com.bigpapituna.sharpears.engine.kid.KidPages::inSentence)
         return when (c.action) {
             ActionId.SET_NEXT -> ActionView(c.action,
                 button = "Set as next",
@@ -242,8 +244,8 @@ object ActionCopy {
             }
             ActionId.FRESH_START -> ActionView(c.action,
                 button = "Fresh start",
-                title = "Start ${page ?: "this page"} again?",
-                body = "The stars $name won on ${page ?: "this page"} go back to none, so its lessons can be played fresh. Stickers and finales stay.",
+                title = "Start ${pageIn ?: "this page"} again?",
+                body = "The stars $name won on ${pageIn ?: "this page"} go back to none, so its lessons can be played fresh. Stickers and finales stay.",
                 confirm = "Continue",
                 confirmations = 2,
                 secondTitle = "Are you sure?",
@@ -253,14 +255,14 @@ object ActionCopy {
                 reversible = true)
             ActionId.PACE_FOCUS -> ActionView(c.action,
                 button = "Focus on this page",
-                title = "Focus on ${page ?: "this page"}?",
+                title = "Focus on ${pageIn ?: "this page"}?",
                 body = "Later pages are hidden for now, so $name can stay with this one. You can open them again whenever you like.",
                 confirm = "Focus here",
                 doneLine = "Later pages are hidden for now.",
                 reversible = true)
             ActionId.PACE_UNLOCK -> ActionView(c.action,
                 button = "Open the next page",
-                title = if (page != null) "Open the page after $page?" else "Open the next page?",
+                title = if (pageIn != null) "Open the page after $pageIn?" else "Open the next page?",
                 body = "$name can start the next page early. The path carries on in order from there.",
                 confirm = "Open it",
                 doneLine = "The next page is open.",

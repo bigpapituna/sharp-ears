@@ -154,10 +154,10 @@ private fun ChildTabs(children: List<Profile>, selectedId: String, onPick: (Stri
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         children.forEach { p ->
             val chosen = p.id == selectedId
-            Column(Modifier.widthIn(min = 76.dp).clip(RoundedCornerShape(20.dp)).clickable(role = Role.Tab) { onPick(p.id) }.padding(horizontal = 8.dp, vertical = 6.dp)
+            Column(Modifier.widthIn(min = 72.dp).clip(RoundedCornerShape(20.dp)).clickable(role = Role.Tab) { onPick(p.id) }.padding(horizontal = 8.dp, vertical = 4.dp)
                 .semantics { selected = chosen; contentDescription = "${p.name}, ${avatarLabel(p.avatar)}" },
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                PupAvatar(p.avatar, size = 60.dp, selected = chosen)
+                PupAvatar(p.avatar, size = 52.dp, selected = chosen)
                 Text(p.name, style = MaterialTheme.typography.labelLarge.copy(fontWeight = if (chosen) FontWeight.Bold else FontWeight.Medium), maxLines = 1,
                     color = if (chosen) c.onSurface else c.onSurfaceVariant)
             }

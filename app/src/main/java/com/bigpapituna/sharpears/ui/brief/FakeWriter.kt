@@ -1,8 +1,11 @@
 package com.bigpapituna.sharpears.ui.brief
 
+import com.bigpapituna.sharpears.engine.plural
+import com.bigpapituna.sharpears.engine.times
 import com.bigpapituna.sharpears.engine.brief.ActionCopy
 import com.bigpapituna.sharpears.engine.brief.ActionId
 import com.bigpapituna.sharpears.engine.brief.Brief
+import com.bigpapituna.sharpears.engine.brief.Direction
 import com.bigpapituna.sharpears.engine.brief.BriefTitles
 import com.bigpapituna.sharpears.engine.brief.BriefWriter
 import com.bigpapituna.sharpears.engine.brief.FactKind
@@ -42,16 +45,19 @@ class FakeWriter(
         val days = fact(FactKind.DAYS_PRACTISED)
         val mins = fact(FactKind.PRACTICE_MINUTES)
         val headline = when (f.period) {
-            Period.WEEK -> if (days != null) "$has on ${days.value} days this week, up from about two, and it shows." else "A calm week at the piano."
+            Period.WEEK -> if (days != null) {
+                val up = f.trends.firstOrNull { it.kind == TrendKind.DAYS && it.direction == Direction.UP }
+                "$has on ${days.value} day${if (days.value == 1L) "" else "s"} this week" + (if (up != null) ", up from about ${up.before.toInt()}, and it shows." else ".")
+            } else "A calm week at the piano."
             Period.DAY -> "$has today and finished something new."
             Period.SESSION -> "A good short session: ${if (kid) name else "you"} finished a new lesson."
         }
         val facts = buildList {
-            mins?.let { add("${it.value} minutes at the piano" + if (f.period == Period.WEEK) " this week." else ".") }
-            days?.let { add("${it.value} days out of ${it.of ?: 7}.") }
+            mins?.let { add("${plural(it.value.toInt(), "minute")} at the piano" + if (f.period == Period.WEEK) " this week." else ".") }
+            days?.let { add("${plural(it.value.toInt(), "day")} out of ${it.of ?: 7}.") }
             fact(FactKind.NEW_LESSONS)?.let { add("New: " + it.lessons.take(2).joinToString(" and ") { l -> titles.lesson(l) } + ".") }
-            fact(FactKind.GOAL_DAYS)?.let { add("The daily goal reached ${it.value} times.") }
-            fact(FactKind.SONG_RUNS)?.let { add("${it.songs.firstOrNull()?.let(titles::song) ?: "A song"}, ${it.value} times.") }
+            fact(FactKind.GOAL_DAYS)?.let { add("The daily goal reached " + times(it.value.toInt()) + ".") }
+            fact(FactKind.SONG_RUNS)?.let { add("${it.songs.firstOrNull()?.let(titles::song) ?: "A song"}, " + times(it.value.toInt()) + ".") }
             fact(FactKind.NEAR_MISSES)?.let { add("Most slips were the key next door, a good sign.") }
         }.take(4)
         val notes = f.flags.mapNotNull { fl ->
@@ -111,7 +117,7 @@ class FakeWriter(
         val q = question.lowercase()
         return when {
             "stuck" in q || "long" in q || "hard" in q -> "One lesson is taking a few tries, which is normal: new skills settle over days. The pup lets a step go after three tries so ${name} keeps moving."
-            "practice" in q || "much" in q || "minutes" in q -> "${name} played ${findings.stats.totals.practiceMinutes} minutes on ${findings.stats.totals.daysPractised} days. Short and often is better than long and rare."
+            "practice" in q || "much" in q || "minutes" in q -> "${name} played ${plural(findings.stats.totals.practiceMinutes, "minute")} on ${plural(findings.stats.totals.daysPractised, "day")}. Short and often is better than long and rare."
             "well" in q || "good" in q -> "Most of ${name}'s slips were the key next door, which means the ear and the hands are close."
             else -> "From what the week shows, ${name} is on a good path. Keep sessions short and end on something that works."
         }

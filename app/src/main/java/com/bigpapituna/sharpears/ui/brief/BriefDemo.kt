@@ -124,6 +124,15 @@ fun BriefDemo(intent: Intent, onExit: () -> Unit) {
                     "myweek" -> ParentBriefScreen(env, listOf(me), onBack = onExit, initialPeriod = period, showChildren = false, title = "My week",
                         expanded = intent.getBooleanExtra("full", false), openCard = intent.getIntExtra("card", -1).takeIf { it >= 0 })
                     "kidcard" -> KidCardDemo(env, child, by, onExit)
+                    // The app's own environment over this phone's real profiles and event logs (the stand-in writer still writes).
+                    "live" -> {
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        val liveEnv = rememberBriefEnv()
+                        val kids = remember { com.bigpapituna.sharpears.data.Profiles(ctx).all.filter { it.isKid } }
+                        ParentBriefScreen(liveEnv, kids, onBack = onExit, initialPeriod = period)
+                    }
+                    // The weekly notification for a real profile (--es who p1), through the real findings: posts it now if the week had playing in it.
+                    "notify" -> NotifyDemo(intent.getStringExtra("who").orEmpty(), onExit)
                     "mum" -> ShowMumDialog(env, child, onClose = onExit, startPassed = !intent.getBooleanExtra("gate", false))
                     "weekly" -> Column(Modifier.fillMaxSize().paper()) {
                         WeeklyTimeStep(child.name, onChosen = { Log.d(TAG, "brief demo: weekly chosen ${it.encode()}"); onExit() })
@@ -152,4 +161,24 @@ private fun KidCardDemo(env: BriefEnv, child: Profile, by: Brief.Writer, onExit:
         }
     }
     if (mum) ShowMumDialog(env, child, onClose = { mum = false })
+}
+
+/** Posts the weekly notification for [profileId] (a real profile on this phone) and says what happened. */
+@Composable
+private fun NotifyDemo(profileId: String, onExit: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var line by remember { mutableStateOf("Working") }
+    androidx.compose.runtime.LaunchedEffect(profileId) {
+        line = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val p = com.bigpapituna.sharpears.data.Profiles(context).all.firstOrNull { it.id == profileId }
+            if (p == null) "No profile $profileId"
+            else {
+                com.bigpapituna.sharpears.data.BriefStore(context, p.id).lastNotice = 0L
+                val sent = com.bigpapituna.sharpears.reminder.BriefReminder.post(context, p)
+                if (sent) "Posted for ${p.name}" else "Stayed quiet for ${p.name}"
+            }
+        }
+        Log.d(TAG, "brief demo: notify $line")
+    }
+    Box(Modifier.fillMaxSize().paper(), contentAlignment = Alignment.Center) { androidx.compose.material3.Text(line, style = MaterialTheme.typography.titleLarge) }
 }

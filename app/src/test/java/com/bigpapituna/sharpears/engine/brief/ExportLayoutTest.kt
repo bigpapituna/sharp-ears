@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.engine.brief
 import com.bigpapituna.sharpears.ui.brief.FakeWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -92,6 +93,15 @@ class ExportLayoutTest {
     @Test fun aShortDocumentIsOneOrTwoPagesAndAnEmptyOneStillMakesAPage() {
         assertTrue(ExportLayout.paginate(doc(full = false), metrics).size <= 2)
         assertEquals(1, ExportLayout.paginate(emptyList(), metrics).size)
+    }
+
+    @Test fun aLittleOverOnePageIsShrunkOntoOneAndALongOneKeepsItsPages() {
+        assertEquals(1f, ExportLayout.fitOnePage(900)!!, 0f)
+        assertEquals(1f, ExportLayout.fitOnePage(ExportLayout.PDF_CONTENT_H)!!, 0f)
+        assertEquals(0.8f, ExportLayout.fitOnePage(1600, 1280)!!, 0.001f)
+        assertTrue(ExportLayout.fitOnePage(1600)!! * 1600 <= ExportLayout.PDF_CONTENT_H + 1)
+        assertNull(ExportLayout.fitOnePage((ExportLayout.PDF_CONTENT_H * 1.5f).toInt()))
+        assertTrue("the short read shrinks to one page, the full report does not", doc(false).let { b -> ExportLayout.fitOnePage(ExportLayout.column(b, metrics).second) != null } && ExportLayout.fitOnePage(ExportLayout.column(doc(true), metrics).second) == null)
     }
 
     @Test fun theLetterPageMathsAddsUp() {

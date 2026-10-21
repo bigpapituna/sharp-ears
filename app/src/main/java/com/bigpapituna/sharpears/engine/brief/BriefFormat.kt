@@ -34,7 +34,7 @@ object BriefFormat {
             if (s.letGo > 0) ", the pup let ${s.letGo} step${if (s.letGo == 1) "" else "s"} go" else ""
 
     fun songLine(s: SongStat, titles: BriefTitles): String =
-        titles.song(s.songId) + ": played " + (if (s.runs == 1) "once" else "${s.runs} times") +
+        titles.song(s.songId) + ": played " + com.bigpapituna.sharpears.engine.times(s.runs) +
             (if (s.bestStars > 0) ", best ${stars(s.bestStars)}" else "")
 
     fun toyLabel(t: ToyKind): String = when (t) { ToyKind.JAM -> "Jam"; ToyKind.PUP_SAYS -> "Pup says"; ToyKind.CLAP_ALONG -> "Clap along" }
@@ -103,7 +103,7 @@ object BriefFormat {
     fun actionTaken(a: ActionTaken, titles: BriefTitles): String {
         val p = a.params
         val lesson = p["lesson"]?.let(titles::lesson)
-        val page = p["page"]?.let(titles::page)
+        val page = p["page"]?.let(titles::page)?.let(com.bigpapituna.sharpears.engine.kid.KidPages::inSentence)
         return when (a.action) {
             ActionId.SET_NEXT -> if (lesson != null) "You set $lesson as the next stone." else "You put the next lesson first."
             ActionId.REPLAY_FOR_STARS -> "You replayed ${lesson ?: "a lesson"} for stars."

@@ -60,7 +60,7 @@ class KidCardAndFormatTest {
     @Test fun lessonAndSongLinesSayStarsAndTries() {
         assertEquals("Pond 3: 3 stars, 4 tries", BriefFormat.lessonLine(LessonStat("pond-3", 3, 4, 0, 2, 11), IdTitles))
         assertEquals("Pond 5: not finished yet, 1 try, the pup let 1 step go", BriefFormat.lessonLine(LessonStat("pond-5", null, 1, 1, 0, 3), IdTitles))
-        assertEquals("Twinkle: played 3 times, best 2 stars", BriefFormat.songLine(SongStat("twinkle", 3, 2, 70), IdTitles))
+        assertEquals("Twinkle: played three times, best 2 stars", BriefFormat.songLine(SongStat("twinkle", 3, 2, 70), IdTitles))
         assertEquals("Twinkle: played once", BriefFormat.songLine(SongStat("twinkle", 1, 0, null), IdTitles))
     }
 

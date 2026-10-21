@@ -170,6 +170,18 @@ object ExportLayout {
         return pages
     }
 
+    /**
+     * A document a little taller than one PDF page (the one-minute read) is drawn on one page, shrunk to fit: the factor to
+     * multiply [PDF_SCALE] by (1 when it fits as it is), or null when it is too long to shrink (more than [MAX_SHRINK_OVER]
+     * taller than a page), and the PDF keeps its pages.
+     */
+    fun fitOnePage(contentHeight: Int, pageHeight: Int = PDF_CONTENT_H): Float? = when {
+        contentHeight <= pageHeight -> 1f
+        contentHeight <= pageHeight * MAX_SHRINK_OVER -> pageHeight.toFloat() / contentHeight
+        else -> null
+    }
+    const val MAX_SHRINK_OVER = 1.4f
+
     /** The file names a share carries: "Mia-weekly-brief-2026-10-21.png" and ".pdf". */
     fun fileNames(name: String, period: Period, date: java.time.LocalDate): Pair<String, String> {
         val slug = name.trim().lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "player" }

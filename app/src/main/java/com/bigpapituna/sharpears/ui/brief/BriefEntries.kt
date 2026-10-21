@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -85,7 +86,7 @@ fun MyWeekCard(env: BriefEnv, me: Profile, modifier: Modifier = Modifier) {
             Text("My week", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text("How your playing went, and one or two things to try.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
         }
-        Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp))
+        Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp).rotate(-90f))
     }
     if (open) MyWeekDialog(env, me, onClose = { open = false })
 }
