@@ -70,7 +70,9 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
                   /** This build carries an AI key, so the parent brief can be written by an AI model (data/BriefAi.kt). */
                   aiBrief: Boolean = com.bigpapituna.sharpears.data.BriefAi.hasKey,
                   /** This build can send the brief by email (a key and a sender in data/BriefEmail.kt). */
-                  emailBrief: Boolean = com.bigpapituna.sharpears.data.BriefEmail.hasKey) = TextPage("Privacy", onBack) {
+                  emailBrief: Boolean = com.bigpapituna.sharpears.data.BriefEmail.hasKey,
+                  /** Where the email's pictures are hosted (EMAIL_IMAGE_BASE's host), or null when they travel inside the email. */
+                  pictureHost: String? = com.bigpapituna.sharpears.data.BriefEmail.pictureHost) = TextPage("Privacy", onBack) {
     val except = listOfNotNull("the parent brief's numbers when the AI writes it (below)".takeIf { aiBrief },
         "the brief by email, if a grown-up turns it on (below)".takeIf { emailBrief },
         "the review reports below, which you switch on".takeIf { canRecord })
@@ -136,7 +138,8 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
             "the app, nothing else is sent. You choose daily, weekly, both or off, nothing goes between 9:30 pm and 7 am, and never more than " +
             "two a day. The address stays on this phone, in the app's own storage; it is not in Android's backup, and it is deleted with the " +
             "child's profile or when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
-            "your mail app may fetch its font from Google or its pictures from the app's own web address, as it does for any email.")
+            "your mail app may fetch its font from Google" + (pictureHost?.let { " and the pup's pictures from $it (the same pictures for every family)" } ?: "") +
+            ", as it does for any email.")
     }
     Heading("Speech and MIDI")
     Para("Spoken guidance uses a voice that runs entirely on the phone: lines recorded into the app, and the Kokoro voice model for the rest. " +

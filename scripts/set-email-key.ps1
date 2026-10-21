@@ -6,11 +6,15 @@
 #   .\scripts\set-email-key.ps1 -Remove         takes the key and sender out again (the next build cannot send email)
 #   .\scripts\set-email-key.ps1 -ImageBase https://pictures.example.org/email
 #                                               also sets where the pup pictures are hosted (https; blank keeps them inside the email)
+#   .\scripts\set-email-key.ps1 -ImageBase https://pictures.example.org/email -PicturesOnly
+#                                               sets only where the pictures are hosted (hosting/README.md); the key stays as it is
+#
+# Without -ImageBase an address set before is kept. The pictures to host are in hosting/email (hosting/README.md).
 #
 # The key never goes on the command line, into the console, a log or git. At brevo.com: Senders, domains and dedicated IPs
 # (verify the sender address), then SMTP and API, API keys (make a key), and turn on two-factor sign-in for the account.
 # Rebuild and install after: .\gradlew.bat installDebug
-param([switch]$Remove, [string]$ImageBase = '')
+param([switch]$Remove, [string]$ImageBase = '', [switch]$PicturesOnly)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -19,7 +23,21 @@ $mine = '^\s*(EMAIL_KEY|EMAIL_FROM|EMAIL_FROM_NAME|EMAIL_IMAGE_BASE)\s*='
 
 # Keep every other line of an existing file (AI_KEY, AI_MODEL, anything added later). EMAIL_BASE_URL is kept too.
 $kept = @()
-if (Test-Path $file) { $kept = @(Get-Content $file | Where-Object { $_ -notmatch $mine }) }
+$oldBase = $null
+if (Test-Path $file) {
+    $kept = @(Get-Content $file | Where-Object { $_ -notmatch $mine })
+    $oldBase = Get-Content $file | Where-Object { $_ -match '^\s*EMAIL_IMAGE_BASE\s*=' } | Select-Object -First 1
+}
+
+if ($PicturesOnly) {
+    if ($ImageBase -notmatch '^https://') { throw 'Give the picture address with -ImageBase https://... Nothing was written.' }
+    $rest = @()
+    if (Test-Path $file) { $rest = @(Get-Content $file | Where-Object { $_ -notmatch '^\s*EMAIL_IMAGE_BASE\s*=' }) }
+    Set-Content -Path $file -Value (@("EMAIL_IMAGE_BASE=$($ImageBase.TrimEnd('/'))") + $rest) -Encoding ascii
+    git -C $root check-ignore -q secrets.properties; if ($LASTEXITCODE -ne 0) { throw 'secrets.properties is not gitignored: fix .gitignore before building.' }
+    Write-Host "Picture address saved to secrets.properties. Rebuild and install: .\gradlew.bat installDebug"
+    return
+}
 
 if ($Remove) {
     Set-Content -Path $file -Value $kept -Encoding ascii
@@ -40,7 +58,7 @@ if ($name -eq '') { $name = 'The pup at Sharp Ears' }
 if ($ImageBase -ne '' -and $ImageBase -notmatch '^https://') { throw 'The picture address must start with https://. Nothing was written.' }
 
 $lines = @("EMAIL_KEY=$key", "EMAIL_FROM=$from", "EMAIL_FROM_NAME=$name")
-if ($ImageBase -ne '') { $lines += "EMAIL_IMAGE_BASE=$($ImageBase.TrimEnd('/'))" }
+if ($ImageBase -ne '') { $lines += "EMAIL_IMAGE_BASE=$($ImageBase.TrimEnd('/'))" } elseif ($oldBase) { $lines += $oldBase.Trim() }
 Set-Content -Path $file -Value ($lines + $kept) -Encoding ascii
 $key = $null
 # The file must never reach git: check the ignore rule is still there.

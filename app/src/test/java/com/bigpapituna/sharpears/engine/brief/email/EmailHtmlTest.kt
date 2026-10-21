@@ -233,6 +233,44 @@ class EmailHtmlTest {
         }
     }
 
+    /**
+     * Hosted pictures (EMAIL_IMAGE_BASE, hosting/README.md): every `src` is the base, one slash, then the file's own name,
+     * exactly, whatever slash or space the base came with, and only the 27 files the host serves; hosting/email holds those
+     * 27 byte for byte as the app's assets, so what Roy uploads is what the emails name.
+     */
+    @Test fun hostedPicturesAreTheBaseThenTheFileName() {
+        val base = "https://roy.github.io/sharp-ears-email/email"
+        val files = EmailImages.allFiles().toSet()
+        assertEquals(27, files.size)
+        for (given in listOf(base, "$base/", "  $base/  ")) {
+            val images = EmailImages.hosted(given)
+            for (pose in PupPose.entries) for (avatar in 0..7) {
+                assertEquals("$base/" + EmailImages.fileName(pose, avatar), images.src(pose, avatar))
+            }
+        }
+        for (avatar in 0..7) for (e in listOf(EmailFixtures.email(EmailFixtures.dayFindings(), avatar = avatar),
+            EmailFixtures.email(EmailFixtures.weekFindings(), first = true, avatar = avatar), EmailFixtures.firstNeverPlayed())) {
+            val html = render(e, EmailHtmlOptions(EmailImages.hosted(base), "pup@example.org"))
+            val srcs = Regex("<img [^>]*src=\"([^\"]*)\"").findAll(html).map { it.groupValues[1] }.toList()
+            assertTrue("pictures in the email", srcs.isNotEmpty())
+            for (u in srcs) {
+                assertTrue(u, u.startsWith("$base/"))
+                val file = u.removePrefix("$base/")
+                assertTrue(u, file in files)
+                assertTrue(u, Regex("pup-[a-z]+(-[0-7])?\\.png").matches(file))
+            }
+            assertFalse("no picture inside the email when hosted", html.contains("data:image"))
+        }
+        // The privacy page names where they come from; nothing when they are inside the email.
+        assertEquals("roy.github.io", EmailImages.hostOf("$base/"))
+        assertEquals(null, EmailImages.hostOf(""))
+        assertEquals(null, EmailImages.hostOf("http://roy.github.io/email"))
+        assertEquals(null, EmailImages.hostOf("https://"))
+        val hosting = File("../hosting/email")
+        assertEquals("hosting/email holds the 27 pictures", files, hosting.listFiles()?.filter { it.name.endsWith(".png") }?.map { it.name }?.toSet())
+        for (f in files) assertTrue("hosting/email/$f matches assets/email/$f", File(hosting, f).readBytes().contentEquals(File(assets, f).readBytes()))
+    }
+
     @Test fun picturesComeFromTheImagesGiven() {
         val e = EmailFixtures.week()
         assertFalse(render(e, EmailHtmlOptions(EmailImages.NONE)).contains("<img"))

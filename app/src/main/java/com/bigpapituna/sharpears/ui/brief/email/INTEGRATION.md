@@ -139,9 +139,13 @@ Only kid profiles are looked at. A kid switched to grown-up mode keeps their set
 ## Left, and what to know
 
 - **Pictures.** Gmail (and some other apps) do not show `data:` pictures: with no `EMAIL_IMAGE_BASE` the alt text shows instead
-  ("The blue pup dancing"). Hosting `app/src/main/assets/email/*.png` at an https address and setting `EMAIL_IMAGE_BASE` fixes it and
-  brings the week to 36 KB. A hosted picture is fetched when the email is opened (the host sees that), and so is the Google font:
-  the privacy paragraph says so.
+  ("The blue pup dancing"). Hosting the pictures at an https address and setting `EMAIL_IMAGE_BASE` fixes it and brings the week
+  to 36 KB. A hosted picture is fetched when the email is opened (the host sees that), and so is the Google font: the privacy
+  paragraph says so and, on a build with a base, names the host (`EmailImages.hostOf`).
+  2.5.0 (integration): the 27 files are ready to upload in `hosting/email/` at the repo root, with `hosting/README.md` (GitHub
+  Pages recommended; `.\scripts\set-email-key.ps1 -ImageBase https://.../email -PicturesOnly` sets the base without the key).
+  `EmailHtmlTest.hostedPicturesAreTheBaseThenTheFileName` checks every `src` is `<base>/<file>.png` exactly and that
+  hosting/email matches the app's assets byte for byte.
 - Nothing ran against Brevo or on a real mail client: the HTML is checked in headless Chrome (light and dark, full width) and by the
   tests, not in Gmail, Outlook or Samsung Email. Outlook desktop ignores rounded corners and shows plain rectangles.
 - The unsubscribe is a `mailto:`, handled by hand. A list-unsubscribe header would need the transport to send headers (Brevo

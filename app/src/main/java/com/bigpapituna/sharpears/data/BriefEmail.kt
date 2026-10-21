@@ -70,6 +70,9 @@ object BriefEmail {
         return if (base.startsWith("https://")) EmailImages.hosted(base) else inlineImages(app)
     }
 
+    /** The host the pictures are fetched from when the email is opened (the privacy page names it), or null when they are inside it. */
+    val pictureHost: String? get() = EmailImages.hostOf(BuildConfig.EMAIL_IMAGE_BASE)
+
     /** The pictures inside the HTML (the in-app preview always uses them: it loads nothing from the network). */
     fun inlineImages(context: Context): EmailImages { val app = context.applicationContext; return EmailImages.inline { asset(app, it) } }
 

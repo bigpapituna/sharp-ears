@@ -30,6 +30,13 @@ fun interface EmailImages {
         /** Every file the pictures can be: what a host must serve. */
         fun allFiles(): List<String> = PupPose.entries.flatMap { p -> if (p in TINTED) (0..7).map { fileName(p, it) } else listOf(fileName(p, 0)) }
 
+        /**
+         * The host a hosted base fetches from ("roy.github.io" for https://roy.github.io/sharp-ears-email/email), for the
+         * privacy page; null when [baseUrl] is blank or not https (the pictures then travel inside the email).
+         */
+        fun hostOf(baseUrl: String): String? = baseUrl.trim().takeIf { it.startsWith("https://") }
+            ?.let { runCatching { java.net.URI(it).host }.getOrNull() }?.takeIf { it.isNotBlank() }
+
         fun hosted(baseUrl: String): EmailImages {
             val base = baseUrl.trim().trimEnd('/')
             require(base.startsWith("https://")) { "pictures are hosted over https" }
