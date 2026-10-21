@@ -1016,7 +1016,9 @@ class MainActivity : ComponentActivity() {
                     // A kid's session ends on the sticker, not on XP (KIDS-PLAN 3.4): XP still adds up underneath for grown-up
                     // mode later, but no level-up screen full of numbers.
                     if (current.isKid) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
-                    if (!isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                    // Nor achievement banners ("One week streak", "100 minutes"): they unlock underneath, unseen by a kid.
+                    if (current.isKid) LaunchedEffect(progress.toasts.size) { progress.toasts.clear() }
+                    if (!isStage(screen) && !current.isKid) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = current.isKid || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
                     // The parent gate, over everything while an action waits for a grown-up.
