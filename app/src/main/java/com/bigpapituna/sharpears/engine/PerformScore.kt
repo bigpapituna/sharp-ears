@@ -21,6 +21,8 @@ data class Recap(val good: Int, val ok: Int, val miss: Int, val biasMs: Int, val
  * a miss. Wrong keys do not cost anything by themselves; only misses break the streak.
  */
 class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs: Double = 0.0,
+                   /** Called with a group's start time and the key's offset from it (ms, negative early) when it is played in time. */
+                   private val onHit: (Long, Double) -> Unit = { _, _ -> },
                    /** Called with a group's start time when it is graded a miss. */
                    private val onMiss: (Long) -> Unit = {}) {
     private class Target(val startMs: Long, val keys: Set<Int>) { var grade: Grade? = null }
@@ -59,6 +61,7 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
         if (g == Grade.GOOD) good++ else ok++
         offsetSum += off; offsets++
         streak++; longest = maxOf(longest, streak)
+        onHit(t.startMs, off)
         return g
     }
 

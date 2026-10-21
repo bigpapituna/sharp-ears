@@ -69,4 +69,24 @@ class RunEventsTest {
         val wait = RunEvents.song(7, "ode", Mode.WAIT, Practice.RIGHT, waitRun(30, 4), RunTally(), 60_000, true, duet = true)
         assertEquals(BriefEvent.SongRun(7, "ode", RunMode.WAIT, Hands.RIGHT, null, 1, null, 0, 0, 30, 4, emptyList(), 60_000, duet = true), wait.single())
     }
+
+    private fun n(midi: Int, hand: com.bigpapituna.sharpears.engine.Hand = com.bigpapituna.sharpears.engine.Hand.RIGHT) =
+        com.bigpapituna.sharpears.engine.Note(midi, 0, 500, hand, 80)
+
+    @Test fun theRunsNoteByNoteDetailGoesWithTheStepAndTheSong() {
+        val try1 = RunTally().apply { due(listOf(n(60)), false, 0.0); heard(60, 800.0); groupDone(); due(listOf(n(62)), false, 900.0); letGo(); groupDone() }
+        val try2 = RunTally().apply { due(listOf(n(60)), false, 0.0); heard(60, 400.0); groupDone() }
+        val rec = StepRecorder("pond-3", 2, play, 0)
+        rec.run(waitRun(1, 0), try1); rec.run(waitRun(2, 0), try2)
+        val d = rec.event(9, 30_000, passed = true)!!.detail
+        assertEquals(1, d.skippedNotes); assertEquals(600, d.hesitationMs); assertEquals(HandNotes(due = 3, clean = 2, hesMs = 600, hesN = 2), d.right)
+        val song = RunEvents.song(7, "ode", Mode.WAIT, Practice.RIGHT, waitRun(2, 0), try2, 9_000, true, false).first() as BriefEvent.SongRun
+        assertEquals(try2.detail(), song.detail)
+        // The drum: beats with a clap and its beats, from the stage's report (no tally from a stage).
+        val drum = StepRecorder("pond-4", 1, play.copy(game = Game.CLAP), 0)
+        drum.run(Report(emptyList(), 0, 0, null, groups = 14, extraScore = 87, rounds = 16), null)
+        val e = drum.event(5, 20_000, passed = true)!!
+        assertEquals(14, e.notes); assertEquals(16, e.rounds); assertEquals(87, e.score); assertEquals(RunDetail(), e.detail)
+        assertEquals("no round let go: the drum's stars are as before", 2, e.stars)
+    }
 }

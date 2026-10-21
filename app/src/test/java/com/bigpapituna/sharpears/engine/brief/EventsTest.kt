@@ -50,6 +50,24 @@ class EventsTest {
         assertTrue("a full step stays short", every[2].encode().length < 300)
     }
 
+    @Test fun aRunsNoteByNoteDetailComesBackAndAnOlderLineReadsAsNone() {
+        val d = RunDetail(skippedNotes = 2, hesitationMs = 1100, hesitationN = 14, slowKeys = listOf(KeyMs(67, 2400), KeyMs(60, 900)),
+            left = HandNotes(8, 7, 1500, 6), right = HandNotes(20, 19, 900, 8), spreadMs = 38, hintSteps = listOf(30, 9, 4))
+        val step = (every[2] as BriefEvent.LessonStep).copy(detail = d)
+        val song = (every[4] as BriefEvent.SongRun).copy(detail = d)
+        for (e in listOf(step, song)) assertEquals(e.encode(), e, BriefEvent.decode(e.encode()))
+        assertTrue(step.encode(), step.encode().endsWith(",\"skippedNotes\":2,\"hes\":1100,\"hesN\":14,\"slow\":[[67,2400],[60,900]]," +
+            "\"handL\":[8,7,1500,6],\"handR\":[20,19,900,8],\"spread\":38,\"hintSteps\":[30,9,4]}"))
+        assertTrue("a full step with its detail stays short", step.encode().length < 450)
+        assertEquals(28, d.notesDue)
+        // A line from before the detail has none of its fields: it reads as no detail, and writes none back.
+        val old = BriefEvent.decode(every[2].encode()) as BriefEvent.LessonStep
+        assertEquals(RunDetail(), old.detail)
+        assertEquals(every[2].encode(), old.encode())
+        // A field this version cannot use (a short hand list) is no detail rather than a broken event.
+        assertEquals(HandNotes(), (BriefEvent.decode(every[2].encode().dropLast(1) + ",\"handL\":[3]}") as BriefEvent.LessonStep).detail.left)
+    }
+
     @Test fun unknownFieldsAreIgnored() {
         assertEquals(BriefEvent.LessonDone(t, "sit", 3), BriefEvent.decode("{\"t\":$t,\"e\":\"lesson\",\"lesson\":\"sit\",\"stars\":3,\"mood\":\"happy\",\"v\":[1,2]}"))
     }

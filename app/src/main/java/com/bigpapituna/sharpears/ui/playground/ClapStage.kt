@@ -252,7 +252,8 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         when (ClapTries.after(attempt, heardAny)) {
             ClapTries.Next.DONE -> {
                 delay(1400)
-                ended(Report(emptyList(), 0, 0, null, groups = credited.size, extraScore = credited.size * 100 / beats))
+                // rounds = the beats: the parent brief's clap count ("14 of 16 beats"); no round is let go, so the stars are as before.
+                ended(Report(emptyList(), 0, 0, null, groups = credited.size, extraScore = credited.size * 100 / beats, rounds = beats))
             }
             ClapTries.Next.AGAIN -> {
                 // Nothing heard: the pup asks again by himself (the buttons stay for a grown-up).

@@ -83,7 +83,8 @@ sealed class BriefEvent {
      * [stars] are the passing run's (engine/kid LessonStars), [accuracy] and [timingMeanMs] a Perform run's, [score] a
      * stage's own percent (the drum's beats with a clap, loudness), [notes] the groups played, [wrongKeys] with
      * [nearMisses] (two semitones or closer) and [farMisses] summed over every try, [letGoRounds] of [rounds] a stage
-     * let go. [durationMs] is time on screen from the step opening to it ending.
+     * let go (for the drum, game CLAP: [notes] are the beats with a clap and [rounds] its beats). [durationMs] is time on
+     * screen from the step opening to it ending. [detail] has the per-note measures of every try together ([RunDetail]).
      */
     data class LessonStep(
         override val at: Long, val lessonId: String, val stepIndex: Int, val kind: String,
@@ -92,6 +93,7 @@ sealed class BriefEvent {
         val stars: Int? = null, val accuracy: Int? = null, val score: Int? = null, val timingMeanMs: Int? = null,
         val notes: Int = 0, val wrongKeys: Int = 0, val nearMisses: Int = 0, val farMisses: Int = 0,
         val letGoRounds: Int = 0, val rounds: Int = 0, val left: Boolean = false,
+        val detail: RunDetail = RunDetail(),
     ) : BriefEvent() {
         override val name get() = "step"
         override fun body(m: MutableMap<String, Any?>) {
@@ -101,6 +103,7 @@ sealed class BriefEvent {
             m.opt("stars", stars); m.opt("acc", accuracy); m.opt("score", score); m.opt("timing", timingMeanMs)
             m.opt("notes", notes, 0); m.opt("wrong", wrongKeys, 0); m.opt("near", nearMisses, 0); m.opt("far", farMisses, 0)
             m.opt("letGoRounds", letGoRounds, 0); m.opt("rounds", rounds, 0); m.opt("left", left, false)
+            detail.write(m)
         }
     }
 
@@ -116,13 +119,13 @@ sealed class BriefEvent {
      * A library song played to its end by the player (not Listen, not an empty run): [mode], [hands], a Perform run's
      * [accuracy] and [timingMeanMs] (its mean offset, negative early), the recap's [stars], [notes] played, [wrongKeys] with
      * [nearMisses] and [farMisses], the [hintsUsed] per stuck wait, [durationMs] of real time, whether it ran [fromTop] and
-     * whether it was a [duet].
+     * whether it was a [duet]; [detail] its per-note measures ([RunDetail]).
      */
     data class SongRun(
         override val at: Long, val songId: String, val mode: RunMode, val hands: Hands, val accuracy: Int? = null, val stars: Int,
         val timingMeanMs: Int? = null, val nearMisses: Int = 0, val farMisses: Int = 0,
         val notes: Int = 0, val wrongKeys: Int = 0, val hintsUsed: List<Int> = emptyList(), val durationMs: Long = 0,
-        val fromTop: Boolean = true, val duet: Boolean = false,
+        val fromTop: Boolean = true, val duet: Boolean = false, val detail: RunDetail = RunDetail(),
     ) : BriefEvent() {
         override val name get() = "song"
         override fun body(m: MutableMap<String, Any?>) {
@@ -130,13 +133,15 @@ sealed class BriefEvent {
             m.opt("timing", timingMeanMs); m.opt("near", nearMisses, 0); m.opt("far", farMisses, 0)
             m.opt("notes", notes, 0); m.opt("wrong", wrongKeys, 0); m.opt("hints", hintsUsed); m.opt("ms", durationMs, 0L)
             m.opt("fromTop", fromTop, true); m.opt("duet", duet, false)
+            detail.write(m)
         }
     }
 
     /**
      * Wrong keys of one run, aggregated (never one event per key): [playedMidi] was struck [count] times where
-     * [expectedMidi] was the nearest note wanted; [slip] when within two semitones. Written for the run's most frequent
-     * pairs only (RunTally.TOP_PAIRS), in a lesson ([lessonId]) or a song ([songId]).
+     * [expectedMidi] was the nearest note wanted; [slip] when within two semitones. Written for every pair of the run, the
+     * most frequent first, up to RunTally.TOP_PAIRS (24; five before the email brief), in a lesson ([lessonId]) or a song
+     * ([songId]).
      */
     data class WrongKey(
         override val at: Long, val expectedMidi: Int, val playedMidi: Int, val slip: Boolean, val count: Int = 1,
@@ -247,12 +252,12 @@ sealed class BriefEvent {
             val m = runCatching { MiniJson.read(line.trim()) }.getOrNull() as? Map<*, *> ?: return null
             val at = (m["t"] as? Number)?.toLong() ?: return null
             val name = m["e"] as? String ?: return null
-            val f = Fields(m)
+            val f = EventFields(m)
             return runCatching { read(at, name, f) }.getOrNull()
                 ?: Unknown(at, name, m.entries.associate { it.key.toString() to it.value }.filterKeys { it != "t" && it != "e" })
         }
 
-        private fun read(at: Long, name: String, f: Fields): BriefEvent? = when (name) {
+        private fun read(at: Long, name: String, f: EventFields): BriefEvent? = when (name) {
             "start" -> SessionStarted(at)
             "end" -> SessionEnded(at, f.long("ms"), f.int("practice"))
             "step" -> LessonStep(at, f.str("lesson")!!, f.int("step"), f.str("kind")!!,
@@ -260,11 +265,11 @@ sealed class BriefEvent {
                 game = f.str("game"), hands = f.str("hands")?.let { h -> Hands.valueOf(h) }, skipped = f.bool("skipped"),
                 stars = f.intOrNull("stars"), accuracy = f.intOrNull("acc"), score = f.intOrNull("score"), timingMeanMs = f.intOrNull("timing"),
                 notes = f.int("notes"), wrongKeys = f.int("wrong"), nearMisses = f.int("near"), farMisses = f.int("far"),
-                letGoRounds = f.int("letGoRounds"), rounds = f.int("rounds"), left = f.bool("left"))
+                letGoRounds = f.int("letGoRounds"), rounds = f.int("rounds"), left = f.bool("left"), detail = RunDetail.read(f))
             "lesson" -> LessonDone(at, f.str("lesson")!!, f.intOrNull("stars")!!, f.long("ms"), f.bool("first"))
             "song" -> SongRun(at, f.str("song")!!, RunMode.valueOf(f.str("mode")!!), Hands.valueOf(f.str("hands")!!), f.intOrNull("acc"),
                 f.intOrNull("stars")!!, f.intOrNull("timing"), f.int("near"), f.int("far"), f.int("notes"), f.int("wrong"),
-                f.ints("hints"), f.long("ms"), f.bool("fromTop", true), f.bool("duet"))
+                f.ints("hints"), f.long("ms"), f.bool("fromTop", true), f.bool("duet"), RunDetail.read(f))
             "wrong" -> WrongKey(at, f.intOrNull("expected")!!, f.intOrNull("played")!!, f.bool("slip"), f.int("count", 1), f.str("lesson"), f.str("song"))
             "octave" -> OctaveHint(at, f.str("lesson"), f.str("song"), f.int("count", 1))
             "noisy" -> NoisyRoom(at, f.str("screen")!!)
@@ -282,6 +287,64 @@ sealed class BriefEvent {
     }
 }
 
+/** A key and a time in ms: the slowest a key came in a run. */
+data class KeyMs(val midi: Int, val ms: Int)
+
+/**
+ * One hand's notes in a run: [due] came due, [clean] of them were played with no wrong key charged to them (not let go,
+ * not missed), and the mean hesitation [hesMs] over the [hesN] of them that were waited for (wait mode only).
+ */
+data class HandNotes(val due: Int = 0, val clean: Int = 0, val hesMs: Int = 0, val hesN: Int = 0) {
+    internal fun wire(): List<Int>? = if (due == 0 && hesN == 0) null else listOf(due, clean, hesMs, hesN)
+
+    internal companion object {
+        fun of(v: List<Int>): HandNotes = if (v.size < 4) HandNotes() else HandNotes(v[0], v[1], v[2], v[3])
+    }
+}
+
+/**
+ * What a run (a song's, or a lesson step's tries together) did note by note, from engine/brief/RunTally (the email brief's
+ * extra data, 2026-10-21). Every field is left out of the line at its default, so older lines read as an empty detail.
+ *
+ * - [skippedNotes]: notes that came due and were never played (let go by the Playground, missed in Perform, or left out
+ *   of a chord of four or more by the microphone's slack); "skippedNotes" on the wire.
+ * - [hesitationMs]: the mean ms from a note becoming due to its key being heard, over [hesitationN] notes (wait mode only:
+ *   in Perform the song does not wait, and the offset is timing). One wait counts at most 20 s ("hes", "hesN").
+ * - [slowKeys]: the keys that took longest to come, the slowest first, each with its slowest time (at most six; "slow",
+ *   pairs of [midi, ms]).
+ * - [left], [right]: each hand's notes ([HandNotes]; "handL" and "handR", [due, clean, hesMs, hesN]; "left" on a step
+ *   already means the step was left mid-way).
+ * - [spreadMs]: a Perform run's tempo steadiness, the standard deviation of its notes' offsets from the beat ("spread").
+ * - [hintSteps]: waits by their deepest hint, [glow, point, play], only when there were more than the 32 the hints list
+ *   keeps (otherwise the list says the same).
+ */
+data class RunDetail(
+    val skippedNotes: Int = 0,
+    val hesitationMs: Int? = null, val hesitationN: Int = 0,
+    val slowKeys: List<KeyMs> = emptyList(),
+    val left: HandNotes = HandNotes(), val right: HandNotes = HandNotes(),
+    val spreadMs: Int? = null,
+    val hintSteps: List<Int> = emptyList(),
+) {
+    /** Notes that came due, both hands. */
+    val notesDue: Int get() = left.due + right.due
+
+    internal fun write(m: MutableMap<String, Any?>) {
+        m.opt("skippedNotes", skippedNotes, 0); m.opt("hes", hesitationMs); m.opt("hesN", hesitationN, 0)
+        m.opt("slow", slowKeys.map { listOf(it.midi, it.ms) }); m.opt("handL", left.wire()); m.opt("handR", right.wire())
+        m.opt("spread", spreadMs); m.opt("hintSteps", hintSteps)
+    }
+
+    internal companion object {
+        fun read(f: EventFields) = RunDetail(
+            skippedNotes = f.int("skippedNotes"), hesitationMs = f.intOrNull("hes"), hesitationN = f.int("hesN"),
+            slowKeys = f.intLists("slow").filter { it.size >= 2 }.map { KeyMs(it[0], it[1]) },
+            left = HandNotes.of(f.ints("handL")), right = HandNotes.of(f.ints("handR")),
+            spreadMs = f.intOrNull("spread"), hintSteps = f.ints("hintSteps").takeIf { it.size == 3 }.orEmpty(),
+        )
+    }
+}
+
 /** Puts [v] unless it is [default], null, or an empty list or map: the log leaves defaults out. */
 private fun MutableMap<String, Any?>.opt(k: String, v: Any?, default: Any? = null) {
     if (v == null || v == default || (v is Collection<*> && v.isEmpty()) || (v is Map<*, *> && v.isEmpty())) return
@@ -289,12 +352,13 @@ private fun MutableMap<String, Any?>.opt(k: String, v: Any?, default: Any? = nul
 }
 
 /** Typed reads of a decoded line, each with the default the writer left out. */
-private class Fields(private val m: Map<*, *>) {
+internal class EventFields(private val m: Map<*, *>) {
     fun str(k: String): String? = m[k] as? String
     fun intOrNull(k: String): Int? = (m[k] as? Number)?.toInt()
     fun int(k: String, default: Int = 0): Int = intOrNull(k) ?: default
     fun long(k: String): Long = (m[k] as? Number)?.toLong() ?: 0L
     fun bool(k: String, default: Boolean = false): Boolean = m[k] as? Boolean ?: default
     fun ints(k: String): List<Int> = (m[k] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
+    fun intLists(k: String): List<List<Int>> = (m[k] as? List<*>)?.mapNotNull { e -> (e as? List<*>)?.mapNotNull { (it as? Number)?.toInt() } }.orEmpty()
     fun strings(k: String): Map<String, String> = (m[k] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() }.orEmpty()
 }

@@ -76,8 +76,12 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
      * octave hints, groups let go. The player feeds it and clears it when a fresh run starts. Kept here rather than as
      * one more local in PlayerScreen: that composable is near the size where D8 allocated a null check to the wrong
      * register (a `meta?.let` tested another parameter and crashed on a lesson's player, found on the emulator).
+     * The transport feeds it the notes itself: each wait group as it comes due and its keys as they are heard (the
+     * hesitation and each hand's clean notes), each Perform group played in time or missed.
      */
     val tally = com.bigpapituna.sharpears.engine.brief.RunTally()
+    /** The group the tally is timing (wait mode), so it is registered once. */
+    private var dueGroup = -1
 
     /** The run so far, for feedback. */
     fun report() = log.report(score?.recap())
@@ -227,7 +231,7 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         if (mode == Mode.WAIT) {
             val g = song.groups.getOrNull(groupIndex)
             if (waiting && g != null) troubles.waited.merge(g.startMs, dtMs, Double::plus)
-            if (g != null && g.startMs <= end) { end = g.startMs.toDouble(); waiting = true }
+            if (g != null && g.startMs <= end) { end = g.startMs.toDouble(); waiting = true; due(groupIndex, runRealMs) }
         }
         val events = mutableListOf<NoteEvent>()
         // Release first, so a note that ends exactly where the next one on the same key starts re-triggers cleanly.
@@ -271,6 +275,9 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
             troubles.wrongAt += g.startMs.toDouble()
             return InputResult.WRONG
         }
+        // The brief's tally times the wait from the group coming due (a key struck just before it waited for nothing).
+        due(groupIndex, runRealMs + ((g.startMs - positionMs) / speed).coerceAtLeast(0.0))
+        tally.heard(midi, runRealMs - latencyMs)
         // A chord needs every note (less the mic's slack); one key of an any-of group is enough.
         if (!g.anyOf) {
             satisfied += midi
@@ -280,13 +287,28 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         satisfied.clear()
         waiting = false
         log.groupDone()
+        tally.groupDone()
         groupIndex = nextRequiredGroup(groupIndex + 1)
         return InputResult.GROUP_DONE
     }
 
+    /** The group at [index] came due at [atMs] (the run's real time): the tally starts timing its notes, once per group. */
+    private fun due(index: Int, atMs: Double) {
+        if (dueGroup == index) return
+        dueGroup = index
+        val g = song.groups.getOrNull(index) ?: return
+        tally.due(g.notes.filter(::required), g.anyOf, atMs)
+    }
+
+    /** The group starting at [startMs] (a Perform target), for the tally's hands. */
+    private fun groupAt(startMs: Long): OnsetGroup? =
+        song.groups.getOrNull(firstGroupAtOrAfter(song.groups, startMs.toDouble()))?.takeIf { it.startMs == startMs }
+
     private fun resetGroups() {
         log.reset()
         troubles.reset()
+        dueGroup = -1
+        tally.dropDue()
         runRealMs = 0.0
         satisfied.clear()
         waiting = false
@@ -296,7 +318,10 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
         anchorMs = song.groups.getOrNull(firstGroupAtOrAfter(song.groups, from))?.startMs?.toDouble() ?: from
         fresh = true
         scoreFromMs = from
-        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, from) { troubles.missedAt += it } else null
+        score = if (mode == Mode.PERFORM) PerformScore(song.groups, ::required, from,
+            onHit = { start, off -> groupAt(start)?.let { g -> tally.performHit(g.notes.filter(::required), g.anyOf, off) } },
+            onMiss = { start -> troubles.missedAt += start; groupAt(start)?.let { g -> tally.performMiss(g.notes.filter(::required), g.anyOf) } },
+        ) else null
         groupIndex = nextRequiredGroup(firstGroupAtOrAfter(song.groups, from))
     }
 

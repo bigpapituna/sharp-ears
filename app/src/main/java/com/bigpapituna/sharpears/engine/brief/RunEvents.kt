@@ -67,7 +67,7 @@ class StepRecorder(val lessonId: String, val stepIndex: Int, val step: Step, pri
             stars = stars, accuracy = r?.recap?.accuracy?.takeIf { passed }, score = r?.extraScore?.takeIf { passed },
             timingMeanMs = r?.recap?.takeIf { passed && it.total > 0 }?.biasMs,
             notes = r?.let(::notes) ?: 0, wrongKeys = maxOf(reportWrong, tally.wrongKeys), nearMisses = tally.near, farMisses = tally.far,
-            letGoRounds = r?.letGoRounds ?: 0, rounds = r?.rounds ?: 0, left = !passed && !skipped,
+            letGoRounds = r?.letGoRounds ?: 0, rounds = r?.rounds ?: 0, left = !passed && !skipped, detail = tally.detail(),
         )
     }
 
@@ -90,7 +90,7 @@ object RunEvents {
         val run = BriefEvent.SongRun(
             at, songId, RunMode.valueOf(mode.name), hands(practice), recap?.accuracy, Stars.of(recap, report.wrongKeys),
             recap?.takeIf { it.total > 0 }?.biasMs, tally.near, tally.far, notes(report), maxOf(report.wrongKeys, tally.wrongKeys),
-            tally.hintsUsed, durationMs, fromTop, duet,
+            tally.hintsUsed, durationMs, fromTop, duet, tally.detail(),
         )
         return listOf(run) + tally.wrongKeyEvents(at, songId = songId) + listOfNotNull(tally.octaveEvent(at, songId = songId))
     }
