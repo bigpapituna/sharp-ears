@@ -145,6 +145,8 @@ import kotlinx.coroutines.withContext
 const val TAG = "SharpEars"
 /** The instance state's key for the open screen (see routeOf). */
 private const val ROUTE = "screen"
+/** The instance state's flag for "Who's playing today?" still waiting for an answer. */
+private const val PICKER = "picker"
 
 /**
  * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
@@ -298,11 +300,12 @@ class MainActivity : ComponentActivity() {
                 if (openId != null && (openId != id || openKind != kind || openReader != reader)) openApp(fromLaunch = false)
             }
         }
-        // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us.
+        // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us;
+        // a recreate while it still asked (the process stopped in the background) asks again rather than open as the last player.
         val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
         // The world's jingles and the note tick (one SoundPool for the app; Settings > Sound switches them with the rest).
         WorldSounds.init(this)
-        if (profiles.roster.needsPicker && savedInstanceState == null && !debugRoute && debugProfile == null) showPicker()
+        if (profiles.roster.needsPicker && (savedInstanceState == null || savedInstanceState.getBoolean(PICKER)) && !debugRoute && debugProfile == null) showPicker()
         else openApp(fromLaunch = true)
     }
 
@@ -1139,6 +1142,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         shownRoute?.let { outState.putString(ROUTE, it) }
+        if (openId == null) outState.putBoolean(PICKER, true)
     }
 
     /**
