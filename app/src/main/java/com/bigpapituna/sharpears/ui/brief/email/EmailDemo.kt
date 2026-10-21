@@ -43,7 +43,7 @@ fun EmailDemo(intent: Intent, fallback: Profile, onExit: () -> Unit) {
         val kids = Profiles(context).all.filter { it.isKid }
         kids.firstOrNull { it.id == intent.getStringExtra("child") } ?: kids.firstOrNull() ?: fallback
     }
-    remember(child.id) { seed(context, child.id, intent.getStringExtra("seed")) }
+    remember(child.id) { seed(context, child.id, intent.getStringExtra("seed")); child.id }      // seeded once, before the page reads it
     val gate = remember { ParentGateController(null).also { it.passed() } }
     var preview by remember { mutableStateOf(intent.getStringExtra("view") == "preview") }
     SharpEarsTheme(dark) {

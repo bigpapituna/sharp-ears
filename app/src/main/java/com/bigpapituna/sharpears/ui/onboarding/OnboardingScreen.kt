@@ -213,8 +213,15 @@ private fun WelcomeStep() {
     Text("Lessons that start from the very first key, songs that fall onto the keyboard, chords, ear training and theory. " +
         "It listens as you play and tells you how it went.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     // True on every build: one with an AI key sends the parent brief's numbers (never a name or a sound), and says so.
-    Text(if (com.bigpapituna.sharpears.data.BriefAi.hasKey) "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. " +
-        "Settings, Family turns that off." else "Everything stays on this phone. Nothing is sent anywhere.",
+    val ai = com.bigpapituna.sharpears.data.BriefAi.hasKey
+    val email = com.bigpapituna.sharpears.data.BriefEmail.hasKey
+    Text(when {
+        ai && email -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it, and the brief by email if a grown-up turns it on. " +
+            "Settings, Family turns those off."
+        ai -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. Settings, Family turns that off."
+        email -> "Everything stays on this phone, except the brief by email, if a grown-up turns it on. Settings, Family turns that off."
+        else -> "Everything stays on this phone. Nothing is sent anywhere."
+    },
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

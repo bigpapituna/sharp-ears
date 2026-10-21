@@ -299,6 +299,8 @@ class EmailHtmlTest {
         assertTrue(html.contains("<link href=\"https://fonts.googleapis.com/css2?family=Nunito"))
         assertTrue("Nunito first, then web-safe", html.contains("font-family:Nunito,'Trebuchet MS',Arial,Helvetica,sans-serif"))
         assertTrue(html.contains("<html lang=\"en\">"))
+        val light = EmailHtml.withoutDarkMode(html)
+        assertFalse(light.contains("prefers-color-scheme:dark")); assertTrue(light.contains("@media not all{"))
     }
 
     @Test fun overRandomFindingsTheEmailKeepsTheRules() {

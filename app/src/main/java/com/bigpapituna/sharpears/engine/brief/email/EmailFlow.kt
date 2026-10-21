@@ -48,7 +48,7 @@ object EmailFlow {
     /** "in 7 minutes", "in a minute": the wait to show beside a button that is not open yet. */
     fun waitWords(ms: Long): String {
         val minutes = ((ms + 59_999) / 60_000).toInt().coerceAtLeast(1)
-        return if (minutes == 1) "in a minute" else "in $minutes minutes"
+        return if (minutes == 1) "in a minute" else "in " + EmailWords.count(minutes, "minute")
     }
 
     /** What typing the six digits said: the three tries, in kind words. */

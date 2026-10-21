@@ -31,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
@@ -88,7 +89,9 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
     val context = LocalContext.current.applicationContext
     var weekly by rememberSaveable { mutableStateOf(!startDay) }
     val c = MaterialTheme.colorScheme
-    val html by produceState<String?>(null, child.id, weekly) {
+    // The WebView follows the app's theme: the preview is dark when the app is, light otherwise.
+    val dark = c.background.luminance() < 0.5f
+    val html by produceState<String?>(null, child.id, weekly, dark) {
         value = null
         value = withContext(Dispatchers.IO) {
             runCatching {
@@ -99,7 +102,7 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
                 val saved = EmailSettings.of(context, child.id).load()
                 val frequency = if (saved.chosen) saved.frequency else EmailFrequency.WEEKLY
                 val email = BriefEmail.preview(context, child, findings, brief, BriefStore(context, child.id).weeklyOrDefault(child.isKid), frequency)
-                BriefEmail.previewHtml(context, email)
+                BriefEmail.previewHtml(context, email, dark)
             }.getOrNull()
         }
     }

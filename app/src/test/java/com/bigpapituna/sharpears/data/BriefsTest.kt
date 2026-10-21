@@ -39,6 +39,20 @@ class BriefsTest {
         assertEquals("brief: p1 {\"t\":1000,\"e\":\"quest\",\"task\":\"COPY_PUP\"}", lines.first())
     }
 
+    @Test fun theEmailJobIsToldWhenASessionEndsAndNeverBreaksIt() {
+        val told = ArrayList<String>()
+        Briefs.onSessionEnd = { told += it }
+        Briefs.currentId = "p1"
+        Briefs.sessionEnd()                                        // nothing open: nobody is told
+        Briefs.sessionStart("p1")
+        Briefs.sessionStart("p2")                                  // someone else takes over: p1's ends
+        Briefs.sessionEnd()
+        assertEquals(listOf("p1", "p2"), told)
+        Briefs.onSessionEnd = { error("a broken hook") }
+        Briefs.sessionStart("p1"); Briefs.sessionEnd()             // logged all the same
+        assertTrue(lines.any { it.contains("session end hook failed") })
+    }
+
     @Test fun aSessionCarriesItsPracticeAndEndsWhenSomeoneElseTakesOver() {
         Briefs.currentId = "p1"
         Briefs.sessionStart("p1")

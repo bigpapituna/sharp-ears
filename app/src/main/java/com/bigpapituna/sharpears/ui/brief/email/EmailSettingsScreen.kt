@@ -246,7 +246,7 @@ fun EmailSettingsScreen(child: Profile, onBack: () -> Unit, onPreview: () -> Uni
             busy?.let { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Text(it, style = MaterialTheme.typography.bodyMedium)
             } }
-            message?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+            message?.takeIf { !(stage == EmailFlow.Stage.FIRST_WAITING && it == EmailFlow.heldWords(prefs)) }?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             if (message == null && stage != EmailFlow.Stage.FIRST_WAITING) EmailFlow.heldWords(prefs)?.takeIf { stage == EmailFlow.Stage.VERIFIED }?.let { Note(it) }
 
             if (prefs.address != null) {

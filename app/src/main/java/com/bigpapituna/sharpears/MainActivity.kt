@@ -1318,10 +1318,7 @@ class MainActivity : ComponentActivity() {
     /** The weekly notification's extras ([BriefReminder.EXTRA_PROFILE], [BriefReminder.EXTRA_PERIOD]), or null. */
     private fun briefFrom(intent: android.content.Intent?): Pair<String, com.bigpapituna.sharpears.engine.brief.Period>? {
         // The email brief's buttons: sharpears://brief/<profile id>/<day or week> (any build; the brief asks the parent gate itself).
-        intent?.data?.takeIf { it.scheme == "sharpears" && it.host == "brief" }?.let { u ->
-            val id = u.pathSegments.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
-            return briefOf(id + "|" + (u.pathSegments.getOrNull(1)?.uppercase() ?: "WEEK"))
-        }
+        if (intent?.data?.scheme == "sharpears") return com.bigpapituna.sharpears.engine.brief.email.EmailLinks.parse(intent.dataString)?.let { it.profileId to it.period }
         val id = intent?.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PROFILE) ?: return null
         val period = intent.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PERIOD)
         return briefOf("$id|${period ?: "WEEK"}")

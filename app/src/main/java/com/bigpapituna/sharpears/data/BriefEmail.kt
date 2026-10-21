@@ -146,5 +146,6 @@ object BriefEmail {
     }
 
     /** The preview's HTML: pictures inside it, nothing loaded from the network. */
-    fun previewHtml(context: Context, email: EmailBrief): String = EmailHtml.render(email, htmlOptions(context, inlineImages(context)))
+    fun previewHtml(context: Context, email: EmailBrief, dark: Boolean): String =
+        EmailHtml.render(email, htmlOptions(context, inlineImages(context))).let { if (dark) it else EmailHtml.withoutDarkMode(it) }
 }

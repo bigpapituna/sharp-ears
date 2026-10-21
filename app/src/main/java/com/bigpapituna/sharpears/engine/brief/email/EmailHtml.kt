@@ -41,6 +41,11 @@ object EmailHtml {
 
     fun render(e: EmailBrief, options: EmailHtmlOptions = EmailHtmlOptions()): String = Page(e, options).html()
 
+    /** [html] that never goes dark: for a preview that must show the light design whatever the viewer's theme says. */
+    fun withoutDarkMode(html: String): String = html.replace(DARK_QUERY, "@media not all")
+
+    private const val DARK_QUERY = "@media (prefers-color-scheme:dark)"
+
     // ---- palette (the mockup's, with the button and stamp text a shade deeper for contrast on white) ----
     private const val PAGE = "#F3E9D8"
     private const val CARD = "#FFF8EC"
@@ -126,7 +131,7 @@ object EmailHtml {
             out.append("<style>")
             out.append("details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}")
             out.append("details>summary:after{content:\"+\";float:right;font-size:22px;line-height:1;color:$ACCENT}details[open]>summary:after{content:\"\\2212\"}")
-            out.append("@media (prefers-color-scheme:dark){")
+            out.append("$DARK_QUERY{")
             out.append(".bg-page{background:#1E1913!important}.bg-card{background:#2B241B!important}.bg-gold{background:#3B2F14!important}")
             out.append(".bg-panel{background:#352C21!important}.bg-bubble{background:#4A3A1F!important}.bg-pale{background:#4A3E2F!important}")
             out.append(".bg-hilite{background:#43361F!important}.ink,.ink *{color:#F3E9D8!important}.dim{color:#C4B397!important}")
@@ -224,7 +229,7 @@ object EmailHtml {
         private fun paws(c: Postcard) {
             if (c.paws.isEmpty()) return
             val on = c.paws.filter { it.practised }.map { it.day }
-            val said = if (on.isEmpty()) "No practice on any of the last ${c.paws.size} days" else "Played on " + EmailSections.joinAnd(on)
+            val said = if (on.isEmpty()) "No practice on any of the last " + EmailWords.count(c.paws.size, "day") else "Played on " + EmailSections.joinAnd(on)
             out.append("<table role=\"img\" aria-label=\"").append(esc(said)).append("\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:12px 0 2px\"><tr>")
             for (d in c.paws) {
                 out.append("<td align=\"center\" valign=\"top\" width=\"14%\"><table role=\"presentation\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>")
