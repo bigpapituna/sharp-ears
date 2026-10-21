@@ -31,6 +31,11 @@ android {
         buildConfigField("String", "AI_KEY", "\"${secret("AI_KEY")}\"")
         buildConfigField("String", "AI_MODEL", "\"${secret("AI_MODEL", "anthropic/claude-haiku-5.5")}\"")
         buildConfigField("String", "AI_BASE_URL", "\"${secret("AI_BASE_URL", "https://openrouter.ai/api/v1")}\"")
+        // The parent brief by email (Brevo): the key and the verified sender, from the same secrets.properties.
+        buildConfigField("String", "EMAIL_KEY", "\"${secret("EMAIL_KEY")}\"")
+        buildConfigField("String", "EMAIL_FROM", "\"${secret("EMAIL_FROM")}\"")
+        buildConfigField("String", "EMAIL_FROM_NAME", "\"${secret("EMAIL_FROM_NAME", "The pup at Sharp Ears")}\"")
+        buildConfigField("String", "EMAIL_BASE_URL", "\"${secret("EMAIL_BASE_URL", "https://api.brevo.com/v3")}\"")
     }
 
     buildTypes {
