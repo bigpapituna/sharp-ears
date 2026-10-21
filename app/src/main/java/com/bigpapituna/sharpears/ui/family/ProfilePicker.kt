@@ -129,7 +129,9 @@ private fun AddCircle(size: androidx.compose.ui.unit.Dp) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit) {
+fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
+                   /** A kid's weekly brief: asked at the end ("When should we send you Mia's weekly brief?"); the caller stores it once the profile exists. Null: not asked. */
+                   onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null) {
     BackHandler(onBack = onCancel)
     val still = reducedMotion()
     var name by rememberSaveable { mutableStateOf("") }
@@ -142,10 +144,21 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit) {
     // nobody was asked). Allowed or not, the profile is made.
     val context = androidx.compose.ui.platform.LocalContext.current
     var made by remember { mutableStateOf<Profile?>(null) }
+    var weeklyFor by remember { mutableStateOf<Profile?>(null) }
     val askMic = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { allowed ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "profiles: microphone for a new kid ${if (allowed) "allowed" else "not allowed"}")
         made?.let(onDone)
+    }
+    fun go(p: Profile) {
+        if (p.isKid && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            made = p; askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+        } else onDone(p)
+    }
+    // The last question for a kid: when the grown-up wants their weekly brief (parent brief, ui/brief/WeeklyTime.kt).
+    weeklyFor?.let { p ->
+        com.bigpapituna.sharpears.ui.brief.WeeklyTimeStep(p.name, onChosen = { slot -> onWeekly?.invoke(slot); weeklyFor = null; go(p) })
+        return
     }
     val clean = Profile.cleanName(name)
     val ready = clean.isNotEmpty() && kind != null && (kind == ProfileKind.ADULT || reader != null)
@@ -206,9 +219,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit) {
         ChunkyButton(onClick = {
             val k = kind ?: return@ChunkyButton
             val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true) else Profile.adult(clean, avatar)
-            if (k == ProfileKind.KID && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                made = p; askMic.launch(android.Manifest.permission.RECORD_AUDIO)
-            } else onDone(p)
+            if (k == ProfileKind.KID && onWeekly != null) weeklyFor = p else go(p)
         }, enabled = ready, modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
             Text("Go")
         }

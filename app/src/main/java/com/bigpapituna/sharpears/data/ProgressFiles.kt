@@ -23,7 +23,7 @@ import com.bigpapituna.sharpears.engine.family.Roster
  * profile deletes its log (Profiles.delete). [LOGS] names them for the coverage test.
  */
 object ProgressFiles {
-    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin", "kid")
+    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin", "kid", "brief")
 
     /** Per-profile data kept as files under the app's files folder rather than preferences: backed up and deleted too. */
     val LOGS = listOf(EventLog.DIR)

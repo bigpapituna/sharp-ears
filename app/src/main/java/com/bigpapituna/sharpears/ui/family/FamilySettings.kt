@@ -59,6 +59,9 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     var renaming by remember { mutableStateOf<Profile?>(null) }
     var deleting by remember { mutableStateOf<Pair<Profile, Int>?>(null) }      // the profile and which ask (1, then 2)
     var adding by rememberSaveable { mutableStateOf(false) }
+    var briefFor by rememberSaveable { mutableStateOf<String?>(null) }       // the parent brief, opened on this child
+    var newSlot by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }   // chosen at the end of the new-kid flow
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
 
     Text("Everyone who plays on this phone. Each has their own progress, goal and stickers; the microphone setup is shared.",
@@ -76,6 +79,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             Text(if (expanded) "Hide" else "Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
         if (expanded) FlowRow(Modifier.padding(start = 50.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (p.isKid) TextButton(onClick = { gate.guard { briefFor = p.id } }) { Text("Read the brief") }
             TextButton(onClick = { gate.guard { renaming = p } }) { Text("Rename") }
             if (p.isKid) {
                 TextButton(onClick = { gate.guard { profiles.update(p.id) { it.copy(reader = !it.reader) } } }) {
@@ -124,7 +128,19 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     if (adding) Dialog(onDismissRequest = { adding = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         com.bigpapituna.sharpears.ui.DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            NewProfileFlow(onDone = { profiles.create(it, switch = false); adding = false }, onCancel = { adding = false })
+            NewProfileFlow(onDone = { made ->
+                profiles.create(made, switch = false)?.takeIf { it.isKid }?.let { kid ->
+                    // The weekly brief: the day and time chosen at the end of the flow (Sunday at 6 pm unless changed).
+                    com.bigpapituna.sharpears.data.BriefStore(appContext, kid.id).weekly = newSlot ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
+                    com.bigpapituna.sharpears.reminder.BriefReminder.schedule(appContext, kid)
+                }
+                newSlot = null; adding = false
+            }, onCancel = { adding = false }, onWeekly = { newSlot = it })
         }
+    }
+    // The parent brief (ui/brief): one child at a time, behind the gate (the dialog asks again if it has closed).
+    briefFor?.let { id ->
+        val env = com.bigpapituna.sharpears.ui.brief.rememberBriefEnv()
+        com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(env, roster.profiles.filter { it.isKid }, onClose = { briefFor = null }, initial = id)
     }
 }
