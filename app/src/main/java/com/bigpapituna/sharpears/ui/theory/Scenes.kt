@@ -67,12 +67,13 @@ import kotlin.math.sin
 internal fun SceneCanvas(visual: Visual, time: () -> Int, modifier: Modifier = Modifier, description: String = "") {
     val ink = rememberStageInk()
     val hands = com.bigpapituna.sharpears.ui.motion.rememberHandFrames()
+    val kid = com.bigpapituna.sharpears.ui.family.profile().isKid
     Canvas(modifier.semantics { if (description.isNotEmpty()) contentDescription = description }) {
         val t = time()
         when (visual) {
             is KeysVisual -> keysScene(visual, t, ink)
             is StaffVisual -> staffScene(visual, t, ink)
-            is RhythmVisual -> rhythmScene(visual, t, ink)
+            is RhythmVisual -> rhythmScene(visual, t, ink, kid)
             is IntervalVisual -> intervalScene(visual, t, ink)
             is CircleVisual -> circleScene(visual, t, ink)
             is ChordVisual -> chordScene(visual, t, ink)
@@ -347,11 +348,13 @@ internal fun DrawScope.drawChordNote(nt: StaffNote, x: Float, st: Stave, s: Floa
 
 // ---- Rhythm ------------------------------------------------------------------------------------------------------
 
-private fun DrawScope.rhythmScene(v: RhythmVisual, t: Int, ink: StageInk) {
+private fun DrawScope.rhythmScene(v: RhythmVisual, t: Int, ink: StageInk, kid: Boolean = false) {
     val pad = 16.dp.toPx()
     val appear = smooth(progress(t, 0, v.leadMs))
     val cursor = v.cursor(t)
-    // Time signature, big, top left; the tempo on the right.
+    // Time signature, big, top left; the tempo on the right. Not for a kid: "4 over 4" and "80 bpm" on the garden's
+    // drum explain nothing their lessons say (the beat dots and boxes do the counting).
+    if (!kid) {
     val tsX = pad + 18.dp.toPx()
     text(ink, "${v.top}", Offset(tsX, size.height * 0.10f), TextKind.TITLE, 34.sp, ink.ink, alpha = appear)
     text(ink, "${v.bottom}", Offset(tsX, size.height * 0.10f + 34.dp.toPx()), TextKind.TITLE, 34.sp, ink.ink, alpha = appear)
@@ -362,6 +365,7 @@ private fun DrawScope.rhythmScene(v: RhythmVisual, t: Int, ink: StageInk) {
     val bpmText = "${v.bpm} bpm"
     val bw = textWidth(ink, bpmText, TextKind.NUMBER, 14.sp)
     text(ink, bpmText, Offset(size.width - pad - bw / 2, size.height * 0.10f + (if (v.term != null) 28 else 0).dp.toPx()), TextKind.NUMBER, 14.sp, ink.dim, alpha = appear)
+    }
     // The beat dots: one per beat, filling as the cursor reaches them.
     val x0 = pad; val x1 = size.width - pad
     val beatW = (x1 - x0) / v.beats
