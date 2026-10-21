@@ -1,7 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// The AI brief's key and model (docs/PARENT-BRIEF-PLAN.md, "Option B"): read at build time from secrets.properties
+// next to this project, which is gitignored and never printed. Without the file the app has no key and the brief is
+// written by the built-in templates. Rotate the key at OpenRouter when the private beta ends.
+val secrets = Properties().apply {
+    val f = rootProject.file("secrets.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun secret(name: String, default: String = "") = (secrets.getProperty(name) ?: default).replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     namespace = "com.bigpapituna.sharpears"
@@ -17,6 +28,9 @@ android {
         // The Fold's ABI only: the x86_64 emulators run arm64 apps through their ARM translation (the speech library loads
         // only with the Kokoro model installed, which the emulators never have). x86_64 cost 26 MB of every install.
         ndk { abiFilters += listOf("arm64-v8a") }
+        buildConfigField("String", "AI_KEY", "\"${secret("AI_KEY")}\"")
+        buildConfigField("String", "AI_MODEL", "\"${secret("AI_MODEL", "anthropic/claude-haiku-5.5")}\"")
+        buildConfigField("String", "AI_BASE_URL", "\"${secret("AI_BASE_URL", "https://openrouter.ai/api/v1")}\"")
     }
 
     buildTypes {
@@ -28,7 +42,7 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
