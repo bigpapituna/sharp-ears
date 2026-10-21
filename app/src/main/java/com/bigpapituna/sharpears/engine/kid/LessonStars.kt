@@ -13,6 +13,16 @@ object LessonStars {
     const val LET_GO = 1
 
     /**
+     * A graded step skipped with Next (never played): one star, as a step let go. Before, a skipped step simply did not
+     * count, so a kid who tapped Next through every game (a concert too) got three stars for "nothing to grade".
+     */
+    const val SKIPPED = 1
+
+    /** What skipping [step] adds to the lesson's steps: [SKIPPED] for a graded step, null for a picture or a listen. */
+    fun ofSkip(step: com.bigpapituna.sharpears.engine.Step): Int? =
+        SKIPPED.takeIf { step.exercise != null && step.kind != com.bigpapituna.sharpears.engine.StepKind.LISTEN }
+
+    /**
      * Stars for one exercise step's passing run: a Perform run by its accuracy and timing ([Stars.perform]); a run
      * with its own score (the drum's beats with a clap, a pedal or loudness step) by that score on the same lines as
      * Perform accuracy; a run where the notes wait by its wrong keys ([Stars.waitRun]).

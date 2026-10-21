@@ -363,7 +363,11 @@ fun LessonScreen(
                 scenes != null && !scenes.last -> ChunkyButton(onClick = { scenes.go(scenes.index + 1) }) { Text("Next") }
                 last && step.exercise == null -> ChunkyButton(onClick = { complete() }) { Text("Finish") }
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
-                else -> ChunkyButton(onClick = { go(index + 1); run++ }) { Text("Next") }
+                else -> ChunkyButton(onClick = {
+                    // A graded step skipped counts as one star, so Next through every game is not three stars.
+                    if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it }
+                    go(index + 1); run++
+                }) { Text("Next") }
             }
         }
     }
