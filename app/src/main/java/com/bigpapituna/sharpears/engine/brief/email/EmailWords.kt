@@ -133,6 +133,9 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
     /** Where an action is in the app: "Grown-ups corner > Family > Mia, then Set as next". */
     fun where(action: String): String = "Grown-ups corner > Family > $name, then $action"
 
+    /** [whyFor] for one of the brief's recommendations. */
+    fun whyFor(recommendation: Brief.Recommendation, f: Findings): String = whyFor(recommendation.candidate, f)
+
     /**
      * Why a suggestion helps, in one sentence: the reason of the flag it answers (CONTRACT.md's "why it is normal" turned
      * toward the action), or, for one that answers no flag, the action's own reason.
