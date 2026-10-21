@@ -29,6 +29,8 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private val queue = SpeechQueue()
     private var tts: TextToSpeech? = null
     private var ready = false
+    /** The platform engine did not start (none installed, or disabled): its lines are dropped instead of waiting forever. */
+    private var failed = false
     private val beforeReady = mutableListOf<Pair<String, Boolean>>()
     private val inFlight = mutableSetOf<String>()
     private var nextId = 0
@@ -129,6 +131,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
             return
         }
         if (flush) natural.stop()
+        if (failed) { Log.d(TAG, "voice: no speech engine, dropped: $text"); return }
         val t = engine()
         // Until the engine is up, the line waits; [speaking] is already true so no screen starts the mic meanwhile.
         if (!ready) { if (flush) beforeReady.clear(); beforeReady += text to flush; speaking.value = true; return }
@@ -194,7 +197,14 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private fun engine(): TextToSpeech = tts ?: TextToSpeech(context.applicationContext, { status ->
         main.post {
             val t = tts ?: return@post
-            if (status != TextToSpeech.SUCCESS) { Log.d(TAG, "voice: engine failed to start ($status)"); return@post }
+            if (status != TextToSpeech.SUCCESS) {
+                // The lines waiting for it never come: [speaking] would stay true and hold the mic for good.
+                Log.d(TAG, "voice: engine failed to start ($status), ${beforeReady.size} waiting line(s) dropped")
+                failed = true
+                beforeReady.clear()
+                settle(inFlight.isNotEmpty() || natural.busy)
+                return@post
+            }
             val lang = t.setLanguage(Locale.US).let { if (it < 0) t.setLanguage(Locale.getDefault()) else it }
             // The saved voice if it still exists; otherwise Roy's pick (US voice 6 in the list), otherwise the first
             // offline English voice (always a real, named voice, so the picker can show which one is in use).

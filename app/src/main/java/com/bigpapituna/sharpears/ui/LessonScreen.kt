@@ -140,7 +140,7 @@ fun LessonScreen(
     var bar by remember { mutableStateOf<Triple<Cheer, String, String?>?>(null) }
     var retries by remember { mutableIntStateOf(0) }
     var cheers by remember { mutableIntStateOf(lesson.id.hashCode()) }
-    val openedAt = remember { System.currentTimeMillis() }
+    val openedAt = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }   // on-screen time: never negative
     // XP: each step passed is reported here, the lesson itself by onDone (MainActivity); the celebration shows the sum.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtOpen = remember { progress?.xp ?: 0 }
@@ -197,7 +197,7 @@ fun LessonScreen(
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.LessonStepPassed)
         if (last) {
             finished = true
-            tookSecs = (System.currentTimeMillis() - openedAt) / 1000
+            tookSecs = (com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - openedAt) / 1000
             lessonStars = com.bigpapituna.sharpears.engine.kid.LessonStars.ofLesson(stepStars.toList())
             reward = onDone(lessonStars)
             xpAtEnd = progress?.xp ?: 0

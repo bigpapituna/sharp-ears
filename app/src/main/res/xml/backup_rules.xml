@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Android 9 to 11 backup. Progress backs up as before; the report token (data/Reporter.kt) and the saved practice
-    clips (files/stalls, up to 250 MB of the family's audio, over the 25 MB backup limit) never leave the phone.
-    Android 12 and up read data_extraction_rules.xml; keep the two the same.
+    Android 9 to 11 backup, the same as data_extraction_rules.xml's cloud backup. Settings and progress back up; the
+    report token (data/Reporter.kt), the practice recordings (files/fixtures) and stuck-moment clips (files/stalls, up
+    to 250 MB of the family's audio) never leave the phone, and the Kokoro model (over 100 MB, installed by script)
+    stays out: any of them alone is over the 25 MB backup limit, which stops the whole backup.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="reports.xml" />
+    <exclude domain="external" path="fixtures" />
     <exclude domain="external" path="stalls" />
+    <exclude domain="file" path="kokoro" />
 </full-backup-content>

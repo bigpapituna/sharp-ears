@@ -92,6 +92,7 @@ import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
+import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -525,7 +526,8 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
     val injected = remember { mutableStateOf(false) }
     // Waits for the voice once (the step's instruction), then stays on while the stage is active.
     var began by remember { mutableStateOf(false) }
-    val can = active && (inject != null || mic.hasPermission())
+    // Only with the app on screen: Home or the lock button mid-stage stops the mic, coming back starts it again.
+    val can = active && onScreen() && (inject != null || mic.hasPermission())
     val holds = voice.holdsMic
     LaunchedEffect(can, holds) { if (can && !holds) began = true }
     val listen = can && began
@@ -588,7 +590,7 @@ internal fun rememberStageEar(mic: MicInput, voice: Voice, active: Boolean, inje
 internal fun rememberListening(mic: MicInput, voice: Voice, active: Boolean, inject: String?, raw: ((FloatArray, Int) -> Unit)? = null): Boolean {
     val context = LocalContext.current
     val injected = remember { mutableStateOf(false) }
-    val listen = active && !voice.holdsMic && (inject != null || mic.hasPermission())
+    val listen = active && onScreen() && !voice.holdsMic && (inject != null || mic.hasPermission())
     DisposableEffect(listen) {
         if (!listen) return@DisposableEffect onDispose {}
         val removeRaw = raw?.let { r -> mic.rawFrames.add { chunk -> r(chunk, chunk.size) } }
@@ -643,21 +645,26 @@ internal fun DrawScope.piano(g: PianoGeometry, fill: (Int) -> Color? = { null },
     drawRect(KeyGap, Offset(0f, g.top), Size(g.width, g.height))
     val gap = 1.5f
     val wr = CornerRadius(g.ww * 0.14f)
+    // Every white key shares its top and bottom, every black key too: one gradient each per frame (stages redraw at 60 Hz;
+    // a brush per key made two dozen shaders a frame).
+    val whiteBody = Brush.verticalGradient(listOf(WhiteTop, WhiteBottom), g.top, g.top + g.height)
+    var blackBody: Brush? = null
     for (m in g.whites) {
         val r = g.rect(m)
-        drawRoundRect(Brush.verticalGradient(listOf(WhiteTop, WhiteBottom), r.top, r.bottom), Offset(r.left + gap / 2, r.top), Size(r.width - gap, r.height), wr)
+        drawRoundRect(whiteBody, Offset(r.left + gap / 2, r.top), Size(r.width - gap, r.height), wr)
         fill(m)?.let { c -> drawRoundRect(Brush.verticalGradient(listOf(c.copy(alpha = 0.35f), c.copy(alpha = 0.85f)), r.top, r.bottom),
             Offset(r.left + gap / 2, r.top), Size(r.width - gap, r.height), wr) }
         if (flash?.first == m && flash.second > 0f) drawRoundRect(Color.White.copy(alpha = 0.55f * flash.second), Offset(r.left + gap / 2, r.top), Size(r.width - gap, r.height), wr)
     }
     drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent), g.top, g.top + g.height * 0.08f), Offset(0f, g.top), Size(g.width, g.height * 0.08f))
-    for (m in (g.low..g.high).filter(::isBlack)) {
+    for (m in g.low..g.high) {
+        if (!isBlack(m)) continue
         val r = g.rect(m)
         val br = CornerRadius(g.bw * 0.18f)
         drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(r.left + g.bw * 0.12f, r.top), Size(r.width, r.height + 2f), br)
         // A lit black key stays a solid, darker shade of its colour (see-through, it would look white).
         val c = fill(m)?.let { lerp(BlackBottom, it.copy(alpha = 1f), 0.2f + 0.4f * it.alpha) }
-        val brush = if (c == null) Brush.verticalGradient(listOf(BlackTop, BlackBottom), r.top, r.bottom)
+        val brush = if (c == null) blackBody ?: Brush.verticalGradient(listOf(BlackTop, BlackBottom), r.top, r.bottom).also { blackBody = it }
             else Brush.verticalGradient(listOf(lerp(BlackBottom, c, 0.6f), c), r.top, r.bottom)
         drawRoundRect(brush, Offset(r.left, r.top), Size(r.width, r.height), br)
         drawRoundRect(Color.White.copy(alpha = if (c == null) 0.08f else 0.18f), Offset(r.left + r.width * 0.22f, r.top + r.height * 0.08f),

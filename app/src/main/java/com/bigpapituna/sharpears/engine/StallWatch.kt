@@ -75,12 +75,34 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
         val OLDEST_FIRST: Comparator<String> = compareBy({ it.substringAfter('-').substringBeforeLast('.') }, { it.endsWith(".sent") }, { it })
 
         /**
-         * [text] with each of [names] (the roster's) made "<name>", as a whole word in any case: a crash report carries
-         * the app's recent log, where the voice's lines ("Lesson done, Mia!") and saved file names name the kids.
+         * [text] with each of [names] (the roster's; two letters or more) made "<name>", as a whole word in any case and
+         * any script: a crash report carries the app's recent log, where the voice's lines ("Lesson done, Mia!") and saved
+         * share file names name the kids, and reports promise the kind (kid or adult), never the name. Longer names go
+         * first, so "Zoë Rose" is gone before "Zoë" is looked for.
          */
         fun scrubNames(text: String, names: Collection<String>): String =
-            names.filter { it.isNotBlank() }.sortedByDescending { it.length }.fold(text) { t, n ->
+            names.map { it.trim() }.filter { it.length >= 2 }.distinct().sortedByDescending { it.length }.fold(text) { t, n ->
                 t.replace(Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(n) + "(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE), "<name>")
             }
+
+        /**
+         * The names in the stalls folder to delete to bring it under [budget] bytes: whole reports (a clip, its report
+         * and its sent marker share a name), the oldest first by their names' stamps ([OLDEST_FIRST], then the time
+         * written), never the newest; inside a report its ".sent" marker goes last. By name alone, every answer-key and
+         * crash report went before the oldest stuck moment, sent or not; a lone sent marker deleted sent its report again.
+         */
+        fun overBudget(files: List<SavedFile>, budget: Long): List<String> {
+            var total = files.sumOf { it.bytes }
+            val byName = Comparator<List<SavedFile>> { x, y -> OLDEST_FIRST.compare(x.first().name, y.first().name) }
+            val reports = files.groupBy { it.name.substringBeforeLast('.') }.values
+                .map { r -> r.sortedBy { it.name.endsWith(".sent") } }
+                .sortedWith(byName.thenBy { r -> r.minOf { it.modified } })
+            val out = ArrayList<String>()
+            for (r in reports.dropLast(1)) { if (total <= budget) break; total -= r.sumOf { it.bytes }; r.mapTo(out) { it.name } }
+            return out
+        }
     }
+
+    /** A file in the stalls folder: [modified] in ms, as File.lastModified. */
+    data class SavedFile(val name: String, val bytes: Long, val modified: Long)
 }

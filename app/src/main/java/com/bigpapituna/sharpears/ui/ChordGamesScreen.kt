@@ -254,7 +254,7 @@ private fun GameScreen(
             if (inject != null) mic.startInjection(inject) else if (!mic.start()) micOn = false
             chordStart = 0L
         }
-        onDispose { mic.stop() }
+        onDispose { if (listen) mic.stop() }      // only the mic this effect started: never the next screen's
     }
     LaunchedEffect(version, listen) {
         mic.matcher.expected = if (listen) game.micNotes() else emptySet()

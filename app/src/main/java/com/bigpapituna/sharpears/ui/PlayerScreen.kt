@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -690,12 +691,15 @@ fun PlayerScreen(
     DisposableEffect(micOn, mode, visible, voiceHolds, between, replaying) {
         if (voiceHolds && micOn) Log.d(TAG, "mic: waiting for the voice")
         // Inside a lesson the mic listens only while the step runs, so the voice can speak between runs.
-        if (micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying) {
+        val listens = micOn && mode != Mode.LISTEN && visible && !voiceHolds && between && !replaying
+        val truth = micOn
+        if (listens) {
             if (start.inject != null) mic.startInjection(start.inject)
             else if (!mic.start()) { Log.d(TAG, "mic: could not start"); micOn = false }
         }
         if (micOn) midi.onTruth = mic::onMidiTruth
-        onDispose { stallEnd("left"); mic.stop(); midi.onTruth = null }
+        // Only what this effect started: a leaving player's last dispose used to stop the next screen's mic.
+        onDispose { stallEnd("left"); if (listens) mic.stop(); if (truth) midi.onTruth = null }
     }
     LaunchedEffect(version, micOn) {
         transport.chordSlack = if (micOn) 1 else 0
@@ -811,6 +815,9 @@ fun PlayerScreen(
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
+        // Frames stop while the app is off screen (Home, the screen locked): the first frame back must not play the song
+        // on by the time away (it jumped 40 s) nor count it as practice, so the step leaves out the time away.
+        var awayLast = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs()
         var wasWaiting = transport.waiting
         if (wasWaiting) { stallBegin(); hintsBegin() }   // resumed in the middle of a wait
         var listening = transport.listenFor
@@ -818,9 +825,11 @@ fun PlayerScreen(
         while (transport.playing) {
             withFrameNanos { now ->
                 val before = transport.positionMs
-                practiceMs[0] += (now - last) / 1_000_000.0
+                val away = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs().let { a -> (a - awayLast).also { awayLast = a } }
+                val step = ((now - last) / 1_000_000.0 - away).coerceAtLeast(0.0)
+                practiceMs[0] += step
                 if (practiceMs[0] >= 15_000) flushPractice()
-                val events = transport.tick((now - last) / 1_000_000.0)
+                val events = transport.tick(step)
                 if (events.isNotEmpty()) apply(events)
                 // Clicks come from the phone's speaker, so they follow the same rule as the sampler.
                 // The Perform count-in always clicks, metronome or not.
@@ -884,15 +893,18 @@ fun PlayerScreen(
     val moving = playing && !waitingNow && transport.positionMs >= 0
     val showVideo = videoOn && tutorial != null
 
+    // The bar needs the playhead to a tenth of a second (a slider pixel is a few hundred ms of a song): read per frame, the
+    // whole bar recomposed 60 times a second while a song played.
+    val barPosition by remember { derivedStateOf { kotlin.math.floor(position / 100.0) * 100.0 } }
     @Composable
-    fun Bar() = TransportBar(
-        BarState(playing, ready, maxOf(position, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
+    fun Bar() = OwnScope { TransportBar(
+        BarState(playing, ready, maxOf(barPosition, transport.runFromMs, 0.0), song.durationMs, speed, mode, practice, loopStart, loopEnd, song.sections,
             midi.connected.value, micOn, { mic.level.floatValue }, title = song.title,
             // Under the title: the composer, and the part of the song the playhead is in (medleys, progressions).
             subtitle = listOfNotNull(
                 if (transpose != 0) "${if (transpose > 0) "Up" else "Down"} ${kotlin.math.abs(transpose)} ${if (kotlin.math.abs(transpose) == 1) "semitone" else "semitones"}" else null,
                 meta?.composer?.takeIf { it.isNotEmpty() },
-                song.sections.lastOrNull { it.startMs <= position }?.name).joinToString(", "),
+                song.sections.lastOrNull { it.startMs <= barPosition }?.name).joinToString(", "),
             videoOn = if (tutorial != null) videoOn else null,
             metronome = metronomeOn,
             ramp = if (ramp != null) rampPercent else null,
@@ -902,7 +914,7 @@ fun PlayerScreen(
             backing = if (isProgression) backingOn else null,
             status = when {
                 mode != Mode.PERFORM -> ""
-                position < transport.anchorMs -> if (playing) "Get ready" else ""
+                barPosition < transport.anchorMs -> if (playing) "Get ready" else ""
                 kid -> ""                                          // no numbers for kids
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
@@ -945,7 +957,7 @@ fun PlayerScreen(
             }) else null,
         ),
         modifier = Modifier.fillMaxWidth(),
-    )
+    ) }
     if (flagging) FlagDialog(onDismiss = { flagging = false }) { what, note ->
         flagging = false
         val name = "flag-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
@@ -1093,8 +1105,9 @@ fun PlayerScreen(
         }
     }
 
-    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks.
-    LaunchedEffect(laneBox, position, playing) {
+    // Debug: once the frozen screen settles, log each visible note's rectangle in window pixels for adb checks. Only with
+    // --ez dump: keyed on the position, it made the whole player recompose (and relaunch this effect) on every frame.
+    if (debugDump) LaunchedEffect(laneBox, position, playing) {
         val box = laneBox ?: return@LaunchedEffect
         if (playing) return@LaunchedEffect
         delay(400)
@@ -1220,6 +1233,13 @@ private fun handColor(h: Hand) = if (h == Hand.RIGHT) RightHandColor else LeftHa
 
 
 /** The lesson player's one row: play/pause, what the step asks (fixed by the step), live status, and the mic. */
+/**
+ * Runs [content] in a recompose scope of its own. A local composable function (PlayerScreen's Bar) has none, so its
+ * state reads recomposed the whole player: the playhead, read by the bar, did that on every frame.
+ */
+@Composable
+private fun OwnScope(content: @Composable () -> Unit) = content()
+
 @Composable
 private fun EmbeddedBar(state: String, playing: Boolean, ready: Boolean, micOn: Boolean, onPlayPause: () -> Unit, onMic: () -> Unit, status: String) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,

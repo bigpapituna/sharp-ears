@@ -343,11 +343,12 @@ private fun ChordTrainer(
     }
     val visible = onScreen()
     DisposableEffect(micOn, visible) {
-        if (micOn && visible) {
+        val on = micOn && visible
+        if (on) {
             if (inject != null) mic.startInjection(inject) else if (!mic.start()) micOn = false
             chordStart = 0L                                   // the matcher's sample clock restarts with the mic
         }
-        onDispose { mic.stop() }
+        onDispose { if (on) mic.stop() }          // only the mic this effect started: never the next screen's
     }
     LaunchedEffect(version, micOn, current) {
         // Listen for the chord's still-missing pitch classes, in both octaves.

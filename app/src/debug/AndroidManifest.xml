@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The debug build is the one on the phone, so its library extras stay private: Compose's PreviewActivity (ui-tooling, it
+  runs a composable named in its intent) and the test manifest's empty ComponentActivity (compose rules in androidTest)
+  came exported, so any app on the phone could start them in this app's process. The app's own tests still reach them.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity android:name="androidx.compose.ui.tooling.PreviewActivity" android:exported="false" tools:replace="android:exported" />
+        <activity android:name="androidx.activity.ComponentActivity" android:exported="false" tools:replace="android:exported" />
+    </application>
+</manifest>

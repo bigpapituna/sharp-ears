@@ -43,7 +43,9 @@ enum class HomeTab(val label: String, val icon: Int) {
 fun HomeShell(tab: HomeTab, onTab: (HomeTab) -> Unit, badge: Map<HomeTab, Int> = emptyMap(), content: @Composable (HomeTab) -> Unit) {
     val wide = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 600.dp
     val still = reducedMotion()
-    @Composable fun body(m: Modifier) = AnimatedContent(tab, m, transitionSpec = { ScreenMotion.tab(still) }, label = "tab") { t -> content(t) }
+    @Composable fun body(m: Modifier) = AnimatedContent(tab, m, transitionSpec = { ScreenMotion.tab(still) }, label = "tab") { t ->
+        androidx.compose.runtime.CompositionLocalProvider(LocalLeaving provides (LocalLeaving.current || t != tab)) { content(t) }
+    }
     // Chords shows how many lesson items are due today as a badge on its icon.
     @Composable fun icon(t: HomeTab) = BadgedBox(badge = { badge[t]?.takeIf { it > 0 }?.let { Badge(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Text("$it") } } }) {
         Icon(painterResource(t.icon), contentDescription = null)

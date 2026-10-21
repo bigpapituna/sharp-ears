@@ -37,4 +37,14 @@ class FingeringTest {
         val sameFingerNewKey = (1 until notes.size).count { f[it] == f[it - 1] && notes[it].midi != notes[it - 1].midi }
         assertEquals(0, sameFingerNewKey)
     }
+
+    @Test fun anExerciseIsFingeredOnceAndAlike() {
+        val ex = Exercise(right = "C4:1 D4:1 E4:1 F4:1 G4:1 A4:1 B4:1 C5:1", left = "C3:2 G3:2", bpm = 90.0)
+        val first = ex.withFingers()
+        org.junit.Assert.assertSame("worked out once", first, ex.copy().withFingers())
+        assertEquals("1 2 3 1 2 3 4 5", first.fingers)
+        assertTrue(first.leftFingers.isNotBlank())
+        val book = ex.copy(fingers = "1 2 3 4 5 1 2 3", leftFingers = "5 1")
+        assertEquals("book fingers stand", book, book.withFingers())
+    }
 }

@@ -1,6 +1,5 @@
 package com.bigpapituna.sharpears.ui.ear
 
-import android.os.SystemClock
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,7 +73,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
     var index by remember { mutableIntStateOf(0) }
     var upNext by remember { mutableStateOf(true) }
     val results = remember { mutableStateListOf<WorkoutGame>() }
-    val started = remember { SystemClock.elapsedRealtime() }
+    val started = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }
     var seconds by remember { mutableIntStateOf(0) }
     // Integration: XP at the start, and the celebration waits one frame for the report so it can show the XP earned.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
@@ -85,7 +84,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
         index >= plan.items.size -> {
             val total = WorkoutResult(results.toList())
             LaunchedEffect(Unit) {
-                seconds = ((SystemClock.elapsedRealtime() - started) / 1000).toInt()
+                seconds = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - started) / 1000).toInt()
                 store.recordWorkout(total.score, total.rounds)
                 env.report(EarEvent.Workout(results.size, total.score, total.rounds, total.bestStreak, seconds))
                 reported = true
@@ -136,7 +135,7 @@ private fun UpNext(plan: WorkoutPlan, index: Int, results: List<WorkoutGame>, on
                 val done = results.getOrNull(i)
                 val now = i == index
                 val lift by animateDpAsState(if (now) 10.dp else 0.dp, label = "lift")
-                Column(Modifier.weight(1f).fillMaxHeight().offset(y = -lift).clip(RoundedCornerShape(18.dp))
+                Column(Modifier.weight(1f).fillMaxHeight().offset { androidx.compose.ui.unit.IntOffset(0, -lift.roundToPx()) }.clip(RoundedCornerShape(18.dp))
                     .background(if (now) c.primaryContainer else c.surfaceContainerHigh)
                     .then(if (now) Modifier.border(2.dp, c.primary, RoundedCornerShape(18.dp)) else Modifier)
                     .graphicsLayer { alpha = if (done == null && !now) 0.7f else 1f }

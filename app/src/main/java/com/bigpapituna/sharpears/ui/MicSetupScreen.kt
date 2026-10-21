@@ -97,13 +97,15 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
     // Listen while this screen is open; the check note is middle C. MIDI, if connected, is recorded as truth.
     val visible = onScreen()
     DisposableEffect(granted, micAddress, visible) {
-        if (granted && visible) {
+        val on = granted && visible
+        if (on) {
             mic.micAddress = micAddress
             mic.matcher.expected = setOf(60); mic.matcher.group = setOf(60)
             mic.start(autoRecord = false)
             midi.onTruth = mic::onMidiTruth
         }
-        onDispose { mic.stopRecording(); mic.stop(); midi.onTruth = null; mic.matcher.expected = emptySet() }
+        // Only what this effect set up: a leaving screen's last dispose used to stop the mic check's mic and clear its notes.
+        onDispose { if (on) { mic.stopRecording(); mic.stop(); midi.onTruth = null; mic.matcher.expected = emptySet() } }
     }
     LaunchedEffect(mic) {
         mic.events.collect { e ->
