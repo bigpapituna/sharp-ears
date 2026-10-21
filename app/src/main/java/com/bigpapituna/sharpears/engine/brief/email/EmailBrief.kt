@@ -69,6 +69,8 @@ data class EmailBrief(
     val writtenBy: Brief.Writer,
     /** The full report's PDF file name ("Mia-weekly-brief-2026-10-21.pdf"), for the attachment. */
     val attachmentName: String,
+    /** The child's profile id, for the buttons' deep link (sharpears://brief/<id>/<period>); blank opens the app on the brief. */
+    val profileId: String = "",
 ) {
     /** Every piece of text in the email, in order (the rules' tests walk it; a renderer never needs it). */
     fun texts(): List<String> = buildList {
@@ -210,7 +212,7 @@ object EmailBriefs {
      * Profile.avatar, [week] the stamp's week number ([weekNumber]); [actions] what grown-ups did (default: those in the
      * findings); [frequency] and [weekly] what the grown-up chose (the footer says it); [first] the first email, which
      * carries the welcome and the verification [code]. [titles] names lessons, songs and pages; [summary] a lesson's one
-     * line (COURSE's summary), shown under its name. [attached]: the full report's PDF goes with it (the footer says so).
+     * line (COURSE's summary), shown under its name. [attached]: the full report's PDF goes with it (the footer says so). [profileId]: the child's, for the deep link.
      */
     fun build(
         findings: Findings,
@@ -228,6 +230,7 @@ object EmailBriefs {
         summary: (String) -> String? = { null },
         zone: ZoneId = ZoneId.systemDefault(),
         attached: Boolean = true,
+        profileId: String = "",
     ): EmailBrief {
         require(!first || code != null) { "the first email carries the code" }
         val period = EmailPeriod.of(findings.period)
@@ -269,6 +272,7 @@ object EmailBriefs {
             footer = Footer(w.footer(brief.writtenBy, frequency, weekly, first, extras.phoneName, attached)),
             writtenBy = brief.writtenBy,
             attachmentName = ExportLayout.fileNames(n, f.period, last).second,
+            profileId = profileId,
         )
     }
 

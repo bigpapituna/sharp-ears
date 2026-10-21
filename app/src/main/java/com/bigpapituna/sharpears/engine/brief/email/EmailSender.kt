@@ -70,7 +70,7 @@ class EmailSender(
         val bytes = try { pdf(findings, brief) } catch (e: Exception) { log("email: $what has no PDF (${e.javaClass.simpleName})"); null }
         val email = EmailBriefs.build(findings, brief, child.name, child.avatar, EmailBriefs.weekNumber(findings.range.toMs, zone),
             prefs.frequency, first = due.kind == EmailKind.FIRST, titles = child.titles, code = prefs.code, weekly = child.weekly,
-            extras = child.extras, summary = child.summary, zone = zone, attached = bytes != null)
+            extras = child.extras, summary = child.summary, zone = zone, attached = bytes != null, profileId = child.profileId)
         val (html, text) = try { render.render(email) } catch (e: Exception) {
             log("email: $what drawn plain (the renderer failed: ${e.javaClass.simpleName})")
             PlainTextEmail.renderer.render(email)
