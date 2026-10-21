@@ -130,7 +130,7 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                         else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             when (part) {
-                                "album" -> AlbumView(world.state.album)
+                                "album" -> AlbumView(world.state)
                                 "world" -> {
                                     val place = Place.byId(intent.getStringExtra("place"))
                                     if (place != null) PlaceScene(place, world.state) else WorldMap(world.state)
@@ -151,6 +151,19 @@ fun WorldDemo(intent: Intent, onClose: () -> Unit) {
                                     EggView(EggLook.HATCHED, Modifier.size(90.dp, 116.dp), open = 0.7f)
                                 }
                                 "dress" -> DressUp(world)
+                                // 2.5: every item on its own pup (--es slot head|face|body|back), for checking the drawing.
+                                "wardrobe" -> {
+                                    val slot = com.bigpapituna.sharpears.engine.world.WearSlot.entries.firstOrNull { it.name.equals(intent.getStringExtra("slot"), true) }
+                                    val px = intent.getIntExtra("size", 150).dp
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        WearItem.entries.filter { slot == null || it.slot == slot }.forEach { item ->
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Pup(Pose.WEAR_BASE, size = px, idle = false, outfit = Outfit(setOf(item)), bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
+                                                Text(item.label, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
+                                }
                                 "shelf" -> RecordsShelf(world.state.records, songs)
                                 "idle" -> IdleDemo()
                                 "card" -> WorldCard(world, onOpen = {})
