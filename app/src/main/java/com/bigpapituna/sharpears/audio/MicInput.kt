@@ -439,7 +439,7 @@ class MicInput(private val context: Context) {
                 val dir = stallDir().apply { mkdirs() }
                 val wav = File(dir, "$name.wav")
                 Wav.Writer(wav, RATE).apply { append(clip, clip.size); close() }
-                File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format((fromMark - from) / RATE.toDouble()))
+                File(dir, "$name.txt").writeText(tagged + "clip_starts_s=%.2f before the marked moment\n".format(java.util.Locale.ROOT, (fromMark - from) / RATE.toDouble()))
                 // About 80 clips of 30 s fit; whole reports go, oldest first.
                 val all = dir.listFiles().orEmpty().map { com.bigpapituna.sharpears.engine.StallWatch.SavedFile(it.name, it.length(), it.lastModified()) }
                 com.bigpapituna.sharpears.engine.StallWatch.overBudget(all, STALL_BUDGET).forEach { File(dir, it).delete() }
