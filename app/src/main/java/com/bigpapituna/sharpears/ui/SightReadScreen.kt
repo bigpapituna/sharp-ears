@@ -109,7 +109,8 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
         val good = newBest || sc.wrong <= 2
         CheerBar(if (good) Cheer.GOOD else Cheer.MISS,
             when { newBest -> "New best!"; good -> cheerTitle(seed.toInt()); else -> "Keep reading" },
-            (if (newBest) "New best: " else "Done: ") + sc.label + ".", "New piece", Modifier.align(Alignment.BottomCenter)) { seed = System.nanoTime() }
+            // The title already says "New best!" (it read "New best! New best: 0:20, no wrong notes.").
+            (if (newBest) "" else "Done: ") + sc.label + ".", "New piece", Modifier.align(Alignment.BottomCenter)) { seed = System.nanoTime() }
     }
     }
 }
