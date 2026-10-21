@@ -414,7 +414,7 @@ class MicInput(private val context: Context) {
     fun clipMark(): Long = ringFrames
 
     /** Stuck moments saved for review (each a .wav clip and a .txt report). */
-    fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+    fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.lastModified() }.orEmpty()
     /** Everything in the stalls folder (clips, reports, flags, crashes, summaries, sent markers), for sharing. */
     fun stallFiles(): List<File> = stallDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
     private fun stallDir() = File(context.getExternalFilesDir(null), "stalls")
@@ -460,7 +460,8 @@ class MicInput(private val context: Context) {
     /** Debug builds save every live mic session (session-HHmmss.wav + .notes), keeping the last five, for offline replay. */
     private fun autoRecord() {
         val dir = File(context.getExternalFilesDir(null), "fixtures")
-        dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.name }?.dropLast(8)?.forEach { it.delete() }
+        // By time, not name: session-HHmmss has no date, so by name the newest went first after midnight.
+        dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.lastModified() }?.dropLast(8)?.forEach { it.delete() }
         // ponytail: keeps the 4 newest sessions (8 files); a size cap if sessions get long
         startRecording("session-" + java.time.LocalTime.now().toString().take(8).replace(":", ""))
     }
