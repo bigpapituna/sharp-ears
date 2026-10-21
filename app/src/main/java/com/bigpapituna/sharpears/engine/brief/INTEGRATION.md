@@ -107,6 +107,10 @@ All through `Briefs` (a no-op before `Briefs.init`, so JVM tests and previews lo
 
 ## PlayerScreen and D8 (read before editing ui/PlayerScreen.kt)
 
+> 2.4.0: split. Its screen-long state lives in `PlayerVars` (read through `with(v)`), its parameters in `PlayerArgs` and
+> its body in `PlayerStage` (read through `with(args)`): 275 -> 106 dex registers. Still open a lesson step and a library
+> song on an emulator after editing it; new state that lives as long as the screen goes into PlayerVars.
+
 On the Fold emulator, after this branch's edits, every lesson's player crashed as it opened: a NullPointerException on
 `SongMeta.getId()` at `meta?.let { prefs.transpose(it.id) }`. The Kotlin bytecode was right; D8 (AGP 9.4.1) had allocated
 the null check of `meta` to another register (holding the activity) in PlayerScreen's very large composable (about 280

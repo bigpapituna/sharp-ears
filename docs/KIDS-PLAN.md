@@ -1,6 +1,6 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-## Status (2026-10-21, 2.3.1 integrated on branch `release-2.3.1`, versionCode 12)
+## Status (2026-10-21, 2.4.0 integrated on branch `release-2.4`, versionCode 13)
 
 Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
 
@@ -47,6 +47,14 @@ times, loop, speed, chords, video or Hear my run), the mic starts on for kids an
 achievement banners or combo numbers on a kid's screens, sharing a certificate or card asks a grown-up, the gate shuts when
 the corner closes and its hold takes three seconds with animations off, stars count skipped and let-go rounds (one star),
 the octave hint in colours, and a lesson step survives the app being closed. See CLAUDE.md, 2.3.1 audit.
+
+2.4.0 (2026-10-21, branch `release-2.4`): the parent brief (docs/PARENT-BRIEF-PLAN.md). For the child: the pup's own
+card after a lesson or a song played to its end (positives and one "next time let's try", spoken, once a session), with
+Show Mum for the grown-up standing there; songs a grown-up assigns appear first on the kid's Songs with their note. For the
+grown-ups: the brief in the whistle corner and Settings > Family (session, today, week; never a comparison between
+children), action cards that pin the next stone, replay a lesson, start a duet, give a page a fresh start, focus on a
+page or open the next one early, change a setting or put a song on the shelf, and a weekly notification at the time
+chosen when the kid was added. See CLAUDE.md, 2.4.0 parent brief.
 
 Not yet:
 

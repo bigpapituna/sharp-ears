@@ -1,6 +1,8 @@
 # Parent brief: plan
 
-Agreed with Roy on 2026-10-21 in a brainstorm. Status: planned, not started; builds after 2.3.1 ships.
+Agreed with Roy on 2026-10-21 in a brainstorm. Status: built and integrated in 2.4.0 (2026-10-21, branch `release-2.4`,
+versionCode 13; emulator only). Every brief is written by the templates until Roy puts his key in and runs the manual
+check (CLAUDE.md, "2.4.0 parent brief"). The relay (Option A) and Gemini Nano are still open.
 
 ## What it is
 

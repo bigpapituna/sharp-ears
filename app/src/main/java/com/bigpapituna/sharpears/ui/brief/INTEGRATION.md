@@ -1,5 +1,10 @@
 # Parent brief, step 3: the screens, actions, notification, export and kid card
 
+> **Integrated in 2.4.0** (branch `release-2.4`, CLAUDE.md "2.4.0 parent brief"): the real writers replace FakeWriter
+> (now the demo's only), AppEffects connects all seven actions (engine/brief/PathEffects.kt, MainActivity's BriefNav), and
+> every entry below is wired. `BriefEnv.service` became `serviceFor(profile)`; the pup's card on the finish screens is
+> `rememberKidCardStep` / `KidCardStepHost` (shown after the celebration's button) rather than KidBriefCardHost.
+
 Branch `brief3` (docs/PARENT-BRIEF-PLAN.md, build outline step 3). Built against the `BriefWriter` interface only: the real
 writers (brief2a's AI writer, brief2b's template writer) are not on this branch, so every screen runs on a stand-in
 (`FakeWriter.kt`, marked for replacement). 1083 JVM tests (1009 before, 74 new), all green; lint 0 errors; every screen

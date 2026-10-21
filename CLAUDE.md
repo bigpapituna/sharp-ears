@@ -587,6 +587,102 @@ kid 32), about 131 distinct bugs: eleven were found and fixed by two teams and a
     then loops it; the onboarding says "Nothing is sent anywhere" (true until a review token is set on a debug build).
 - Not proven: everything on a real piano with a child, and frame times on the Fold with the profile build.
 
+## 2.4.0 parent brief (integrated 2026-10-21, branch `release-2.4`, versionCode 13; emulator-5558 Fold only, not on Roy's phone yet)
+docs/PARENT-BRIEF-PLAN.md, built in four steps and merged here: step 1 the event log and insights engine (on main,
+engine/brief/INTEGRATION.md), `brief2a` the AI writer (engine/brief/ai/INTEGRATION.md), `brief2b` the template writer
+(engine/brief/templates/INTEGRATION.md, SAMPLES.md), `brief3` the screens (ui/brief/INTEGRATION.md). The merge combination
+compiled and its 1156 tests passed as merged; this step wired the pieces into the app.
+- What shipped: a brief for grown-ups about each child (Session, Today, Week; a one-minute read with three facts, two
+  or three things to try with buttons, one thing to praise; the full report with the seven-day paw strip, every lesson
+  with stars and tries, songs, skills over four weeks, toys, time of day, the room and the hints, and what a grown-up did);
+  Refresh, Send (PNG and PDF to the share sheet), Ask (typed or dictated on the phone); "My week" for grown-ups on the You
+  tab; the pup's own card for the child after a lesson or a song played to its end, spoken, with Show Mum (a light gate,
+  then the session note); the weekly notification at the day and time chosen when the kid was added (Settings > Family
+  or the launch picker), whose tap opens that child's week.
+- Doors: the kids' whistle corner ("Parent brief", behind the gate it already asked; closing it shuts the gate), Settings >
+  Family ("Read the brief"), You > My week, the finish screens, the notification. The brief's dialogs draw the parent gate
+  in their own window (it used to open under them).
+- The writer chain (data/BriefAi.kt, ui/brief/BriefEnv.kt): per person, `WriterChain(AiWriter(OpenRouterTransport(...)),
+  TemplateWriter(CourseTitles.lookup(songs), seed = id hash))`. The AI writes only when the build has a key and the parent
+  corner's "AI briefs" is on (default on with a key); without either every call goes straight to the templates. The day
+  and the week show the template brief at once and swap in the AI's when it comes ("Written by AI", a line under the brief
+  says the AI saw numbers only); a cached AI reply (400 ms) shows without the swap. The session note and the pup's card
+  wait 3 s (the AI's own limit, the screen's guard 3.5 s), a day 12 s, a week 12 s plus one retry. Refresh goes past the
+  AI's cache. The weekly notification is written by the chain in the alarm's job; its headline is the notification text
+  and opening it reads the cache. "Write briefs on mobile data" (off by default): otherwise the AI writes only on an
+  unmetered network (data/Network.kt, shared with Reporter).
+- The key: `secrets.properties` at the repo root (gitignored) -> `BuildConfig.AI_KEY` at build time; read only by
+  data/BriefAi.kt (the transport's keyProvider at call time, and `hasKey`). Never logged: the AI's lines are `ai: ...`
+  (times, sizes, kinds, decisions). This PC has no key, so every brief here was written by the templates; logcat over the
+  walk had no "sk-or-" or "Bearer". The quota and reply cache (ai-brief.xml) stay out of Android backup and go with a
+  deleted profile. `scripts/set-ai-key.ps1` writes the key into secrets.properties without showing it (`-Remove` takes it out).
+- Turning AI briefs on (Roy): 1. at openrouter.ai give the key a spending cap (a few dollars), turn off prompt logging,
+  check `anthropic/claude-haiku-5.5` has a provider that keeps nothing (the app asks `data_collection: deny`). 2. Run
+  `.\scripts\set-ai-key.ps1` (paste the key at the hidden prompt; never in chat), then `.\gradlew.bat installDebug` with
+  the phone on Wi-Fi. 3. Settings > Family shows "AI briefs" on. 4. Run the manual check in
+  engine/brief/ai/INTEGRATION.md, "Manual check on Roy's phone" (log: `adb logcat -s SharpEars:D | Select-String "ai:"`):
+  a kid's lesson finish gives a pup card `ai: reply in ... ms`; Family > the kid > Week says "Written by AI", reopening
+  says `ai: WEEK from the cache`, Refresh writes anew; Ask "What should we practise tomorrow?" and "Is she better than her
+  brother?" (a kind refusal); airplane mode gives "Written on the phone" and `ai: NETWORK`; mobile data without the switch
+  `ai: NOT_ALLOWED`; OpenRouter's Activity shows one request per AI brief. HTTP 401 wrong key, 402 credits or cap, 404
+  "data policy" no zero-retention provider (fix the account setting, or build with privateProvidersOnly = false and change
+  the privacy paragraph). Rotate the key when the beta ends; before people Roy does not know, the relay (Option A).
+- The seven actions (engine/brief/PathEffects.kt, pure, one JVM test each; ui/brief/AppEffects.kt over the child's own
+  KidStore and Prefs; MainActivity's BriefNav for screens): Set as next pins a lesson for a day (KidMap, Practice today and
+  a grown-up's Learn start read engine/kid/Pace.kt; finishing it clears the pin); Replay opens the lesson; Practise together
+  opens the song as a duet with the open grown-up, else the owner, on the left hand (Duet.grownUpFor), a lesson with the
+  grown-up sitting in, or the child's songs to pick one ("Pick a song to play with Roy!"); a grown-up's own week opens the
+  duet picker; Fresh start forgets a page's stars and done marks after two confirmations (stickers and the finale stay);
+  Focus hides the later pages and the road and keeps the pup on the page; Open the next page walks the path past the
+  current page as if its finale had played; Teacher mode puts the song on top of the kid's shelf (three at most) with the
+  note, first on the kid's Songs ("From your grown-up", tap the note to hear it); the five settings as brief3 built them.
+  Undo where the card offers it (60 s or until the brief closes); an action for another child switches the app to them
+  first; a lesson opened from the brief after today's goodnight is the grown-up's one more lesson.
+- Privacy: Settings > About > Privacy has "The parent brief" (findings only, never a name, a recording or a typed note;
+  the zero-retention routing; the checks; when the phone writes instead), and its first and Internet paragraphs name the
+  AI brief on a build with a key. The onboarding's "Nothing is sent anywhere" stays only on a build without a key.
+  docs/privacy-policy.md and docs/publishing.md have the public-app versions (with the relay), and the Children section
+  is flagged for review.
+- PlayerScreen split (its own commit, d02d998): the composable's screen-long state moved into `PlayerVars` read through
+  `with(v)`, and its parameters into `PlayerArgs` with the body in `PlayerStage` read through `with(args)`. dexdump: the
+  body 275 -> 106 registers, Lane 130 -> 74, Bar 122 -> 72, Keys 118 -> 88. Behaviour unchanged (the whole suite with
+  FixtureTest and the audits; on the emulator a library song in Listen with its video, Wait and Perform to their recaps,
+  adult and kid lesson steps, a Playground stage, the mic check, a kid's duet and a grown-up's duet picker). The largest
+  method in the app is now LessonScreen (324 registers): the same split applies there if D8 ever misbehaves.
+- Fixed on the walk: an open session read as no practice in every session note and pup card (the provisional end was
+  stamped after the findings' clock); "My week" asked "How much should they practise?"; the templates said "the piano
+  came out seven times" for visits with no practice; the export's log line named the person; Replay and Practise together
+  after goodnight landed on the asleep screen.
+- Tests: 1187 JVM (1156 merged, 31 new: BriefServiceTest, PathEffectsTest, KidMapTest's pace, KidStoreTest, DuetTest,
+  BriefsTest, AskBriefTest), green. Lint 0 errors (28 warnings, 9 hints: UseKtx style ones, five of them in brief3's files).
+- Emulator walk (5558 Fold, the debug APK over 2.3.1's data, Roy owner, Mia p1 pre-reader; Theo and Noor added): My week
+  short and full, Refresh, Send (the share sheet with a PNG and a PDF, cancelled), a typed question; Settings > Family's AI
+  switches (off, "no AI key"); Theo added in Settings (Friday at 6 pm) and Noor from the launch picker (Tuesday at 6 pm);
+  as Mia, Pup's steps and Hot Cross Buns to their finish, the pup's card spoken and shown, Show Mum's light gate and the
+  session note ("three minutes this session"); every action card performed through the debug samples door (below) and
+  undone where it can be (Set as next moved the pup to stone 8, Fresh start emptied the garden's stars after two
+  confirmations, Focus hid the pond and the road, Open the next page, Teacher mode's Ode to Joy with its note on Mia's
+  shelf, the duet on Twinkle as "Duet with Roy", the song pick, Replay, Bedtime); the real full report (lessons with
+  stars, songs, toys, time of day, hints, "What you did"); dark mode (the brief reopened after the recreate, behind the
+  gate); the cover screen (`emu fold`); the weekly notification posted with its headline and tapped (the gate, then Mia's
+  week over the picker). No crash or ANR (crash buffer empty). Screenshots: app/build/screens/r24-*.png (not committed).
+- Debug (debug builds): `--es brief_profile <id> --es brief_period SESSION|DAY|WEEK` is the notification's door (any
+  build); add `--ez brief_samples true` for the real cards and stores over findings that offer every action
+  (ui/brief/BriefDemo.kt, sampleActionsEnv). The brief3 demo route (`--es screen brief`) is unchanged.
+- Open:
+  - Nothing ran against the real model (no key on this PC): wording, the 3 s card on the phone and zero-retention routing
+    for Haiku 5.5 wait on Roy's manual check above. Gemini Nano on the Fold7 (plan's open item) not tried.
+  - A session's practice comes from its end event: a process killed mid-session (an install, a crash) loses that
+    session's practice in the brief (the daily goal's own count keeps it). A periodic checkpoint would fix it.
+  - On the cover screen held sideways the brief's header and tabs take half the height (they do not scroll away), and the
+    parent gate's pad needs a scroll; portrait is fine.
+  - My week's action cards ask the parent gate like a kid's (brief3's rule); for a grown-up's own week the gate could be
+    skipped (guardForKids).
+  - Pins, focus and pages opened early have no screen of their own to see or clear them (only the card's Undo, then they
+    expire: a pin after a day; focus stays until Open the next page).
+  - Dictation is code-reviewed only (nothing spoken to the emulator); the share sheet was opened, no app picked.
+  - Kid profiles and the AI brief need the Play Families policy and children's privacy rules checked before a public app.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
