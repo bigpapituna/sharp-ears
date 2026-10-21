@@ -157,7 +157,7 @@ private fun GameScreen(
     val scope = rememberCoroutineScope()
     // Settings > Vibration on touch keys; a buzz only ever answers a key touched on the screen.
     val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true else line = MIC_REFUSED_LINE to false }
     val round = remember(version) { game.round }
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtStart = remember { progress?.xp ?: 0 }

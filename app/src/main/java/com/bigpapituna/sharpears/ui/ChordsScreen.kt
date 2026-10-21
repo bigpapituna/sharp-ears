@@ -309,7 +309,7 @@ private fun ChordTrainer(
     val keyFlash = remember { mutableStateMapOf<Int, Color>() }               // a burst on the keys: green when a chord lands, warm on a slip
     val scope = rememberCoroutineScope()
     val touched = remember { mutableStateMapOf<Int, Color>() }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true else flash = MIC_REFUSED_LINE to false }
 
     val current = remember(version, drill) { drill.current }
     val voicing = current.voicing(0)

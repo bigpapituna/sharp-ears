@@ -323,6 +323,9 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
     }
 }
 
+/** What the mic buttons say once the microphone was refused (Android may have stopped asking). */
+const val MIC_REFUSED_LINE = "The microphone is off for Sharp Ears. Allow it in the phone's settings, under Permissions."
+
 /**
  * Shown once the microphone was refused. After two refusals Android stops asking, so the only way left is the app's
  * page in the phone's settings (Permissions, Microphone); this opens it.
