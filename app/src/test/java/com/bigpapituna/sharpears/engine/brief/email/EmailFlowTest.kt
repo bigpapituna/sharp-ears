@@ -49,8 +49,6 @@ class EmailFlowTest {
         assertNull(EmailFlow.addressProblem("  Mum@Example.COM "))
         assertEquals("That does not look like an email address.", EmailFlow.addressProblem("mum@"))
         assertEquals("That does not look like an email address.", EmailFlow.addressProblem("mum example.com"))
-        assertEquals("m****@gmail.com", EmailFlow.masked("maria@gmail.com"))
-        assertEquals("a*@b.co", EmailFlow.masked("ab@b.co"))
     }
 
     @Test fun everyRefusalAndFailureIsInKindWords() {

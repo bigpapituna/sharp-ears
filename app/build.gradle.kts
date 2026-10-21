@@ -36,6 +36,8 @@ android {
         buildConfigField("String", "EMAIL_FROM", "\"${secret("EMAIL_FROM")}\"")
         buildConfigField("String", "EMAIL_FROM_NAME", "\"${secret("EMAIL_FROM_NAME", "The pup at Sharp Ears")}\"")
         buildConfigField("String", "EMAIL_BASE_URL", "\"${secret("EMAIL_BASE_URL", "https://api.brevo.com/v3")}\"")
+        // Where the email's pup pictures are hosted (https, the files of app/src/main/assets/email). Blank: they go inside the email.
+        buildConfigField("String", "EMAIL_IMAGE_BASE", "\"${secret("EMAIL_IMAGE_BASE")}\"")
     }
 
     buildTypes {

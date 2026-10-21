@@ -60,6 +60,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     var deleting by remember { mutableStateOf<Pair<Profile, Int>?>(null) }      // the profile and which ask (1, then 2)
     var adding by rememberSaveable { mutableStateOf(false) }
     var briefFor by rememberSaveable { mutableStateOf<String?>(null) }       // the parent brief, opened on this child
+    var emailFor by rememberSaveable { mutableStateOf<String?>(null) }       // the email settings of this child
     var newSlot by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }   // chosen at the end of the new-kid flow
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
@@ -80,6 +81,8 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
         }
         if (expanded) FlowRow(Modifier.padding(start = 50.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (p.isKid) TextButton(onClick = { gate.guard { briefFor = p.id } }) { Text("Read the brief") }
+            // grown-ups corner > Family > Mia > Email: the brief by email (ui/brief/email), behind the gate like the rest.
+            if (p.isKid) TextButton(onClick = { gate.guard { emailFor = p.id } }) { Text("Email the brief") }
             TextButton(onClick = { gate.guard { renaming = p } }) { Text("Rename") }
             if (p.isKid) {
                 TextButton(onClick = { gate.guard { profiles.update(p.id) { it.copy(reader = !it.reader) } } }) {
@@ -144,5 +147,10 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     briefFor?.let { id ->
         val env = com.bigpapituna.sharpears.ui.brief.rememberBriefEnv()
         com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(env, roster.profiles.filter { it.isKid }, onClose = { briefFor = null }, initial = id)
+    }
+    emailFor?.let { id ->
+        roster.profiles.firstOrNull { it.id == id && it.isKid }?.let { kid ->
+            com.bigpapituna.sharpears.ui.brief.email.EmailDialog(kid, onClose = { emailFor = null })
+        } ?: run { emailFor = null }
     }
 }

@@ -98,13 +98,6 @@ object EmailFlow {
         is EmailSender.Outcome.Failed -> failureWords(o.kind)
     }
 
-    /** What an email address shows as on a screen someone might look over a shoulder at: the first letter and the domain, "m****@gmail.com". */
-    fun masked(address: String): String {
-        val at = address.lastIndexOf('@')
-        if (at < 1) return address
-        return address.first() + "*".repeat((at - 1).coerceIn(1, 6)) + address.substring(at)
-    }
-
     // ---- the frequency choices ----
 
     /** One of the four big pills: its label and the line under it, in this child's words. */

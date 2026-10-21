@@ -386,6 +386,9 @@ class MainActivity : ComponentActivity() {
         }
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this)        // alarms do not survive an update or restart
         com.bigpapituna.sharpears.reminder.BriefReminder.scheduleAll(this) // the weekly brief's alarms, one per person, likewise
+        // The brief by email (reminder/EmailJob.kt): every session's end plans the next look; the app's start sends what is due and sets the alarm.
+        Briefs.onSessionEnd = { com.bigpapituna.sharpears.reminder.EmailJob.afterSession(applicationContext) }
+        com.bigpapituna.sharpears.reminder.EmailJob.runAsync(this, "app start")
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
         // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
         lifecycleScope.launch {
@@ -572,6 +575,7 @@ class MainActivity : ComponentActivity() {
             // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
             route == "worlddemo" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }
             route == "brief" -> return setContent { com.bigpapituna.sharpears.ui.brief.BriefDemo(intent) { finish() } }
+            route == "email" -> return setContent { com.bigpapituna.sharpears.ui.brief.email.EmailDemo(intent, profile) { finish() } }
             route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
@@ -1023,6 +1027,8 @@ class MainActivity : ComponentActivity() {
                             var corner by remember { mutableStateOf(false) }
                             // The parent brief from the corner (2.4): every kid on the phone, this one's tab first.
                             var briefOpen by remember { mutableStateOf(false) }
+                            // Family (2.4.1): grown-ups corner > Family > Mia > Email.
+                            var familyOpen by remember { mutableStateOf(false) }
                             // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
                             // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
                             LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
@@ -1060,7 +1066,8 @@ class MainActivity : ComponentActivity() {
                                     onSettings = { corner = false; screen = Screen.Settings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) },
-                                    onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") }),
+                                    onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") },
+                                    onFamily = { corner = false; familyOpen = true; Log.d(TAG, "kid home: grown-ups opened Family") }),
                                 onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 // Grown-up mode, offered once after Beginner (it was on the kid's Learn path before 2.2).
                                 grownUpOffer = if (!CoursePath.offerGrownUp(true, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
@@ -1074,6 +1081,8 @@ class MainActivity : ComponentActivity() {
                                         // A grown-up's answer too: a kid's tap on "Not yet" put the one-time offer away for good.
                                         onLater = { gate.guard { answered(); Log.d(TAG, "profiles: grown-up mode offered, not yet") } })
                                 } })
+                            if (familyOpen) com.bigpapituna.sharpears.ui.family.FamilyDialog(profiles,
+                                onClose = { familyOpen = false; gate.close(); Log.d(TAG, "gate: closed with Family") })
                             if (briefOpen) com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(),
                                 roster.profiles.filter { it.isKid }, initial = current.id,
                                 // Closed, the phone is the kid's again: the gate shuts as it does with the corner.
@@ -1308,6 +1317,11 @@ class MainActivity : ComponentActivity() {
 
     /** The weekly notification's extras ([BriefReminder.EXTRA_PROFILE], [BriefReminder.EXTRA_PERIOD]), or null. */
     private fun briefFrom(intent: android.content.Intent?): Pair<String, com.bigpapituna.sharpears.engine.brief.Period>? {
+        // The email brief's buttons: sharpears://brief/<profile id>/<day or week> (any build; the brief asks the parent gate itself).
+        intent?.data?.takeIf { it.scheme == "sharpears" && it.host == "brief" }?.let { u ->
+            val id = u.pathSegments.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
+            return briefOf(id + "|" + (u.pathSegments.getOrNull(1)?.uppercase() ?: "WEEK"))
+        }
         val id = intent?.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PROFILE) ?: return null
         val period = intent.getStringExtra(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PERIOD)
         return briefOf("$id|${period ?: "WEEK"}")
