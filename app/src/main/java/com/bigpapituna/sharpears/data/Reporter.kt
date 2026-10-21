@@ -119,7 +119,7 @@ class Reporter(context: Context) {
     fun saveText(name: String, text: String) { dir.mkdirs(); File(dir, "$name.txt").writeText(text) }
 
     /** Catches crashes: each is saved with its stack trace and the app's recent log, and goes out on the next start. */
-    fun catchCrashes(version: String) {
+    fun catchCrashes(version: String, names: () -> Collection<String> = { emptyList() }) {
         // Once per process: every MainActivity made (a recreate after dark mode or a language change, an import) asks again, and each
         // handler chained on the last kept its activity alive and saved the same crash once more.
         synchronized(Reporter::class.java) { if (crashHandlerSet) return; crashHandlerSet = true }
@@ -129,9 +129,11 @@ class Reporter(context: Context) {
                 val log = runCatching {
                     ProcessBuilder("logcat", "-d", "-t", "200", "--pid=${android.os.Process.myPid()}").start().inputStream.bufferedReader().readText()
                 }.getOrDefault("(log unavailable)")
-                saveText("crash-" + stamp(), "title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
+                val who = runCatching { names() }.getOrDefault(emptyList())     // the players' names never leave in a report
+                saveText("crash-" + stamp(), com.bigpapituna.sharpears.engine.StallWatch.withoutNames(
+                    "title=Crash: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(80)}\n" +
                     "# sharp ears crash\nversion=$version thread=${t.name} device=${android.os.Build.MODEL} android=${android.os.Build.VERSION.RELEASE}\n\n" +
-                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"))
+                    e.stackTraceToString() + "\nrecent log:\n" + log.lines().takeLast(200).joinToString("\n"), who))
             }
             previous?.uncaughtException(t, e)
         }

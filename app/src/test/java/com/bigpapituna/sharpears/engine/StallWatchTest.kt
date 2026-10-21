@@ -57,6 +57,12 @@ class StallWatchTest {
         assertTrue("nothing" in w.end(6_000, "played")!!.report)
     }
 
+    @Test fun crashLogsLoseThePlayersNames() {
+        val log = "voice: Well done, Mia! Leo next.\nshare: Mia plays Twinkle.png\nMiami and Leopard stay\nvoice: Привет, Аня"
+        assertEquals("voice: Well done, <name>! <name> next.\nshare: <name> plays Twinkle.png\nMiami and Leopard stay\nvoice: Привет, <name>",
+            StallWatch.withoutNames(log, listOf("Mia", "leo", "Аня", "")))
+    }
+
     @Test fun overBudgetDeletesWholeReportsOldestWrittenFirst() {
         fun f(name: String, bytes: Long, at: Long) = StallWatch.SavedFile(name, bytes, at)
         val files = listOf(

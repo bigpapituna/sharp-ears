@@ -68,6 +68,13 @@ class StallWatch(private val thresholdMs: Long = 5_000) {
         }
 
         /**
+         * [text] with each of [names] (whole words, any case) as "<name>": a crash report's recent log carries spoken lines
+         * and share file names with the player's name ("Well done, Mia!"), and reports promise the kind, never the name.
+         */
+        fun withoutNames(text: String, names: Collection<String>): String = names.map { it.trim() }.filter { it.length >= 2 }.distinct()
+            .fold(text) { t, n -> t.replace(Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(n) + "(?![\\p{L}\\p{N}])"), "<name>") }
+
+        /**
          * The names in the stalls folder to delete to bring it under [budget] bytes: whole reports (a clip, its report
          * and its sent marker share a name), oldest written first, never the newest. By name, every answer-key and crash
          * report went before the oldest stuck moment, sent or not; a lone sent marker deleted sent its report again.

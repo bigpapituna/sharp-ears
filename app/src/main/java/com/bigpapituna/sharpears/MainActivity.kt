@@ -285,7 +285,8 @@ class MainActivity : ComponentActivity() {
         val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
         // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
         if (mic.keepRecordings) {
-            mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            val app = applicationContext      // read at crash time, never this activity (the handler outlives it)
+            mic.reporter.catchCrashes(packageManager.getPackageInfo(packageName, 0).versionName ?: "?") { Profiles(app).all.map { it.name } }
             mic.reporter.weeklySummary(Prefs(this, Profile.OWNER_ID).practice())
             mic.reporter.flush()
         }
