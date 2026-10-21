@@ -102,10 +102,11 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
                 rotationY = (1f - flip.value) * 180f
             }) {
                 // Turned away (the card's back), he is still his plain self; turned round, he wears it.
-                val wearing = if (flip.value >= 0.5f) world?.state?.outfit ?: Outfit(items.toSet()) else Outfit.NONE
+                val now = world?.state?.outfit ?: Outfit.NONE
+                val wearing = if (flip.value < 0.5f) Outfit.NONE else if (answered == false) now else items.fold(now) { o, i -> o.with(i) }
                 Pup(Pose.WEAR_BASE, size = 170.dp, controller = pup, idle = false, outfit = wearing, bounce = BounceSize.NONE)
             }
-            Text(items.joinToString(" and ") { it.nickname }, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Text(items.map { it.nickname }.distinct().joinToString(" and "), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
             Text(items.first().line, style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
             if (rarity.special) Text(rarity.label, style = MaterialTheme.typography.labelLarge, color = rarity.colour())
             when (answered) {

@@ -215,7 +215,7 @@ fun DropRevealOverlay(reward: Reward, onDone: () -> Unit, primary: String = "Int
     var revealed by remember(reward) { mutableStateOf(reward.drops.isEmpty()) }
     Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }.windowInsetsPadding(WindowInsets.safeDrawing)) {
         if (revealed && reward.best?.rarity == Rarity.SHINY) Confetti(reward, Modifier.fillMaxSize())
-        Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+        Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 104.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Pup(Pose.STICKER, controller = pup, size = 128.dp)
             if (reward.drops.isNotEmpty()) DropReveal(reward, pup = pup, cardWidth = if (reward.drops.size > 1) 132.dp else 168.dp) { revealed = true }
@@ -231,7 +231,10 @@ fun DropRevealOverlay(reward: Reward, onDone: () -> Unit, primary: String = "Int
  * dog house grown, a record, and something new to wear (2.5: the pup puts it on and asks "Keep it on?").
  */
 @Composable
-fun RewardExtras(reward: Reward, modifier: Modifier = Modifier, songTitle: (String) -> String? = { null }) {
+fun RewardExtras(reward: Reward, modifier: Modifier = Modifier, songTitle: (String) -> String? = { null },
+                 /** The voice, for the pup's lines (a new item, a stone's sticker); null: shown only. */
+                 say: ((String) -> Unit)? = null) {
+    LaunchedEffect(reward.level) { reward.level?.let { l -> say?.invoke(l.line) } }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         reward.level?.let { l ->
             ExtraRow("${l.name}! A sticker for your trail. Stick it on the map.") { StickerImage(l, Modifier.size(60.dp)) }
@@ -245,7 +248,7 @@ fun RewardExtras(reward: Reward, modifier: Modifier = Modifier, songTitle: (Stri
         reward.record?.let { r ->
             ExtraRow("${r.after.label} record for ${songTitle(r.songId) ?: "this song"}.") { MedalDisc(r.after, Modifier.size(52.dp)) }
         }
-        if (reward.unlocked.isNotEmpty()) WardrobeReveal(reward.unlocked)
+        if (reward.unlocked.isNotEmpty()) WardrobeReveal(reward.unlocked, say = say)
     }
 }
 

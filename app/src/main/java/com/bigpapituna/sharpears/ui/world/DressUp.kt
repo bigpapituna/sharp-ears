@@ -223,7 +223,7 @@ fun NextOutfitMeter(next: NextOutfit?, reader: Boolean, modifier: Modifier = Mod
     if (!reader) {
         Column(modifier.semantics(mergeDescendants = true) { contentDescription = label }, horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            ProgressRing(next.share, 112.dp) { WearIcon(item, Modifier.size(70.dp), locked = true) }
+            ProgressRing(next.share, 112.dp) { WearIcon(item, Modifier.size(84.dp).clip(CircleShape), locked = true) }
             Text(next.words, style = MaterialTheme.typography.titleLarge, color = c.onSurface)
         }
     } else {

@@ -1345,7 +1345,7 @@ class MainActivity : ComponentActivity() {
      */
     /**
      * Debug builds (2.5, the wardrobe and decorate mode): `--es wardrobe all|<ids>` opens items, `--es wear <ids>` dresses
-     * the pup, `--es fresh <ids>` queues items for the next finish screen's reveal, `--es decor <key>@<slot>;...` sticks
+     * the pup, `--es fresh <ids>` queues items for the next finish screen's reveal, `--es decor <key>@<slot>+...` sticks
      * stickers (`--es decor clear` empties every spot), `--ez homes true` brings the "new homes" line back. Ids by commas.
      */
     private fun worldDebugSeed(intent: android.content.Intent, world: WorldStore) {
@@ -1359,7 +1359,7 @@ class MainActivity : ComponentActivity() {
         items("fresh")?.let { f -> s = s.copy(wardrobe = s.wardrobe + f, fresh = f) }
         intent.getStringExtra("decor")?.let { spec ->
             s = if (spec == "clear") s.copy(placements = com.bigpapituna.sharpears.engine.world.Placements())
-            else spec.split(";").fold(s) { st, p -> com.bigpapituna.sharpears.engine.world.World.place(st, p.substringBefore("@"), p.substringAfter("@")) }
+            else spec.split("+").fold(s) { st, p -> com.bigpapituna.sharpears.engine.world.World.place(st, p.substringBefore("@"), p.substringAfter("@")) }
         }
         if (intent.getBooleanExtra("homes", false)) s = s.copy(homesLine = true)
         if (s != world.state) world.debugSet(s)
