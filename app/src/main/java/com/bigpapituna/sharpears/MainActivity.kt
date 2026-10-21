@@ -21,6 +21,10 @@ import com.bigpapituna.sharpears.engine.world.Reward
 import com.bigpapituna.sharpears.data.PlayStore
 import com.bigpapituna.sharpears.data.WorldStore
 import com.bigpapituna.sharpears.data.KidStore
+import com.bigpapituna.sharpears.data.Briefs
+import com.bigpapituna.sharpears.data.TimedOnScreen
+import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import com.bigpapituna.sharpears.engine.brief.ToyKind
 import com.bigpapituna.sharpears.engine.kid.Finale
 import com.bigpapituna.sharpears.engine.kid.KidMap
 import com.bigpapituna.sharpears.engine.kid.KidPages
@@ -195,6 +199,9 @@ private sealed interface Screen {
     data class Finale(val pageId: String) : Screen
 }
 
+/** The play corner's toy as the brief's log names it. */
+private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS -> ToyKind.PUP_SAYS; Toy.CLAP -> ToyKind.CLAP_ALONG }
+
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
@@ -282,6 +289,7 @@ class MainActivity : ComponentActivity() {
         repo = SongRepository(this)
         profiles = Profiles(this)
         gate = ParentGateController(profiles)
+        Briefs.init(this)                                  // the parent brief's event logs, files/events/<profile>.log
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         // --es profile <id> (debug): open as that profile, no picker.
         val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
@@ -310,13 +318,16 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The launch picker; picking (or adding someone) opens the app as them. */
-    private fun showPicker() = setContent {
-        SharpEarsTheme {
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                val roster by profiles.rosterFlow.collectAsState()
-                ProfilePicker(roster,
-                    onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
-                    onAdd = { p -> if (profiles.create(p) != null) openApp(fromLaunch = true) })
+    private fun showPicker() {
+        Briefs.sessionEnd(); Briefs.currentId = null        // no one is playing yet: nothing is logged
+        setContent {
+            SharpEarsTheme {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val roster by profiles.rosterFlow.collectAsState()
+                    ProfilePicker(roster,
+                        onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
+                        onAdd = { p -> if (profiles.create(p) != null) openApp(fromLaunch = true) })
+                }
             }
         }
     }
@@ -345,6 +356,12 @@ class MainActivity : ComponentActivity() {
         val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
+        // The parent brief's log follows the player: a switch ends the last one's session (with their practice) and, on
+        // screen, starts this one's; events from here on go to this profile's log.
+        if (Briefs.currentId != profile.id) Briefs.sessionEnd()
+        Briefs.practiceSeconds = { progress.practiceSecondsTotal }
+        Briefs.currentId = profile.id
+        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) Briefs.sessionStart(profile.id)
         // Someone who already played (XP from catchUp or since) skips the first-run questions.
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         // A kid goes straight in: no questions, the goal the profile was made with, and the first game opens at once.
@@ -632,6 +649,7 @@ class MainActivity : ComponentActivity() {
                         when (e) {
                             is EarEvent.Round -> {
                                 progress.record(ProgressEvent.EarRound(e.clean))
+                                Briefs.log { BriefEvent.EarRound(it, e.kind.id, e.clean, e.level) }
                                 if (e.kind == EarKind.MELODY && e.clean) quest(QuestEvent.PupCopied(0))     // copying the pup, by ear
                             }
                             is EarEvent.GameComplete -> { practised(e.seconds); progress.record(ProgressEvent.GameComplete("ear:" + e.kind.id, e.level, e.score, e.rounds)) }
@@ -829,6 +847,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.Play -> Box(Modifier.fillMaxSize()) {
                             BackHandler { voice.stop(); screen = s.back }
+                            TimedOnScreen(s.toy) { ms -> Briefs.log { BriefEvent.ToyOpened(it, toyKind(s.toy), ms) } }
                             val frames = remember { mic.frameTap() }
                             when (s.toy) {
                                 Toy.JAM -> {
@@ -1206,8 +1225,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStart() { super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start() }
-    override fun onStop() { com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); super.onStop() }
+    // A session of the parent brief's log runs while the app is on screen as someone (the picker is no one).
+    override fun onStart() { super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start(); openId?.let(Briefs::sessionStart) }
+    override fun onStop() { Briefs.sessionEnd(); com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); super.onStop() }
 
     override fun onPause() {
         Juice.world?.flush()            // the treat jar saves every few notes; the rest now

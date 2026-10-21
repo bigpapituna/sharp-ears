@@ -226,6 +226,7 @@ private fun GameScreen(
             ChordGame.Outcome.DONE -> {
                 // The chord's root (pitch class) counts toward the every-key achievements; the melodic games have none.
                 progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.ChordRound((game as? ChordGame)?.target?.root))
+                com.bigpapituna.sharpears.data.Briefs.log { com.bigpapituna.sharpears.engine.brief.BriefEvent.EarRound(it, "chord:" + kind.id, a.clean, level) }
                 // The success moment: a green burst across every key of the answer (a warm one when it took a slip).
                 flashKeys(game.lit().keys + m, if (a.clean) Good else RightHandColor, 900)
                 if (a.clean && src == "touch") haptics.success()

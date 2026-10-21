@@ -495,6 +495,7 @@ internal fun rememberStage(
         while (!run.ended) {
             delay(500)
             val clip = clips.check(now(), "lesson=$lessonId stage=$game round=${run.done + 1}/${run.count}", mic.profileKind) ?: continue
+            com.bigpapituna.sharpears.data.Briefs.log { com.bigpapituna.sharpears.engine.brief.BriefEvent.NoisyRoom(it, "stage:$game") }
             val name = "stall-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-$lessonId-$game"
             Log.d(TAG, "playground: stuck ${clip.toMs - clip.fromMs} ms with ${clips.sounds} sounds, saving $name")
             mic.saveStall(clipMark[0], "title=Stage stuck: $lessonId $game round ${run.done + 1}\n" + clip.report, name)
