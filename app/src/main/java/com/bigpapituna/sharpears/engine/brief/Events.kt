@@ -74,7 +74,9 @@ sealed class BriefEvent {
     }
 
     /**
-     * A lesson step was left forward: passed (or let go after three tries), or skipped with Next ([skipped]). [kind] is the
+     * A lesson step was left forward: passed (or let go after three tries), or skipped with Next ([skipped]); or it was
+     * left without passing after at least one try, by Back or by closing the lesson ([left]: [tries] are then the tries
+     * that did not pass). [kind] is the
      * engine's StepKind name (READ, LISTEN, PLAY, FROM_MEMORY, PERFORM, RAMP, PEDAL, DYNAMICS), [game] the Playground game
      * of its stage (KEY_HUNT, CLAP, ...) or null, [hands] what its exercise asked for. [tries] counts its runs, the passing
      * one included (0 for a step with nothing to play). [hintsUsed] has one [HintDepth] per stuck wait over all tries.
@@ -89,7 +91,7 @@ sealed class BriefEvent {
         val game: String? = null, val hands: Hands? = null, val skipped: Boolean = false,
         val stars: Int? = null, val accuracy: Int? = null, val score: Int? = null, val timingMeanMs: Int? = null,
         val notes: Int = 0, val wrongKeys: Int = 0, val nearMisses: Int = 0, val farMisses: Int = 0,
-        val letGoRounds: Int = 0, val rounds: Int = 0,
+        val letGoRounds: Int = 0, val rounds: Int = 0, val left: Boolean = false,
     ) : BriefEvent() {
         override val name get() = "step"
         override fun body(m: MutableMap<String, Any?>) {
@@ -98,7 +100,7 @@ sealed class BriefEvent {
             m.opt("game", game); m.opt("hands", hands?.name); m.opt("skipped", skipped, false)
             m.opt("stars", stars); m.opt("acc", accuracy); m.opt("score", score); m.opt("timing", timingMeanMs)
             m.opt("notes", notes, 0); m.opt("wrong", wrongKeys, 0); m.opt("near", nearMisses, 0); m.opt("far", farMisses, 0)
-            m.opt("letGoRounds", letGoRounds, 0); m.opt("rounds", rounds, 0)
+            m.opt("letGoRounds", letGoRounds, 0); m.opt("rounds", rounds, 0); m.opt("left", left, false)
         }
     }
 
@@ -258,7 +260,7 @@ sealed class BriefEvent {
                 game = f.str("game"), hands = f.str("hands")?.let { h -> Hands.valueOf(h) }, skipped = f.bool("skipped"),
                 stars = f.intOrNull("stars"), accuracy = f.intOrNull("acc"), score = f.intOrNull("score"), timingMeanMs = f.intOrNull("timing"),
                 notes = f.int("notes"), wrongKeys = f.int("wrong"), nearMisses = f.int("near"), farMisses = f.int("far"),
-                letGoRounds = f.int("letGoRounds"), rounds = f.int("rounds"))
+                letGoRounds = f.int("letGoRounds"), rounds = f.int("rounds"), left = f.bool("left"))
             "lesson" -> LessonDone(at, f.str("lesson")!!, f.intOrNull("stars")!!, f.long("ms"), f.bool("first"))
             "song" -> SongRun(at, f.str("song")!!, RunMode.valueOf(f.str("mode")!!), Hands.valueOf(f.str("hands")!!), f.intOrNull("acc"),
                 f.intOrNull("stars")!!, f.intOrNull("timing"), f.int("near"), f.int("far"), f.int("notes"), f.int("wrong"),

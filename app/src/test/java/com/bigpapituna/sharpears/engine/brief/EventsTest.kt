@@ -17,7 +17,7 @@ class EventsTest {
         BriefEvent.SessionEnded(t, 600_000, 540),
         BriefEvent.LessonStep(t, "pond-3", 2, "PLAY", tries = 3, letGo = true, hintsUsed = listOf(1, 3), durationMs = 61_000, game = "ECHO",
             hands = Hands.RIGHT, skipped = false, stars = 1, accuracy = 72, score = 55, timingMeanMs = -40, notes = 8, wrongKeys = 5,
-            nearMisses = 3, farMisses = 2, letGoRounds = 1, rounds = 2),
+            nearMisses = 3, farMisses = 2, letGoRounds = 1, rounds = 2, left = true),
         BriefEvent.LessonDone(t, "pond-3", 2, 300_000, first = true),
         BriefEvent.SongRun(t, "twinkle", RunMode.PERFORM, Hands.BOTH, 88, 2, 35, 3, 1, 42, 4, listOf(2), 95_000, fromTop = false, duet = true),
         BriefEvent.WrongKey(t, 60, 62, true, 4, lessonId = "pond-3"),

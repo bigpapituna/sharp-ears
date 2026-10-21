@@ -48,6 +48,7 @@ import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.audio.Sampler
 import com.bigpapituna.sharpears.audio.Voice
+import com.bigpapituna.sharpears.data.Briefs
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.Practice
@@ -58,6 +59,10 @@ import com.bigpapituna.sharpears.engine.StepKind
 import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.engine.Exercise
 import com.bigpapituna.sharpears.engine.RunWords
+import com.bigpapituna.sharpears.engine.ForegroundClock
+import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import com.bigpapituna.sharpears.engine.brief.RunTally
+import com.bigpapituna.sharpears.engine.brief.StepRecorder
 import com.bigpapituna.sharpears.engine.family.PawWeek
 import com.bigpapituna.sharpears.engine.skin.Bedtime
 import com.bigpapituna.sharpears.engine.skin.Bites
@@ -149,6 +154,11 @@ fun LessonScreen(
     // The step as this person plays it: a kid's is cut to a bite.
     val step = remember(index, kid) { lesson.steps[index].let { if (kid) Bites.kidStep(it, it.exercise?.let(phraseEnd)) else it } }
     val last = index == lesson.steps.lastIndex
+    // The parent brief's log (data/Briefs): each step's tries, let go, hints and time, written once as it is left.
+    val stepLog = remember(index) { StepRecorder(lesson.id, index, step, ForegroundClock.app.nowMs()) }
+    val runTally = remember { arrayOfNulls<RunTally>(1) }      // the player's tally of the try that just ended
+    // Left without passing (Back, or the lesson closed) after a try: still a step the brief should see.
+    DisposableEffect(stepLog) { onDispose { if (stepLog.runs > 0) Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = bar?.first == Cheer.GOOD)) } }
     // Bedtime (kids only): the goodbye once today's goal is reached; a lesson opened after it finds the pup asleep.
     val bedtime = rememberBedtimeStore()
     val gate = LocalParentGate.current
@@ -194,12 +204,15 @@ fun LessonScreen(
 
     fun go(to: Int) { feedback = null; bar = null; finished = false; index = to; fails = 0 }
     fun complete() {
+        Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = true))
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.LessonStepPassed)
         if (last) {
             finished = true
             tookSecs = (com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - openedAt) / 1000
             lessonStars = com.bigpapituna.sharpears.engine.kid.LessonStars.ofLesson(stepStars.toList())
+            val firstFinish = !deps.prefs.lessonDone(lesson.id)
             reward = onDone(lessonStars)
+            Briefs.log { BriefEvent.LessonDone(it, lesson.id, lessonStars, tookSecs * 1000, firstFinish) }
             // A grown-up's "one more" (bedtime on) is spent with this lesson: the next one sleeps again.
             if (kid && progress != null && Bedtime.oneMoreSpent(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) {
                 bedtime.oneMoreOn = null; Log.d(TAG, "bedtime: one more lesson spent on ${lesson.id}")
@@ -214,6 +227,7 @@ fun LessonScreen(
         // Pup's Playground (2.1.1, no dead ends): the third try that does not pass lets the step go on.
         val letGo = !judged && s.kind != StepKind.LISTEN && com.bigpapituna.sharpears.engine.playground.StepRetry.letGo(lesson.id, fails + 1)
         val passed = judged || letGo
+        stepLog.run(report, runTally[0].also { runTally[0] = null }, letGo)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake (a kid: the pup's
         // words with their name, no numbers).
         val line = if (s.kind == StepKind.LISTEN) null
@@ -270,7 +284,8 @@ fun LessonScreen(
                     }
                     Text("Plug one in by USB and this step starts by itself.", style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
-                    OutlinedButton(onClick = { Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skipped (needs MIDI)"); complete() }) { Text("Skip (needs MIDI)") }
+                    OutlinedButton(onClick = { Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skipped (needs MIDI)")
+                        Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = false, skipped = true)); complete() }) { Text("Skip (needs MIDI)") }
                 }
             } else if (scenes != null) {
                 // The explainer: the scene bar, the pup with the scene's caption, the stage.
@@ -341,6 +356,7 @@ fun LessonScreen(
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                                 anyOfLessons = com.bigpapituna.sharpears.engine.playground.ANY_OF_LESSONS,
                                 onWrongKey = { pupNow.react(PupReaction.HEAD_TILT) },
+                                onTally = { runTally[0] = it },
                                 letGo = com.bigpapituna.sharpears.engine.playground.StepRetry.isPlayground(lesson.id),
                             )
                         }
@@ -366,6 +382,7 @@ fun LessonScreen(
                 else -> ChunkyButton(onClick = {
                     // A graded step skipped counts as one star, so Next through every game is not three stars.
                     if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it }
+                    (step.exercise == null || bar?.first == Cheer.GOOD).let { ok -> Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = ok, skipped = !ok)) }
                     go(index + 1); run++
                 }) { Text("Next") }
             }
