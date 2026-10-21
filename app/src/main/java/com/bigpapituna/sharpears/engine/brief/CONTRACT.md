@@ -74,6 +74,9 @@ while the session is still open, add `Briefs.sessionSoFar(profileId)` to the eve
 | STICKERS | stickers dropped | new to the album | | "Three stickers, all new." |
 | QUEST_STARS | Pup's quest stars | | | |
 | HINTS | stuck moments where the app played the key | stuck moments with any hint | | |
+| SKIPPED_NOTES | notes that came due and were never played (let go, missed in Perform), three or more | notes that came due | | "Four of 412 notes went by unplayed." |
+| HESITATION | mean ms from a note coming due to its key being played (wait mode), ten notes or more | notes timed | | "About 1.1 seconds to find each key." |
+| TEMPO_SPREAD | mean spread (standard deviation) of Perform runs' offsets from the beat, ms | Perform runs | | "The beat held to within about 40 ms." |
 
 Wording numbers is the writer's call (kids' copy has no numbers; the parent's brief has them, never as the headline).
 
@@ -95,6 +98,8 @@ Moving needs both 15 percent of the baseline and the kind's smallest step. `good
 | EAR | percent right | 10 | yes | 5 rounds |
 | CLAP | percent of beats | 10 | yes | 2 drum steps |
 | PLAY_HINTS | percent of stuck moments needing the app to play | 10 | no | 4 stuck moments |
+| HESITATION_MS | mean ms to find a key (wait mode) | 150 | no (down is good) | 10 notes |
+| TEMPO_SPREAD | spread of Perform offsets from the beat, ms | 10 | no (down is good: steadier) | 2 Perform runs |
 
 Example: `Trend(DAYS, now 5.0, before 2.0, UP, good = true, periods = 2)`: "Five days this week, up from about two."
 
@@ -122,6 +127,8 @@ writer should pair with the flag; the last column is what the engine suggests (f
 | TOY_HEAVY (value: sessions; of: sessions) | 60 percent of a session's time in toys (3 minutes or longer), in two sessions (one for SESSION) | play is music too | SET_NEXT {} (ROUTINE: a lesson first next time) |
 | LONG_DAYS (kid; value: days; of: the minutes line) | days on screen at three times the goal and 30 minutes or more: two in a week, one in a day or session; bedtime off | enthusiasm; a soft stop helps some families | SETTING bedtime {value: true} |
 | PRACTICE_DIPPED (WEEK; value: days; of: usual days) | two or more days under the usual, or half the usual minutes (usual from two earlier weeks or more) | weeks vary | PRACTISE_TOGETHER {} (ROUTINE) |
+| HESITATES_ON (value: the key, a MIDI note number, 60 is middle C; of: its typical wait in ms; lessons/songs where most) | one key whose slowest find was 2 s or more in three runs or more, typically twice the person's usual wait or more (ten notes timed); the most often slow key | a key the hand still looks for is a key it is learning, and the pause shrinks a little with every find | SETTING colourNotes {value: true} when colour notes are off; PRACTISE_TOGETHER {lesson, else song} (TOGETHER) |
+| LEFT_HAND_LAGS (value: left hand's mean wait ms; of: the right's; lessons/songs, slowest left first) | both hands timed on eight notes or more, the left 500 ms or more slower and 1.5 times the right or more; not when LEFT_HAND_BEHIND is flagged | the left hand is nearly always the second hand, and it learns where the keys are a little later | PRACTISE_TOGETHER {song, else lesson} (TOGETHER) |
 
 Grown-ups (profileKind ADULT) never get READY_FOR_LETTERS, READY_FOR_ROAD, PAGE_STRUGGLE or LONG_DAYS, and never the
 candidates SETTING reader or bedtime, FRESH_START, PACE_FOCUS, PACE_UNLOCK or TEACHER_ASSIGN. Everything else has the
@@ -146,6 +153,9 @@ NEW_MUSIC) is the heading a writer may use.
 
 ## Praise (in this order of specialness)
 
+Sorted by `PRAISE_ORDER` (Findings.kt): the enum's order with the kinds added later in their place, so the enum still only
+grows at the end.
+
 | Kind | value | ids | Example |
 |---|---|---|---|
 | FINALE | | page | "Finished the pond, fireworks and all." |
@@ -155,8 +165,10 @@ NEW_MUSIC) is the heading a writer may use.
 | GOAL_STREAK | days in a row (3 or more) | | |
 | THREE_STARS | lessons | lessons, latest first | |
 | TIMING_IMPROVED | ms now | | |
+| STEADIER_TEMPO | spread ms now (trend TEMPO_SPREAD down) | | "A steadier beat than before." |
 | ACCURACY_IMPROVED | percent now | | |
 | MISSES_CLOSER | percent next door now | | |
+| FINDS_KEYS_FASTER | mean wait ms now (trend HESITATION_MS down) | | "Keys are coming quicker." |
 | EAR_IMPROVED | percent now | | |
 | LEFT_HAND_IMPROVED | percent now | | |
 | CONSISTENT | days (4 or more in the last seven, or 3 and more than usual) | | |
@@ -181,6 +193,32 @@ NEW_MUSIC) is the heading a writer may use.
   octave hints.
 - `totals`: minutes, practiceMinutes, sessions, daysPractised, lessonsFinished, newLessons, songRuns, stickers,
   rareStickers, shinyStickers, questStars, goalDays, earRounds, earCorrect.
+
+Added for the email brief (2026-10-21), from each run's note-by-note detail (`BriefEvent.LessonStep.detail` and
+`SongRun.detail`, engine/brief/RunTally.kt) and the wrong-key pairs. Keys are MIDI note numbers (60 is middle C). All have
+defaults, so findings stored before them read back with nothing in them.
+
+- `keySlips`: the slip map, `KeySlips(midi, near, far)` for every key wanted that drew a wrong key, low to high (near: the
+  key struck was two semitones or closer). `topSlip`: the most common `SlipPair(expected, played, count)`.
+- `notesDue`, `skippedNotes`: notes that came due in lesson steps and songs, and those never played (let go by the
+  Playground, missed in Perform, or left out of a chord of four or more by the microphone's slack).
+- `hesitation`: `HesitationStat(meanMs, notes, worstKey, worstMs)`, the wait from a note coming due to its key being played
+  (wait mode only; one wait counts at most 20 s), and the key with the longest typical wait (the mean of its slowest find
+  in each run, keys seen in two runs or more preferred). Null when nothing was waited for.
+- `tempoSpreadMs` over `tempoRuns`: tempo steadiness, the mean standard deviation of Perform runs' offsets from the beat
+  (weighted by the notes graded; a run needs four graded notes). Lower is steadier; the run's own lean early or late is
+  timing (TIMING), not steadiness.
+- `left`, `right`: `HandStat(notes, clean, hesitationMs)` per hand: notes that came due, the percent played with no wrong
+  key charged to them (not let go, not missed; null under eight notes), the hand's mean wait. Null for a hand with none.
+  In Perform a note is clean when its group was played in time (wrong keys cost nothing there, as in the score).
+- `hintsBefore`: the period before's `HintStats` (last week for a WEEK, yesterday for a DAY, the session before for a
+  SESSION), null when nothing was played in it. A run with more than 32 stuck waits counts them all (`RunDetail.hintSteps`).
+- `clap`: `ClapStat(onBeat, beats, steps)` from the drum steps (game CLAP: a step's notes are the beats with a clap, its
+  rounds the beats), null with none. Clap along keeps no score by design.
+- `ear`: `EarStat(game, rounds, correct)` per ear or chord game, most played first.
+- `weeks`: practice minutes in each of the four weeks ending with the range, oldest first.
+- `sessionMinutes`, `sessionMinutesBefore`: the mean session's minutes on screen in the range and in the periods before.
+- `mix`: `PlayMix(lessons, songs, toys)`, minutes on screen in lesson steps, songs (Listen included) and the toys.
 
 ## A whole example (WEEK, a kid who does not read yet)
 

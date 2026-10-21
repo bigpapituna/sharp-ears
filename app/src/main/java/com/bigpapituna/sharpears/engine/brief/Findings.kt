@@ -60,6 +60,12 @@ enum class FactKind {
     QUEST_STARS,
     /** [Fact.value] stuck moments where the app played the key (the third hint), [Fact.of] stuck moments with any hint. */
     HINTS,
+    /** [Fact.value] notes that came due and were never played (let go, missed in Perform), [Fact.of] notes that came due. */
+    SKIPPED_NOTES,
+    /** [Fact.value] the mean ms from a note coming due to its key being played (wait mode), [Fact.of] notes measured. */
+    HESITATION,
+    /** [Fact.value] tempo steadiness: the mean spread of Perform runs' offsets from the beat in ms (lower is steadier), [Fact.of] the runs. */
+    TEMPO_SPREAD,
 }
 
 /** A change against the person's OWN earlier periods (never anyone else). See [Trend]. */
@@ -90,6 +96,10 @@ enum class TrendKind {
     CLAP,
     /** Share of stuck moments that needed the app to play the key, percent. Down is good. */
     PLAY_HINTS,
+    /** Mean ms from a note coming due to its key being played (wait mode). Down is good. */
+    HESITATION_MS,
+    /** Spread of Perform runs' offsets from the beat, ms. Down is good (a steadier beat). */
+    TEMPO_SPREAD,
 }
 
 /** Something to act on or explain gently. Every flag is paired with why it is normal by the writer (CONTRACT.md). */
@@ -128,6 +138,13 @@ enum class FlagKind {
     LOW_STARS,
     /** Fewer days or minutes than the person's own usual (WEEK). */
     PRACTICE_DIPPED,
+    /**
+     * One key the person keeps pausing on: [Flag.value] the key (a MIDI note number, 60 is middle C), [Flag.of] its typical
+     * wait in ms; [Flag.lessons] / [Flag.songs] where it happened most.
+     */
+    HESITATES_ON,
+    /** The left hand takes noticeably longer to find its keys than the right: [Flag.value] its mean wait in ms, [Flag.of] the right's. */
+    LEFT_HAND_LAGS,
 }
 
 /** Something to celebrate; the writer picks one for the short read. */
@@ -164,7 +181,22 @@ enum class PraiseKind {
     NEW_LESSONS,
     /** [Praise.value] days with all three quest stars. */
     QUEST_DAY,
+    /** The beat steadier than before in Perform. [Praise.value] the spread in ms now. */
+    STEADIER_TEMPO,
+    /** Keys found faster than before. [Praise.value] the mean wait in ms now. */
+    FINDS_KEYS_FASTER,
 }
+
+/**
+ * Praise in order of specialness (the one-minute read takes the first): the enum's order, with the kinds added later in
+ * their place (the enum itself only ever grows at the end, so its wire names stay put).
+ */
+val PRAISE_ORDER: List<PraiseKind> = listOf(
+    PraiseKind.FINALE, PraiseKind.FIRST_CHORD, PraiseKind.STUCK_WITH_IT, PraiseKind.SHINY_STICKER, PraiseKind.GOAL_STREAK,
+    PraiseKind.THREE_STARS, PraiseKind.TIMING_IMPROVED, PraiseKind.STEADIER_TEMPO, PraiseKind.ACCURACY_IMPROVED,
+    PraiseKind.MISSES_CLOSER, PraiseKind.FINDS_KEYS_FASTER, PraiseKind.EAR_IMPROVED, PraiseKind.LEFT_HAND_IMPROVED,
+    PraiseKind.CONSISTENT, PraiseKind.CLEAN_SONG, PraiseKind.RARE_STICKER, PraiseKind.NEW_LESSONS, PraiseKind.QUEST_DAY,
+)
 
 /** What a recommendation is for; the writer's heading. */
 enum class RecommendationKind { UNSTICK, MOVE_ON, POLISH, TOGETHER, ROUTINE, SETTINGS, NEXT_STEP, FOCUS, NEW_MUSIC }
@@ -263,6 +295,33 @@ data class PartStat(val part: DayPart, val minutes: Int, val sessions: Int)
 /** Hint escalation in the range: stuck moments that ended at each step, and octave hints. */
 data class HintStats(val glow: Int = 0, val point: Int = 0, val play: Int = 0, val octave: Int = 0)
 
+/** One key of the slip map: wrong keys struck when [midi] was the note wanted, [near] (two semitones or closer) and [far]. */
+data class KeySlips(val midi: Int, val near: Int, val far: Int) { val total: Int get() = near + far }
+
+/** A slip: [played] struck when [expected] was wanted, [count] times. */
+data class SlipPair(val expected: Int, val played: Int, val count: Int)
+
+/**
+ * How long keys took to find (wait mode): the mean [meanMs] over [notes]; [worstKey] the key with the longest typical wait
+ * (the mean of its slowest find in each run, keys seen in two runs or more preferred) and that wait, [worstMs].
+ */
+data class HesitationStat(val meanMs: Int, val notes: Int, val worstKey: Int? = null, val worstMs: Int? = null)
+
+/**
+ * One hand: [notes] that came due, [clean] the percent of them played with no wrong key charged to them (not let go, not
+ * missed; null under Insights.HAND_CLEAN_MIN notes), and its mean wait for a key [hesitationMs] (null with none).
+ */
+data class HandStat(val notes: Int, val clean: Int?, val hesitationMs: Int?)
+
+/** The drum steps (game CLAP): [onBeat] beats with a clap of [beats], over [steps] steps. */
+data class ClapStat(val onBeat: Int, val beats: Int, val steps: Int)
+
+/** Ear and chord game rounds of one [game] (BriefEvent.EarRound's id: rhythm, pitch, ..., chord:build ...). */
+data class EarStat(val game: String, val rounds: Int, val correct: Int)
+
+/** Minutes on screen by where they went: lesson steps, songs played (Listen included), the toys. */
+data class PlayMix(val lessons: Int = 0, val songs: Int = 0, val toys: Int = 0)
+
 /** The range's totals. */
 data class Totals(
     val minutes: Int = 0, val practiceMinutes: Int = 0, val sessions: Int = 0, val daysPractised: Int = 0,
@@ -285,6 +344,34 @@ data class Stats(
     val noisyRoom: Int = 0,
     val hints: HintStats = HintStats(),
     val totals: Totals = Totals(),
+    /** Every key wanted that drew a wrong key, low to high (the slip map). */
+    val keySlips: List<KeySlips> = emptyList(),
+    /** The most common slip, or null with none. */
+    val topSlip: SlipPair? = null,
+    /** Notes that came due in lesson steps and songs, and those never played (let go, missed in Perform). */
+    val notesDue: Int = 0,
+    val skippedNotes: Int = 0,
+    /** How long keys took to find; null when nothing was waited for. */
+    val hesitation: HesitationStat? = null,
+    /** Tempo steadiness: the mean spread of Perform runs' beat offsets in ms over [tempoRuns] runs; null with none. */
+    val tempoSpreadMs: Int? = null,
+    val tempoRuns: Int = 0,
+    /** Each hand's notes; null for a hand with no notes due. */
+    val left: HandStat? = null,
+    val right: HandStat? = null,
+    /** The period before's hints (last week for a WEEK), null when nothing was played in it. */
+    val hintsBefore: HintStats? = null,
+    /** The drum steps' claps on the beat; null with no drum step that counted its beats. */
+    val clap: ClapStat? = null,
+    /** Ear and chord game rounds by game, most played first. */
+    val ear: List<EarStat> = emptyList(),
+    /** Practice minutes in each of the four weeks ending with the range, oldest first. */
+    val weeks: List<Int> = emptyList(),
+    /** The mean session's minutes on screen, in the range and in the periods before (null without sessions). */
+    val sessionMinutes: Int? = null,
+    val sessionMinutesBefore: Int? = null,
+    /** Where the minutes on screen went. */
+    val mix: PlayMix = PlayMix(),
 )
 
 /**
@@ -340,7 +427,8 @@ data class Findings(
             candidates = candidates.map { it.copy(params = params(it.params)) },
             actions = actions.map { it.copy(params = params(it.params)) },
             settings = settings.filter { ID.matches(it.key) && ID.matches(it.value) },
-            stats = stats.copy(lessons = stats.lessons.filter { ID.matches(it.lessonId) }, songs = stats.songs.filter { ID.matches(it.songId) }),
+            stats = stats.copy(lessons = stats.lessons.filter { ID.matches(it.lessonId) }, songs = stats.songs.filter { ID.matches(it.songId) },
+                ear = stats.ear.filter { ID.matches(it.game) }),
         )
     }
 
@@ -382,13 +470,28 @@ internal object FindingsCodec {
         "toys" to s.toys.map { linkedMapOf("toy" to it.toy.wire, "opens" to it.opens, "minutes" to it.minutes) },
         "timeOfDay" to s.timeOfDay.map { linkedMapOf("part" to it.part.name, "minutes" to it.minutes, "sessions" to it.sessions) },
         "noisyRoom" to s.noisyRoom,
-        "hints" to s.hints.let { linkedMapOf("glow" to it.glow, "point" to it.point, "play" to it.play, "octave" to it.octave) },
+        "hints" to hints(s.hints),
         "totals" to s.totals.let { t -> linkedMapOf(
             "minutes" to t.minutes, "practiceMinutes" to t.practiceMinutes, "sessions" to t.sessions, "daysPractised" to t.daysPractised,
             "lessonsFinished" to t.lessonsFinished, "newLessons" to t.newLessons, "songRuns" to t.songRuns, "stickers" to t.stickers,
             "rareStickers" to t.rareStickers, "shinyStickers" to t.shinyStickers, "questStars" to t.questStars, "goalDays" to t.goalDays,
             "earRounds" to t.earRounds, "earCorrect" to t.earCorrect) },
+        "keySlips" to s.keySlips.map { linkedMapOf("key" to it.midi, "near" to it.near, "far" to it.far) },
+        "topSlip" to s.topSlip?.let { linkedMapOf("expected" to it.expected, "played" to it.played, "count" to it.count) },
+        "notesDue" to s.notesDue, "skippedNotes" to s.skippedNotes,
+        "hesitation" to s.hesitation?.let { linkedMapOf("meanMs" to it.meanMs, "notes" to it.notes, "worstKey" to it.worstKey, "worstMs" to it.worstMs) },
+        "tempoSpreadMs" to s.tempoSpreadMs, "tempoRuns" to s.tempoRuns,
+        "left" to s.left?.let(::hand), "right" to s.right?.let(::hand),
+        "hintsBefore" to s.hintsBefore?.let(::hints),
+        "clap" to s.clap?.let { linkedMapOf("onBeat" to it.onBeat, "beats" to it.beats, "steps" to it.steps) },
+        "ear" to s.ear.map { linkedMapOf("game" to it.game, "rounds" to it.rounds, "correct" to it.correct) },
+        "weeks" to s.weeks,
+        "sessionMinutes" to s.sessionMinutes, "sessionMinutesBefore" to s.sessionMinutesBefore,
+        "mix" to linkedMapOf("lessons" to s.mix.lessons, "songs" to s.mix.songs, "toys" to s.mix.toys),
     )
+
+    private fun hints(h: HintStats) = linkedMapOf("glow" to h.glow, "point" to h.point, "play" to h.play, "octave" to h.octave)
+    private fun hand(h: HandStat) = linkedMapOf("notes" to h.notes, "clean" to h.clean, "hesitationMs" to h.hesitationMs)
 
     fun read(m: Map<*, *>): Findings {
         val range = m["range"] as? Map<*, *>
@@ -439,12 +542,30 @@ internal object FindingsCodec {
         toys = list(m["toys"]).mapNotNull { e -> ToyKind.of(e["toy"] as? String)?.let { ToyStat(it, int(e["opens"]), int(e["minutes"])) } },
         timeOfDay = list(m["timeOfDay"]).mapNotNull { e -> enumOf<DayPart>(e["part"])?.let { PartStat(it, int(e["minutes"]), int(e["sessions"])) } },
         noisyRoom = int(m["noisyRoom"]),
-        hints = (m["hints"] as? Map<*, *>)?.let { HintStats(int(it["glow"]), int(it["point"]), int(it["play"]), int(it["octave"])) } ?: HintStats(),
+        hints = (m["hints"] as? Map<*, *>)?.let(::readHints) ?: HintStats(),
         totals = (m["totals"] as? Map<*, *>)?.let { t -> Totals(
             int(t["minutes"]), int(t["practiceMinutes"]), int(t["sessions"]), int(t["daysPractised"]), int(t["lessonsFinished"]),
             int(t["newLessons"]), int(t["songRuns"]), int(t["stickers"]), int(t["rareStickers"]), int(t["shinyStickers"]),
             int(t["questStars"]), int(t["goalDays"]), int(t["earRounds"]), int(t["earCorrect"])) } ?: Totals(),
+        keySlips = list(m["keySlips"]).mapNotNull { e -> intOrNull(e["key"])?.let { KeySlips(it, int(e["near"]), int(e["far"])) } },
+        topSlip = (m["topSlip"] as? Map<*, *>)?.let { e ->
+            val x = intOrNull(e["expected"]); val p = intOrNull(e["played"])
+            if (x == null || p == null) null else SlipPair(x, p, int(e["count"]))
+        },
+        notesDue = int(m["notesDue"]), skippedNotes = int(m["skippedNotes"]),
+        hesitation = (m["hesitation"] as? Map<*, *>)?.let { e -> HesitationStat(int(e["meanMs"]), int(e["notes"]), intOrNull(e["worstKey"]), intOrNull(e["worstMs"])) },
+        tempoSpreadMs = intOrNull(m["tempoSpreadMs"]), tempoRuns = int(m["tempoRuns"]),
+        left = (m["left"] as? Map<*, *>)?.let(::readHand), right = (m["right"] as? Map<*, *>)?.let(::readHand),
+        hintsBefore = (m["hintsBefore"] as? Map<*, *>)?.let(::readHints),
+        clap = (m["clap"] as? Map<*, *>)?.let { e -> ClapStat(int(e["onBeat"]), int(e["beats"]), int(e["steps"])) },
+        ear = list(m["ear"]).mapNotNull { e -> (e["game"] as? String)?.let { EarStat(it, int(e["rounds"]), int(e["correct"])) } },
+        weeks = (m["weeks"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toInt() },
+        sessionMinutes = intOrNull(m["sessionMinutes"]), sessionMinutesBefore = intOrNull(m["sessionMinutesBefore"]),
+        mix = (m["mix"] as? Map<*, *>)?.let { e -> PlayMix(int(e["lessons"]), int(e["songs"]), int(e["toys"])) } ?: PlayMix(),
     )
+
+    private fun readHints(m: Map<*, *>) = HintStats(int(m["glow"]), int(m["point"]), int(m["play"]), int(m["octave"]))
+    private fun readHand(m: Map<*, *>) = HandStat(int(m["notes"]), intOrNull(m["clean"]), intOrNull(m["hesitationMs"]))
 
     private inline fun <reified E : Enum<E>> enumOf(v: Any?): E? = (v as? String)?.let { s -> enumValues<E>().firstOrNull { it.name == s } }
     private fun list(v: Any?): List<Map<*, *>> = (v as? List<*>).orEmpty().filterIsInstance<Map<*, *>>()

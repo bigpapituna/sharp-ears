@@ -61,7 +61,8 @@ All through `Briefs` (a no-op before `Briefs.init`, so JVM tests and previews lo
 | LessonStep | `ui/LessonScreen.kt`: `complete()` (passed or let go), the Next button (skipped, or a read step), Skip (needs MIDI), and on leaving a step after a try or during one (Back or closing the lesson: `left`) | one `StepRecorder` per step; tries, hints and wrong keys summed over its tries; the player hands over its tally through `Embedded.onTally` (and an unfinished try's as it goes); stages report no hints |
 | LessonDone | `LessonScreen.complete()` on the last step | `first` from `Prefs.lessonDone` before `onDone` |
 | SongRun | `ui/PlayerScreen.kt` `finished()`, library songs only, a run that played something (not Listen, not empty) | the run RunRecap shows; a duet partner gets the same SongRun in their log |
-| WrongKey | with each LessonStep and SongRun, the five most frequent (expected, played) pairs | touch, MIDI, and mic wrong keys unless the room watchdog stopped painting for the session |
+| WrongKey | with each LessonStep and SongRun, every (expected, played) pair, most frequent first, up to 24 (the top five before the email brief) | touch, MIDI, and mic wrong keys unless the room watchdog stopped painting for the session |
+| RunDetail (on LessonStep and SongRun) | `engine/Transport.kt` feeds the run's `RunTally` the notes itself: a wait group as it comes due (`tick`), each key as heard (`noteInput`, the mic's latency taken off), the group done; each Perform group played (`PerformScore.onHit`, its offset) or missed (`onMiss`). The Playground's let-go (`RunTally.letGo`, PlayerScreen) marks the rest of the group never played | skipped notes, hesitation (mean, per key slowest, per hand), each hand's clean notes, the Perform spread, hint counts past 32. No PlayerScreen change was needed. The drum stage (`ui/playground/ClapStage.kt`) reports its beats as `rounds` |
 | OctaveHint | with each LessonStep and SongRun that had one | |
 | NoisyRoom | `PlayerScreen.checkNoise` ("player"), `ui/playground/PlaygroundKit.kt` stage clip watch ("stage:<GAME>") | |
 | ToyOpened | `MainActivity` `Screen.Play` (`TimedOnScreen`) | on leaving the toy |
@@ -88,7 +89,7 @@ All through `Briefs` (a no-op before `Briefs.init`, so JVM tests and previews lo
 
 ## Decisions (made without asking, as briefed)
 
-- Wrong keys are aggregated per run (top five pairs plus near and far totals on the run), never one event per key.
+- Wrong keys are aggregated per run (every pair up to 24, plus near and far totals on the run), never one event per key.
 - Mic wrong keys count whether or not they are painted, except after the room-noise watchdog stopped painting for the
   session (then they may be the room).
 - A session is a stretch on screen as one person; Insights merges stretches under five minutes apart, so a rotation, a

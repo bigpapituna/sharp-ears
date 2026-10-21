@@ -470,6 +470,15 @@ class InsightsTest {
     private val lessonPool = COURSE.flatMap { it.lessons }.map { it.id }.shuffled(java.util.Random(7)).take(40) + listOf("old-lesson", "x-1")
     private val songPool = listOf("twinkle", "ode-to-joy", "minuet-g", "fur-elise", "user-alicia", "imported-1")
 
+    /** A run's note-by-note detail as the transport might write it (or none, as an older line reads). */
+    private fun randomDetail(r: java.util.Random): RunDetail {
+        if (r.nextInt(3) == 0) return RunDetail()
+        val n = r.nextInt(30)
+        fun hand() = r.nextInt(20).let { due -> HandNotes(due, r.nextInt(due + 1), r.nextInt(4_000), r.nextInt(due + 1)) }
+        return RunDetail(r.nextInt(5), if (n > 0) r.nextInt(5_000) else null, n, List(r.nextInt(4)) { KeyMs(55 + r.nextInt(20), r.nextInt(8_000)) },
+            hand(), hand(), if (r.nextBoolean()) r.nextInt(120) else null, if (r.nextInt(8) == 0) listOf(r.nextInt(40), r.nextInt(9), r.nextInt(5)) else emptyList())
+    }
+
     private fun randomHistory(r: java.util.Random): List<BriefEvent> = history {
         repeat(r.nextInt(25)) {
             val day = TODAY.minusDays(r.nextInt(40).toLong())
@@ -481,10 +490,11 @@ class InsightsTest {
                             letGo = r.nextInt(6) == 0, hints = List(r.nextInt(4)) { 1 + r.nextInt(3) }, stars = 1 + r.nextInt(3),
                             accuracy = if (r.nextBoolean()) r.nextInt(101) else null, timing = if (r.nextBoolean()) r.nextInt(400) - 200 else null,
                             hands = Hands.entries[r.nextInt(3)], wrong = r.nextInt(12), near = r.nextInt(6), far = r.nextInt(6),
-                            game = if (r.nextInt(5) == 0) "CLAP" else null, score = r.nextInt(101))
-                        3, 4 -> done(lesson, 1 + r.nextInt(3), r.nextBoolean())
+                            game = if (r.nextInt(5) == 0) "CLAP" else null, score = r.nextInt(101), rounds = r.nextInt(20), detail = randomDetail(r))
+                        3, 4 -> done(lesson, 1 + r.nextInt(3), r.nextBoolean()).also { if (r.nextBoolean()) wrongKey(55 + r.nextInt(20), 55 + r.nextInt(20), 1 + r.nextInt(4), lesson = lesson) }
                         5, 6 -> song(songPool[r.nextInt(songPool.size)], 1 + r.nextInt(3), RunMode.entries[r.nextInt(3)], Hands.entries[r.nextInt(3)],
-                            accuracy = r.nextInt(101), timing = r.nextInt(300) - 150, near = r.nextInt(5), far = r.nextInt(5), hints = List(r.nextInt(3)) { 1 + r.nextInt(3) })
+                            accuracy = r.nextInt(101), timing = r.nextInt(300) - 150, near = r.nextInt(5), far = r.nextInt(5), hints = List(r.nextInt(3)) { 1 + r.nextInt(3) },
+                            detail = randomDetail(r))
                         7 -> toy(ToyKind.entries[r.nextInt(3)], r.nextInt(15))
                         8 -> ear(listOf("pitch", "chord:build")[r.nextInt(2)], r.nextBoolean())
                         9 -> noisy(listOf("player", "stage:CLAP")[r.nextInt(2)])

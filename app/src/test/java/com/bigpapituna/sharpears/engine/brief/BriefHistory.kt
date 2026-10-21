@@ -21,14 +21,18 @@ class BriefHistory {
         private fun next(): Long { t += 30_000; return t }
         fun step(lesson: String, index: Int = 1, kind: String = "PLAY", tries: Int = 1, letGo: Boolean = false, hints: List<Int> = emptyList(),
                  stars: Int? = 3, accuracy: Int? = null, score: Int? = null, timing: Int? = null, game: String? = null, hands: Hands? = null,
-                 notes: Int = 8, wrong: Int = 0, near: Int = 0, far: Int = 0, skipped: Boolean = false, ms: Long = 60_000) {
+                 notes: Int = 8, wrong: Int = 0, near: Int = 0, far: Int = 0, skipped: Boolean = false, ms: Long = 60_000,
+                 rounds: Int = 0, detail: RunDetail = RunDetail()) {
             events += BriefEvent.LessonStep(next(), lesson, index, kind, tries, letGo, hints, ms, game, hands, skipped, stars, accuracy, score, timing,
-                notes, wrong, near, far)
+                notes, wrong, near, far, rounds = rounds, detail = detail)
         }
         fun done(lesson: String, stars: Int = 3, first: Boolean = true) { events += BriefEvent.LessonDone(next(), lesson, stars, 120_000, first) }
         fun song(id: String, stars: Int = 3, mode: RunMode = RunMode.WAIT, hands: Hands = Hands.RIGHT, accuracy: Int? = null, timing: Int? = null,
-                 near: Int = 0, far: Int = 0, notes: Int = 20, hints: List<Int> = emptyList()) {
-            events += BriefEvent.SongRun(next(), id, mode, hands, accuracy, stars, timing, near, far, notes, near + far, hints, 90_000)
+                 near: Int = 0, far: Int = 0, notes: Int = 20, hints: List<Int> = emptyList(), detail: RunDetail = RunDetail()) {
+            events += BriefEvent.SongRun(next(), id, mode, hands, accuracy, stars, timing, near, far, notes, near + far, hints, 90_000, detail = detail)
+        }
+        fun wrongKey(expected: Int, played: Int, count: Int = 1, lesson: String? = null, song: String? = null) {
+            events += BriefEvent.WrongKey(next(), expected, played, kotlin.math.abs(expected - played) <= 2, count, lesson, song)
         }
         fun toy(toy: ToyKind, minutes: Int) { events += BriefEvent.ToyOpened(next(), toy, minutes * 60_000L) }
         fun ear(game: String, correct: Boolean) { events += BriefEvent.EarRound(next(), game, correct, 0) }

@@ -153,6 +153,22 @@ internal object TrendBank {
             l("The app played the key in {now} of stuck moments {span}, up from {before} in {earlier}."),
             l("More help needed: the app played the key in {now} of stuck moments {span} against {before} in {earlier}."),
             l("Hints went further {span}: {now} of stuck moments ended with the app playing the key, from {before} in {earlier}."))
+        b(TrendKind.HESITATION_MS,
+            l("Keys came quicker {span}: {now} to find each, against {before} in {earlier}."),
+            l("Less searching for keys {span}, {now} per note, down from {before} in {earlier}."),
+            l("The wait for each key fell to {now} {span}, from {before} in {earlier}."))
+        w(TrendKind.HESITATION_MS,
+            l("Finding each key took a little longer {span}: {now} against {before} in {earlier}."),
+            l("More searching for keys {span}, {now} per note, up from {before} in {earlier}."),
+            l("The wait for each key grew to {now} {span}, from {before} in {earlier}."))
+        b(TrendKind.TEMPO_SPREAD,
+            l("A steadier beat {span}: notes wandered {now}, against {before} in {earlier}."),
+            l("The tempo held tighter {span}, {now} from note to note, down from {before} in {earlier}."),
+            l("The beat steadied to {now} of wobble {span}, from {before} in {earlier}."))
+        w(TrendKind.TEMPO_SPREAD,
+            l("The beat wandered a little more {span}: {now} against {before} in {earlier}."),
+            l("The tempo was looser {span}, {now} from note to note, up from {before} in {earlier}."),
+            l("Notes drifted more around the beat {span}: {now}, from {before} in {earlier}."))
     }
 }
 
@@ -166,7 +182,8 @@ private fun amount(kind: TrendKind, x: Double, about: Boolean): String {
         TrendKind.DAYS -> count(r, "day")
         TrendKind.SESSIONS -> count(r, "session")
         TrendKind.STARS -> one(x) + " stars"
-        TrendKind.TIMING_MS -> "$r ms"
+        TrendKind.TIMING_MS, TrendKind.TEMPO_SPREAD -> "$r ms"
+        TrendKind.HESITATION_MS -> one(x / 1000) + " seconds"
         TrendKind.WRONG_PER_RUN -> one(x) + " slips"
         else -> percent(r)
     }
@@ -187,6 +204,8 @@ private fun subject(kind: TrendKind) = when (kind) {
     TrendKind.EAR -> "ear game results"
     TrendKind.CLAP -> "clapping on the beat"
     TrendKind.PLAY_HINTS -> "how often the app plays the key"
+    TrendKind.HESITATION_MS -> "the time to find each key"
+    TrendKind.TEMPO_SPREAD -> "how much the beat wanders"
 }
 
 /** One trend as a sentence; null when [t] has no earlier period to compare with. */

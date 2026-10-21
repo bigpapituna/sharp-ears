@@ -60,6 +60,19 @@ object Insights {
     const val LONG_DAY_MIN = 30
     /** The microphone can be made easier up to this offset (dB); a kid starts at +3. */
     const val MIC_EASIER_MAX_DB = 9.0
+    /** Notes never played: this many before they make a fact. */
+    const val SKIPPED_MIN = 3
+    /** Hesitation: notes measured before its fact and trend count. */
+    const val HESITATION_MIN_NOTES = 10
+    /** A key the person pauses on: at least this long (ms) in at least this many runs, and twice their usual wait. */
+    const val HESITATE_MS = 2_000
+    const val HESITATE_RUNS = 3
+    /** The left hand lags: both hands timed on this many notes, the left this much slower (ms) and this many times the right. */
+    const val LAG_MIN_NOTES = 8
+    const val LAG_MS = 500
+    const val LAG_RATIO = 1.5
+    /** A hand's clean percent is given from this many notes. */
+    const val HAND_CLEAN_MIN = 8
     /** At most this many of each list (flags of one kind, candidates, praise). */
     const val MAX_PER_KIND = 3
     const val MAX_CANDIDATES = 5
@@ -133,7 +146,7 @@ object Insights {
             flags = flags,
             candidates = candidates(flags, profile, current, win.of<BriefEvent.NoisyRoom>().map { it.screen.substringBefore(':') }.toSet()),
             praise = praise(win, before, all, trends, period, endMs, zone),
-            stats = stats(win, all, sessions, endMs, zone),
+            stats = stats(win, before, all, sessions, endMs, zone),
             reader = profile.reader || !kid,
             goalMinutes = goal,
             actions = win.of<BriefEvent.ParentAction>().mapNotNull { a ->
@@ -167,6 +180,9 @@ object Insights {
         w.of<BriefEvent.StickerDrop>().takeIf { it.isNotEmpty() }?.let { s -> add(Fact(FactKind.STICKERS, s.size.toLong(), s.count { it.isNew }.toLong())) }
         w.of<BriefEvent.QuestStar>().takeIf { it.isNotEmpty() }?.let { add(Fact(FactKind.QUEST_STARS, it.size.toLong())) }
         if (w.hints.isNotEmpty()) add(Fact(FactKind.HINTS, w.hints.count { it == HintDepth.PLAY }.toLong(), w.hints.size.toLong()))
+        if (w.skippedNotes >= SKIPPED_MIN) add(Fact(FactKind.SKIPPED_NOTES, w.skippedNotes.toLong(), w.notesDue.toLong()))
+        if (w.hesitationN >= HESITATION_MIN_NOTES) w.hesitationMean?.let { add(Fact(FactKind.HESITATION, it.roundToInt().toLong(), w.hesitationN.toLong())) }
+        w.tempoSpread?.let { add(Fact(FactKind.TEMPO_SPREAD, it.roundToInt().toLong(), w.spreads.size.toLong())) }
     }
 
     // ---- trends ---------------------------------------------------------------------------------------------------
@@ -176,8 +192,9 @@ object Insights {
         TrendKind.MINUTES to 5.0, TrendKind.DAYS to 1.0, TrendKind.SESSIONS to 1.0, TrendKind.STARS to 0.25,
         TrendKind.ACCURACY to 5.0, TrendKind.TIMING_MS to 15.0, TrendKind.NEAR_SHARE to 10.0, TrendKind.WRONG_PER_RUN to 1.0,
         TrendKind.LEFT_HAND to 8.0, TrendKind.RIGHT_HAND to 8.0, TrendKind.EAR to 10.0, TrendKind.CLAP to 10.0, TrendKind.PLAY_HINTS to 10.0,
+        TrendKind.HESITATION_MS to 150.0, TrendKind.TEMPO_SPREAD to 10.0,
     )
-    private val DOWN_IS_GOOD = setOf(TrendKind.TIMING_MS, TrendKind.WRONG_PER_RUN, TrendKind.PLAY_HINTS)
+    private val DOWN_IS_GOOD = setOf(TrendKind.TIMING_MS, TrendKind.WRONG_PER_RUN, TrendKind.PLAY_HINTS, TrendKind.HESITATION_MS, TrendKind.TEMPO_SPREAD)
 
     private fun trends(w: Window, before: List<Window>, period: Period): List<Trend> {
         val out = ArrayList<Trend>()
@@ -218,8 +235,11 @@ object Insights {
             cruising()?.let(::add)
             replaying()?.let(::add)
             lowStars()?.let(::add)
-            leftHandBehind()?.let(::add)
+            val behind = leftHandBehind()
+            behind?.let(::add)
+            if (behind == null) leftHandLags()?.let(::add)
             farMisses()?.let(::add)
+            hesitatesOn()?.let(::add)
             masteredSong()?.let(::add)
             scattered()?.let(::add)
             toyHeavy()?.let(::add)
@@ -332,6 +352,31 @@ object Insights {
             return Flag(FlagKind.FAR_MISSES, w.far.toLong(), (w.near + w.far).toLong())
         }
 
+        /** The left hand finds its keys much more slowly than the right (and its hit rate is not the issue: LEFT_HAND_BEHIND). */
+        fun leftHandLags(): Flag? {
+            val l = w.hand(left = true); val r = w.hand(left = false)
+            if (l.hesN < LAG_MIN_NOTES || r.hesN < LAG_MIN_NOTES) return null
+            if (l.hesMs - r.hesMs < LAG_MS || l.hesMs < LAG_RATIO * r.hesMs) return null
+            val songs = w.runs.filter { it.detail.left.hesN > 0 }.sortedByDescending { it.detail.left.hesMs }.map { it.songId }.distinct().take(2)
+            val lessons = w.steps.filter { it.detail.left.hesN > 0 }.sortedByDescending { it.detail.left.hesMs }.map { it.lessonId }.distinct().take(2)
+            return Flag(FlagKind.LEFT_HAND_LAGS, l.hesMs.toLong(), r.hesMs.toLong(), lessons, songs)
+        }
+
+        /**
+         * One key the person keeps pausing on: its slowest find was [HESITATE_MS] or more in [HESITATE_RUNS] runs or more, and
+         * typically twice their usual wait (so a slow day overall flags no key). The most often slow key wins.
+         */
+        fun hesitatesOn(): Flag? {
+            val usual = w.hesitationMean ?: return null
+            if (w.hesitationN < HESITATION_MIN_NOTES) return null
+            val (key, slow) = w.slowKeys.filter { it.ms >= HESITATE_MS }.groupBy { it.midi }
+                .filter { (_, l) -> l.size >= HESITATE_RUNS && l.map { it.ms }.average() >= 2 * usual }
+                .entries.maxWithOrNull(compareBy({ it.value.size }, { it.value.map { s -> s.ms }.average() }, { -it.key })) ?: return null
+            fun most(ids: List<String>) = ids.groupingBy { it }.eachCount().entries.sortedWith(compareBy({ -it.value }, { it.key })).map { it.key }.take(2)
+            return Flag(FlagKind.HESITATES_ON, key.toLong(), slow.map { it.ms }.average().roundToInt().toLong(),
+                most(slow.mapNotNull { it.lessonId }), most(slow.mapNotNull { it.songId }))
+        }
+
         fun masteredSong(): Flag? {
             val songs = w.runs.groupBy { it.songId }.filter { (_, r) -> r.count { it.stars >= 3 } >= 3 }.keys.sorted()
             return if (songs.isEmpty()) null else Flag(FlagKind.MASTERED_SONG, songs.size.toLong(), songs = songs.take(2))
@@ -422,6 +467,14 @@ object Insights {
             FlagKind.TOY_HEAVY -> add(RecommendationKind.ROUTINE, ActionId.SET_NEXT, f.kind)
             FlagKind.LONG_DAYS -> if (kid && current.bedtimeOn != true) setting(SettingId.BEDTIME, "true", f.kind)
             FlagKind.PRACTICE_DIPPED -> add(RecommendationKind.ROUTINE, ActionId.PRACTISE_TOGETHER, f.kind)
+            // Colours make a key easier to find; a grown-up sitting in can point at it.
+            FlagKind.HESITATES_ON -> {
+                if (!profile.colourNotes) setting(SettingId.COLOUR_NOTES, "true", f.kind)
+                add(RecommendationKind.TOGETHER, ActionId.PRACTISE_TOGETHER, f.kind,
+                    "lesson" to f.lessons.firstOrNull(), "song" to f.songs.firstOrNull().takeIf { f.lessons.isEmpty() })
+            }
+            FlagKind.LEFT_HAND_LAGS -> add(RecommendationKind.TOGETHER, ActionId.PRACTISE_TOGETHER, f.kind,
+                "song" to f.songs.firstOrNull(), "lesson" to f.lessons.firstOrNull().takeIf { f.songs.isEmpty() })
         }; perFlag += mine }
         val out = LinkedHashMap<Pair<ActionId, Map<String, String>>, Candidate>()
         for (i in 0 until (perFlag.maxOfOrNull { it.size } ?: 0)) for (c in perFlag) c.getOrNull(i)?.let { out.putIfAbsent(it.action to it.params, it) }
@@ -453,6 +506,8 @@ object Insights {
             TrendKind.NEAR_SHARE -> out += Praise(PraiseKind.MISSES_CLOSER, t.now.roundToInt().toLong())
             TrendKind.EAR -> out += Praise(PraiseKind.EAR_IMPROVED, t.now.roundToInt().toLong())
             TrendKind.LEFT_HAND -> out += Praise(PraiseKind.LEFT_HAND_IMPROVED, t.now.roundToInt().toLong())
+            TrendKind.TEMPO_SPREAD -> out += Praise(PraiseKind.STEADIER_TEMPO, t.now.roundToInt().toLong())
+            TrendKind.HESITATION_MS -> out += Praise(PraiseKind.FINDS_KEYS_FASTER, t.now.roundToInt().toLong())
             else -> {}
         }
         consistent(w, before, all, period, endMs, zone)?.let { out += it }
@@ -462,7 +517,7 @@ object Insights {
         w.firstFinishes.takeIf { it.isNotEmpty() }?.let { out += Praise(PraiseKind.NEW_LESSONS, it.size.toLong(), lessons = it.take(MAX_PER_KIND)) }
         w.of<BriefEvent.QuestStar>().groupBy { day(it.at, zone) }.count { it.value.size >= 3 }.takeIf { it > 0 }
             ?.let { out += Praise(PraiseKind.QUEST_DAY, it.toLong()) }
-        return out.sortedBy { it.kind.ordinal }.take(MAX_PRAISE)
+        return out.sortedBy { PRAISE_ORDER.indexOf(it.kind) }.take(MAX_PRAISE)
     }
 
     /** Days in a row with the goal reached, ending on [end] or the day before it. */
@@ -484,7 +539,7 @@ object Insights {
 
     // ---- stats ----------------------------------------------------------------------------------------------------
 
-    private fun stats(w: Window, all: List<BriefEvent>, sessions: List<Session>, endMs: Long, zone: ZoneId): Stats {
+    private fun stats(w: Window, before: List<Window>, all: List<BriefEvent>, sessions: List<Session>, endMs: Long, zone: ZoneId): Stats {
         val end = day(endMs, zone)
         val days = (6 downTo 0).map { k ->
             val d = end.minusDays(k.toLong())
@@ -517,9 +572,33 @@ object Insights {
             questStars = w.of<BriefEvent.QuestStar>().size, goalDays = w.goalDays.size,
             earRounds = w.ear.size, earCorrect = w.ear.count { it.correct },
         )
-        return Stats(days, lessons, songs, skills, toys, parts, w.of<BriefEvent.NoisyRoom>().size,
-            HintStats(w.hints.count { it == HintDepth.GLOW }, w.hints.count { it == HintDepth.POINT }, w.hints.count { it == HintDepth.PLAY },
-                w.of<BriefEvent.OctaveHint>().sumOf { it.count }), totals)
+        val wrong = w.of<BriefEvent.WrongKey>()
+        val keySlips = wrong.groupBy { it.expectedMidi }
+            .map { (k, es) -> KeySlips(k, es.filter { it.slip }.sumOf { it.count }, es.filterNot { it.slip }.sumOf { it.count }) }.sortedBy { it.midi }
+        val topSlip = wrong.groupingBy { it.expectedMidi to it.playedMidi }.fold(0) { n, e -> n + e.count }.entries
+            .maxWithOrNull(compareBy({ it.value }, { -it.key.first }, { -it.key.second }))?.let { SlipPair(it.key.first, it.key.second, it.value) }
+        val hesitation = w.hesitationMean?.let { mean ->
+            val waits = w.slowKeys.groupBy { it.midi }.mapValues { (_, l) -> l.map { it.ms }.average() to l.size }
+            val worst = waits.entries.filter { it.value.second >= 2 }.ifEmpty { waits.entries }
+                .maxWithOrNull(compareBy({ it.value.first }, { -it.key }))
+            HesitationStat(mean.roundToInt(), w.hesitationN, worst?.key, worst?.value?.first?.roundToInt())
+        }
+        fun hand(left: Boolean): HandStat? = w.hand(left).takeIf { it.due > 0 || it.hesN > 0 }?.let { h ->
+            HandStat(h.due, if (h.due >= HAND_CLEAN_MIN) (h.clean * 100.0 / h.due).roundToInt() else null, h.hesMs.takeIf { h.hesN > 0 })
+        }
+        val drum = w.drumSteps
+        val ear = w.ear.groupBy { it.game }.map { (g, r) -> EarStat(g, r.size, r.count { it.correct }) }.sortedWith(compareBy({ -it.rounds }, { it.game }))
+        fun meanSession(ws: List<Window>): Int? = ws.flatMap { it.sessions }.takeIf { it.isNotEmpty() }?.map { it.onScreenMs }?.average()?.let { (it / 60_000.0).roundToInt() }
+        fun min(ms: Long) = (ms / 60_000.0).roundToInt()
+        return Stats(days, lessons, songs, skills, toys, parts, w.of<BriefEvent.NoisyRoom>().size, w.hintStats(), totals,
+            keySlips = keySlips, topSlip = topSlip, notesDue = w.notesDue, skippedNotes = w.skippedNotes, hesitation = hesitation,
+            tempoSpreadMs = w.tempoSpread?.roundToInt(), tempoRuns = w.spreads.size, left = hand(true), right = hand(false),
+            hintsBefore = before.firstOrNull()?.takeIf { it.steps.isNotEmpty() || it.runs.isNotEmpty() }?.hintStats(),
+            clap = drum.takeIf { it.isNotEmpty() }?.let { d -> ClapStat(d.sumOf { it.notes }, d.sumOf { it.rounds }, d.size) },
+            ear = ear, weeks = weeks.map { it.practiceMinutes },
+            sessionMinutes = meanSession(listOf(w)), sessionMinutesBefore = meanSession(before),
+            mix = PlayMix(min(w.steps.sumOf { it.durationMs }), min(w.of<BriefEvent.SongRun>().sumOf { it.durationMs }), min(w.toyMs)),
+        )
     }
 
     // ---- helpers --------------------------------------------------------------------------------------------------
@@ -535,6 +614,9 @@ object Insights {
     private fun round1(v: Double) = (v * 10).roundToInt() / 10.0
     private fun fmtDb(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else round1(v).toString()
 }
+
+/** A run's slow key ([RunDetail.slowKeys]) with the lesson or song it was in. */
+internal data class SlowKey(val midi: Int, val ms: Int, val lessonId: String?, val songId: String?)
 
 /** A stretch of the app on screen for one person, merged across gaps under [Insights.SESSION_GAP_MS]. */
 internal data class Session(val start: Long, val end: Long, val onScreenMs: Long, val practiceSec: Int, val open: Boolean = false)
@@ -623,7 +705,39 @@ internal class Window(val from: Long, val to: Long, all: List<BriefEvent>, allSe
 
     val near by lazy { steps.sumOf { it.nearMisses } + runs.sumOf { it.nearMisses } }
     val far by lazy { steps.sumOf { it.farMisses } + runs.sumOf { it.farMisses } }
-    val hints: List<Int> by lazy { steps.flatMap { it.hintsUsed } + runs.flatMap { it.hintsUsed } }
+    /** One [HintDepth] per stuck wait; a run with more waits than its list keeps counts them all from its detail. */
+    val hints: List<Int> by lazy { steps.flatMap { waits(it.hintsUsed, it.detail) } + runs.flatMap { waits(it.hintsUsed, it.detail) } }
+    private fun waits(list: List<Int>, d: RunDetail) = if (d.hintSteps.size == 3) d.hintSteps.flatMapIndexed { i, n -> List(n) { i + 1 } } else list
+    fun hintStats() = HintStats(hints.count { it == HintDepth.GLOW }, hints.count { it == HintDepth.POINT }, hints.count { it == HintDepth.PLAY },
+        of<BriefEvent.OctaveHint>().sumOf { it.count })
+
+    /** Each played run's note-by-note detail (lesson steps and songs, Listen left out). */
+    private val details: List<RunDetail> by lazy { steps.map { it.detail } + runs.map { it.detail } }
+    val notesDue by lazy { details.sumOf { it.notesDue } }
+    val skippedNotes by lazy { details.sumOf { it.skippedNotes } }
+    val hesitationN by lazy { details.sumOf { d -> if (d.hesitationMs != null) d.hesitationN else 0 } }
+    /** The mean wait for a key over every note timed, or null with none. */
+    val hesitationMean: Double? by lazy {
+        if (hesitationN == 0) null else details.sumOf { d -> (d.hesitationMs ?: 0).toDouble() * d.hesitationN } / hesitationN
+    }
+    /** One hand's notes over the window ([left] or the right). */
+    fun hand(left: Boolean): HandNotes {
+        val hs = details.map { if (left) it.left else it.right }
+        val n = hs.sumOf { it.hesN }
+        return HandNotes(hs.sumOf { it.due }, hs.sumOf { it.clean }, if (n == 0) 0 else (hs.sumOf { it.hesMs.toLong() * it.hesN }.toDouble() / n).roundToInt(), n)
+    }
+    /** Each run's slowest keys, with where. */
+    val slowKeys: List<SlowKey> by lazy {
+        steps.flatMap { s -> s.detail.slowKeys.map { SlowKey(it.midi, it.ms, s.lessonId, null) } } +
+            runs.flatMap { r -> r.detail.slowKeys.map { SlowKey(it.midi, it.ms, null, r.songId) } }
+    }
+    /** Perform runs' tempo spread (ms) with their weight, the notes graded. */
+    val spreads: List<Pair<Int, Int>> by lazy {
+        steps.mapNotNull { s -> s.detail.spreadMs?.let { it to maxOf(1, s.notes) } } + runs.mapNotNull { r -> r.detail.spreadMs?.let { it to maxOf(1, r.notes) } }
+    }
+    val tempoSpread: Double? by lazy { if (spreads.isEmpty()) null else spreads.sumOf { it.first.toDouble() * it.second } / spreads.sumOf { it.second } }
+    /** The drum steps that counted their beats (game CLAP). */
+    val drumSteps by lazy { steps.filter { it.game == "CLAP" && it.rounds > 0 && !it.skipped } }
     val timings: List<Int> by lazy { (steps.mapNotNull { it.timingMeanMs } + runs.mapNotNull { it.timingMeanMs }).map { abs(it) } }
     val accuracies: List<Int> by lazy { steps.mapNotNull { it.accuracy } + runs.mapNotNull { it.accuracy } }
     val claps: List<Int> by lazy { steps.filter { it.game == "CLAP" }.mapNotNull { it.score } }
@@ -659,6 +773,8 @@ internal class Window(val from: Long, val to: Long, all: List<BriefEvent>, allSe
         TrendKind.EAR -> if (ear.size >= 5) ear.count { it.correct } * 100.0 / ear.size else null
         TrendKind.CLAP -> claps.takeIf { it.size >= 2 }?.average()
         TrendKind.PLAY_HINTS -> if (hints.size >= 4) hints.count { it == HintDepth.PLAY } * 100.0 / hints.size else null
+        TrendKind.HESITATION_MS -> hesitationMean?.takeIf { hesitationN >= Insights.HESITATION_MIN_NOTES }
+        TrendKind.TEMPO_SPREAD -> tempoSpread?.takeIf { spreads.size >= 2 }
     }
 
     companion object {

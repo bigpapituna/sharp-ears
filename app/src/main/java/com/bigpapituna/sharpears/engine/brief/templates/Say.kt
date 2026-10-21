@@ -65,6 +65,19 @@ internal fun timesWord(n: Long): String = when (n) { 1L -> "once"; 2L -> "twice"
 
 internal fun percent(n: Long): String = "$n percent"
 
+/** A wait in words: "under half a second", "under a second", "1.4 seconds", "two seconds". */
+internal fun seconds(ms: Long): String = when {
+    ms < 500 -> "under half a second"
+    ms < 950 -> "under a second"
+    else -> {
+        val tenths = Math.round(ms / 100.0)
+        if (tenths % 10 == 0L) count(tenths / 10, "second") else String.format(java.util.Locale.ROOT, "%.1f seconds", tenths / 10.0)
+    }
+}
+
+/** A key by its letter, as the voice says notes: "G", "F sharp", "E flat" (no octave). */
+internal fun keyName(midi: Long): String = com.bigpapituna.sharpears.engine.spokenPitch(Math.floorMod(midi, 12L).toInt())
+
 /** "A", "A and B", "A, B and C". */
 internal fun joinList(items: List<String>): String = when (items.size) {
     0 -> ""

@@ -112,6 +112,18 @@ internal object PraiseBank {
             l("A full quest, three stars, on {days} {lastweek}.", "A full quest, three stars, on {days} {lastweek}."),
             l("Pup's quest got all three stars on {days}. Worth a word of praise.", "Pup's quest got all three stars on {days}."),
         )
+        p(PraiseKind.STEADIER_TEMPO,
+            l("The beat is steadier: notes wander about {ms} around it now, less than before.", "Your beat is steadier: notes wander about {ms} around it now."),
+            l("A steadier tempo than before, about {ms} from note to note. Tell {name}.", "A steadier tempo than before, about {ms} from note to note."),
+            l("Perform runs are holding the beat better, within about {ms}.", "Your Perform runs are holding the beat better, within about {ms}."),
+            l("The tempo stays put more than it used to. Worth saying out loud.", "The tempo stays put more than it used to. That is control."),
+        )
+        p(PraiseKind.FINDS_KEYS_FASTER,
+            l("Keys are coming quicker: {wait} to find each now, faster than before.", "Keys are coming quicker for you: {wait} each now."),
+            l("Less searching for keys than before, {wait} each. Tell {name} you noticed.", "Less searching for keys than before, {wait} each."),
+            l("The hands know where the keys are better now: {wait} per note.", "Your hands know where the keys are better now: {wait} per note."),
+            l("Finding keys has got faster. Worth a high five at home.", "Finding keys has got faster. That is real progress."),
+        )
     }
 }
 
@@ -122,7 +134,7 @@ internal fun praiseVars(c: Ctx, p: Praise): Map<String, String?> {
         "title" to p.lessons.firstOrNull()?.let(c::quoted), "titles" to c.titles(p.lessons),
         "songs" to c.titles(p.songs), "song" to p.songs.firstOrNull()?.let(c::quoted),
         "page" to p.page?.let(c::pageLower),
-        "days" to count(v, "day"), "ms" to "$v ms", "pct" to percent(v),
+        "days" to count(v, "day"), "ms" to "$v ms", "pct" to percent(v), "wait" to seconds(v),
         "stickers" to count(v, "sticker"), "lessons" to count(v, "lesson"),
         "lastseven" to "in the last seven days", "lastweek" to c.span,
     )
@@ -151,4 +163,6 @@ internal fun genericPraise(c: Ctx, p: Praise): String = when (p.kind) {
     PraiseKind.CLEAN_SONG -> "A song came out at three stars ${c.span}."
     PraiseKind.NEW_LESSONS -> "New lessons were finished for the first time ${c.span}."
     PraiseKind.QUEST_DAY -> "Pup's quest got all three stars."
+    PraiseKind.STEADIER_TEMPO -> "The beat is steadier than before."
+    PraiseKind.FINDS_KEYS_FASTER -> "Keys are coming quicker than before."
 }

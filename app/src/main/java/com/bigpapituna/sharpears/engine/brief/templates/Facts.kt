@@ -233,6 +233,26 @@ internal object FactBank {
             l("Hints {span}: {stuck} stuck moments, {play} of them needing the app to play the key."),
             l("The app helped {stucktimes} {span}; in {play} it played the key itself."),
         )
+
+        // ---- notes, keys and the beat (the email brief's extra data) ----
+        bank(FactKind.SKIPPED_NOTES, null,
+            l("{Skipped} went by unplayed {span}, out of {due}: let go by the pup or missed in time."),
+            l("Notes left unplayed {span}: {skippedn} of {duen}."),
+            l("Of {due} {span}, {skippedn} went by without being played."),
+            l("{Skippedn} of {duen} notes were let go or missed {span}."),
+        )
+        bank(FactKind.HESITATION, null,
+            l("Finding each next key took {wait} on average {span}."),
+            l("From a note coming up to its key being played: {wait} on average."),
+            l("The wait for each key {span} was {wait}, over {notes}."),
+            l("Keys came {wait} after their notes, on average {span}."),
+        )
+        bank(FactKind.TEMPO_SPREAD, null,
+            l("In Perform the beat held to within about {ms} from note to note, {feel}."),
+            l("Tempo steadiness: the notes wandered about {ms} around the beat."),
+            l("Across {runs}, the beat wandered about {ms} from note to note."),
+            l("The beat stayed {feel} in Perform, about {ms} of wobble."),
+        )
     }
 }
 
@@ -276,6 +296,11 @@ internal fun factVars(c: Ctx, f: Fact): Map<String, String?> {
             "newst" to of?.takeIf { it > 0 }?.let { count(it, "new sticker") })
         FactKind.QUEST_STARS -> mapOf("stars" to count(v, "quest star"))
         FactKind.HINTS -> mapOf("stuck" to of?.let(::words), "stucktimes" to of?.let(::timesWord), "play" to words(v))
+        FactKind.SKIPPED_NOTES -> mapOf("skipped" to count(v, "note"), "skippedn" to words(v),
+            "due" to of?.let { count(it, "note") }, "duen" to of?.let(::words))
+        FactKind.HESITATION -> mapOf("wait" to seconds(v), "notes" to of?.let { count(it, "note") })
+        FactKind.TEMPO_SPREAD -> mapOf("ms" to "$v ms", "runs" to of?.let { count(it, "timed run") },
+            "feel" to when { v < 30 -> "very steady"; v < 60 -> "fairly steady"; else -> "still settling" })
     }
     return common + kind
 }

@@ -69,6 +69,8 @@ internal fun praiseClause(c: Ctx, p: Praise): String {
         PraiseKind.CLEAN_SONG -> listOf(l("played {songs} at three stars"), l("played a song at three stars"))
         PraiseKind.NEW_LESSONS -> listOf(l("finished {titles}"), l("worked through new lessons"))
         PraiseKind.QUEST_DAY -> listOf(l("completed Pup's whole quest"), l("earned all of Pup's quest stars"))
+        PraiseKind.STEADIER_TEMPO -> listOf(l("kept a steadier beat"), l("held the tempo steadier than before"))
+        PraiseKind.FINDS_KEYS_FASTER -> listOf(l("found the keys faster"), l("needed less time to find each key"))
     }
     return clause(c, "headline praise ${p.kind}", bank, v) ?: "did well"
 }
@@ -94,6 +96,8 @@ internal fun flagClause(c: Ctx, f: Flag): String {
         FlagKind.SCATTERED -> listOf(l("sampled lots of lessons"))
         FlagKind.TOY_HEAVY -> listOf(l("spent most of the time in the toys"))
         FlagKind.PRACTICE_DIPPED -> listOf(l("had a lighter week"))
+        FlagKind.HESITATES_ON -> listOf(l("{is} still looking for {key} now and then"), l("{is} still looking for one key"))
+        FlagKind.LEFT_HAND_LAGS -> listOf(l("{is} still bringing the left hand up to speed"))
     }
     return clause(c, "headline flag ${f.kind}", bank, v) ?: "had a few things come up"
 }

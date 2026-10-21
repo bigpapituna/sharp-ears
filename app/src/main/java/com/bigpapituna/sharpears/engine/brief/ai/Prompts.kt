@@ -41,7 +41,7 @@ import com.bigpapituna.sharpears.engine.family.ProfileKind
  */
 object Prompts {
     /** Part of every cache key: a new prompt rewrites rather than reusing what the old one wrote. */
-    const val VERSION = 1
+    const val VERSION = 2
     /** Where the person's name goes; the app fills it in on the phone, so the name never leaves it. */
     const val NAME = "{name}"
 
@@ -141,7 +141,10 @@ object Prompts {
         "off the beat, over that many runs. HANDS is the left hand's hit rate in percent, of the right hand's. EAR_ROUNDS is " +
         "ear game rounds answered right, of rounds. CLAP is the percent of drum beats with a clap. TOY_MINUTES is minutes " +
         "in the toys (Jam, Pup says, Clap along), of minutes on screen. STICKERS is stickers won, of them new. QUEST_STARS " +
-        "is the pup's quest stars. HINTS is stuck moments where the app played the key, of stuck moments with any hint.\n" +
+        "is the pup's quest stars. HINTS is stuck moments where the app played the key, of stuck moments with any hint. " +
+        "SKIPPED_NOTES is notes that came up and were never played (let go by the app, or missed in Perform), of notes that " +
+        "came up. HESITATION is the average milliseconds from a note coming up to its key being played, over that many notes. " +
+        "TEMPO_SPREAD is how much the beat wanders in Perform, in milliseconds (lower is steadier), over that many runs.\n" +
         "Trends compare now with before, the average of the ${if (kid) "child's" else "learner's"} own earlier periods " +
         "(periods says how many). Direction is UP, DOWN or STEADY, and good says whether the change is an improvement. " +
         "Stars run from one to three, accuracy and hand rates are percent, and timing is milliseconds off the beat, where " +
@@ -149,7 +152,12 @@ object Prompts {
         "Praise is the good news, the most special first.\n" +
         "Stats are for the sections: the last seven days, each lesson with its best stars, tries, steps let go and minutes, " +
         "songs with runs, best stars and best accuracy, skills as four weekly points (oldest first, null for a week with " +
-        "too little to measure), toys, time of day, noisy room events and hints.\n" +
+        "too little to measure), toys, time of day, noisy room events and hints; then the slip map (wrong keys by the key " +
+        "wanted, near and far) and the most common slip, notes never played, how long keys took to find and the slowest key, " +
+        "tempo steadiness, each hand's notes and clean percent, the period before's hints, claps on the drum's beats, ear " +
+        "rounds by game, practice minutes in each of four weeks, the average session's minutes now and before, and where " +
+        "the minutes went. Keys are MIDI note numbers: 60 is middle C, 62 D, 64 E, 65 F, 67 G, 69 A, 71 B, 72 the next C, " +
+        "and a black key is the sharp of the white key below it. Name a key by its letter, never by its number.\n" +
         "Actions are steps already taken from an earlier brief, and settings are what changed; mention them only as part " +
         "of what happened."
 
@@ -171,6 +179,8 @@ object Prompts {
         append("TOY_HEAVY, most of the time in the toys: play is music too.\n")
         if (kid) append("LONG_DAYS, very long days at the piano: that is enthusiasm, and a soft stop helps some families.\n")
         append("PRACTICE_DIPPED, fewer days or minutes than usual: weeks vary.\n")
+        append("HESITATES_ON, one key that keeps a pause in front of it (value is the key as a MIDI note number, of is the typical pause in milliseconds): a key the hand still looks for is a key it is learning, and the pause shrinks with every find.\n")
+        append("LEFT_HAND_LAGS, the left hand takes longer to find its keys than the right (value and of are their average waits in milliseconds): the left hand is nearly always the second hand.\n")
         append(if (kid) "These are good news, so say them gladly: READY_FOR_LETTERS (letter lessons played well for two weeks, so the child has been reading the letters already), READY_FOR_ROAD (the last playground page is done and the big kids' road is next), CRUISING (new lessons finished with nearly three stars and no hard moments), MASTERED_SONG (a song played three times or more at three stars, ready for a new one)."
                else "These are good news, so say them gladly: CRUISING (new lessons finished with nearly three stars and no hard moments), MASTERED_SONG (a song played three times or more at three stars, ready for a new one).")
     }

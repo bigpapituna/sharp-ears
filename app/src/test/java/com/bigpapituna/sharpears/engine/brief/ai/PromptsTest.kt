@@ -91,6 +91,8 @@ class PromptsTest {
             FlagKind.LONG_DAYS to "a soft stop helps some families",
             FlagKind.PRACTICE_DIPPED to "weeks vary",
             FlagKind.SCATTERED to "trying lots of things is curiosity",
+            FlagKind.HESITATES_ON to "a key the hand still looks for is a key it is learning",
+            FlagKind.LEFT_HAND_LAGS to "the left hand takes longer to find its keys than the right",
         )
         for (p in listOf(kidBrief, kidAnswer)) {
             FlagKind.entries.forEach { assertTrue("${it.name} is not explained", p.contains(it.name)) }

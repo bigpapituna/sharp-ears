@@ -171,6 +171,12 @@ internal object KidBank {
         p(PraiseKind.QUEST_DAY,
             "{name}, you got all three quest stars! Hooray!", "All the stars on my quest, {name}! You did it!",
             "Every quest star is yours! Hooray!", "You finished my whole quest! What a pup helper!")
+        p(PraiseKind.STEADIER_TEMPO,
+            "{name}, your beat is so steady now!", "You and the beat are best friends, {name}!",
+            "Tap, tap, tap! You keep the beat like a drummer!", "Your playing marches right along with the beat!")
+        p(PraiseKind.FINDS_KEYS_FASTER,
+            "{name}, your fingers find the keys so fast now!", "Zoom! You found the keys super quick, {name}!",
+            "Your hands know where the keys live now!", "You find the keys faster and faster! Woof!")
 
         f(FactKind.NEW_LESSONS,
             "You finished {title} for the first time!", "You learned something brand new {span}!",

@@ -219,6 +219,27 @@ internal object FlagBank {
             l("A lighter week is common, and a routine usually comes back once the schedule settles."),
             l("Practice rises and falls with the calendar, and one quiet week says little about the next."),
         )
+        o(FlagKind.HESITATES_ON,
+            l("{Key} is the key that takes longest to find, about {wait} each time."),
+            l("One key keeps a pause in front of it: {key}, at about {wait}."),
+            l("{Key} still takes a moment to find in {where}, about {wait}."),
+            l("A pause comes before {key} most times it is due, about {wait}."),
+        )
+        w(FlagKind.HESITATES_ON,
+            l("A key the hand still looks for is a key it is learning, and the pause shrinks a little with every find."),
+            l("Finding a key comes before playing it in time, and the search gets shorter with use."),
+            l("Most players have a key or two that hide at first, and they stop hiding after a few days of finding them."),
+        )
+        o(FlagKind.LEFT_HAND_LAGS,
+            l("The left hand takes longer to find its keys: about {left} against {right} for the right."),
+            l("Left-hand notes wait a little longer for their keys, {left} against {right}."),
+            l("The right hand finds its keys in {right}, the left in {left}."),
+        )
+        w(FlagKind.LEFT_HAND_LAGS,
+            l("The left hand is nearly always the second hand, and it learns where the keys are a little later."),
+            l("Most players find keys faster with one hand at first, and the other catches up with use."),
+            l("A slower left hand is the usual order of things: it gets less practice until both hands play together."),
+        )
     }
 }
 
@@ -255,6 +276,8 @@ internal fun flagVars(c: Ctx, f: Flag): Map<String, String?> {
         FlagKind.SCATTERED -> mapOf("levels" to words(v))
         FlagKind.TOY_HEAVY -> mapOf("where" to sessionsWhere)
         FlagKind.PRACTICE_DIPPED -> mapOf("days" to count(v, "day"), "usualn" to of?.let { count(it, "day") })
+        FlagKind.HESITATES_ON -> mapOf("key" to keyName(v), "wait" to of?.let(::seconds))
+        FlagKind.LEFT_HAND_LAGS -> mapOf("left" to seconds(v), "right" to of?.let(::seconds))
     }
     return common + kind
 }
@@ -292,4 +315,6 @@ private fun genericObservation(f: Flag): String = when (f.kind) {
     FlagKind.SCATTERED -> "The lessons jumped around."
     FlagKind.TOY_HEAVY -> "Most of the time went to the toys."
     FlagKind.PRACTICE_DIPPED -> "Fewer days than usual."
+    FlagKind.HESITATES_ON -> "One key still takes a moment to find."
+    FlagKind.LEFT_HAND_LAGS -> "The left hand takes longer to find its keys than the right."
 }
