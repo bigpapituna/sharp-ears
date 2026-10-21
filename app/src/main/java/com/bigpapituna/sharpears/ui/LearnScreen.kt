@@ -43,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -135,6 +137,15 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
     LaunchedEffect(Unit) {
         val at = rows.indexOfFirst { (it is PathRow.Stop && it.lesson == next) || (it is PathRow.Scene && next in it.lessons) }
         if (at > 0) list.scrollToItem(at - 1)      // two rows above the next stop (the header is item 0), so it sits in view
+        // Held sideways, a phone has room for those two rows (a trophy, a banner) and no more: the stop sat below the fold.
+        // Then the stop goes a third of the way down instead.
+        if (at < 0) return@LaunchedEffect
+        val info = androidx.compose.runtime.snapshotFlow { list.layoutInfo }.first { it.viewportSize.height > 0 }
+        val stop = info.visibleItemsInfo.firstOrNull { it.index == at + 1 }
+        if (stop == null || stop.offset + stop.size > info.viewportEndOffset) {
+            list.scrollToItem(at + 1)
+            list.scrollBy(-info.viewportSize.height / 3f)
+        }
     }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item(key = "head") {
