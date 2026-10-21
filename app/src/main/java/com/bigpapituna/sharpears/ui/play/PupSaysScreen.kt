@@ -219,6 +219,8 @@ private fun PupSaysGameScreen(
         keysLow = 60, keysHigh = if (kid) 67 else 72, lit = glow + touched,
         crown = res?.let { PupSaysGame.crown(it) } ?: emptySet(),
     ) }
+    // The system Back leaves as Done does: the day's best and the crown are kept (MainActivity's Back alone dropped them).
+    androidx.activity.compose.BackHandler { if (!game.over) { game.stop(); finish() }; onExit() }
     PupSaysContent(view, onExit = { if (!game.over) { game.stop(); finish() }; onExit() },
         onReady = { game.ready(); changed() }, onAgain = onAgain,
         onKeyDown = { m ->
