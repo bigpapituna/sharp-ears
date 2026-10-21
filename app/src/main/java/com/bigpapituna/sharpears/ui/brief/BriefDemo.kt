@@ -139,7 +139,7 @@ fun BriefDemo(intent: Intent, onExit: () -> Unit) {
                     }
                     else -> ParentBriefScreen(env, KIDS, onBack = onExit, initialChild = child.id, initialPeriod = period,
                         expanded = intent.getBooleanExtra("full", false), openCard = intent.getIntExtra("card", -1).takeIf { it >= 0 },
-                        openExport = intent.getBooleanExtra("export", false), openAsk = intent.getStringExtra("ask").orEmpty(),
+                        openExport = intent.getBooleanExtra("export", false), openAsk = intent.getStringExtra("ask").orEmpty().replace('_', ' '),
                         openWeekly = intent.getBooleanExtra("weeklySheet", false))
                 }
             }
