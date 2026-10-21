@@ -265,7 +265,9 @@ class MicInput(private val context: Context) {
         val was = thread
         was?.join(1000)
         synchronized(threadLock) { if (thread === was) thread = null }
-        main.post { source.value = null; level.floatValue = -120f; if (was != null) onStopped?.invoke() }
+        // Not when a start followed at once (Microphone setup picking a mic): it cleared the new mic's name, which then read
+        // "Starting" for as long as the mic ran.
+        main.post { if (thread == null) { source.value = null; level.floatValue = -120f }; if (was != null) onStopped?.invoke() }
     }
 
     private fun launch(label: String, body: () -> Unit) {
