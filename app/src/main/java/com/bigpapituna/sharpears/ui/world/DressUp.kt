@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.WorldStore
-import com.bigpapituna.sharpears.engine.world.Dress
 import com.bigpapituna.sharpears.engine.world.Outfit
 import com.bigpapituna.sharpears.engine.world.WearItem
 import com.bigpapituna.sharpears.ui.Pose
@@ -49,22 +48,14 @@ import com.bigpapituna.sharpears.ui.rememberPupController
 fun wearLine(item: WearItem?, on: Boolean, stillWearing: Boolean = false): String = when {
     item != null && !on && stillWearing -> "Off it comes."
     item == null || !on -> "Back to just me."
-    else -> when (item) {
-        WearItem.BOW_TIE -> "Very smart."
-        WearItem.SUNGLASSES -> "Too cool."
-        WearItem.PARTY_HAT -> "Party time!"
-        WearItem.SCARF -> "So cosy."
-        WearItem.HEADPHONES -> "I can hear the music."
-        WearItem.TOP_HAT -> "Ready for the concert hall."
-    }
+    else -> item.line
 }
 
 /** Before anything is chosen: what he says about the wardrobe. */
-fun wardrobeLine(outfit: Outfit, unique: Int): String = when {
-    unique < WearItem.BOW_TIE.unlockAt -> "Collect your first sticker and I get something to wear."
+fun wardrobeLine(outfit: Outfit, open: Int): String = when {
+    open == 0 -> "Play a little and I get something to wear."
     outfit.isEmpty -> "Dress me up! Tap something to try it on."
-    else -> Dress.next(unique)?.let { (item, n) -> "$n more ${if (n == 1) "sticker" else "stickers"} and I can wear the ${item.label.lowercase()}." }
-        ?: "Everything is open. Mix and match!"
+    else -> "Mix and match!"
 }
 
 /**
@@ -79,7 +70,7 @@ fun DressUp(world: WorldStore, modifier: Modifier = Modifier) {
     val pup = rememberPupController(idle = false)
     var said by remember { mutableStateOf<String?>(null) }
     Column(modifier.widthIn(max = 560.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        SpeechBubble(said ?: wardrobeLine(s.outfit, s.unique))
+        SpeechBubble(said ?: wardrobeLine(s.outfit, s.wardrobe.size))
         // Room above him for a hat.
         Box(Modifier.padding(top = 44.dp)) {
             Pup(Pose.WEAR_BASE, size = 210.dp, controller = pup, idle = false, outfit = s.outfit, bounce = BounceSize.SMALL, onTap = {})
@@ -87,7 +78,7 @@ fun DressUp(world: WorldStore, modifier: Modifier = Modifier) {
         WearItem.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { item ->
-                    WearTile(item, worn = item in s.outfit.items, unlocked = s.unique >= item.unlockAt, need = item.unlockAt - s.unique, modifier = Modifier.weight(1f)) {
+                    WearTile(item, worn = item in s.outfit.items, unlocked = item in s.wardrobe, need = 0, modifier = Modifier.weight(1f)) {
                         val on = item !in s.outfit.items
                         val stillWearing = (s.outfit.items - item).isNotEmpty()
                         world.wear(item)

@@ -115,8 +115,14 @@ class WorldStoreTest {
     @Test fun outfitAndRecords() {
         val s = store("p5")
         s.wear(WearItem.BOW_TIE)
-        assertTrue(s.state.outfit.isEmpty)                         // locked before the first sticker
+        assertTrue(s.state.outfit.isEmpty)                         // locked before any practice
         s.songComplete("twinkle", 82)
+        s.wear(WearItem.BOW_TIE)
+        assertTrue("a song alone is not enough", s.state.outfit.isEmpty)
+        // 2.5: the ledger reads the practice log; a quarter of an hour opens the first item.
+        s.ledgerSource = { com.bigpapituna.sharpears.engine.world.LedgerInput(mapOf(LocalDate.now() to 15 * 60), emptySet(), emptySet()) }
+        s.sync()
+        assertEquals(listOf(WearItem.BOW_TIE), s.state.fresh)
         s.wear(WearItem.BOW_TIE)
         assertEquals(setOf(WearItem.BOW_TIE), store("p5").state.outfit.items)
         s.mergeRecords(mapOf("twinkle" to 70, "ode" to 96))

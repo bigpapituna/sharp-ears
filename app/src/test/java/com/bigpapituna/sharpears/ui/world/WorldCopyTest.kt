@@ -39,7 +39,7 @@ class WorldCopyTest {
         assertFalse("kids see no counts", jarLine(163, kid = true, treats = 0).any { it.isDigit() })
         assertTrue(jarLine(TreatJar.CAPACITY, kid = true, treats = 0).contains("Tip"))
         assertEquals("1 more sticker and the dog house grows.", houseLine(4))
-        assertEquals("2 more stickers and I can wear the sunglasses.", wardrobeLine(Outfit(setOf(WearItem.BOW_TIE)), 1))
+        assertEquals("Mix and match!", wardrobeLine(Outfit(setOf(WearItem.BOW_TIE)), 1))
         assertEquals("It drops a pond sticker.", oneMoreLine(NextDrop(Stickers.byId("pond-2")!!, false, false, null, false)))
         assertEquals("Your mystery egg hatches when you finish it.", oneMoreLine(NextDrop(Stickers.ALL[0], true, true, Stickers.ALL[1], false)))
     }

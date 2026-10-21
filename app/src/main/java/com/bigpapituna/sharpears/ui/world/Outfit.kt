@@ -49,6 +49,7 @@ object Wear {
         WearItem.HEADPHONES -> Rect(60f, -60f, 530f, 290f)
         WearItem.BOW_TIE -> Rect(250f, 340f, 440f, 450f)
         WearItem.SCARF -> Rect(170f, 300f, 470f, 600f)
+        else -> Rect(0f, 0f, BASE_W, BASE_H)
     }
 }
 
@@ -162,6 +163,7 @@ fun DrawScope.drawWear(item: WearItem, alpha: Float = 1f) {
             band(Offset(262f, 404f), Offset(230f, 480f), Offset(236f, 560f), 48f, 6)
             for (k in -2..2) drawLine(WorldInk, Offset(236f + k * 10f, 586f), Offset(236f + k * 12f, 608f), 6f, StrokeCap.Round, alpha = alpha)
         }
+        else -> {}
     }
 }
 
