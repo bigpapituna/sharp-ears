@@ -200,6 +200,16 @@ fun Exercise.toSong(id: String, title: String): Song {
  */
 fun Exercise.withFingers(): Exercise {
     if (fingers.isNotBlank() && leftFingers.isNotBlank()) return this
+    // Worked out once per exercise: COURSE asks 64 times for 17 exercises (the Playground's bites share their tunes),
+    // and building it on the main thread before the first frame took 4 times as long without this.
+    val memo = Fingered.memo
+    if (memo.size > 256) memo.clear()
+    return memo.getOrPut(this) { workOutFingers() }
+}
+/** An object, not a top-level val: lessons built in other files' static initializers call withFingers in any order. */
+private object Fingered { val memo = java.util.concurrent.ConcurrentHashMap<Exercise, Exercise>() }
+
+private fun Exercise.workOutFingers(): Exercise {
     val song = toSong("fingers", "")
     val worked = Fingering.of(song)
     fun of(hand: Hand) = song.notes.filter { it.hand == hand }.map { worked[it] }.takeIf { it.isNotEmpty() && it.all { f -> f != null } }?.joinToString(" ")
