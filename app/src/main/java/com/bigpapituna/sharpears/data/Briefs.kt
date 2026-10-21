@@ -12,9 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The one door into the brief's event logs (data/EventLog.kt): every place that knows something happened calls
- * `Briefs.log { at -> BriefEvent.X(at, ...) }` in one line, and the event lands in the log of whoever is playing (the
- * profile MainActivity opened the app as). Stores that belong to a profile other than the open one (a duet partner's)
- * use [logFor]. Before [init] (JVM tests, previews) everything here does nothing.
+ * `Briefs.log { at -> BriefEvent.X(at, ...) }` in one line, and the event lands in the log of whoever is playing
+ * ([currentId], the profile MainActivity opened the app as). Stores that know whose they are (a duet partner's world,
+ * the quest of each player) use [logFor]. Before [init] (JVM tests, previews) everything here does nothing.
  *
  * Also the session clock: MainActivity starts a session when the app comes on screen as someone and ends it when the app
  * leaves the screen or someone else takes over; the end carries the time on screen (ForegroundClock) and the practice
@@ -22,7 +22,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object Briefs {
     @Volatile private var filesDir: File? = null
-    @Volatile private var current: () -> String? = { null }
+    /** Who is playing: MainActivity sets it when it opens the app as someone (null while the picker asks). */
+    @Volatile var currentId: String? = null
     private val logs = ConcurrentHashMap<String, EventLog>()
     /** The wall clock events are stamped with. */
     @Volatile var clock: () -> Long = System::currentTimeMillis
@@ -34,19 +35,26 @@ object Briefs {
     private class Open(val profileId: String, val startFg: Long, val practice0: Long)
     @Volatile private var open: Open? = null
 
-    /** Called once by MainActivity: logs live under [context]'s files folder, for the profile [currentProfile] names. */
-    fun init(context: Context, currentProfile: () -> String?) {
-        filesDir = context.applicationContext.filesDir
-        current = currentProfile
+    /** Called by MainActivity at start: logs live under [context]'s files folder. */
+    fun init(context: Context) { filesDir = context.applicationContext.filesDir }
+
+    /** Tests only: back to before [init], every log closed. */
+    internal fun reset() {
+        logs.values.forEach { it.close() }; logs.clear()
+        filesDir = null; currentId = null; open = null
+        clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }
     }
 
     fun now(): Long = clock()
 
     /** Logs the event [make] builds (given the time) for whoever is playing; nothing while no one is (the picker). */
-    fun log(make: (Long) -> BriefEvent) { current()?.let { logFor(it, make(now())) } }
+    fun log(make: (Long) -> BriefEvent) { currentId?.let { logFor(it, make(now())) } }
 
     /** Logs [event] for whoever is playing. */
-    fun log(event: BriefEvent) { current()?.let { logFor(it, event) } }
+    fun log(event: BriefEvent) { currentId?.let { logFor(it, event) } }
+
+    /** Logs [events] in order for whoever is playing (a song run with its wrong keys). */
+    fun logAll(events: List<BriefEvent>) { currentId?.let { id -> events.forEach { logFor(id, it) } } }
 
     /** Logs [event] for [profileId] (a store that knows whose it is). */
     fun logFor(profileId: String, event: BriefEvent) {
@@ -135,12 +143,12 @@ object Briefs {
 }
 
 /**
- * Times how long the screen around it stays composed, on the ForegroundClock (time off screen never counts), and hands
- * the ms to [onLeave] as it goes: one line for a toy's ToyOpened.
+ * Times how long the screen around it stays composed with the same [key], on the ForegroundClock (time off screen never
+ * counts), and hands the ms to [onLeave] as it goes: one line for a toy's ToyOpened.
  */
 @Composable
-fun TimedOnScreen(onLeave: (Long) -> Unit) {
-    DisposableEffect(Unit) {
+fun TimedOnScreen(key: Any?, onLeave: (Long) -> Unit) {
+    DisposableEffect(key) {
         val start = ForegroundClock.app.nowMs()
         onDispose { onLeave(ForegroundClock.app.nowMs() - start) }
     }
