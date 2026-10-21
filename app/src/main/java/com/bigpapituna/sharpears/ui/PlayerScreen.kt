@@ -190,7 +190,30 @@ fun PlayerScreen(
     /** The run's recap was closed (Practice today goes on to its next part then). */
     onRecapClosed: () -> Unit = {},
 ) {
+    PlayerStage(PlayerArgs(original, meta, sampler, midi, mic, voice, prefs, ready, startMs, debugDump, start, onBack, onFinished, embedded,
+        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed))
+}
+
+/**
+ * [PlayerScreen]'s arguments as one object, made each composition, so the body's closures capture it rather than twenty
+ * parameters one by one (2.4: see [PlayerVars] for why the body's register count matters).
+ */
+private class PlayerArgs(
+    val original: Song, val meta: SongMeta?, val sampler: Sampler, val midi: MidiDevices, val mic: MicInput, val voice: Voice, val prefs: Prefs,
+    val ready: Boolean, val startMs: Double, val debugDump: Boolean, val start: PlayerStart, val onBack: () -> Unit,
+    val onFinished: (Report) -> Unit, val embedded: Embedded?, val modifier: Modifier, val chordTrack: com.bigpapituna.sharpears.engine.ChordTrack?,
+    val onTimeUp: () -> Unit, val anyOfLessons: Set<String>, val onWrongKey: (WrongKey) -> Unit, val letGo: Boolean, val onRecapClosed: () -> Unit,
+)
+
+/** The player itself: [PlayerScreen]'s body, reading its arguments through `with(args)` exactly as it read the parameters. */
+@Composable
+private fun PlayerStage(args: PlayerArgs) {
+    with(args) {
     val activity = LocalActivity.current ?: return
+    // The screen's state lives in one holder, read through with(v) exactly as the locals were (2.4: a body holding sixty
+    // locals made D8 allocate hundreds of registers to this method and misplace a null check; see PlayerVars).
+    val v = androidx.compose.ui.platform.LocalContext.current.let { c -> remember { PlayerVars(start, savedAutoPercent(meta, prefs), c) } }
+    with(v) {
     // Transpose (library songs keep it per song): every note moves, so the rest of the player sees one song.
     // `meta` is read through the small functions at the end of this file (see savedTranspose), never `meta?.` here.
     var transpose by remember(original.id) { mutableIntStateOf(savedTranspose(meta, prefs)) }
@@ -227,87 +250,40 @@ fun PlayerScreen(
         else com.bigpapituna.sharpears.engine.ChordTrack(com.bigpapituna.sharpears.engine.labelBarsAligned(song), com.bigpapituna.sharpears.engine.barMs(song))
     }
     val transport = remember(song) { Transport(song, playable = range).apply { mode = start.mode; practice = start.practice } }
-    var position by remember { mutableDoubleStateOf(0.0) }
-    var playing by remember { mutableStateOf(false) }
-    var speed by remember { mutableDoubleStateOf(1.0) }
-    var mode by remember { mutableStateOf(start.mode) }
-    // A duet plays both hands, one person each; the hand chooser is locked meanwhile.
-    var duet by remember { mutableStateOf(start.duet) }
-    var pickingDuet by remember { mutableStateOf(start.pickDuet && start.duet == null) }
-    var practice by remember { mutableStateOf(if (start.duet != null) Practice.BOTH else start.practice) }
-    var micOn by remember { mutableStateOf(start.mic || start.inject != null) }
-    var loopStart by remember { mutableStateOf<Double?>(null) }
-    var loopEnd by remember { mutableStateOf<Double?>(null) }
-    var version by remember { mutableIntStateOf(0) }              // bumps when sounding/expected/waiting change
-    val touched = remember { mutableStateMapOf<Int, Color>() }
-    val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
-    val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
-    val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
     lights.showCombo = !kid                                       // a kid's lane counts no streak
     // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
     val wrongs = rememberWrongFlash(slow = start.lightSlow)
-    val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
     LaunchedEffect(profile.id, profile.kind, profile.micOffsetDb) { mic.forProfile(profile.isKid, profile.micOffsetDb) }
     // Hint escalation while wait mode is stuck (glow, the hand points, the app plays it), and the octave hint.
     val hintPlan = remember(profile.hintSeconds) { HintPlan(profile.hintSeconds) }
-    var hintStep by remember { mutableStateOf(HintStep.NONE) }
-    var hintLine by remember { mutableStateOf<String?>(null) }     // the pup's hint line over the lane
-    var octaveShown by remember { mutableStateOf<OctaveHint.Hint?>(null) }
     // Not where any key of a range will do ("any key above C4"): there the octave is the point.
     val octaveOn = remember(song, anyOfLessons) { OctaveHint.appliesTo(song.id, anyOfLessons) && song.groups.none { it.anyOf } }
     // Pup's Playground: a group held on goes by after three tries (RoundCoach without its demo: the hints show the key).
     val waitCoach = remember(letGo) { if (letGo) com.bigpapituna.sharpears.engine.playground.RoundCoach(firstDemoMs = 0, demoMs = 0, againDemoMs = 0, quietMs = LET_GO_QUIET_MS) else null }
-    // Wrong keys shown so far (ids for onWrongKey); the room-noise watchdog's offer.
-    var wrongKeys by remember { mutableIntStateOf(0) }
-    var noiseOffer by remember { mutableStateOf<NoiseWatch.Suggestion?>(null) }
-    var highFive by remember { mutableStateOf(0) }                 // bumps when the player pushes through a hard passage
-    var showHighFive by remember { mutableStateOf(false) }
     LaunchedEffect(highFive) { if (highFive > 0) { showHighFive = true; delay(2400); showHighFive = false } }
-    // The notes the player plays in the current run (touch, MIDI or mic), kept for "Hear my run".
-    val recorder = remember { RunRecorder() }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val runs = remember { RunStore(context) }
-    var lastRun by remember { mutableStateOf<RunRecording?>(null) }
-    var replay by remember { mutableStateOf<RunRecording?>(null) }
     // MIDI steps: the sustain pedal against each chord, and soft-then-loud by velocity.
     val special = embedded?.special
     val pedalGrade = remember(song) { if (special == com.bigpapituna.sharpears.engine.StepKind.PEDAL) PedalGrader(PedalGrader.chordsOf(song)) else null }
     val loudness = remember(song) { if (special == com.bigpapituna.sharpears.engine.StepKind.DYNAMICS) DynamicsGrader(song.notes.count { it.hand == Hand.RIGHT }) else null }
-    var pedalDown by remember { mutableStateOf(false) }
-    var lastVelocity by remember { mutableIntStateOf(-1) }
-    var scriptStarted by remember { mutableStateOf(false) }
-    var recap by remember { mutableStateOf<RunEnd?>(null) }      // the end of a run: Perform recap and/or hardest bars
     val scope = rememberCoroutineScope()
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val world = LocalWorld.current
     val everyone = com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all.orEmpty()
     // Touch keys buzz (right: a tick, wrong: a double tap); the mic and MIDI never do, the phone may be on a stand.
     val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
-    var touchRun by remember { mutableStateOf(false) }             // this run was played on the touch keys
 
     val tutorial = remember(song) {
         tutorialOf(meta, song, prefs)
     }
     val windowSize = LocalWindowInfo.current.containerSize
     val windowHeightDp = with(LocalDensity.current) { windowSize.height.toDp() }
-    // On by default on the unfolded inner screen (both sides at least 500 dp); the cover screen is too short.
-    // The tutorial opens only when asked for (Video button), as a floating window over the notes.
-    var videoOn by remember { mutableStateOf(false) }
     val fingers = remember(song) { com.bigpapituna.sharpears.engine.Fingering.of(song) }
 
     // Metronome (every song) and backing (progressions: the app plays the left-hand root, the right hand is yours).
-    val clicks = remember { lazy { com.bigpapituna.sharpears.audio.Clicks(context) } }
     DisposableEffect(Unit) { onDispose { if (clicks.isInitialized()) clicks.value.release() } }
     val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
     val isProgression = song.id.startsWith("prog-")
-    var metronomeOn by remember { mutableStateOf(false) }
-    var chordsOn by remember { mutableStateOf(false) }
-    var ramp by remember { mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null) }
-    // Auto speed: the tempo managed last time (library songs), nudged up on good days.
-    var autoOn by remember { mutableStateOf(false) }
-    var autoPercent by remember { mutableIntStateOf(savedAutoPercent(meta, prefs)) }
-    var rampPercent by remember { mutableIntStateOf(0) }
-    var backingOn by remember { mutableStateOf(false) }
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
@@ -322,7 +298,6 @@ fun PlayerScreen(
         if (meta != null && at > 0 && at < song.durationMs) prefs.savePosition(meta.id, at.toLong())
     }
     // Practice time: real time while the transport plays, written in whole seconds (every 15 s and when it stops).
-    val practiceMs = remember { doubleArrayOf(0.0) }
     fun flushPractice() {
         val secs = (practiceMs[0] / 1000).toInt()
         if (secs <= 0) return
@@ -334,20 +309,14 @@ fun PlayerScreen(
     DisposableEffect(Unit) { onDispose { flushPractice() } }
 
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs; lights.resetCombo() }
-    // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
-    val stallWatch = remember { com.bigpapituna.sharpears.engine.StallWatch() }
     // The last minute or so of inputs and waits, for a "that wasn't right" report.
-    val tail = remember { ArrayDeque<String>() }
     fun tail(line: String) {
-        tail.addLast(java.time.LocalTime.now().toString().take(12) + "  " + line)
-        while (tail.size > 60) tail.removeFirst()
+        tailLines.addLast(java.time.LocalTime.now().toString().take(12) + "  " + line)
+        while (tailLines.size > 60) tailLines.removeFirst()
     }
     fun at(ms: Double) = "%d:%02d".format(java.util.Locale.ROOT, (ms / 60000).toInt(), ((ms / 1000) % 60).toInt())
     // Keyboard as answer key (MIDI on USB with the mic on: the mic plays, the keyboard checks it). Mismatches close
     // together go into one clip, saved once things have been quiet for 3 s.
-    val answerKey = remember { com.bigpapituna.sharpears.engine.AnswerKey() }
-    val answerLines = remember { mutableListOf<String>() }
-    val answerState = remember { longArrayOf(0, 0, 0) }        // clip mark, last mismatch time, song position then
     fun saveAnswers() {
         if (answerLines.isEmpty()) return
         val name = "answer-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-" + song.id
@@ -358,14 +327,12 @@ fun PlayerScreen(
             append("song=${song.id} title=${song.title} position_ms=${answerState[2]} speed=${transport.speed} hands=${transport.practice}\n")
             append("group=${transport.listenGroup.sorted().joinToString(",") { noteName(it) }} mic=${mic.source.value} sensitivity_db=${mic.matcher.config.sensitivityDb}\n")
             append("mismatches (clock time):\n"); answerLines.forEach { append("  ").append(it).append('\n') }
-            append("the last minute (newest last):\n"); tail.forEach { append("  ").append(it).append('\n') }
+            append("the last minute (newest last):\n"); tailLines.forEach { append("  ").append(it).append('\n') }
         }
         Log.d(TAG, "answer key: ${answerLines.size} mismatch(es), saving $name")
         mic.saveStall(answerState[0] + 2L * com.bigpapituna.sharpears.audio.MicInput.RATE, report, name)
         answerLines.clear()
     }
-    var flagging by remember { mutableStateOf(false) }
-    var flagMark by remember { mutableStateOf(0L) }
     LaunchedEffect(micOn, midi.connected.value) {
         if (!micOn || midi.connected.value == null || !mic.keepRecordings) return@LaunchedEffect
         try {
@@ -385,9 +352,6 @@ fun PlayerScreen(
             }
         } finally { saveAnswers() }
     }
-    var flagAt by remember { mutableStateOf(0.0) }
-    var flagContext by remember { mutableStateOf("") }      // what was going on when the flag was tapped
-    val stallMark = remember { longArrayOf(0) }
     fun stallBegin() {
         if (!micOn || transport.mode != Mode.WAIT) return
         stallWatch.profile = mic.profileKind
@@ -847,7 +811,6 @@ fun PlayerScreen(
     }
     if (embedded == null) BackHandler(onBack = onBack)
     // A lesson step starts by itself once the voice has read it out (and the sounds are loaded).
-    var autoStarted by remember { mutableStateOf(false) }
     val voiceSpeaking = voice.speaking.value
     if (embedded?.autoStart == true) LaunchedEffect(ready, voiceSpeaking) {
         if (autoStarted || !ready || voiceSpeaking) return@LaunchedEffect
@@ -919,10 +882,7 @@ fun PlayerScreen(
         if (transport.positionMs >= song.durationMs) finished()
     }
 
-    var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
-    var laneBox by remember { mutableStateOf<Rect?>(null) }
     val tabletop = rememberTabletop(force = start.tabletop)
-    var rootTopPx by remember { mutableFloatStateOf(0f) }
     val waitingNow = remember(version) { transport.waiting }
     // The octave hint: while a wait-mode wait listens, ask the mic four times a second.
     LaunchedEffect(waitingNow, micOn, mode, playing) {
@@ -1020,7 +980,7 @@ fun PlayerScreen(
             append("what=$what\n")
             if (note.isNotBlank()) append("note=${note.trim()}\n")
             append("the last minute (newest last):\n")
-            tail.forEach { append("  ").append(it).append('\n') }
+            tailLines.forEach { append("  ").append(it).append('\n') }
         }
         Log.d(TAG, "flag: $what at ${at(flagAt)}, saving $name")
         if (mic.canClip) mic.saveStall(flagMark + 2L * com.bigpapituna.sharpears.audio.MicInput.RATE, report, name)
@@ -1257,6 +1217,82 @@ fun PlayerScreen(
             Keys(Modifier.fillMaxWidth().weight(if (kid) keySize.heightShare else if (windowHeightDp >= 500.dp) 0.3f else 0.45f))
         }
     }
+    }
+    }
+}
+
+/**
+ * Everything [PlayerScreen] remembers for as long as it is on screen (and not per song): the transport's view of the run,
+ * the hints, the toggles, the recap, the flag and stuck-moment bookkeeping. One object made once, read and written inside
+ * `with(v)` in the composable exactly as the locals it replaces were, so the screen behaves as before.
+ *
+ * Why (2.4): with sixty-odd remembered locals the composable's dex method held about 280 registers, and D8 (AGP 9.4.1)
+ * once allocated a null check to the wrong one (engine/brief/INTEGRATION.md, "PlayerScreen and D8"). Its closures now
+ * capture this holder instead of the locals one by one.
+ */
+private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android.content.Context) {
+    var position by mutableDoubleStateOf(0.0)
+    var playing by mutableStateOf(false)
+    var speed by mutableDoubleStateOf(1.0)
+    var mode by mutableStateOf(start.mode)
+    // A duet plays both hands, one person each; the hand chooser is locked meanwhile.
+    var duet by mutableStateOf(start.duet)
+    var pickingDuet by mutableStateOf(start.pickDuet && start.duet == null)
+    var practice by mutableStateOf(if (start.duet != null) Practice.BOTH else start.practice)
+    var micOn by mutableStateOf(start.mic || start.inject != null)
+    var loopStart by mutableStateOf<Double?>(null)
+    var loopEnd by mutableStateOf<Double?>(null)
+    var version by mutableIntStateOf(0)              // bumps when sounding/expected/waiting change
+    val touched = mutableStateMapOf<Int, Color>()
+    val held = mutableStateMapOf<Int, Color>()      // keys held on the MIDI keyboard
+    val flashes = mutableStateMapOf<Int, Color>()    // short green flash on a correct key
+    val lights = HitLights(slow = start.lightSlow)    // the hit-line light (on by default)
+    val struggle = com.bigpapituna.sharpears.engine.Struggle()
+    var hintStep by mutableStateOf(HintStep.NONE)
+    var hintLine by mutableStateOf<String?>(null)     // the pup's hint line over the lane
+    var octaveShown by mutableStateOf<OctaveHint.Hint?>(null)
+    // Wrong keys shown so far (ids for onWrongKey); the room-noise watchdog's offer.
+    var wrongKeys by mutableIntStateOf(0)
+    var noiseOffer by mutableStateOf<NoiseWatch.Suggestion?>(null)
+    var highFive by mutableStateOf(0)                 // bumps when the player pushes through a hard passage
+    var showHighFive by mutableStateOf(false)
+    // The notes the player plays in the current run (touch, MIDI or mic), kept for "Hear my run".
+    val recorder = RunRecorder()
+    val runs = RunStore(context)
+    var lastRun by mutableStateOf<RunRecording?>(null)
+    var replay by mutableStateOf<RunRecording?>(null)
+    var pedalDown by mutableStateOf(false)
+    var lastVelocity by mutableIntStateOf(-1)
+    var scriptStarted by mutableStateOf(false)
+    var recap by mutableStateOf<RunEnd?>(null)      // the end of a run: Perform recap and/or hardest bars
+    var touchRun by mutableStateOf(false)             // this run was played on the touch keys
+    // The tutorial video opens only when asked for (Video button), as a floating window over the notes.
+    var videoOn by mutableStateOf(false)
+    val clicks = lazy { com.bigpapituna.sharpears.audio.Clicks(context) }
+    var metronomeOn by mutableStateOf(false)
+    var chordsOn by mutableStateOf(false)
+    var ramp by mutableStateOf<com.bigpapituna.sharpears.engine.TempoRamp?>(null)
+    // Auto speed: the tempo managed last time (library songs), nudged up on good days.
+    var autoOn by mutableStateOf(false)
+    var autoPercent by mutableIntStateOf(autoPercent0)
+    var rampPercent by mutableIntStateOf(0)
+    var backingOn by mutableStateOf(false)
+    val practiceMs = doubleArrayOf(0.0)
+    // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
+    val stallWatch = com.bigpapituna.sharpears.engine.StallWatch()
+    val tailLines = ArrayDeque<String>()
+    val answerKey = com.bigpapituna.sharpears.engine.AnswerKey()
+    val answerLines = mutableListOf<String>()
+    val answerState = longArrayOf(0, 0, 0)        // clip mark, last mismatch time, song position then
+    var flagging by mutableStateOf(false)
+    var flagMark by mutableStateOf(0L)
+    var flagAt by mutableStateOf(0.0)
+    var flagContext by mutableStateOf("")      // what was going on when the flag was tapped
+    val stallMark = longArrayOf(0)
+    var autoStarted by mutableStateOf(false)
+    var wasPlayingBeforeScrub by mutableStateOf(false)
+    var laneBox by mutableStateOf<Rect?>(null)
+    var rootTopPx by mutableFloatStateOf(0f)
 }
 
 /**
