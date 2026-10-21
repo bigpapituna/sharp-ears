@@ -301,6 +301,7 @@ class MainActivity : ComponentActivity() {
             mic.reporter.flush()
         }
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this)        // alarms do not survive an update or restart
+        com.bigpapituna.sharpears.reminder.BriefReminder.scheduleAll(this) // the weekly brief's alarms, one per person, likewise
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
         // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
         lifecycleScope.launch {
@@ -469,6 +470,7 @@ class MainActivity : ComponentActivity() {
                 Screen.Play(when (route) { "jam" -> Toy.JAM; "pupsays" -> Toy.PUP_SAYS; else -> Toy.CLAP }, Screen.Home(), intent.getStringExtra("hint"))
             // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
             route == "worlddemo" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }
+            route == "brief" -> return setContent { com.bigpapituna.sharpears.ui.brief.BriefDemo(intent) { finish() } }
             route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
             debuggable && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {

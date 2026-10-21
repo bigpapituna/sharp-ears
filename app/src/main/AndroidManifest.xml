@@ -11,6 +11,8 @@
     <!-- Android 11+ package visibility: the TextToSpeech engine is a service the app must be allowed to see. -->
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+        <!-- The parent brief's dictation asks Android's speech recogniser, which is a service the app must be allowed to see. -->
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
     </queries>
     <uses-feature android:name="android.software.midi" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -44,6 +46,14 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <!-- A new time zone or a clock set by hand: the next reminder is worked out again from the new local time. -->
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+        <!-- The weekly parent brief: one alarm per person (reminder/BriefReminder.kt), set again after a restart or a new time zone. -->
+        <receiver android:name=".reminder.BriefReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
