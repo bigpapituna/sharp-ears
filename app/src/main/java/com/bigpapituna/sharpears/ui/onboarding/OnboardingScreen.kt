@@ -110,8 +110,21 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
         store.onboardingDone = true
         finished = true
     }
+    // "Microphone" picked: the microphone is asked for here, so the first lesson already hears the piano. It was not
+    // asked at all: the lesson ran on the screen's keys and said nothing while the player played the real piano.
+    var notifyOk by rememberSaveable { mutableStateOf(true) }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: microphone granted=$granted")
+        finish(notifyOk)
+    }
+    fun afterNotify(ok: Boolean) {
+        notifyOk = ok
+        if (useMic && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+        else finish(ok)
+    }
     // Android 13 and up ask before an app may post notifications; asked here, when the reminder is chosen.
-    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> finish(granted) }
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> afterNotify(granted) }
 
     if (finished) {
         val exp = Experience.fromOrdinal(experience) ?: Experience.NEVER
@@ -170,7 +183,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                 onClick = {
                     if (step < STEPS - 1) step++
                     else if (reminderOn && !Reminder.canNotify(context)) askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    else finish(true)
+                    else afterNotify(true)
                 },
                 enabled = canContinue, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp),
             ) { Text(if (step == STEPS - 1) "Finish" else "Continue") }
