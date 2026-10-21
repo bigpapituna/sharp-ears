@@ -3,11 +3,11 @@ package com.bigpapituna.sharpears.engine.family
 /**
  * Which preference file holds what for whom. A profile is a suffix on the file names: the owner keeps the plain
  * names ("progress"), so everything from before 2.1 is the owner's; everyone else gets "progress.p3". Files in
- * [SHARED] (the microphone setup) belong to the phone, not to a person.
+ * [SHARED] (the microphone setup; the email brief's settings, one key per child) belong to the phone, not to a person.
  */
 object ProfileFiles {
-    /** Files every profile shares. */
-    val SHARED = setOf("mic")
+    /** Files every profile shares: the microphone setup, and the email brief's settings (one file, a key per child, data/EmailSettings.kt). */
+    val SHARED = setOf("mic", "email")
     /** The roster itself (data/Profiles.kt), carried by a backup next to the progress files. */
     const val ROSTER = "profiles"
 

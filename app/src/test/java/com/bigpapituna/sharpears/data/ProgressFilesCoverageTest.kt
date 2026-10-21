@@ -50,4 +50,17 @@ class ProgressFilesCoverageTest {
         assertTrue("import restores them", files.contains("Briefs.restoreLogs(context, backup.events"))
         assertTrue("deleting a profile deletes its log", Regex("""fun delete\(id: String\)[\s\S]*?Briefs\.forget\(app, id\)""").containsMatchIn(source("Profiles.kt")))
     }
+
+    /**
+     * The email brief's settings are one phone-wide file with a key per child (so Android's backup can leave the grown-ups'
+     * addresses out by its exact name): shared, carried by the progress export, and each child's key removed with them.
+     */
+    @Test fun theEmailSettingsAreSharedBackedUpByTheExportAndForgottenWithTheirProfile() {
+        assertTrue("email" in ProgressFiles.NAMES && "email" in ProfileFiles.SHARED)
+        assertEquals(EmailSettings.FILE, "email")
+        assertTrue("email" in ProfileFiles.backupFiles(ProgressFiles.NAMES, listOf("owner", "p2")))
+        fun source(name: String) = sources.first { it.name == name }.readText()
+        assertTrue("deleting a profile forgets its email settings",
+            Regex("""fun delete\(id: String\)[\s\S]*?EmailSettings\.forget\(app, id\)""").containsMatchIn(source("Profiles.kt")))
+    }
 }

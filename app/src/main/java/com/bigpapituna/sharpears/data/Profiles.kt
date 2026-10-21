@@ -105,6 +105,7 @@ class Profiles(
         ProfileFiles.filesOf(id, ProgressFiles.NAMES).forEach { app.deleteSharedPreferences(it) }
         Briefs.forget(app, id)                          // and the brief's event log (files/events/<id>.log)
         BriefAi.forgetProfile(app, id)                  // and the AI brief's quota and cached replies (ai-brief.xml)
+        EmailSettings.forget(app, id)                   // and the email brief's address and settings (email.xml, a key per child)
         return true
     }
 

@@ -27,6 +27,8 @@ class BackupRulesTest {
             .map { it.groupValues[1] to it.groupValues[2] }.toList()) {
             assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"reports.xml\" />"))
             assertTrue(name, text.contains("<exclude domain=\"external\" path=\"stalls\" />"))
+            // The email brief's settings hold the grown-ups' addresses (data/EmailSettings.kt): never in Android's backup.
+            assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"${EmailSettings.FILE}.xml\" />"))
         }
         assertEquals(2, Regex("<(cloud-backup|device-transfer)>").findAll(extraction).count())
     }
