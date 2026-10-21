@@ -166,10 +166,11 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
 
     /** Level stickers for stones finished before (2.5's first open, an import): into the tray, quietly. */
     fun earnLevels(done: (String) -> Boolean) {
-        val s = World.earnLevels(state, done)
-        if (s == state) return
+        val before = state
+        val s = World.earnLevels(before, done)
+        if (s == before) return
         set(s)
-        log("world: ${s.levels.size - state.levels.size} level stickers for stones already walked")
+        log("world: ${s.levels.size - before.levels.size} level stickers for stones already walked")
     }
 
     /** [key] stuck in [slotId] on the map (from the tray, or moved from another slot). */

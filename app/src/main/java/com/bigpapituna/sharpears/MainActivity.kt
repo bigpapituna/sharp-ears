@@ -286,6 +286,8 @@ class MainActivity : ComponentActivity() {
     /** The open profile's preferences and kid memory, so a parent brief action's change shows at once ([briefNav] changed). */
     private var openPrefs: Prefs? = null
     private var openKid: KidStore? = null
+    /** The open profile's world, so a session's end brings its practice ledger up to date ([Briefs.onSessionEnd]). */
+    private var openWorld: WorldStore? = null
     /** A screen a parent brief action opens ([briefNav]), taken by the open composition. */
     private val navRequest = mutableStateOf<Screen?>(null)
     /** Counts those, so a lesson an action opens again starts fresh (its LessonScreen is keyed by it). */
@@ -386,8 +388,15 @@ class MainActivity : ComponentActivity() {
         }
         com.bigpapituna.sharpears.reminder.Reminder.schedule(this)        // alarms do not survive an update or restart
         com.bigpapituna.sharpears.reminder.BriefReminder.scheduleAll(this) // the weekly brief's alarms, one per person, likewise
-        // The brief by email (reminder/EmailJob.kt): every session's end plans the next look; the app's start sends what is due and sets the alarm.
-        Briefs.onSessionEnd = { com.bigpapituna.sharpears.reminder.EmailJob.afterSession(applicationContext) }
+        // A session's end (the app leaves the screen, or someone else takes over): the wardrobe's ledger takes in the minutes
+        // and days just played (whatever was opened waits for the next finish screen), and the brief by email
+        // (reminder/EmailJob.kt) plans its next look. The app's start sends what is due and sets the alarm.
+        Briefs.onSessionEnd = { id ->
+            openWorld?.takeIf { it.profileId == id }?.let { w ->
+                runCatching { w.sync() }.onFailure { Log.d(TAG, "wardrobe: ledger sync at the session's end failed: ${it.javaClass.simpleName}") }
+            }
+            com.bigpapituna.sharpears.reminder.EmailJob.afterSession(applicationContext)
+        }
         com.bigpapituna.sharpears.reminder.EmailJob.runAsync(this, "app start")
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
         // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
@@ -484,7 +493,7 @@ class MainActivity : ComponentActivity() {
         val playStore = PlayStore(this, profile.id)
         // The kid home's memory (2.2): each lesson's best stars, the finales played (kept for grown-ups too, never shown).
         val kidStore = KidStore(this, profile.id)
-        openPrefs = prefs; openKid = kidStore
+        openPrefs = prefs; openKid = kidStore; openWorld = world
         // 2.5, the wardrobe's practice ledger: minutes and days from the practice log, three-star lessons and pages walked
         // from the kid store (a page whose last lesson is done counts at once: its rare item shows on that lesson's finish).
         world.ledgerSource = {
@@ -533,7 +542,7 @@ class MainActivity : ComponentActivity() {
         //   --es screen kidsongs | kidstickers [--es page album|dress|records|paws] | finale [--es page garden]
         //   --es kidseed <page>:<n>|road|reset   (marks the page's first n lessons done with stars; road: every page walked and
         //       its finale played; reset: the Playground's lessons, stars and finales forgotten) [--ez sleepy true] (today's goal
-        //       reached and said goodnight to, so the map shows the pup asleep)
+        //       reached and said goodnight to, so the map shows the pup asleep) [--ei practice <minutes>] (practice added today)
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
         val debugStart = PlayerStart(
@@ -1405,6 +1414,8 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "kid debug: today's goal reached, goodnight said")
         }
         if (intent.getBooleanExtra("awake", false)) { bedtime.oneMoreOn = today; Log.d(TAG, "kid debug: lessons open today") }
+        // 2.5.0: --ei practice <minutes> adds practice to today (the wardrobe's ledger takes it in at the next sync).
+        intent.getIntExtra("practice", 0).takeIf { it > 0 }?.let { m -> prefs.addPractice(today, m * 60); Log.d(TAG, "kid debug: $m minutes of practice added today") }
     }
 
     /**
