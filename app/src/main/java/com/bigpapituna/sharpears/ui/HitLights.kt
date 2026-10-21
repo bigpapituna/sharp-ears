@@ -54,6 +54,8 @@ class HitLights(
     var still = false
     /** Measures the combo and grade words; set by NoteLane. Without it they are not drawn. */
     var measurer: TextMeasurer? = null
+    /** Kids see no combo number ("x12"): stars, not numbers (KIDS-PLAN 3.3). The lights themselves stay. */
+    var showCombo = true
 
     val hitNanos get() = (HIT_MS * slow * 1_000_000).toLong()
     private val touchNanos get() = (TOUCH_MS * slow * 1_000_000).toLong()
@@ -273,7 +275,7 @@ class HitLights(
     }
 
     private fun DrawScope.drawCombo(now: Long) {
-        if (measurer == null) return
+        if (measurer == null || !showCombo) return
         val px = 22f * density
         val pad = 16f * density
         if (combo >= COMBO_MIN) {

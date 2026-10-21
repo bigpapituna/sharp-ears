@@ -223,6 +223,7 @@ fun PlayerScreen(
     val held = remember { mutableStateMapOf<Int, Color>() }      // keys held on the MIDI keyboard
     val flashes = remember { mutableStateMapOf<Int, Color>() }    // short green flash on a correct key
     val lights = remember { HitLights(slow = start.lightSlow) }    // the hit-line light (on by default)
+    lights.showCombo = !kid                                       // a kid's lane counts no streak
     // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
     val wrongs = rememberWrongFlash(slow = start.lightSlow)
     val struggle = remember { com.bigpapituna.sharpears.engine.Struggle() }
