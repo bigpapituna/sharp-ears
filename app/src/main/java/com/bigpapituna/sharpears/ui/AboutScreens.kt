@@ -68,8 +68,11 @@ private fun Link(label: String, url: String) {
 @Composable
 fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit,
                   /** This build carries an AI key, so the parent brief can be written by an AI model (data/BriefAi.kt). */
-                  aiBrief: Boolean = com.bigpapituna.sharpears.data.BriefAi.hasKey) = TextPage("Privacy", onBack) {
+                  aiBrief: Boolean = com.bigpapituna.sharpears.data.BriefAi.hasKey,
+                  /** This build can send the brief by email (a key and a sender in data/BriefEmail.kt). */
+                  emailBrief: Boolean = com.bigpapituna.sharpears.data.BriefEmail.hasKey) = TextPage("Privacy", onBack) {
     val except = listOfNotNull("the parent brief's numbers when the AI writes it (below)".takeIf { aiBrief },
+        "the brief by email, if a grown-up turns it on (below)".takeIf { emailBrief },
         "the review reports below, which you switch on".takeIf { canRecord })
     Para("Sharp Ears has no account, no ads and no analytics. " + if (except.isNotEmpty()) "Apart from ${except.joinToString(" and ")}, " +
         "it sends nothing about you or your playing anywhere." else "It does not send anything about you or your playing anywhere.")
@@ -95,6 +98,7 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         "(lessons, stickers, XP and achievements stay).")
     Heading("Internet")
     val uses = listOfNotNull("to show tutorial videos", "to have the parent brief written by AI".takeIf { aiBrief },
+        "to send the brief by email, when a grown-up turns that on".takeIf { emailBrief },
         "to send review reports, when that is on".takeIf { canRecord })
     Para("The app itself uses the internet only " + uses.dropLast(1).joinToString(", ").let { if (it.isEmpty()) uses.last() else "$it and ${uses.last()}" } +
         ". When you open a video, YouTube's embedded player loads " +
@@ -122,6 +126,18 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
     } else Para("On this build every brief, card and answer is written on the phone, and nothing about it leaves the phone.")
     Para("Dictating a question uses the phone's own speech recognition, so your voice stays on the phone; the microphone button is hidden " +
         "when the phone has none.")
+    if (emailBrief) {
+        Heading("The brief by email")
+        Para("If you give an email address for a child (grown-ups corner, Family, the child, Email), the app sends that child's brief to it: " +
+            "the brief's words and numbers (minutes, days, stars, which lessons and songs, slips, how long keys took to find, what the app " +
+            "suggests) and the full report as a PDF. It goes from this phone to Brevo (brevo.com), the email service that delivers it, and " +
+            "from there to your address. Nothing else is sent: no recording or sound, no note you typed, nothing about the other children. " +
+            "The child's first name is in the email, because it is written for you. The first email carries a code; until it is typed in " +
+            "the app, nothing else is sent. You choose daily, weekly, both or off, nothing goes between 9:30 pm and 7 am, and never more than " +
+            "two a day. The address stays on this phone, in the app's own storage; it is not in Android's backup, and it is deleted with the " +
+            "child's profile or when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
+            "your mail app may fetch its font from Google or its pictures from the app's own web address, as it does for any email.")
+    }
     Heading("Speech and MIDI")
     Para("Spoken guidance uses a voice that runs entirely on the phone: lines recorded into the app, and the Kokoro voice model for the rest. " +
         "With the natural voice off, it uses the phone's own text-to-speech engine instead. A USB MIDI keyboard's notes are read on the phone and go nowhere else.")

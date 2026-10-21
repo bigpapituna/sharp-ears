@@ -106,11 +106,14 @@ fun ParentBriefScreen(
     val child = children.firstOrNull { it.id == childId } ?: children.firstOrNull()
     var exporting by remember { mutableStateOf<Pair<Brief, Findings>?>(null) }
     var weeklyOpen by remember { mutableStateOf(openWeekly) }
+    var emailFor by remember { mutableStateOf<Profile?>(null) }
 
     Column(modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+            // The brief by email for this child (ui/brief/email): its settings and a preview, behind the gate already passed.
+            if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { emailFor = child }) { Text("Email") }
         }
         if (child == null) {
             PupSays(Pose.WELCOME, "Add a child in Family to see how their week goes.", Modifier.padding(24.dp), size = 96.dp)
@@ -141,6 +144,7 @@ fun ParentBriefScreen(
             }
         }
     }
+    emailFor?.let { kid -> com.bigpapituna.sharpears.ui.brief.email.EmailDialog(kid, onClose = { emailFor = null }) }
     exporting?.let { (brief, findings) ->
         val c = children.firstOrNull { it.id == childId } ?: child ?: return@let
         ExportSheet(env, brief, findings, c, onDismiss = { exporting = null })

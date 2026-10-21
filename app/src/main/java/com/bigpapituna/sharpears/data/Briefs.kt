@@ -32,6 +32,12 @@ object Briefs {
     /** The open profile's practice seconds so far (ProgressStore.practiceSecondsTotal), for each session's end. */
     @Volatile var practiceSeconds: () -> Long = { 0L }
 
+    /**
+     * Called (on the thread that ended the session, the main one) after a session's end is logged, with whose it was: the email
+     * job looks at that child again (reminder/EmailJob.kt). Set by MainActivity; null in JVM tests and previews.
+     */
+    @Volatile var onSessionEnd: ((String) -> Unit)? = null
+
     private class Open(val profileId: String, val startFg: Long, val practice0: Long)
     @Volatile private var open: Open? = null
 
@@ -42,7 +48,7 @@ object Briefs {
     internal fun reset() {
         logs.values.forEach { it.close() }; logs.clear()
         filesDir = null; currentId = null; open = null
-        clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }
+        clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }; onSessionEnd = null
     }
 
     fun now(): Long = clock()
@@ -103,6 +109,7 @@ object Briefs {
         val o = open ?: return
         open = null
         logFor(o.profileId, soFar(o))
+        runCatching { onSessionEnd?.invoke(o.profileId) }.onFailure { logcat("brief: session end hook failed: ${it.javaClass.simpleName}") }
     }
 
     /**

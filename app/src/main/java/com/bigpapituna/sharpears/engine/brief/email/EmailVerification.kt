@@ -19,6 +19,9 @@ import java.time.LocalDate
  * - [frequency]: what the grown-up chose after the first email ([chosen]); WEEKLY until they choose, so a verified
  *   address gets the weekly brief rather than silence (the settings screen asks right after the code).
  * - [lastDaily], [lastWeekly]: the last day a daily email covered, the date of the last weekly slot sent.
+ * - [lastDailyAt], [lastWeeklyAt]: when (epoch ms) the last daily and weekly email went out, for the screen's "Daily: sent Tuesday 8:31 pm".
+ * - [held]: why the last try to send did not go ([EmailSender.Refusal] name: no key, a metered network, the writer), for the
+ *   screen to say; null once something went or nothing is waiting.
  * - [sends]: when emails went out over the last two weeks, for the caps (EmailCaps).
  */
 data class EmailPrefs(
@@ -33,6 +36,9 @@ data class EmailPrefs(
     val lastDaily: LocalDate? = null,
     val lastWeekly: LocalDate? = null,
     val sends: List<Long> = emptyList(),
+    val lastDailyAt: Long = 0,
+    val lastWeeklyAt: Long = 0,
+    val held: String? = null,
 ) {
     /** An address waits for its code to be typed. */
     val pending: Boolean get() = address != null && !verified && code != null
@@ -48,8 +54,12 @@ data class EmailPrefs(
         firstSent = firstSent || kind == EmailKind.FIRST,
         lastDaily = if (kind == EmailKind.DAILY) maxOf(day, lastDaily ?: day) else lastDaily,
         lastWeekly = if (kind == EmailKind.WEEKLY) maxOf(day, lastWeekly ?: day) else lastWeekly,
-        sends = (sends + at).filter { it > at - KEEP_SENDS_MS }.sorted(),
+        lastDailyAt = if (kind == EmailKind.DAILY) at else lastDailyAt, lastWeeklyAt = if (kind == EmailKind.WEEKLY) at else lastWeeklyAt,
+        sends = counted(at).sends, held = null,
     )
+
+    /** An email that is not the schedule's (a test the grown-up asked for) went out at [at]: it counts toward the caps, nothing else. */
+    fun counted(at: Long): EmailPrefs = copy(sends = (sends + at).filter { it > at - KEEP_SENDS_MS }.sorted())
 
     /** The grown-up chose how often. */
     fun choose(f: EmailFrequency): EmailPrefs = copy(frequency = f, chosen = true)
@@ -60,13 +70,14 @@ data class EmailPrefs(
     /** Never the address or the code. */
     override fun toString(): String = "EmailPrefs(address=${if (address == null) "none" else "set"}, verified=$verified, " +
         "code=${if (code == null) "none" else "pending"}, wrongTries=$wrongTries, firstSent=$firstSent, frequency=$frequency, chosen=$chosen, " +
-        "lastDaily=$lastDaily, lastWeekly=$lastWeekly, sends=${sends.size})"
+        "lastDaily=$lastDaily, lastWeekly=$lastWeekly, sends=${sends.size}, held=$held)"
 
     /** One JSON object (MiniJson), what data/EmailSettings stores; [decode] reads it back. */
     fun encode(): String = MiniJson.write(linkedMapOf(
         "address" to address, "verified" to verified, "code" to code, "expires" to codeExpiresAt, "wrong" to wrongTries,
         "firstSent" to firstSent, "frequency" to frequency.name, "chosen" to chosen,
         "lastDaily" to lastDaily?.toString(), "lastWeekly" to lastWeekly?.toString(), "sends" to sends,
+        "dailyAt" to lastDailyAt, "weeklyAt" to lastWeeklyAt, "held" to held,
     ))
 
     companion object {
@@ -84,6 +95,8 @@ data class EmailPrefs(
                 frequency = EmailFrequency.entries.firstOrNull { it.name == m["frequency"] } ?: EmailFrequency.WEEKLY, chosen = m["chosen"] == true,
                 lastDaily = date("lastDaily"), lastWeekly = date("lastWeekly"),
                 sends = (m["sends"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toLong() },
+                lastDailyAt = (m["dailyAt"] as? Number)?.toLong() ?: 0, lastWeeklyAt = (m["weeklyAt"] as? Number)?.toLong() ?: 0,
+                held = (m["held"] as? String)?.takeIf { it.isNotBlank() },
             )
         }
     }

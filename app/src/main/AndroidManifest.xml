@@ -33,6 +33,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- The email brief's buttons: sharpears://brief/<profile id>/<day or week> opens that child's brief, behind the parent gate. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sharpears" android:host="brief" />
+            </intent-filter>
         </activity>
         <!-- Share stuck moments in Microphone setup hands a zip from cache/share to the app the user picks. -->
         <provider
@@ -52,6 +59,14 @@
         </receiver>
         <!-- The weekly parent brief: one alarm per person (reminder/BriefReminder.kt), set again after a restart or a new time zone. -->
         <receiver android:name=".reminder.BriefReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+        <!-- The parent brief by email (reminder/EmailJob.kt): one alarm for the family, set again after a restart, a new time zone or a clock set by hand. -->
+        <receiver android:name=".reminder.EmailReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
