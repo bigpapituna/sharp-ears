@@ -683,52 +683,98 @@ compiled and its 1156 tests passed as merged; this step wired the pieces into th
   - Dictation is code-reviewed only (nothing spoken to the emulator); the share sheet was opened, no app picked.
   - Kid profiles and the AI brief need the Play Families policy and children's privacy rules checked before a public app.
 
-## 2.5 wardrobe and trail stickers (2026-10-21, branch `wardrobe`, emulator-5558 Fold only; version not bumped)
-Roy: more outfits "that kids could earn the more they play", not too hard, not too easy; and stickers earned along the
-trail "which they can place around the trail themselves". Clarified: a sticker per stone (every Playground lesson and the
-Basics stones), the drops and the egg stay as bonus stickers; 36+ items with full costumes.
-- The wardrobe (engine/world/Wardrobe.kt, tested): 60 items in four slots that combine (head 23, face 9, body 22, feet and
-  back 7), each with a kid's name ("Captain Pup", "Star Wizard"), a rarity look and a first-worn line; the 2.1 six are
-  still the first six. Ten full costumes come as sets (bee, ballet, rodeo, snowman, dino, space, knight, pirate, doctor,
-  firefighter), plus capes, the lion mane, the mermaid tail, princess, ballerina and rainbow dresses. Drawn in code over
-  pup_wear_base (ui/world/Outfit.kt + WearHead/WearFace/WearBody/WearBack.kt) with a back layer under the pup (capes,
-  wings, mane, packs); base pose only (decision in ui/world/INTEGRATION.md 10). Galleries: `--es screen worlddemo --es
-  part wardrobe [--es slot head|face|body|back]`.
-- Earning (the practice ledger, `Ledger` in WorldState; rates table at the top of Wardrobe.kt): sparkles from minutes
-  (1), days with a minute (5), first three stars on a lesson (4), songs to the end (2, five a day), page finales (20);
-  commons along a practice track (12, 42, 87, 147, 237, 337, 447, then +120 each; one a day at most), rares on
-  milestones (each finale, 7 and 14 days in a row, 10 and 25 three-star lessons, 20 and 60 songs, 40 days), shinies on
-  big ones (three pages, the road, 30 days, 50 three-star lessons). Never bought, never lost (open stays open; the ledger
-  only grows, a floor stops a pruned day counting twice). WardrobeTest's typical kid (five 10-minute sessions a week, two
-  lessons and a song each): item 1 at session 1, items 2 to 4 by session 7, the first rare on the garden's finale
-  (session 6), never two practice items in a session; 15 items after month 1, 30 after month 2, 35 after month 3, 48 by
-  month 6 (build/wardrobe-timeline.txt).
-- Shown: dress-up by slot with rarity borders, a sparkle for shinies, locked items faded with how they are earned; the
-  next outfit as a ring for pre-readers and a bar for readers (no numbers), also round My stickers' Dress up tab; the
-  next finish screen reveals a new item (card flip and jingle, he wears it at once, "Keep it on?" Yes / Not now, said by
-  the pup).
-- Trail stickers: 82 level stickers (engine/world/LevelStickers.kt; placeholders from `scripts/gen_stickers.py
-  --levels`), earned on a stone's first finish, shown as a shape on a white disc on the stone until then, revealed on the
-  finish screen with the pup's line. The album is page by page in stone order, each place's bonus stickers under its
-  page, then the road. Nothing is placed by the app any more: every scene has 12 to 14 named spots (engine/world/Decor.kt,
-  DecorTest keeps them off stones, stars and the gate at 328 and 720 dp), the kid places stickers in decorate mode
-  (ui/kid/Decorate.kt): a tap on the tray at the bottom of My stickers or a long press on a spot opens it, the tray takes
-  the buttons' place, tap a sticker then a spot (or a spot then a sticker), hold and drag works, tap a stuck one to move
-  it or put it back in the tray; the pup dances and says "Ooh, there!". Placements persist per profile (WorldStore),
-  survive finales, show on the map, the world tab and the finale (the decorated page, then its stones' stickers).
-- Old saves: version 1 worlds keep the items their stickers opened, their stickers go to the tray, the pup says "Your
-  stickers want new homes. Where should they go?" once; stones finished before earn their level stickers on the first open.
-- Voice: 147 new kid lines (item lines, sticker lines, decorate mode, the reveal) recorded at 0.85; 3661 voice files.
-- Tests: 1200 JVM (1187 before): WardrobeTest, DecorTest, StickerArtTest, WorldTest and WorldStoreTest updated;
-  MapAnchorsTest's sticker check moved to DecorTest. Lint 0 errors (28 warnings, as before).
-- Emulator (5558 Fold, Mia p1 pre-reader, Theo p2 reader): migration line on Mia's old world, the tray, decorate mode by
-  tap (garden) and by long press and drag (pond, dark), dress-up with a costume on, the pre-reader ring and reader bar,
-  three combos on the map, the reveal, the finale. Screenshots: app/build/screens/wardrobe-*.png (not committed). Debug:
-  `--es wardrobe all|<ids>`, `--es wear <ids>`, `--es fresh <ids>`, `--es decor <key>@<slot>+...|clear`, `--ez homes true`,
-  `--es screen worlddemo --es part reveal --es unlock <ids> --ez level true`.
-- Open: the grown-ups' World tab shows placements but has no decorate mode (kids only); dragging cannot scroll the map
-  (drop on a spot in view, or use taps); spots on pages not yet reached stay shut; the outfit shows on the base pose only;
-  all art is placeholder (GEMINI-BRIEF B2 and C2 have the prompts); nothing seen by a child yet.
+## 2.5.0 wardrobe, trail stickers and the brief by email (integrated 2026-10-21, branch `release-2.5`, versionCode 14; emulator-5558 Fold only, not on Roy's phone yet)
+Three branches merged: `wardrobe` (ui/world/INTEGRATION.md 10 to 12, ui/kid/INTEGRATION.md), `mail-engine`
+(engine/brief/email/INTEGRATION.md) and `mail-ui` (ui/brief/email/INTEGRATION.md). The merge compiled and its 1291 tests passed
+as merged (no conflicts left in ProgressFiles.NAMES, the corner sheet, My stickers or CLAUDE.md); this step wired what the three
+left to the integrator, fixed what the walk found and released.
+- The wardrobe (Roy: outfits "that kids could earn the more they play", not too hard, not too easy): 60 items in four slots that
+  combine (head 23, face 9, body 22, feet and back 7), each with a kid's name and a first-worn line, ten full costumes as sets,
+  drawn in code over pup_wear_base (ui/world/Outfit.kt, WearHead/WearFace/WearBody/WearBack.kt), base pose only. Earned from the
+  practice ledger (`Ledger` in WorldState, rates at the top of engine/world/Wardrobe.kt): sparkles for minutes (1), days with a
+  minute (5), a lesson's first three stars (4), songs to the end (2, five a day), page finales (20); commons along a practice
+  track (12, 42, 87, 147, 237, 337, 447, then +120 each; one a day at most), rares on milestones, shinies on big ones. Never
+  bought, never lost. Typical kid: item 1 at session 1, 15 items after month 1, 48 by month 6 (WardrobeTest).
+- Shown: dress-up by slot with rarity borders; the next outfit as a ring for pre-readers and a bar for readers (no numbers),
+  also round My stickers' Dress up tab; the next finish screen reveals a new item ("Keep it on?" Yes / Not now, said by the pup).
+  A dressed pup sits in his base pose on the map, the dress-up screen, a kid's song recap after a good run and the first bow of
+  a finale (the last two added here; ui/world/INTEGRATION.md 10).
+- Trail stickers (Roy: stickers "which they can place around the trail themselves"): a sticker per Playground and Basics stone
+  (82, engine/world/LevelStickers.kt, placeholders), earned on the stone's first finish, a shape on a white disc on the stone
+  until then; the drops and the egg stay as bonus stickers. The album goes page by page in stone order. Decorate mode
+  (ui/kid/Decorate.kt): a tap in My stickers' tray (it wiggles) or a long press on a spot; tap a sticker then a spot, or drag;
+  12 to 14 named spots per scene (engine/world/Decor.kt, DecorTest keeps them off stones and stars); placements persist per
+  profile (WorldStore) and show on the map, the world tab and the finale. Old worlds keep their items and the pup asks for new
+  homes once. 147 new kid lines recorded (3661 voice files).
+- The brief by email (docs/PARENT-BRIEF-PLAN.md, design D): each child's brief to a grown-up's address through Brevo, daily
+  (30 minutes after the day's last session, 20:30 at the latest), weekly at the weekly slot, both or off, chosen after the
+  first email; the first email carries a six-digit code that confirms the address (typed in the app). Quiet 21:30 to 07:00, two
+  a day and ten a week at most. Nothing in the email can act: every suggestion says where to tap in the app. Design D as table
+  HTML with inline styles (engine/brief/email/EmailHtml.kt, snapshots in app/src/test/resources/email), the full report as a
+  PDF. One family alarm (reminder/EmailJob.kt, EmailReceiver: alarm, boot, time zone, clock; request code 70001). Settings per
+  child behind the gate (ui/brief/email/EmailSettingsScreen.kt) with a preview (WebView, no network) and "Send me a test email
+  now"; doors: the kids' corner > Family > the child > Email the brief, Settings > Family, the brief's own Email button. The
+  buttons' deep link `sharpears://brief/<profile id>/<day|week>` opens that child's brief behind the parent gate. Privacy page
+  and onboarding say it only on a build with an email key. "Send emails on mobile data" (off by default).
+- Keys: `BuildConfig.EMAIL_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `EMAIL_IMAGE_BASE` from secrets.properties (gitignored), read
+  only by data/BriefEmail.kt; `scripts/set-email-key.ps1` writes them without showing the key (`-Remove`; `-ImageBase <https>
+  -PicturesOnly` sets the pictures' address alone and keeps the key). Logs say `email: <KIND> <day> for <profile id> ...`, never
+  the key, the address, a name or a body. This PC has no key: every send was refused `NO_KEY` and the screen says "Email is not
+  set up on this build." in plain words.
+- Wired at integration: every session's end (`Briefs.onSessionEnd`) syncs the open profile's ledger, then plans the email job
+  (the app start runs it, the boot receiver too); a kid's lesson finish reads in order: stars, the stone's sticker (its shape
+  turning into the sticker, `LevelStickerEarned`), the drop, the rest, something new to wear last (the reveal scrolls itself into
+  view), then the pup's card before whichever way on, "One more" included; the email pictures ready to host (below); the
+  privacy page names the pictures' host on a build with one (`EmailImages.hostOf`); `world: n level stickers` logged 0 (fixed).
+- Hosting the email's pictures (Roy, once): Gmail does not show pictures inside an email, so until they are hosted the alt
+  text shows ("The blue pup dancing"). The 27 PNGs are in `hosting/email/` with hosting/README.md: a public GitHub repo with
+  Pages (or raw.githubusercontent.com), then `.\scripts\set-email-key.ps1 -ImageBase https://<you>.github.io/<repo>/email
+  -PicturesOnly` and `.\gradlew.bat installDebug`. Each picture is then `<base>/<file>.png` exactly (EmailHtmlTest checks it and
+  that hosting/email matches app/src/main/assets/email). Empty base: inline pictures, as before. Brevo's image library renames
+  files, so it only works if its addresses keep the names.
+- Manual checks Roy must run with his keys (phone on Wi-Fi, `adb logcat -s SharpEars:D | Select-String "ai:|email:"`):
+  1. AI brief: 2.4.0 above, "Turning AI briefs on", and engine/brief/ai/INTEGRATION.md's manual check.
+  2. First email: `.\scripts\set-email-key.ps1` (Brevo key at the hidden prompt, then the verified sender), install; a kid >
+     Email the brief, Roy's own address, "Send the first email": within a minute an email with the code in large digits
+     (`email: FIRST ... sent`); a wrong code once (one try fewer), then the right one; choose Both.
+  3. Test email: "Send me a test email now" ("Sent. Check your inbox.").
+  4. Design D in Gmail (app and web) and Samsung Email, light and dark: postcard, In one minute, What I'd do next with its
+     where-to-tap lines, the five sections, the slip keys, bars, the gold star, the footer, the PDF; tap a "Do this in the app"
+     button with the app installed (Gmail may refuse a non-web link: then the where-to-tap line is the fallback); not clipped.
+  5. The rest of ui/brief/email/INTEGRATION.md's list: the daily 30 minutes after play, the weekly at its slot, airplane mode,
+     mobile data, a reboot, "Stop these emails"; `Select-String "@"` and `"xkeysib"` over the log show nothing.
+- Tests: 1292 JVM (1291 merged, 1 new: EmailHtmlTest.hostedPicturesAreTheBaseThenTheFileName), green. Lint 0 errors (28 warnings,
+  9 hints, as before).
+- Emulator walk (5558 Fold, the debug APK over 2.4's data; Roy owner, Mia p1 and Noor p3 pre-readers, Theo p2 reader):
+  Noor's first 2.5 open (ledger 11 sparkles after `--ei practice 6`), High and low's last stage to its finish: three stars, the
+  See-saw's shape turning into the sticker, a tulip drop, the ledger crossing 12 on that finish and the bow tie revealed, "Keep
+  it on?" Yes, worn on the map; My stickers: the album in stone order, the tray, the ring "Just started!"; decorate mode by tray
+  tap on the garden (roof, flower bed) and on the pond in dark mode, all three kept after a force stop; Two black, three black:
+  sunglasses revealed and scrolled into view; a session with two minutes of stage time: the pup's card before "One more", then
+  the next lesson; Hot Cross Buns to its end (three stars, rare butterfly) with the dressed pup on the recap; the garden's finale
+  bowing in the outfit over the decorated scene; dress-up and the map in dark; Theo's reader bar, his first Black keys sticker,
+  the card's Show Mum (the light gate, the session note); the email settings in every state on this keyless build (no address,
+  a bad one, the first email refused kindly, code, code gone, unchosen, verified, daily, held, the test email refused), the
+  preview's day and week, the corner's one Family row > Noor > Email the brief, the deep link cold (the gate, then Theo's week;
+  within the gate's ten minutes it opens straight), `dumpsys alarm` shows EmailReceiver, every session end logs
+  `wardrobe: ledger ...` then `email: planned (session ended)` and the alarm's run `not sent: NO_KEY`; the parent brief: Mia's
+  week with action cards (Set as next, then Undo), My week for Roy. Logcat over the walk: no app exception, no ANR, crash buffer
+  empty, no "sk-or-", "xkeysib" or "Bearer", no address from the app. Screenshots: app/build/screens/r25-*.png (not committed).
+- Debug: wardrobe `--es wardrobe all|<ids>`, `--es wear <ids>`, `--es fresh <ids>`, `--es decor <key>@<slot>+...|clear`,
+  `--ez homes true`, `--ei practice <minutes>` (added today, for the ledger); email `--es screen email --es child <id> --es seed
+  none|waiting|code|gone|unchosen|verified|daily|held [--es view preview --es period day|week]`.
+- Open:
+  - Nothing reached Brevo or OpenRouter (no keys here): the real emails, Gmail's handling of the deep link and the hosted
+    pictures wait on Roy's checks above. The stop line is a `mailto:` handled by hand.
+  - A keyless build plans an email look at every session end and refuses it (one log line); harmless, gone with a key.
+  - Android delivers BOOT_COMPLETED when a force-stopped app is started again, so the job runs twice on such a start (it is
+    locked; nothing doubles).
+  - The outfit is drawn on the base pose only; the lesson celebration, the pup's card and Pup says keep their own poses.
+  - Decorate mode is kids only; dragging cannot scroll the map; spots on pages not reached stay shut; in decorate mode on the
+    Fold the next page's heading shows faintly through the bar.
+  - All sticker and outfit art is placeholder (GEMINI-BRIEF B2 and C2); nothing seen by a child yet.
+  - The Family list shows "Change" on each child, which also holds Read the brief and Email the brief (the emails say
+    "Family > Mia > Email").
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

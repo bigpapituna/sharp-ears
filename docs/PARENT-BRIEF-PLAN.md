@@ -1,8 +1,10 @@
 # Parent brief: plan
 
 Agreed with Roy on 2026-10-21 in a brainstorm. Status: built and integrated in 2.4.0 (2026-10-21, branch `release-2.4`,
-versionCode 13; emulator only). Every brief is written by the templates until Roy puts his key in and runs the manual
-check (CLAUDE.md, "2.4.0 parent brief"). The relay (Option A) and Gemini Nano are still open.
+versionCode 13); the brief by email (design D, Brevo, daily and weekly, a code to confirm the address) integrated in 2.5.0
+(2026-10-21, branch `release-2.5`, versionCode 14; emulator only). Every brief is written by the templates and no email has
+been sent until Roy puts his keys in, hosts the email's pictures (hosting/README.md) and runs the manual checks (CLAUDE.md,
+"2.4.0 parent brief" and "2.5.0"). The relay (Option A) and Gemini Nano are still open.
 
 ## What it is
 

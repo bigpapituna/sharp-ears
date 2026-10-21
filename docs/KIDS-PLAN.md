@@ -1,6 +1,6 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-## Status (2026-10-21, 2.4.0 integrated on branch `release-2.4`, versionCode 13)
+## Status (2026-10-21, 2.5.0 integrated on branch `release-2.5`, versionCode 14)
 
 Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
 
@@ -56,10 +56,14 @@ children), action cards that pin the next stone, replay a lesson, start a duet, 
 page or open the next one early, change a setting or put a song on the shelf, and a weekly notification at the time
 chosen when the kid was added. See CLAUDE.md, 2.4.0 parent brief.
 
-2.5 (2026-10-21, branch `wardrobe`, not yet integrated): sixty things for the pup to wear in four slots that combine,
+2.5.0 (2026-10-21, branch `release-2.5`, versionCode 14): sixty things for the pup to wear in four slots that combine,
 earned by practising (a practice ledger of minutes, days, three-star lessons, songs and finales turned into sparkles,
-rare items on milestones, shiny ones on big ones; never bought, never lost), a sticker for every stone on the map, and
-decorate mode: the kid sticks stickers in each scene's spots instead of the app placing them. See CLAUDE.md, 2.5.
+rare items on milestones, shiny ones on big ones; never bought, never lost; the ledger catches up at every session's
+end), a sticker for every stone on the map (its shape on the stone turns into the sticker on the finish screen), and
+decorate mode: the kid sticks stickers in each scene's spots instead of the app placing them. A finish reads in one
+order: stars, the stone's sticker, the drop, something new to wear, then the pup's card. The dressed pup shows on the
+map, dress-up, a good song recap and the finale. For grown-ups, the brief by email (docs/PARENT-BRIEF-PLAN.md). Walked on
+the Fold emulator as Noor (pre-reader) and Theo (reader); see CLAUDE.md, 2.5.0.
 
 Not yet:
 
