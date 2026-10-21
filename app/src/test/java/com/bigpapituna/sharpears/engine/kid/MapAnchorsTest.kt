@@ -92,22 +92,5 @@ class MapAnchorsTest {
         assertNull(WorldAnchors.lesson(total + 1))
     }
 
-    /**
-     * 2.2 merge: every sticker sits clear of every stone on its scene's trail (the stone with its shadow and the stars
-     * under it, at a phone's size, the largest stone for the scene's width), so a collected sticker never hides a lesson.
-     */
-    @Test fun stickersSitClearOfTheStones() {
-        val halfW = 0.056f; val above = 0.035f; val below = 0.065f
-        com.bigpapituna.sharpears.engine.world.Stickers.ALL.forEach { s ->
-            val (a, k) = WorldAnchors.item(s)
-            // Placed as the scene places it: kept whole inside the scene.
-            val hx = k / 2f + 0.015f; val hy = k * SCENE_RATIO / 2f + 0.015f
-            val cx = a.x.coerceIn(hx, 1f - hx); val cy = a.y.coerceIn(hy, 1f - hy)
-            val l = cx - k / 2f; val r = cx + k / 2f; val t = cy - k * SCENE_RATIO / 2f; val b = cy + k * SCENE_RATIO / 2f
-            WorldAnchors.stops(s.place).forEachIndexed { i, st ->
-                val clear = r <= st.x - halfW || l >= st.x + halfW || b <= st.y - above || t >= st.y + below
-                assertTrue("${s.id} covers stone ${i + 1} of ${s.place}", clear)
-            }
-        }
-    }
+    // 2.2's stickersSitClearOfTheStones became engine/world/DecorTest (2.5: the kid places stickers in named slots).
 }

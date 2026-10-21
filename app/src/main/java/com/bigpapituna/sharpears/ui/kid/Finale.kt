@@ -83,7 +83,10 @@ private val BOW = listOf(Pose.CROWN, Pose.DANCING, Pose.STICKER)
  * Always dark, like the stage. With animations off the fireworks hold still and everything is in place at once.
  */
 @Composable
-fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: Int, after: Finale.After, say: (String) -> Unit, onDone: () -> Unit,
+fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
+                 /** 2.5: the world, for the page's stones' stickers and the scene as the kid decorated it (null: neither). */
+                 world: com.bigpapituna.sharpears.engine.world.WorldState?,
+                 stars: Int, after: Finale.After, say: (String) -> Unit, onDone: () -> Unit,
                  sound: Boolean = true) = SharpEarsTheme(dark = true) {
     BackHandler(onBack = onDone)
     val still = reducedMotion()
@@ -132,7 +135,13 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage, stars: In
                     modifier = Modifier.graphicsLayer { alpha = rise.value })
             }
             val prize: @Composable ColumnScope.() -> Unit = {
-                AlbumPageView(album, Modifier.widthIn(max = 560.dp))
+                // 2.5: the page as the kid decorated it, its stones' stickers, then its bonus stickers.
+                world?.let { w ->
+                    com.bigpapituna.sharpears.ui.world.PlaceScene(com.bigpapituna.sharpears.engine.kid.KidPages.worldPlace(page), w,
+                        Modifier.widthIn(max = 560.dp), stops = page.lessonIds.size, pupOnStage = false)
+                    com.bigpapituna.sharpears.ui.world.LevelPageView(page.id, w.levels, Modifier.widthIn(max = 560.dp))
+                }
+                AlbumPageView(album, Modifier.widthIn(max = 560.dp), bonus = world != null)
                 CertificateCard(name, page, stars, Modifier.widthIn(max = 560.dp))
             }
             val go: @Composable () -> Unit = {

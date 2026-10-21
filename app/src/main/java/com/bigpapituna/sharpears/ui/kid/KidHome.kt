@@ -61,6 +61,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -123,19 +125,43 @@ fun KidHome(
     grownUps: GrownUpCorner? = null, onGrownUpsClosed: () -> Unit = {},
     /** A kid who finished Beginner: the offer of grown-up mode (2.1, through the gate), at the top of the map; null: none. */
     grownUpOffer: (@Composable () -> Unit)? = null,
+    /** 2.5: sticking stickers on the map (decorate mode); null: the stickers are only shown. */
+    decor: DecorActions? = null,
+    /** A sticker picked in My stickers' tray: decorate mode opens holding it ([onDecorateStarted] clears it). */
+    decorateWith: String? = null, onDecorateStarted: () -> Unit = {},
+    /** Once after 2.5's update: the stickers the app had stuck are in the tray, and the pup says so. */
+    homesLine: Boolean = false, onHomesSaid: () -> Unit = {},
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
+    val decorate = remember { DecorateState() }
     // The pup's line: "Let's go!", the road line once, "This one first!" for a moment after a tap on a stone ahead.
     var nudge by remember { mutableStateOf<String?>(null) }
     var road by remember { mutableStateOf(roadLine) }
+    var homes by remember { mutableStateOf(homesLine && !roadLine) }
     val line = when {
-        asleep -> KidLines.ASLEEP_SHORT
         nudge != null -> nudge!!
+        asleep -> KidLines.ASLEEP_SHORT
         road -> KidLines.ROAD
+        homes -> KidLines.HOMES
         else -> KidLines.LETS_GO
     }
     val sayNow by rememberUpdatedState(say)
+    LaunchedEffect(homes) {
+        if (!homes) return@LaunchedEffect
+        delay(900); sayNow(KidLines.HOMES)
+        delay(7000); homes = false; onHomesSaid()
+    }
+    LaunchedEffect(decorateWith) {
+        if (decorateWith == null) return@LaunchedEffect
+        decorate.start(held = decorateWith); onDecorateStarted(); sayNow(KidLines.PICK_SPOT)
+    }
+    if (decorate.active) BackHandler { decorate.stop() }
+    val tray = remember(world.tray) { world.tray.mapNotNull(com.bigpapituna.sharpears.engine.world.Decal::byKey) }
+    // Pages the kid has reached: any stone on them walked, open or next (or the road open: all of them).
+    val reached = model.pages.indices.filter { i -> model.roadOpen || model.pages[i].stones.any { it.state != StoneState.LATER } }.toSet()
+    val decorSay: (String) -> Unit = { l -> nudge = l; sayNow(l) }
+    val decorActions = decor?.let { a -> DecorActions(a.place, a.unplace, decorSay) }
     LaunchedEffect(road) {
         if (!road) return@LaunchedEffect
         sayNow(KidLines.ROAD)
@@ -144,15 +170,16 @@ fun KidHome(
     LaunchedEffect(nudge) { if (nudge != null) { delay(2600); nudge = null } }
     LaunchedEffect(Unit) {
         val key = name + java.time.LocalDate.now()
-        if (!roadLine && greeted.add(key)) { delay(900); sayNow(if (asleep) KidLines.ASLEEP else line) }
+        if (!roadLine && !homes && greeted.add(key)) { delay(900); sayNow(if (asleep) KidLines.ASLEEP else line) }
     }
+    var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val list = rememberLazyListState()
     val density = LocalDensity.current
     val still = reducedMotion()
     val bottomBar = 104.dp
     // The page under the map is the app's own (MainActivity's root draws the paper): a second full-screen paper here
     // painted the grain and the paws twice on every frame of the map.
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewport = maxHeight
             val sceneW = minOf(maxWidth - 32.dp, 720.dp)
@@ -184,14 +211,15 @@ fun KidHome(
                 grownUpOffer?.let { offer -> item(key = "grown-up") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp)) { offer() } } }
                 model.pages.forEachIndexed { i, page ->
                     item(key = "page-${page.page.id}") {
-                        PageScene(page, world, onStone = { s -> if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) },
-                            onJar = onJar, onEgg = onEgg, asleep = asleep) { sizes ->
+                        PageScene(page, world, onStone = { s -> if (decorate.active) Unit else if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) },
+                            onJar = onJar, onEgg = onEgg, asleep = asleep,
+                            spots = decorActions?.let { a -> { sl, dc -> SpotView(sl, dc, decorate, a, reachable = i in reached) } }) { sizes ->
                             val w = maxWidth
                             nextSpot(page, model.next, w)?.let { (x, y) ->
                                 // The trail runs rightward along the first row, back along the second, and so on.
                                 val at = page.stones.indexOfFirst { it.lessonId == model.next }
-                                PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road,
-                                    forward = (at / com.bigpapituna.sharpears.engine.world.Trail.PER_ROW) % 2 == 0, gate = i == model.pages.lastIndex,
+                                PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !homes && !decorate.active,
+                                    forward = (at / com.bigpapituna.sharpears.engine.world.Trail.PER_ROW) % 2 == 0, gate = i == model.pages.lastIndex, hop = decorate.landed,
                                     onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true })
                             }
                             if (i == model.pages.lastIndex) {
@@ -203,11 +231,11 @@ fun KidHome(
                 }
                 if (!model.roadOpen) item(key = "road-ahead") { RoadAhead() }
                 if (model.roadOpen && model.road.isNotEmpty()) item(key = "road") {
-                    BigKidsRoad(model.road, asleep = asleep, onStone = { s -> if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) }) { sizes ->
+                    BigKidsRoad(model.road, asleep = asleep, world = world, onStone = { s -> if (decorate.active) Unit else if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) }) { sizes ->
                         val i = model.road.flatMap { it.stones }.indexOfFirst { it.lessonId == model.next }
                         if (i >= 0) {
                             val (x, y) = roadSpot(i, maxWidth)
-                            PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road, forward = roadForward(i, maxWidth),
+                            PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !decorate.active, forward = roadForward(i, maxWidth), hop = decorate.landed,
                                 onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true })
                         }
                     }
@@ -219,8 +247,10 @@ fun KidHome(
         val bg = MaterialTheme.colorScheme.background
         Box(Modifier.fillMaxWidth().height(bar + 20.dp).background(Brush.verticalGradient(0f to bg, bar / (bar + 20.dp) to bg.copy(alpha = 0.94f), 1f to bg.copy(alpha = 0f))))
         Whistle(onClick = onGrownUps, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 6.dp, end = 10.dp))
-        KidButtons(onPlay = { playOpen = true }, onSongs = onSongs, onStickers = onStickers, height = bottomBar,
+        if (decorate.active && decorActions != null) DecorTray(tray, decorate, decorActions, onDone = { decorate.stop() }, modifier = Modifier.align(Alignment.BottomCenter))
+        else KidButtons(onPlay = { playOpen = true }, onSongs = onSongs, onStickers = onStickers, height = bottomBar,
             modifier = Modifier.align(Alignment.BottomCenter))
+        DragGhost(decorate, tray, placed = { k -> com.bigpapituna.sharpears.engine.world.Decal.byKey(k) }, origin = origin)
     }
     if (playOpen) KidPlaySheet(onToy = { t -> playOpen = false; onToy(t) }, onDismiss = { playOpen = false })
     if (questOpen) QuestSheet(quest, onTask = { t -> questOpen = false; onQuestTask(t) }, onDismiss = { questOpen = false })
@@ -248,7 +278,7 @@ private fun Hello(name: String, avatar: Int) {
  */
 @Composable
 internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line: String, asleep: Boolean, found: Int, pointable: Boolean,
-                                             forward: Boolean, onGo: () -> Unit, onSignpost: () -> Unit, gate: Boolean = false) {
+                                             forward: Boolean, onGo: () -> Unit, onSignpost: () -> Unit, gate: Boolean = false, hop: Int = 0) {
     val w = maxWidth
     val p = sizes.pup
     val reach = sizes.next * 0.55f
@@ -271,6 +301,8 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     // GET_READY points to the right of the screen, POINTING to the left: mirrored when the bubble is on the left.
     val mirror = !asleep && !right
     val pup = rememberPupController(idle = !pointing && !asleep)
+    // A sticker stuck on the map (decorate mode): he dances.
+    LaunchedEffect(hop) { if (hop > 0) pup.react(com.bigpapituna.sharpears.engine.world.PupReaction.DANCE) }
     // A little behind the stone's middle, so the stone shows in front of his feet.
     val px = if (right) x - sizes.stone * 0.18f else x + sizes.stone * 0.18f
     Box(Modifier.pinAt(px, y + sizes.stone * 0.22f, ay = 1f).size(p)
