@@ -206,6 +206,18 @@ private fun playerShown(s: Screen) = s is Screen.Player ||
 /** The stage: the player, or a Practice today part that runs one. */
 private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
 
+/** A lesson ("lesson:<id>:<step>") or a finale ("finale:<page>") saved with the activity, opened again; null: home. */
+private fun restoredScreen(saved: String, kid: Boolean): Screen? {
+    val parts = saved.split(":")
+    Log.d(TAG, "screen restored: $saved")
+    return when (parts[0]) {
+        "lesson" -> COURSE.flatMap { it.lessons }.firstOrNull { it.id == parts.getOrNull(1) }
+            ?.let { Screen.Lesson(it, Screen.Home(if (kid) HomeTab.SONGS else HomeTab.LEARN), parts.getOrNull(2)?.toIntOrNull() ?: 0) }
+        "finale" -> parts.getOrNull(1)?.let { Screen.Finale(it) }
+        else -> null
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var sampler: Sampler
     private lateinit var midi: MidiDevices
@@ -428,7 +440,13 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent { androidx.compose.runtime.key(profile.id) {
-            var screen by remember { mutableStateOf(opening) }
+            // A lesson or a page's finale outlives the activity (the system closing the app in the background, "Don't keep
+            // activities", a dark-mode switch recreating it): the kid comes back to the step they were on, not to the map's
+            // start with the lesson lost. Other screens open at home as before.
+            var screen by androidx.compose.runtime.saveable.rememberSaveable(saver = androidx.compose.runtime.saveable.Saver<androidx.compose.runtime.MutableState<Screen>, String>(
+                save = { st -> when (val v = st.value) { is Screen.Lesson -> "lesson:${v.lesson.id}:${v.step}"; is Screen.Finale -> "finale:${v.pageId}"; else -> null } },
+                restore = { saved -> restoredScreen(saved, profile.isKid)?.let { mutableStateOf(it) } },
+            )) { mutableStateOf(opening) }
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
