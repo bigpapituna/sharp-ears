@@ -57,7 +57,7 @@ class NavTest {
         assertEquals(emptySet<String>(), all - reached)
         // A grown-up reaches every screen but the kids' own from the five tabs alone, without opening the app as someone else;
         // the first-run questions and "Let's hear you play" come with the launch.
-        val kids = setOf("KidSongs", "KidChords", "KidStickers", "Finale", NavGraph.KID_HOME)
+        val kids = setOf("KidSongs", "KidChords", "KidStickers", "Finale", "Arcade", "ArcadeRound", NavGraph.KID_HOME)
         val fromTabs = NavGraph.reachable(NavTab.entries.map(NavGraph::tab), avoid = setOf(NavGraph.LAUNCH))
         assertEquals(setOf("Onboarding", "Placement"), all - kids - fromTabs)
         // 2.7's moves: chords at the top of Learn, songs by chords and the Play corner in Songs, Practice today from Today.

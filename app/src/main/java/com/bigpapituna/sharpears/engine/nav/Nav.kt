@@ -54,7 +54,10 @@ object NavGraph {
         "World" to setOf("Player"),
         "Lesson" to setOf("Player", "Lesson", "Play", tab(NavTab.SONGS), "KidSongs", "Finale"),
         "Daily" to setOf("Play", tab(NavTab.SONGS), "KidSongs"),
-        KID_HOME to setOf("Lesson", "Play", "KidSongs", "KidStickers", "Settings", "MicSetup", "Finale", LAUNCH),
+        // The kid's Play sheet also opens the arcade (its hub, then a game's round).
+        KID_HOME to setOf("Lesson", "Play", "KidSongs", "KidStickers", "Settings", "MicSetup", "Finale", "Arcade", LAUNCH),
+        "Arcade" to setOf("ArcadeRound"),
+        "ArcadeRound" to setOf("Arcade"),
         "KidSongs" to setOf("Player", "KidChords"),
         "KidChords" to setOf("PopSong"),
         "KidStickers" to setOf("Player", KID_HOME),
