@@ -68,7 +68,7 @@ class ArcadeRulesTest {
             val counts = (0..g.maxLevel).map { ArcadePlans.plan(g, it, 1).keys.size }
             assertTrue("${g.id}: $counts", counts.zipWithNext().all { (a, b) -> b >= a } && counts.last() > counts.first())
         }
-        assertEquals(setOf(60, 62, 64), ArcadePlans.plan(ArcadeGame.BALLOONS, 0, 1).keys)
+        assertEquals(setOf(60, 62, 64), ArcadePlans.plan(ArcadeGame.BALLOONS, 0, 1, first = true).keys)
         // Two at once from level two: balloons tied together, moles with a friend.
         assertFalse((ArcadePlans.plan(ArcadeGame.BALLOONS, 1, 1) as StreamPlan).pairs)
         assertTrue((ArcadePlans.plan(ArcadeGame.BALLOONS, 2, 1) as StreamPlan).pairs)
@@ -76,10 +76,16 @@ class ArcadeRulesTest {
     }
 
     @Test fun balloonsRiseOverTheirKeysFirstAndEachKeyComesOnceFirst() {
-        val p = ArcadePlans.plan(ArcadeGame.BALLOONS, 0, 1) as StreamPlan
+        val p = ArcadePlans.plan(ArcadeGame.BALLOONS, 0, 1, first = true) as StreamPlan
         assertTrue(p.targets.all { it.lane == null })
         assertEquals(listOf(60, 62, 64), p.targets.take(3).map { it.key })
         assertEquals(listOf(60, 62, 64), p.demo)
+        // A rolled round too: its three, low to high, in the order the demo shows them.
+        for (seed in seeds) {
+            val r = ArcadePlans.plan(ArcadeGame.BALLOONS, 0, seed) as StreamPlan
+            assertEquals(r.demo, r.targets.take(3).map { it.key })
+            assertEquals(r.keys.sorted(), r.demo)
+        }
         assertTrue((ArcadePlans.plan(ArcadeGame.BALLOONS, 2, 1) as StreamPlan).targets.all { it.lane != null })
         // No key three times running.
         for (seed in seeds) (ArcadePlans.plan(ArcadeGame.FEED, 0, seed) as StreamPlan).targets.map { it.key }.windowed(3)
@@ -95,7 +101,7 @@ class ArcadeRulesTest {
     }
 
     @Test fun theGardenWalksStepThenSkipThenTakeTheLeftHand() {
-        assertEquals(listOf(60, 62, 64), (ArcadePlans.plan(ArcadeGame.GARDEN, 0, 1) as CallPlan).lines.first().keys)
+        assertEquals(listOf(60, 62, 64), (ArcadePlans.plan(ArcadeGame.GARDEN, 0, 1, first = true) as CallPlan).lines.first().keys)
         assertEquals(listOf(60, 62, 64, 65, 67), (ArcadePlans.plan(ArcadeGame.GARDEN, 1, 1) as CallPlan).lines.first().keys)
         assertEquals(listOf(60, 64, 67), (ArcadePlans.plan(ArcadeGame.GARDEN, 2, 1) as CallPlan).lines.first().keys)
         val left = (ArcadePlans.plan(ArcadeGame.GARDEN, 4, 1) as CallPlan).lines.first()
@@ -144,6 +150,74 @@ class ArcadeRulesTest {
             assertTrue(f.song && p.song)
             assertEquals(f.lines.size, f.needLines)
         }
+    }
+
+    // ---- 2.8: level 0's three keys are rolled; levels 1+ shuffle the first pass ----------------------------------------
+
+    /** The three white neighbours level 0 can roll: C D E, D E F, E F G, F G A, G A B, A B C. */
+    private val triples = ArcadeKeys.OCTAVE.windowed(3)
+
+    @Test fun threeFromIsThreeWhiteNeighboursOfThePool() {
+        assertEquals(6, triples.size)
+        assertEquals(listOf(62, 64, 65), triples[1])
+        assertEquals(listOf(67, 69, 71), triples[4])
+        val rolled = (0L until 500L).map { ArcadeKeys.threeFrom(ArcadeKeys.OCTAVE, kotlin.random.Random(it)) }
+        assertTrue(rolled.all { it in triples })
+        assertEquals("every triple comes up", triples.toSet(), rolled.toSet())
+    }
+
+    @Test fun levelZeroRollsItsThreeKeysPerRound() {
+        for (g in ArcadePlans.THREE_KEYS) {
+            val rolls = (1L..50L).map { seed -> ArcadePlans.plan(g, 0, seed).keys.sorted() }
+            assertTrue("${g.id}: 50 rolls gave ${rolls.toSet()}", rolls.toSet().size > 1)
+            assertTrue("${g.id}: three white neighbours", rolls.all { it in triples })
+            // The demo and the targets follow the roll (nothing still says C D E).
+            for (seed in 1L..50L) {
+                val p = ArcadePlans.plan(g, 0, seed)
+                assertEquals(p.keys, p.targets.flatMap { it.keys }.toSet())
+                if (p is StreamPlan) assertEquals(p.keys.sorted(), p.demo)
+            }
+        }
+        // The garden walks its written steps on the rolled three: C D E becomes D E F, E D C becomes F E D.
+        val g = (1L..50L).map { ArcadePlans.plan(ArcadeGame.GARDEN, 0, it) as CallPlan }.first { it.keys == setOf(62, 64, 65) }
+        assertEquals(listOf(listOf(62, 64, 65), listOf(65, 64, 62)), g.lines.take(2).map { it.keys })
+        // Games whose level 0 is not three keys are not rolled.
+        for (game in ArcadeGame.entries - ArcadePlans.THREE_KEYS) assertEquals(1, (1L..12L).map { ArcadePlans.plan(game, 0, it).keys }.toSet().size)
+    }
+
+    @Test fun aGamesFirstRoundKeepsCDE() {
+        for (g in ArcadePlans.THREE_KEYS) for (seed in 1L..50L) {
+            val p = ArcadePlans.plan(g, 0, seed, first = true)
+            assertEquals("${g.id} seed $seed", ArcadeKeys.CDE.toSet(), p.keys)
+            if (p is StreamPlan) assertEquals(ArcadeKeys.CDE, p.demo)
+        }
+        // From level 1 the first round is the level's own keys, as before.
+        assertEquals(ArcadeKeys.FIVE.toSet(), ArcadePlans.plan(ArcadeGame.BALLOONS, 1, 3, first = true).keys)
+    }
+
+    /** What a round asks for, in order: its keys, its targets (with their clock and lanes), the demo and the lines. */
+    private fun drawn(p: RoundPlan): List<Any?> = listOf(p.game, p.level, p.roundMs, p.keys, p.targets, (p as? StreamPlan)?.demo, (p as? CallPlan)?.lines)
+
+    @Test fun aReplayOfASeedIsTheSameRound() {
+        for (g in ArcadeGame.entries) for (level in 0..g.maxLevel) for (seed in listOf(1L, 7L, 123_456_789L)) for (first in listOf(false, true)) {
+            assertEquals("${g.id} level $level seed $seed", drawn(ArcadePlans.plan(g, level, seed, first)), drawn(ArcadePlans.plan(g, level, seed, first)))
+        }
+        // And a different seed is (usually) a different round.
+        assertTrue((1L..20L).map { drawn(ArcadePlans.plan(ArcadeGame.BALLOONS, 0, it)) }.toSet().size > 1)
+    }
+
+    @Test fun fromLevelOneTheStreamsFirstPassIsShuffled() {
+        for (g in listOf(ArcadeGame.BALLOONS, ArcadeGame.FEED, ArcadeGame.MOLES)) for (level in 1..g.maxLevel) {
+            val firsts = (1L..30L).map { seed ->
+                val p = ArcadePlans.plan(g, level, seed) as StreamPlan
+                p.targets.filter { !it.pair }.map { it.key }.distinct().take(p.keys.size)
+            }
+            // Each key still comes (the moles may skip a busy key, so only the singles' order is checked).
+            assertTrue("${g.id} level $level: not always low to high", firsts.any { it != it.sorted() })
+            assertTrue("${g.id} level $level: orders vary", firsts.toSet().size > 1)
+        }
+        // Level 0 stays the scaffold: low to high.
+        for (seed in seeds) (ArcadePlans.plan(ArcadeGame.FEED, 0, seed) as StreamPlan).let { assertEquals(it.demo, it.targets.take(3).map { t -> t.key }) }
     }
 
     // ---- The stream round --------------------------------------------------------------------------------------------

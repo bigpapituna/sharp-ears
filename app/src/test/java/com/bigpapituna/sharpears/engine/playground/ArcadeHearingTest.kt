@@ -46,9 +46,17 @@ class ArcadeHearingTest {
 
     private fun render(vararg keys: Int) = PianoSynth.render(keys.map { SynthNote(it, 1000.0, 700.0, gainDb = -18.0) }, 2600.0, noiseDb = -66.0)
 
-    /** Every key set the arcade listens for, with whether its round wants two keys at once. */
-    private val sets: Map<Set<Int>, Boolean> = ArcadeGame.entries.flatMap { g -> (0..g.maxLevel).map { l -> ArcadePlans.plan(g, l, 1) } }
+    /**
+     * Every key set the arcade listens for, with whether its round wants two keys at once; level 0's three keys are rolled
+     * per round (2.8), so every three it can roll is here too.
+     */
+    private val sets: Map<Set<Int>, Boolean> = (ArcadeGame.entries.flatMap { g -> (0..g.maxLevel).map { l -> ArcadePlans.plan(g, l, 1) } } +
+        ArcadePlans.THREE_KEYS.flatMap { g -> (1L..60L).map { ArcadePlans.plan(g, 0, it) } })
         .groupBy { it.keys }.mapValues { (_, ps) -> ps.any { it is StreamPlan && it.pairs } }
+
+    @Test fun everyRolledThreeIsListenedFor() {
+        assertTrue(ArcadeKeys.OCTAVE.windowed(3).all { it.toSet() in sets })
+    }
 
     @Test fun everyKeyOfEverySetIsHeardAsItself() {
         val cases = sets.keys.flatMap { s -> s.map { k -> s to k } }

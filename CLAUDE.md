@@ -998,6 +998,24 @@ against the adult navigation branch.
 - Debug: `--es screen arcade [--es game <id> [--ei level n] [--el seed n] [--es inject synth:...] [--ez bot true] [--ei stars 1|2|3]]`
   (bot: the screen plays the right keys as touches).
 
+## 2.8 arcade keys and the Play corner (2026-10-22, branch `arcade-keys`, docs/PLAN-2.8.md sections 2 and 3; version not bumped)
+- Random keys: level 0 of Balloon pop, Feed the pup, Build the tower and Grow the garden (`ArcadePlans.THREE_KEYS`) rolls its
+  three keys per round from the white neighbours of the octave (`ArcadeKeys.threeFrom`: C D E, D E F, E F G, F G A, G A B,
+  A B C) with the round's seed, so a replay of a seed is the same round. A game's first round for a kid keeps C D E
+  (`ArcadePlans.plan(..., first)`, MainActivity's `firstRound` = the game's `GameRecord.rounds == 0`; chosen per game, which
+  also keeps the very first arcade round C D E). The garden walks its written C D E steps on the rolled three. From level 1
+  the streams' first pass (each key once) is shuffled; the demo still shows the keys low to high. No arcade line or caption
+  names keys (the demo plays and lights them, the badges follow), so nothing else changed. Tests: ArcadeRulesTest (50 rolls
+  give more than one three, the first round, replay, the shuffle), ArcadeHearingTest (every rolled three is heard).
+- Play corner: Roy's "Play corner." that did nothing was not reproduced on the Fold emulator by touch (Simple and Advanced,
+  inner and cover screens, normal and large text, animations off, a fold or rotation with the sheet open, long presses):
+  Today's tile opened its sheet and each toy every time; the Songs and sheet titles are plain headings; the tour line is text
+  in the tour card. Hardened instead: Today's tiles come from `NavGraph.TODAY_TILES` (name to place, `Names.CHORDS` added for
+  the literal "Chords"), NavTest checks every tile Today draws is a `Names` constant whose place is in Today's `OPENS` and has
+  a tap; the sheet counts any hiding as a close (so the tile can never be left marked open), and the tile logs
+  `today: play corner opened, was marked open: ...`, `closed`, `-> <toy>`. If Roy sees it again, logcat or the tester replay
+  shows which.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

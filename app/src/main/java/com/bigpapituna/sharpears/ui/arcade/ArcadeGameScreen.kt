@@ -84,9 +84,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 private enum class Phase { INTRO, PLAY, FINISH }
 
 /**
- * A round of [game] at [level] ([seed] draws it). [onRoundEnd] is called once with the result and returns what it did
- * (the book's [RoundEnd]); [sticker] is the game's sticker, shown when this round earned it. [debugResult] (debug builds)
- * skips straight to the finish with that result.
+ * A round of [game] at [level] ([seed] draws it; [first]: the kid's first round of the game, whose level 0 keeps C D E).
+ * [onRoundEnd] is called once with the result and returns what it did (the book's [RoundEnd]); [sticker] is the game's
+ * sticker, shown when this round earned it. [debugResult] (debug builds) skips straight to the finish with that result.
  */
 @Composable
 fun ArcadeGameScreen(
@@ -95,9 +95,10 @@ fun ArcadeGameScreen(
     debugResult: RoundResult? = null,
     /** Debug (--ez bot true): the screen plays the right keys itself, as touches, so a round can be watched and shot. */
     bot: Boolean = false,
+    first: Boolean = false,
 ) {
     val reader = LocalProfile.current.let { !it.isKid || it.reader }
-    val play = remember(game, level, seed) { ArcadePlay(ArcadePlans.round(game, level, seed), reader) }
+    val play = remember(game, level, seed, first) { ArcadePlay(ArcadePlans.round(game, level, seed, first), reader) }
     val round = play.round
     var phase by remember(play) { mutableStateOf(if (debugResult != null) Phase.FINISH else Phase.INTRO) }
     val scope = rememberCoroutineScope()

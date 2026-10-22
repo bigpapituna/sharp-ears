@@ -78,6 +78,14 @@ two sessions of a typical kid). The hub syncs the ledger as it opens and the pup
 - `--ei stars 1|2|3` with a game: straight to the finish with such a round (it is recorded: the first three stars earn the
   sticker, as a real round would).
 
+## 2.8: the keys change from round to round
+
+Level 0 of Balloon pop, Feed the pup, Build the tower and Grow the garden (`ArcadePlans.THREE_KEYS`) rolls its three keys per
+round from the white neighbours of the octave (C D E, D E F, E F G, F G A, G A B, A B C; `ArcadeKeys.threeFrom`), drawn
+from the round's seed, so a replayed seed is the same round. A game's first round for a kid (`GameRecord.rounds == 0`,
+MainActivity's `firstRound`) keeps C D E. From level 1 the streams' first pass (each key once) comes shuffled instead of
+low to high. No line says the keys: the demo plays and lights the round's keys, and the keyboard badges follow them.
+
 ## Logs (tag SharpEars)
 
 `arcade: <game> level n starts, keys [...]`, `arcade: touched|heard|named|midi <key> -> Hit|Slip|Half|...`,

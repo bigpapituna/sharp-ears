@@ -2,7 +2,10 @@ package com.bigpapituna.sharpears.ui
 
 import com.bigpapituna.sharpears.engine.nav.NavGraph
 import com.bigpapituna.sharpears.engine.nav.NavTab
+import com.bigpapituna.sharpears.engine.nav.Names
+import com.bigpapituna.sharpears.ui.play.Toy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -88,6 +91,34 @@ class NavTest {
         assertTrue(setOf("learnchords", "chordgames", "progressions").all { it in read })
         // The Songs tab's section survives a recreate ("home:SONGS:chords").
         assertTrue("\":chords\"" in routeOf && "== \"chords\"" in screenAt)
+    }
+
+    /**
+     * 2.8 (Roy: "Play corner." did nothing): every tile Today draws is named by a [Names] constant, has its place in
+     * [NavGraph.TODAY_TILES], and that place is one Today opens in the graph; no tile's tap is empty, and MainActivity
+     * wires each tile's action to a screen. The Play corner's sheet always has its three toys (Simple filters none).
+     */
+    @Test fun everyNamedTileOnTodayOpensAPlace() {
+        val today = File("src/main/java/com/bigpapituna/sharpears/ui/TodayScreen.kt").readText().replace("\r\n", "\n")
+        val tiles = Regex("""(?<!fun )ExploreTile\(([^,]+),""").findAll(today).map { it.groupValues[1].trim() }.toList()
+        assertTrue("Today draws its Explore tiles: $tiles", tiles.size >= 3)
+        val opens = NavGraph.OPENS.getValue(NavGraph.tab(NavTab.TODAY))
+        val names = tiles.map { t ->
+            assertTrue("Today's tile $t is named by a Names constant, not a literal", t.startsWith("Names."))
+            val name = Names::class.java.getField(t.removePrefix("Names.")).get(null) as String
+            val place = NavGraph.TODAY_TILES[name]
+            assertNotNull("Today's tile \"$name\" has no place in NavGraph.TODAY_TILES", place)
+            assertTrue("Today's tile \"$name\" opens $place, which the graph does not have Today open", place in opens)
+            name
+        }
+        assertEquals("every tile in TODAY_TILES is drawn, once", NavGraph.TODAY_TILES.keys.toList().sorted(), names.sorted())
+        assertTrue("an Explore tile with an empty tap", Regex("""ExploreTile\([^\n]*\)\s*\{\s*\}""").find(today) == null)
+        assertTrue("the Play corner tile opens its sheet", Regex("""ExploreTile\(Names\.PLAY_CORNER[^\n]*\{[^}]*playCorner = true""").containsMatchIn(today))
+        for (call in listOf("onSongs = { screen = Screen.Home(HomeTab.SONGS) }", "onChords = { screen = Screen.Home(HomeTab.LEARN) }",
+            "onToy = { t -> screen = Screen.Play(t, s) }"))
+            assertTrue("MainActivity's Today actions: $call", call in activity)
+        assertEquals(3, Toy.entries.size)
+        assertTrue("PlayRow draws every toy", "Toy.entries.forEach" in File("src/main/java/com/bigpapituna/sharpears/ui/play/PlayRow.kt").readText())
     }
 
     /** The debug routes keep working (CLAUDE.md lists them), with the three 2.7 adds. */
