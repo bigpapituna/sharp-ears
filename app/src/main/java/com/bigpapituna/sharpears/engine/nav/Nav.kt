@@ -66,11 +66,11 @@ object NavGraph {
         "SightRead" to emptySet(), "Licences" to emptySet(), "Play" to emptySet(),
     )
 
-    /** Every place [from] leads to, [from] included. */
-    fun reachable(from: Collection<String>): Set<String> {
+    /** Every place [from] leads to, [from] included, never going through [avoid] (the launch, say). */
+    fun reachable(from: Collection<String>, avoid: Set<String> = emptySet()): Set<String> {
         val seen = LinkedHashSet<String>(from)
         val todo = ArrayDeque(from)
-        while (todo.isNotEmpty()) OPENS[todo.removeFirst()].orEmpty().forEach { if (seen.add(it)) todo.addLast(it) }
+        while (todo.isNotEmpty()) OPENS[todo.removeFirst()].orEmpty().forEach { if (it !in avoid && seen.add(it)) todo.addLast(it) }
         return seen
     }
 }
