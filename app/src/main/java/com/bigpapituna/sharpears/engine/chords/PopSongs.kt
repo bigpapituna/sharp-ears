@@ -55,9 +55,14 @@ object PopSongs {
 
     fun fourChordSongs(songs: List<PopSong> = POP_SONGS): List<PopSong> = songs.filter(::isFourChord)
 
-    /** Easiest first: difficulty, then the four-chord songs, then the newest. */
-    fun sortedForBeginners(songs: List<PopSong> = POP_SONGS): List<PopSong> =
-        songs.sortedWith(compareBy<PopSong> { it.difficulty }.thenBy { !isFourChord(it) }.thenByDescending { it.year })
+    /**
+     * Easiest first: difficulty, then the four-chord songs, then the newest, then by title. The one order "Easiest first"
+     * means anywhere (the browse screen's sort, the kids' list, "Songs that use these chords").
+     */
+    val beginnerOrder: Comparator<PopSong> =
+        compareBy<PopSong> { it.difficulty }.thenBy { !isFourChord(it) }.thenByDescending { it.year }.thenBy { it.title.lowercase() }
+
+    fun sortedForBeginners(songs: List<PopSong> = POP_SONGS): List<PopSong> = songs.sortedWith(beginnerOrder)
 
     /** The same song [semitones] higher (or lower): the key, every root and every bass move together. */
     fun transposed(song: PopSong, semitones: Int): PopSong {

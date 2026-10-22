@@ -31,36 +31,14 @@ class PopFindTest {
     private val hard = song("hard", listOf(PopChord(0, ChordType.MAJ7), PopChord(2, ChordType.MIN7), PopChord(7, ChordType.DOM7)), difficulty = 4, year = 2010)
     private val all = listOf(fourChords, threeChords, withDm, hard)
 
-    // --- the four-chord badge ---
-
-    @Test fun fourChordIsExactlyOneFourFiveAndSix() {
-        assertTrue(PopFind.fourChord(fourChords))
-        // In any major key: D, G, A, Bm.
-        assertTrue(PopFind.fourChord(song("d", listOf(maj(2), maj(7), maj(9), min(11)), key = 2)))
-    }
-
-    @Test fun threeChordsFiveChordsAndSeventhsAreNotFourChord() {
-        assertFalse(PopFind.fourChord(threeChords))
-        assertFalse(PopFind.fourChord(withDm))
-        assertFalse(PopFind.fourChord(hard))
-        assertFalse(PopFind.fourChord(song("five", listOf(maj(0), maj(7), min(9), maj(5), min(2)))))
-        assertFalse(PopFind.fourChord(song("seventh", listOf(maj(0), maj(7), min(9), PopChord(5, ChordType.MAJ7)))))
-    }
-
-    @Test fun aMinorKeyIsNeverFourChord() {
-        // Am F C G is the same four chords from another door, but it is the minor-key shape: no badge.
-        assertFalse(PopFind.fourChord(song("minor", listOf(min(9), maj(5), maj(0), maj(7)), key = 9, minor = true)))
-    }
+    // --- the chords a song needs (the content's rule, PopSongs.chordsOf) ---
 
     @Test fun slashBassesDoNotMakeAFifthChord() {
         val s = song("slash", listOf(maj(0), PopChord(7, ChordType.MAJOR, bass = 11), min(9), PopChord(5, ChordType.MAJOR, bass = 0)))
-        assertTrue(PopFind.fourChord(s))
         assertEquals(listOf(c, g, am, f), PopFind.chordsOf(s))
-    }
-
-    @Test fun theFourChordsOfTheKeyNeedTheRightQualities() {
-        // C G A F with an A major is not the vi: no badge.
-        assertFalse(PopFind.fourChord(song("bad", listOf(maj(0), maj(7), maj(9), maj(5)))))
+        // The badge is the content's one rule (PopSongs.isFourChord): the slash basses do not take it away.
+        assertTrue(PopSongs.isFourChord(s))
+        assertFalse(PopSongs.isFourChord(song("minor", listOf(min(9), maj(5), maj(0), maj(7)), key = 9, minor = true)))
     }
 
     // --- what a profile knows ---
@@ -98,12 +76,15 @@ class PopFindTest {
 
     // --- the browse screen ---
 
-    @Test fun easiestFirstGoesByDifficultyThenChordsThenTempoThenTitle() {
+    @Test fun easiestFirstIsTheContentsOrderDifficultyFourChordsNewestTitle() {
         val a = song("a", listOf(maj(0), maj(5)), difficulty = 1, title = "B song")
         val b = song("b", listOf(maj(0), maj(5)), difficulty = 1, title = "A song")
-        val slow = song("slow", listOf(maj(0), maj(5), maj(7)), difficulty = 1, bpm = 60)
+        val newer = song("newer", listOf(maj(0), maj(5)), difficulty = 1, year = 2020)
+        val notFour = song("notfour", listOf(maj(0), min(2)), difficulty = 1, year = 2024)
         val harder = song("h", listOf(maj(0)), difficulty = 2)
-        assertEquals(listOf("b", "a", "slow", "h"), PopFind.browse(listOf(harder, slow, a, b), PopFind.Chip.ALL, PopFind.Sort.EASIEST, emptySet()).map { it.id })
+        val sorted = PopFind.browse(listOf(harder, notFour, a, newer, b), PopFind.Chip.ALL, PopFind.Sort.EASIEST, emptySet()).map { it.id }
+        assertEquals(listOf("newer", "b", "a", "notfour", "h"), sorted)
+        assertEquals(PopSongs.sortedForBeginners(listOf(harder, notFour, a, newer, b)).map { it.id }, sorted)
     }
 
     @Test fun newestGoesByYearThenTitle() {
@@ -152,6 +133,22 @@ class PopFindTest {
         assertTrue(PopFind.chipsFor(withWorship).any { it == PopFind.Chip.WORSHIP })
     }
 
+    @Test fun chipsCarryHowManySongsTheyHold() {
+        val mixed = listOf(
+            song("hit", listOf(maj(0)), styles = listOf(Style.GREATEST_HITS, Style.SOUL, Style.BALLAD)),
+            song("ballad", listOf(maj(0)), styles = listOf(Style.BALLAD)),
+            song("kids", listOf(maj(0)), styles = listOf(Style.KIDS)),
+        )
+        val counts = PopFind.chipCounts(mixed)
+        assertEquals(3, counts[PopFind.Chip.ALL])
+        assertEquals(2, counts[PopFind.Chip.SOUL])                  // the hit in two of its styles counts once
+        assertEquals(1, counts[PopFind.Chip.GREATEST_HITS])
+        assertEquals(0, counts[PopFind.Chip.HOLIDAY])
+        assertEquals(null, counts[PopFind.Chip.WORSHIP])            // no chip at all
+        assertEquals("Soul and ballads 2", PopFind.chipLabel(PopFind.Chip.SOUL, 2))
+        assertEquals(PopFind.chipsFor(mixed), counts.keys.toList())
+    }
+
     @Test fun songsThatUseTheseChordsFindsOnlySongsMadeOfThem() {
         assertEquals(listOf("three"), PopFind.using(all, setOf(c, f, g)).map { it.id })
         assertEquals(listOf("four", "three"), PopFind.using(all, setOf(c, f, g, am)).map { it.id })
@@ -160,7 +157,8 @@ class PopFindTest {
     }
 
     @Test fun songsWithAChordAreEasiestFirst() {
-        assertEquals(listOf("three", "four", "dm"), PopFind.withChord(all, f).map { it.id })
+        // Both difficulty 1 and both four-chord songs by the content's rule (C, F and G are I, IV and V), so by title.
+        assertEquals(listOf("four", "three", "dm"), PopFind.withChord(all, f).map { it.id })
         assertEquals(listOf("hard"), PopFind.withChord(all, Chord(7, ChordType.DOM7)).map { it.id })
     }
 

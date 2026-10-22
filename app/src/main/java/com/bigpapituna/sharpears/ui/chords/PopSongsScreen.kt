@@ -55,6 +55,7 @@ import com.bigpapituna.sharpears.engine.Chord
 import com.bigpapituna.sharpears.engine.chords.PopFind
 import com.bigpapituna.sharpears.engine.chords.PopPlay
 import com.bigpapituna.sharpears.engine.chords.PopSong
+import com.bigpapituna.sharpears.engine.chords.PopSongs
 import com.bigpapituna.sharpears.engine.plural
 import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.Pose
@@ -68,7 +69,8 @@ import com.bigpapituna.sharpears.ui.motion.pressScale
  * or newest, or narrow to the songs the chords a profile has learned already play ("Songs I can play", "One new chord
  * away"). Each song is a tile of its chords, difficulty bars and how sure the content is. Chords, keys and tempos only.
  *
- * Takes its list as a parameter: the sample list while the real one is not on this branch (PopCatalogue).
+ * Takes its list as a parameter (the app passes PopCatalogue.songs, the content's 107). The lists are lazy: a tile is
+ * composed only as it scrolls into view.
  */
 
 /** Where the browse screen opens: a style chip and a sort (a debug route, and "You can play N songs" taps). */
@@ -83,6 +85,7 @@ fun PopBrowse(
     var chip by rememberSaveable { mutableStateOf(start.chip) }
     var sort by rememberSaveable { mutableStateOf(start.sort) }
     val chips = remember(songs) { PopFind.chipsFor(songs) }
+    val counts = remember(songs) { PopFind.chipCounts(songs) }
     val list = remember(songs, chip, sort, known) { PopFind.browse(songs, chip, sort, known) }
     val playable = remember(songs, known) { PopFind.playableCount(songs, known) }
     val c = MaterialTheme.colorScheme
@@ -97,7 +100,7 @@ fun PopBrowse(
         }
         item(key = "chips") {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillRow(chips.map { it.label }, chips.indexOf(chip).coerceAtLeast(0), { chip = chips[it] })
+                PillRow(chips.map { PopFind.chipLabel(it, counts[it] ?: 0) }, chips.indexOf(chip).coerceAtLeast(0), { chip = chips[it] })
                 PillRow(PopFind.Sort.entries.map { it.label }, sort.ordinal, { sort = PopFind.Sort.entries[it] })
             }
         }
@@ -134,13 +137,14 @@ fun PlayableLine(count: Int, modifier: Modifier = Modifier, onClick: (() -> Unit
  * A song as a tile: the key in its colour, title, artist and year, the chords it needs (the ones already learned
  * tinted, the others outlined), the difficulty as bars, and how sure the content is. [showNeeds] names the one missing chord.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PopSongTile(song: PopSong, known: Set<Chord>, modifier: Modifier = Modifier, showNeeds: Boolean = false, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val flats = PopPlay.flats(song.key, song.minor)
     val chords = remember(song) { PopFind.chordsOf(song) }
     val missing = remember(song, known) { PopFind.missing(song, known) }
-    val four = remember(song) { PopFind.fourChord(song) }
+    val four = remember(song) { PopSongs.isFourChord(song) }
     Row(modifier.pressScale(0.985f).clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerLow)
         .clickable(role = Role.Button, onClickLabel = "Open ${song.title}", onClick = onClick)
         .padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -148,10 +152,12 @@ fun PopSongTile(song: PopSong, known: Set<Chord>, modifier: Modifier = Modifier,
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Column {
                 Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${song.artist} · ${song.year}", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${song.artist}, ${song.year}", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             ChordChips(chords.map { it to PopPlay.name(com.bigpapituna.sharpears.engine.chords.PopChord(it.root, it.type), flats) }, known)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The confidence note always shows ("a sketch" says the chart is a first guess); the row wraps on a narrow screen.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically) {
                 ConfidenceNote(song.confidence)
                 if (four) FourChordBadge()
                 if (showNeeds && missing.size == 1)
@@ -216,7 +222,7 @@ fun ConfidenceNote(confidence: PopSong.Confidence) {
     }
 }
 
-/** For the I, IV, V and vi songs. */
+/** For the four-chord songs: a major key, every chord its I, IV, V or vi ([PopSongs.isFourChord], the content's one rule). */
 @Composable
 fun FourChordBadge() {
     val c = MaterialTheme.colorScheme

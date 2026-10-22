@@ -163,11 +163,26 @@ class PopPlayTest {
         assertTrue(PopPlay.flats(10, false))
     }
 
-    @Test fun movingAChordMovesItsSlashBassToo() {
-        val c = PopChord(0, ChordType.MAJOR, bass = 4)
-        assertEquals(PopChord(2, ChordType.MAJOR, bass = 6), PopPlay.moved(c, 2))
-        assertEquals(PopChord(11, ChordType.MAJOR, bass = 3), PopPlay.moved(c, -1))
-        assertEquals(c, PopPlay.moved(c, 12))
+    @Test fun movingTheBarsMovesASlashBassToo() {
+        // The page's chart moves by the content's transposition (PopSongs.transposed): root and bass together, either way.
+        val slash = song().copy(sections = listOf(PopSection("Verse", listOf(PopBar(PopChord(0, ChordType.MAJOR, bass = 4))))))
+        assertEquals(PopChord(2, ChordType.MAJOR, bass = 6), PopPlay.bars(slash, by = 2)[0].slots[0].chord)
+        assertEquals(PopChord(11, ChordType.MAJOR, bass = 3), PopPlay.bars(slash, by = -1)[0].slots[0].chord)
+        assertEquals(PopChord(0, ChordType.MAJOR, bass = 4), PopPlay.bars(slash, by = 12)[0].slots[0].chord)
+    }
+
+    @Test fun aRunIsKeptUnderTheSongsOwnIdWhateverTheKeyPatternAndTempo() {
+        val s = song().copy(id = "let-it-be-2")
+        assertEquals("pop-let-it-be-2", PopPlay.runId(s))
+        for (p in Pattern.entries) for (key in listOf(0, 5, 11)) for (bpm in listOf(60, 120)) {
+            assertEquals("pop-let-it-be-2", PopPlay.runIdOf(PopPlay.toSong(s, p, key, bpm).id))
+        }
+        assertEquals(null, PopPlay.runIdOf("fur-elise"))
+        assertEquals(null, PopPlay.runIdOf("prog-0-1"))
+        assertEquals(null, PopPlay.runIdOf("pop-odd"))
+        assertEquals(s, PopPlay.ofRun("pop-let-it-be-2", listOf(song(), s)))
+        assertEquals("T", PopPlay.titleOfRun("pop-t", listOf(song())))
+        assertEquals(null, PopPlay.titleOfRun("t", listOf(song())))
     }
 
     @Test fun aSlashChordPutsItsBassInTheLeftHand() {

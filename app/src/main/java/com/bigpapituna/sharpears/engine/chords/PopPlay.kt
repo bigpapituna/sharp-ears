@@ -15,8 +15,8 @@ import com.bigpapituna.sharpears.engine.voiceLead
  * player runs in Listen, Wait and Perform exactly as it runs a progression, and a generic drum-and-bass [BandBed] under
  * it. Chords, keys, tempos and section names only; nothing here knows a melody or a word (see PopSong).
  *
- * Self-contained on purpose: popc builds its own song helpers in PopSongs.kt against the same contract and the
- * integrator keeps one `toSong`. Everything of this file lives in [PopPlay] and the [BandBed] types.
+ * The one `toSong` of the app (2.6): the content (PopSongs.kt) holds the charts and the rules, this file plays them. A key
+ * change is the content's [PopSongs.transposed]. Everything of this file lives in [PopPlay] and the [BandBed] types.
  *
  * Layout of a bar of [PopSong.beatsPerBar] beats (4 unless the song says): each chord segment is played by the
  * pattern's grid. The right hand takes the voice-led chord (the nearest inversion to the one before, as the progressions
@@ -65,9 +65,6 @@ object PopPlay {
     /** The key reading in flats (F, B flat, E flat, A flat, D flat major, or the minors that share them). */
     fun flats(key: Int, minor: Boolean): Boolean = Math.floorMod(if (minor) key + 3 else key, 12) in setOf(5, 10, 3, 8, 1)
 
-    fun moved(c: PopChord, by: Int): PopChord =
-        if (by % 12 == 0) c else PopChord(Math.floorMod(c.root + by, 12), c.type, c.bass?.let { Math.floorMod(it + by, 12) })
-
     /** "Am7", "C/E", "Bb" (flats when the key reads in flats). */
     fun name(c: PopChord, flats: Boolean): String {
         val root = rootName(c.root, flats) + c.type.suffix
@@ -86,6 +83,32 @@ object PopPlay {
     /** The dictionary chord of a pop chord (the slash bass is a left-hand matter, the chord is the root's). */
     fun chord(c: PopChord): Chord = Chord(c.root, c.type)
 
+    // --- runs: what progress and the parent brief keep -----------------------------------------------------------
+
+    /** The prefix of a pop song's run id, and of the [Song] [toSong] makes ("pop-<id>-<pattern>-<key>-<bpm>"). */
+    const val RUN_PREFIX = "pop-"
+
+    /** The id a pop song's runs are kept under (progress, best score, the parent brief's SongRun): "pop-<id>". */
+    fun runId(song: PopSong): String = RUN_PREFIX + song.id
+
+    /**
+     * The run id of a played [Song] made by [toSong] ("pop-let-it-be-halves-0-72" is "pop-let-it-be"), or null for any other
+     * song: the last three parts are the pattern (no dash in it), the key and the tempo.
+     */
+    fun runIdOf(playedSongId: String): String? {
+        if (!playedSongId.startsWith(RUN_PREFIX)) return null
+        val parts = playedSongId.removePrefix(RUN_PREFIX).split('-')
+        if (parts.size < 4 || parts.takeLast(2).any { it.toIntOrNull() == null }) return null
+        return RUN_PREFIX + parts.dropLast(3).joinToString("-")
+    }
+
+    /** The song a run id names, in [songs]. */
+    fun ofRun(runId: String, songs: List<PopSong> = POP_SONGS): PopSong? =
+        if (!runId.startsWith(RUN_PREFIX)) null else songs.firstOrNull { RUN_PREFIX + it.id == runId }
+
+    /** The title of the song a run id names (the parent brief's titles), or null. */
+    fun titleOfRun(runId: String, songs: List<PopSong> = POP_SONGS): String? = ofRun(runId, songs)?.title
+
     // --- the chart ---------------------------------------------------------------------------------------------
 
     /** One chord for [beats] beats, starting [startBeat] beats into the song. */
@@ -94,16 +117,16 @@ object PopPlay {
     /** One bar of the chart: its place in the song, in its section, and its chords. */
     data class BarView(val index: Int, val section: Int, val indexInSection: Int, val slots: List<Slot>)
 
-    /** The song's bars in play order, chords moved up [by] semitones. */
+    /** The song's bars in play order, chords moved up [by] semitones ([PopSongs.transposed]). */
     fun bars(song: PopSong, by: Int = 0): List<BarView> {
         var beat = 0
         var index = 0
         val out = mutableListOf<BarView>()
-        song.sections.forEachIndexed { si, s ->
+        PopSongs.transposed(song, by).sections.forEachIndexed { si, s ->
             s.bars.forEachIndexed { bi, bar ->
                 var inBar = 0
                 val slots = bar.chords.map { pb ->
-                    Slot(moved(pb.chord, by), beat + inBar, pb.beats, inBar).also { inBar += pb.beats }
+                    Slot(pb.chord, beat + inBar, pb.beats, inBar).also { inBar += pb.beats }
                 }
                 out += BarView(index++, si, bi, slots)
                 beat += inBar

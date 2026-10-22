@@ -81,6 +81,7 @@ import com.bigpapituna.sharpears.engine.chords.PopChord
 import com.bigpapituna.sharpears.engine.chords.PopFind
 import com.bigpapituna.sharpears.engine.chords.PopPlay
 import com.bigpapituna.sharpears.engine.chords.PopSong
+import com.bigpapituna.sharpears.engine.chords.PopSongs
 import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Dictionary
@@ -223,9 +224,8 @@ fun PopSongPage(
                     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Chords in this song", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                         // The names move with the key, and so does what counts as known: Am is not Bm.
-                        ChordChips(PopFind.chordsOf(song).map { ch ->
-                            val moved = PopPlay.moved(PopChord(ch.root, ch.type), shift)
-                            Chord(moved.root, moved.type) to PopPlay.name(moved, flats)
+                        ChordChips(remember(song, shift) { PopFind.chordsOf(PopSongs.transposed(song, shift)) }.map { ch ->
+                            ch to PopPlay.name(PopChord(ch.root, ch.type), flats)
                         }, known, max = 12)
                         Text("Chords you have practised are tinted. Tap any chord in the chart to see how to play it.",
                             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
@@ -242,6 +242,7 @@ fun PopSongPage(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Header(song: PopSong, key: Int, bpm: Int, kid: Boolean, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
@@ -249,8 +250,10 @@ private fun Header(song: PopSong, key: Int, bpm: Int, kid: Boolean, modifier: Mo
         Text(song.title, style = (if (kid) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.headlineMedium).copy(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold),
             modifier = Modifier.semantics { heading() })
         if (!kid) {
-            Text("${song.artist} · ${song.year}", style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("${song.artist}, ${song.year}", style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant)
+            // Wraps on a narrow screen (the Fold's cover), so the confidence note ("a sketch") is never cut off.
+            FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     KeyBadge(key, PopPlay.keyName(key, song.minor), Modifier.size(40.dp))
                     Column {
@@ -259,7 +262,7 @@ private fun Header(song: PopSong, key: Int, bpm: Int, kid: Boolean, modifier: Mo
                     }
                 }
                 DifficultyBars(song.difficulty)
-                if (PopFind.fourChord(song)) FourChordBadge()
+                if (PopSongs.isFourChord(song)) FourChordBadge()
                 ConfidenceNote(song.confidence)
             }
         }

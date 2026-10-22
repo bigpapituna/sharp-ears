@@ -1,13 +1,16 @@
 package com.bigpapituna.sharpears.engine.chords
 
 import com.bigpapituna.sharpears.engine.Chord
-import com.bigpapituna.sharpears.engine.ChordType
 import com.bigpapituna.sharpears.engine.Mastery
 
 /**
- * Finding a song by its chords (popular-song chord mode): the style chips, the sorts, "songs I can play" and "one new
- * chord away", the four-chord badge and the count the Chords tab shows. Pure, so it is tested on the JVM; the screens
- * only draw what it returns. Whichever list of songs it is given (the sample list or the real `POP_SONGS`).
+ * Finding a song by its chords (popular-song chord mode): the style chips with their counts, the sorts, "songs I can
+ * play" and "one new chord away", and the count the Chords tab shows. Pure, so it is tested on the JVM; the screens only
+ * draw what it returns, for whichever list of songs they are given (the app's is `POP_SONGS`).
+ *
+ * The rules themselves are the content's (engine/chords/PopSongs.kt): the chords a song needs ([PopSongs.chordsOf]), what
+ * a set of known chords plays ([PopSongs.playableWith]), the four-chord badge ([PopSongs.isFourChord]), easiest first
+ * ([PopSongs.beginnerOrder]) and transposing ([PopSongs.transposed]). This file only narrows and orders with them.
  */
 object PopFind {
     /** A chord counts as known once its Leitner box is this high: played cleanly three times running (due again in 4 days). */
@@ -40,13 +43,23 @@ object PopFind {
     fun chipsFor(songs: List<PopSong>): List<Chip> =
         Chip.entries.filter { it != Chip.WORSHIP || songs.any { s -> PopSong.Style.WORSHIP in s.styles } }
 
+    /** [songs] under [chip] (a song in two of the chip's styles counts once). */
+    fun under(songs: List<PopSong>, chip: Chip): List<PopSong> =
+        if (chip == Chip.ALL) songs else songs.filter { s -> s.styles.any { it in chip.styles } }
+
+    /** How many songs each chip holds, for its label ("Yacht rock 8"). */
+    fun chipCounts(songs: List<PopSong>): Map<Chip, Int> = chipsFor(songs).associateWith { under(songs, it).size }
+
+    /** A chip as its pill reads: the style and how many songs it holds. */
+    fun chipLabel(chip: Chip, count: Int): String = "${chip.label} $count"
+
     /** The chords the profile has learned, from the Leitner store's "chord:<name>" ids. */
     fun known(mastery: Map<String, Mastery>, minBox: Int = KNOWN_BOX): Set<Chord> =
         mastery.entries.filter { it.value.seen && it.value.box >= minBox && it.key.startsWith("chord:") }
             .mapNotNull { com.bigpapituna.sharpears.engine.parseChord(it.key.removePrefix("chord:")) }.toSet()
 
-    /** The distinct chords of a song as dictionary chords (a slash chord is its root chord; the bass is the left hand's). */
-    fun chordsOf(song: PopSong): List<Chord> = song.chords.map { Chord(it.root, it.type) }.distinct()
+    /** The distinct chords of a song as dictionary chords, in order of first use ([PopSongs.chordsOf]; a slash chord is its root chord). */
+    fun chordsOf(song: PopSong): List<Chord> = PopSongs.chordsOf(song).toList()
 
     /** The chords of [song] that [known] does not hold, in order of first use. */
     fun missing(song: PopSong, known: Set<Chord>): List<Chord> = chordsOf(song).filter { it !in known }
@@ -55,35 +68,25 @@ object PopFind {
 
     fun oneAway(song: PopSong, known: Set<Chord>) = missing(song, known).size == 1
 
-    /**
-     * The "four chords" badge: a major-key song whose chords, bass notes aside, are exactly the I, IV, V and vi of its key
-     * (the pop progression of hundreds of songs). A song with a seventh on one of them, or a fifth chord, does not wear it.
-     */
-    fun fourChord(song: PopSong): Boolean {
-        if (song.minor) return false
-        val degrees = chordsOf(song).map { Math.floorMod(it.root - song.key, 12) to it.type }.toSet()
-        return degrees == setOf(0 to ChordType.MAJOR, 5 to ChordType.MAJOR, 7 to ChordType.MAJOR, 9 to ChordType.MINOR)
-    }
-
-    /** Easiest first: by the song's difficulty, then fewer chords, then slower, then by title. */
-    val easiest: Comparator<PopSong> = compareBy<PopSong>({ it.difficulty }, { chordsOf(it).size }, { it.bpm }, { it.title.lowercase() })
+    /** Easiest first: the content's one order ([PopSongs.beginnerOrder]: difficulty, four-chord songs, newest, title). */
+    val easiest: Comparator<PopSong> get() = PopSongs.beginnerOrder
 
     /** Newest first, ties by title. */
     val newest: Comparator<PopSong> = compareByDescending<PopSong> { it.year }.thenBy { it.title.lowercase() }
 
     /** [songs] under [chip], ordered or narrowed by [sort] for a profile that [known] the chords. */
     fun browse(songs: List<PopSong>, chip: Chip, sort: Sort, known: Set<Chord>): List<PopSong> {
-        val styled = if (chip == Chip.ALL) songs else songs.filter { s -> s.styles.any { it in chip.styles } }
+        val styled = under(songs, chip)
         return when (sort) {
             Sort.EASIEST -> styled.sortedWith(easiest)
             Sort.NEWEST -> styled.sortedWith(newest)
-            Sort.CAN_PLAY -> styled.filter { canPlay(it, known) }.sortedWith(easiest)
-            Sort.ONE_AWAY -> styled.filter { oneAway(it, known) }.sortedWith(easiest)
+            Sort.CAN_PLAY -> PopSongs.playableWith(known, styled).ready.sortedWith(easiest)
+            Sort.ONE_AWAY -> PopSongs.playableWith(known, styled).oneAway.map { it.first }.sortedWith(easiest)
         }
     }
 
     /** "You can play N songs": how many of [songs] use only chords in [known]. */
-    fun playableCount(songs: List<PopSong>, known: Set<Chord>): Int = songs.count { canPlay(it, known) }
+    fun playableCount(songs: List<PopSong>, known: Set<Chord>): Int = PopSongs.playableWith(known, songs).ready.size
 
     /**
      * Songs that use only chords from [chords] (a finished pack's), easiest first, the ones that use more of them first.
