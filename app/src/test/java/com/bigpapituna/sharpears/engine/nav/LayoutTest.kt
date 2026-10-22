@@ -201,7 +201,7 @@ class LayoutTest {
 
     @Test fun settingsShowTheEssentialsThenThePlayingOnesThenAll() {
         val essentials = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE, SettingsPart.REMINDER,
-            SettingsPart.MICROPHONE, SettingsPart.TESTING)
+            SettingsPart.MICROPHONE, SettingsPart.TESTING, SettingsPart.BRIEFS)
         assertEquals(essentials, SettingsPart.entries.filter { Simple.settingsShows(it, s) }.toSet())
         assertEquals(essentials + setOf(SettingsPart.KEYS, SettingsPart.FALLING_NOTES, SettingsPart.WRONG_KEYS, SettingsPart.BRIEFS),
             SettingsPart.entries.filter { Simple.settingsShows(it, a) }.toSet())

@@ -107,7 +107,7 @@ fun ParentBriefScreen(
     val child = children.firstOrNull { it.id == childId } ?: children.firstOrNull()
     var exporting by remember { mutableStateOf<Pair<Brief, Findings>?>(null) }
     var weeklyOpen by remember { mutableStateOf(openWeekly) }
-    var emailFor by remember { mutableStateOf<Profile?>(null) }
+    var emailOpen by remember { mutableStateOf(false) }
     // Tester analytics: which period was opened, and for a kid or a grown-up (never who).
     LaunchedEffect(child?.id, period) {
         com.bigpapituna.sharpears.analytics.Tester.event("brief_opened", mapOf("period" to period.name.lowercase(), "kind" to if (child?.isKid == true) "kid" else "adult"))
@@ -118,8 +118,8 @@ fun ParentBriefScreen(
         Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
-            // The brief by email for this child (ui/brief/email): its settings and a preview, behind the gate already passed.
-            if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { emailFor = child }) { Text("Email") }
+            // The brief by email (2.8): Settings > Briefs and email, the one form, as a dialog over the brief (the gate already passed).
+            if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { emailOpen = true }) { Text("Email") }
         }
         if (child == null) {
             PupSays(Pose.WELCOME, "Add a child in Family to see how their week goes.", Modifier.padding(24.dp), size = 96.dp)
@@ -150,7 +150,7 @@ fun ParentBriefScreen(
             }
         }
     }
-    emailFor?.let { kid -> com.bigpapituna.sharpears.ui.brief.email.EmailDialog(kid, onClose = { emailFor = null }) }
+    if (emailOpen) com.bigpapituna.sharpears.ui.brief.email.EmailDialog(children.filter { it.isKid }, onClose = { emailOpen = false })
     exporting?.let { (brief, findings) ->
         val c = children.firstOrNull { it.id == childId } ?: child ?: return@let
         ExportSheet(env, brief, findings, c, onDismiss = { exporting = null })

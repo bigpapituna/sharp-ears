@@ -1,5 +1,14 @@
 # The parent brief by email, step 2: the email, the screens, the job
 
+> **2.8 (branch `email-one`): one email place.** The address is the parent's, not the child's: it is entered and confirmed
+> once in **Settings > Briefs and email** (`BriefsAndEmail.kt`, which replaced the per-child `EmailSettingsScreen.kt`), with
+> one row per child under it (Daily and Weekly switches, the weekly slot, Preview), then who writes the brief. Family's
+> "Email the brief" is gone; the parent brief's Email button opens the same composable as a dialog (`EmailDialog(kids)`);
+> a row's Preview opens `EmailPreviewDialog`, which now has "Send me this email now" once the address is confirmed. The
+> emails point at "Settings > Briefs and email". Storage: engine/brief/email/FamilyEmail.kt and data/EmailSettings.kt
+> (`email.family` beside the children's keys; 2.7's addresses move over once). The sections below describe 2.5's per-child
+> pages and are kept for the history.
+
 Branch `mail-ui` (Roy, 2026-10-21; step 1 is engine/brief/email/INTEGRATION.md). Design D as real email HTML, the settings
 screens behind the parent gate, the send job on one alarm, and the wiring objects. Nothing was sent anywhere: this PC has no
 Brevo key (`BuildConfig.EMAIL_KEY` empty), no test reaches Brevo, and the emulator's sends are refused with a kind message.

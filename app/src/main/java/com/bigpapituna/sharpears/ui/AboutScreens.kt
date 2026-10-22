@@ -120,7 +120,7 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         "with their own earlier weeks. Grown-ups read it behind the parent gate; a kid sees only the pup's short, kind card. A brief you " +
         "send goes only where you send it.")
     if (aiBrief) {
-        Para("On this build an AI model can write the words. On Wi-Fi, or on mobile data if you allow it in Settings, Family, the app sends " +
+        Para("On this build an AI model can write the words. On Wi-Fi, or on mobile data if you allow it in Settings, Briefs and email, the app sends " +
             "OpenRouter (openrouter.ai), which passes it to the model's maker (Anthropic, for Claude Haiku), only the brief's findings: " +
             "minutes, days, stars, tries, which lessons, songs and pages, and notes such as \"stuck on a lesson\" or \"noisy room\". It never " +
             "sends a name (the app writes the name in afterwards, on this phone), a recording or any sound, a note a grown-up typed, or a song " +
@@ -129,21 +129,21 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
             "request come from your internet connection.")
         Para("What comes back is checked on the phone, and anything that names something not in the findings is left out. Offline, on mobile " +
             "data you did not allow, when the model is slow, after 40 AI briefs in a week for one person, when a reply fails a check, or with " +
-            "AI briefs switched off in Settings, Family, the brief is written on the phone instead, and says so. The last brief written for " +
+            "AI briefs switched off in Settings, Briefs and email, the brief is written on the phone instead, and says so. The last brief written for " +
             "each person is kept on the phone, so opening it again sends nothing.")
     } else Para("On this build every brief, card and answer is written on the phone, and nothing about it leaves the phone.")
     Para("Dictating a question uses the phone's own speech recognition, so your voice stays on the phone; the microphone button is hidden " +
         "when the phone has none.")
     if (emailBrief) {
         Heading("The brief by email")
-        Para("If you give an email address for a child (grown-ups corner, Family, the child, Email), the app sends that child's brief to it: " +
+        Para("If you give your email address (Settings, Briefs and email), the app sends each child's brief to it, for the children you switch on: " +
             "the brief's words and numbers (minutes, days, stars, which lessons and songs, slips, how long keys took to find, what the app " +
             "suggests) and the full report as a PDF. It goes from this phone to Brevo (brevo.com), the email service that delivers it, and " +
             "from there to your address. Nothing else is sent: no recording or sound, no note you typed, nothing about the other children. " +
             "The child's first name is in the email, because it is written for you. The first email carries a code; until it is typed in " +
-            "the app, nothing else is sent. You choose daily, weekly, both or off, nothing goes between 9:30 pm and 7 am, and never more than " +
-            "two a day. The address stays on this phone, in the app's own storage; it is not in Android's backup, and it is deleted with the " +
-            "child's profile or when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
+            "the app, nothing else is sent. For each child you choose daily, weekly, both or neither, nothing goes between 9:30 pm and 7 am, " +
+            "and never more than two a day for a child. The address stays on this phone, in the app's own storage; it is not in Android's " +
+            "backup, and it is deleted when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
             "your mail app may fetch its font from Google" + (pictureHost?.let { " and the pup's pictures from $it (the same pictures for every family)" } ?: "") +
             ", as it does for any email.")
     }

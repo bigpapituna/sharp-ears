@@ -9,14 +9,14 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * What the email settings screen shows and says (ui/brief/email/EmailSettingsScreen.kt draws it): which step a child is on,
- * when "Send a new code" opens again, the frequency choices, the last-sent lines and every refusal in kind words. Pure, so
- * the words follow the app's rules (sentence case, no dashes, nothing scolding) and are tested.
+ * What Settings > Briefs and email shows and says (ui/brief/email/BriefsAndEmail.kt draws it): which step the family's
+ * address is on, when "Send a new code" opens again, each child's Daily and Weekly lines, the last-sent lines and every
+ * refusal in kind words. Pure, so the words follow the app's rules (sentence case, no dashes, nothing scolding) and are tested.
  */
 object EmailFlow {
-    /** Where the child's address is in its journey. */
+    /** Where the family's address ([FamilyEmail.addressPart]) is in its journey. */
     enum class Stage {
-        /** No address yet: the field and "Send the first email". */
+        /** No address yet: the field and "Send code". */
         NO_ADDRESS,
         /** An address, a code, and the first email has not gone yet (no key, a metered network, offline): it is waiting. */
         FIRST_WAITING,
@@ -24,7 +24,7 @@ object EmailFlow {
         CODE,
         /** The code is gone (three wrong tries, or 24 hours): ask for a new one. */
         CODE_GONE,
-        /** Verified: the frequency, the test email, the stop. */
+        /** Confirmed: each child's switches, the preview, the stop. */
         VERIFIED,
     }
 
@@ -53,7 +53,7 @@ object EmailFlow {
 
     /** What typing the six digits said: the three tries, in kind words. */
     fun codeWords(result: EmailVerification.Verified, triesLeft: Int): String = when (result) {
-        EmailVerification.Verified.OK -> "That's the one. Now choose how often."
+        EmailVerification.Verified.OK -> "That's the one. Each child's emails can start now."
         EmailVerification.Verified.WRONG -> if (triesLeft == 1) "Not that one. One try left." else "Not that one. $triesLeft tries left."
         EmailVerification.Verified.LOCKED -> "That was the third try. Ask for a new code and we will send one."
         EmailVerification.Verified.EXPIRED -> "That code has run out of time. Ask for a new one."
@@ -77,7 +77,7 @@ object EmailFlow {
         EmailSender.Refusal.NO_ADDRESS -> "Add an email address first."
         EmailSender.Refusal.NO_CODE -> "Ask for a new code first."
         EmailSender.Refusal.UNVERIFIED -> "Confirm the address with the code first."
-        EmailSender.Refusal.OFF -> "These emails are switched off. Choose how often to turn them on."
+        EmailSender.Refusal.OFF -> "These emails are switched off. Turn on Daily or Weekly to start them."
     }
 
     /** A failure to send ([EmailSender.Outcome.Failed]) in words; the transport already scrubbed what it says. */
@@ -98,17 +98,16 @@ object EmailFlow {
         is EmailSender.Outcome.Failed -> failureWords(o.kind)
     }
 
-    // ---- the frequency choices ----
+    // ---- a child's row: two switches ----
 
-    /** One of the four big pills: its label and the line under it, in this child's words. */
-    data class Choice(val frequency: EmailFrequency, val label: String, val line: String)
+    /** Under the Daily switch: "Each day Mia plays, 8:30 pm at the latest." */
+    fun dailyLine(name: String): String = "Each day $name plays, ${WeeklyPlan.timeLabel(20 * 60 + 30)} at the latest."
 
-    fun choices(name: String, weekly: WeeklySlot): List<Choice> = listOf(
-        Choice(EmailFrequency.DAILY, "Daily", "Each day $name plays, once the playing is done. ${WeeklyPlan.timeLabel(20 * 60 + 30).replaceFirstChar { it.uppercase() }} at the latest."),
-        Choice(EmailFrequency.WEEKLY, "Weekly", "Once a week, on ${WeeklyPlan.label(weekly)}."),
-        Choice(EmailFrequency.BOTH, "Both", "A short one each day, and the week's on ${WeeklyPlan.label(weekly)}."),
-        Choice(EmailFrequency.OFF, "Off", "No emails. The brief stays in the app."),
-    )
+    /** Under the Weekly switch: the slot, which a tap changes ("Sunday at 6 pm. Tap to change."). */
+    fun weeklyLine(weekly: WeeklySlot): String = "${WeeklyPlan.label(weekly)}. Tap to change."
+
+    /** The line over the children while the address is not confirmed yet. */
+    const val ROWS_WAIT = "These start once your address is confirmed."
 
     // ---- the last-sent lines ----
 

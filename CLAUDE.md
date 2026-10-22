@@ -1044,6 +1044,41 @@ docs/PLAN-2.8.md section 5. 2.7's one Simple switch became three layouts per gro
 - Tests: LayoutTest (was SimpleTest: one row per place part per layout, cuts agree with each rule, copy rules), LayoutWiringTest
   (was SimpleWiringTest), WelcomePrefsTest (the layout per profile, the 2.7 switch carried over), NavTest (the chooser sits
   before the tabs, after the kid home).
+## 2.8 one email place (2026-10-22, branch `email-one`, emulator-5558 Fold only; version not bumped, the integrator does)
+docs/PLAN-2.8.md section 1. Roy: "the address is for the parent, not the child. One address, confirmed once."
+- Settings > Briefs and email is the one place (ui/brief/email/BriefsAndEmail.kt, was the per-child EmailSettingsScreen.kt):
+  the family's address with Send code and the six-digit code (the old page's steps, no child header), then one row per kid
+  (avatar, name, Preview; Daily switch; Weekly switch with the weekly slot, a tap opens the WeeklySheet, still the weekly
+  notification's slot), then Sending (mobile data, Stop all emails) and BriefAiSettings at the bottom. Simple shows it
+  (`SettingsPart.BRIEFS` in `Simple.SETTINGS_ESSENTIALS`). Family > child lost "Email the brief"; the parent brief's Email
+  button opens the same composable as a full-screen dialog (`EmailDialog(kids)` > `BriefsAndEmailPage`); a row's Preview
+  opens `EmailPreviewDialog`, which gained "Send me this email now" (EmailJob.sendTest) once the address is confirmed.
+- Gate: as before (the per-child page was Gated). The email part shows after "Open email settings" passes the gate (at once
+  when it is open, so inside the brief's dialog); every change guards again; BriefAiSettings stays visible.
+- Storage (engine/brief/email/FamilyEmail.kt, data/EmailSettings.kt): `EmailPrefs` is two records in email.xml, the family's
+  (`email.family`: address, verified, code, tries, firstSent, the first emails' sends) and each child's (frequency from the two
+  switches, chosen, last daily and weekly, held, sends for the caps). `load(first)` joins them into the view EmailSchedule,
+  EmailRound and EmailSender read unchanged. The first email (the code) goes for one child only, `FamilyEmail.lead`: the first
+  kid whose emails are on, else the first kid. Caps stay per child. Stop removes the address and keeps the switches.
+- Migration (`EmailSettings.migrate`, once, when the job or the section first reads): the first kid with a confirmed address
+  gives the family its address and confirmation (nothing is confirmed again); with none confirmed, the first code waiting
+  moves (it still works); a kid who had an address keeps their switches and history, their emails now go to the family's
+  address; once an address moved, a profile with no address is switched off (nobody gets emails they did not get); no
+  child's record keeps an address. Nothing moved: nobody is switched off and a new kid starts Weekly on, as before.
+- Emails say "Settings > Briefs and email" (the welcome's code line and its switches, the footer); privacy page and onboarding
+  say Settings, Briefs and email. Snapshots in app/src/test/resources/email re-pinned (only those lines changed).
+- Debug: `--es screen email` now shows the whole page; seeds as before plus `--es seed old` (2.7's per-child address on
+  `--es child`, moved as the page opens).
+- Tests: 1499 JVM, green. New FamilyEmailTest (split, join, lead, migration), EmailSettingsTest rewritten (family store, switches,
+  migration once), EmailRoundTest (three kids, one code), SettingsWiringTest (one form), EmailFlowTest and EmailBriefTest copy.
+  Lint 0 errors.
+- Emulator (5558 Fold, over Roy, Lea and Sam): a 2.7 email.xml with Sam confirmed (daily) became the family's address on the
+  first start (`email: one address for the family now (moved from a child)`), Lea switched off, Sam's Daily on, the Simple
+  Settings showing the section; Lea's two switches on (email.xml: BOTH, no address in her record); her Preview with "Send me
+  this email now" refused kindly on this keyless build (`email: WEEKLY ... for p1 not sent: NO_KEY`); the gate shut: the
+  section's "Open email settings" asks it; Family > Lea without "Email the brief"; the parent brief's Email opening the same
+  page. Logcat: no crash, no "@" in the app's lines. Screenshots: app/build/screens/email1-*.png (not committed).
+  Another agent was driving 5558 at the same time (installs at 15:43 and 15:53); a walk there may meet the other branch's APK.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

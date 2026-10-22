@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.brief.email
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.data.EmailSettings
 import com.bigpapituna.sharpears.data.Profiles
 import com.bigpapituna.sharpears.engine.brief.email.EmailFrequency
@@ -23,12 +25,13 @@ import com.bigpapituna.sharpears.ui.family.LocalParentGate
 import com.bigpapituna.sharpears.ui.family.ParentGateController
 
 /*
- * The debug route `--es screen email` (debug builds only, MainActivity opens it like the other demos): the email settings of
- * a real child on this phone, over settings seeded to the state asked for, so every step can be seen. Nothing is sent: a
- * debug build has no email key, so a send is refused and the screen says so in kind words.
+ * The debug route `--es screen email` (debug builds only, MainActivity opens it like the other demos): Settings > Briefs and
+ * email (the family's address and every kid's row) over settings seeded to the state asked for, so every step can be seen.
+ * Nothing is sent: a debug build has no email key, so a send is refused and the screen says so in kind words.
  *
- *   --es child <profile id>                 default: the first kid
- *   --es seed none|waiting|code|gone|unchosen|verified|daily|held   the step (default: what the phone holds)
+ *   --es child <profile id>                 the kid whose row is seeded and whose preview opens (default: the first kid)
+ *   --es seed none|waiting|code|gone|unchosen|verified|daily|held|old   the step (default: what the phone holds)
+ *                                           old: 2.7's per-child address on that kid, moved to the family's as the page opens
  *   --es view settings|preview              default settings
  *   --es period day|week                    the preview's tab (default week)
  *   --ez samples true                       the preview over made-up findings
@@ -39,10 +42,8 @@ import com.bigpapituna.sharpears.ui.family.ParentGateController
 fun EmailDemo(intent: Intent, fallback: Profile, onExit: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val dark = when (intent.getStringExtra("theme")) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
-    val child = remember {
-        val kids = Profiles(context).all.filter { it.isKid }
-        kids.firstOrNull { it.id == intent.getStringExtra("child") } ?: kids.firstOrNull() ?: fallback
-    }
+    val kids = remember { Profiles(context).all.filter { it.isKid } }
+    val child = remember { kids.firstOrNull { it.id == intent.getStringExtra("child") } ?: kids.firstOrNull() ?: fallback }
     remember(child.id) { seed(context, child.id, intent.getStringExtra("seed")); child.id }      // seeded once, before the page reads it
     val gate = remember { ParentGateController(null).also { it.passed() } }
     var preview by remember { mutableStateOf(intent.getStringExtra("view") == "preview") }
@@ -50,26 +51,37 @@ fun EmailDemo(intent: Intent, fallback: Profile, onExit: () -> Unit) {
         CompositionLocalProvider(LocalParentGate provides gate) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 if (preview) EmailPreviewScreen(child, onBack = { preview = false }, samples = intent.getBooleanExtra("samples", false), startDay = intent.getStringExtra("period") == "day")
-                else EmailSettingsScreen(child, onBack = onExit, onPreview = { preview = true })
+                else BriefsAndEmailPage(kids.ifEmpty { listOf(child) }, onBack = onExit)
             }
         }
     }
 }
 
-private fun seed(context: android.content.Context, id: String, step: String?) {
+private fun seed(context: Context, id: String, step: String?) {
+    val address = "parent@example.com"
+    if (step == "old") {
+        // 2.7's shape: the address on the kid, no family record. The page's first read moves it (EmailSettings.migrate).
+        context.getSharedPreferences(EmailSettings.FILE, Context.MODE_PRIVATE).edit {
+            remove(EmailSettings.FAMILY)
+            putString(id, EmailPrefs(address, verified = true, firstSent = true, frequency = EmailFrequency.DAILY, chosen = true).encode())
+        }
+        return
+    }
+    EmailSettings.migrate(context)
+    val family = EmailSettings.family(context)
     val store = EmailSettings.of(context, id)
     val now = System.currentTimeMillis()
-    val address = "parent@example.com"
-    val verified = EmailPrefs(address, verified = true, firstSent = true, frequency = EmailFrequency.BOTH, chosen = true,
-        lastDailyAt = now - 20 * 3_600_000L, lastWeeklyAt = now - 3 * 86_400_000L, sends = listOf(now - 20 * 3_600_000L))
+    val confirmed = EmailPrefs(address, verified = true, firstSent = true)
+    val both = EmailPrefs(frequency = EmailFrequency.BOTH, chosen = true, lastDailyAt = now - 20 * 3_600_000L, lastWeeklyAt = now - 3 * 86_400_000L,
+        sends = listOf(now - 20 * 3_600_000L))
     when (step) {
-        "none" -> store.forget()
-        "waiting" -> store.save(EmailPrefs(address, code = "482913", codeExpiresAt = now + 86_400_000L))
-        "code" -> store.save(EmailPrefs(address, code = "482913", codeExpiresAt = now + 86_400_000L, firstSent = true, sends = listOf(now - 3 * 60_000L)))
-        "gone" -> store.save(EmailPrefs(address, firstSent = true, sends = listOf(now - 30 * 60_000L)))
-        "unchosen" -> store.save(verified.copy(chosen = false, frequency = EmailFrequency.WEEKLY, lastDailyAt = 0, lastWeeklyAt = 0, sends = emptyList()))
-        "verified" -> store.save(verified)
-        "daily" -> store.save(verified.copy(frequency = EmailFrequency.DAILY))
-        "held" -> store.save(verified.copy(held = "METERED"))
+        "none" -> family.seed(EmailPrefs())
+        "waiting" -> family.seed(EmailPrefs(address, code = "482913", codeExpiresAt = now + 86_400_000L))
+        "code" -> family.seed(EmailPrefs(address, code = "482913", codeExpiresAt = now + 86_400_000L, firstSent = true, sends = listOf(now - 3 * 60_000L)))
+        "gone" -> family.seed(EmailPrefs(address, firstSent = true, sends = listOf(now - 30 * 60_000L)))
+        "unchosen" -> { family.seed(confirmed); store.save(EmailPrefs()) }
+        "verified" -> { family.seed(confirmed); store.save(both) }
+        "daily" -> { family.seed(confirmed); store.save(both.copy(frequency = EmailFrequency.DAILY)) }
+        "held" -> { family.seed(confirmed); store.save(both.copy(held = "METERED")) }
     }
 }

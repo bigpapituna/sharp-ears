@@ -23,6 +23,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -214,12 +215,14 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 }) { Text("Open notification settings") }
             }
 
-            // Briefs and email: who writes the parent brief, and where each child's brief and its emails are.
+            // Briefs and email (2.8): the one place for the brief by email (the family's address, each child's Daily and Weekly),
+            // then who writes the parent brief (BriefAiSettings, at the bottom of BriefsAndEmail). Simple shows it too.
             if (family != null && shows(Simple.SettingsPart.BRIEFS)) {
                 Section("Briefs and email")
-                Text("Each child's brief, and the brief by email, are under Family: tap the child, then Read the brief or Email the brief. " +
-                    "Your own week is on You, under My week.", style = MaterialTheme.typography.bodyMedium, color = dim)
-                com.bigpapituna.sharpears.ui.brief.BriefAiSettings()
+                Text("Each child's brief is under Family: tap the child, then Read the brief. Your own week is on You, under My week.",
+                    style = MaterialTheme.typography.bodyMedium, color = dim)
+                val kids = profiles?.rosterFlow?.collectAsState()?.value?.profiles.orEmpty().filter { it.isKid }
+                com.bigpapituna.sharpears.ui.brief.email.BriefsAndEmail(kids)
             }
 
             Section("Microphone")

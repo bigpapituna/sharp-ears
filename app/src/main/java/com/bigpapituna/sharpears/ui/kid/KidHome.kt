@@ -102,7 +102,7 @@ class GrownUpCorner(val profiles: List<Profile>, val currentId: String, val onSe
                     val onSwitch: (String) -> Unit,
                     /** The parent brief (2.4): each child's session, day and week (null: no row). */
                     val onBrief: (() -> Unit)? = null,
-                    /** Family (2.4.1): everyone on the phone, each with rename, "Read the brief" and "Email the brief" (null: no row). */
+                    /** Family (2.4.1): everyone on the phone, each with rename and "Read the brief" (null: no row). */
                     val onFamily: (() -> Unit)? = null)
 
 /** Said once a day per kid when the home first shows (a pre-reader hears what the bubble says). */

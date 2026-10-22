@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,7 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -48,30 +51,41 @@ import com.bigpapituna.sharpears.data.BriefStore
 import com.bigpapituna.sharpears.data.EmailSettings
 import com.bigpapituna.sharpears.engine.brief.BriefSamples
 import com.bigpapituna.sharpears.engine.brief.Period
+import com.bigpapituna.sharpears.engine.brief.email.EmailFlow
 import com.bigpapituna.sharpears.engine.brief.email.EmailFrequency
 import com.bigpapituna.sharpears.engine.family.Profile
+import com.bigpapituna.sharpears.reminder.EmailJob
 import com.bigpapituna.sharpears.ui.DialogBarsFollowTheme
 import com.bigpapituna.sharpears.ui.brief.PillButton
 import com.bigpapituna.sharpears.ui.family.Gated
 import com.bigpapituna.sharpears.ui.family.ParentGateHost
 import com.bigpapituna.sharpears.ui.paper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The email settings of one child as a full screen dialog behind the parent gate: the page ([EmailSettingsScreen]) and its
- * preview. [startPreview] and [samples] are for the debug route (the preview over made-up findings).
+ * Settings > Briefs and email as a full screen dialog behind the parent gate, for the parent brief's Email button: the same
+ * composable Settings draws ([BriefsAndEmail]), so there is one email form. [kids]: every child on the phone.
  */
 @Composable
-fun EmailDialog(child: Profile, onClose: () -> Unit, startPreview: Boolean = false, samples: Boolean = false, startDay: Boolean = false) {
+fun EmailDialog(kids: List<Profile>, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Gated(onCancel = onClose) {
-                var preview by rememberSaveable { mutableStateOf(startPreview) }
-                if (preview) EmailPreviewScreen(child, onBack = { preview = false }, samples = samples, startDay = startDay)
-                else EmailSettingsScreen(child, onBack = onClose, onPreview = { preview = true })
-            }
+            Gated(onCancel = onClose) { BriefsAndEmailPage(kids, onBack = onClose) }
+            ParentGateHost()
+        }
+    }
+}
+
+/** One child's email preview (a row's Preview in Briefs and email) as a full screen dialog behind the parent gate. */
+@Composable
+fun EmailPreviewDialog(child: Profile, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogBarsFollowTheme()
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Gated(onCancel = onClose) { EmailPreviewScreen(child, onBack = onClose) }
             ParentGateHost()
         }
     }
@@ -80,7 +94,9 @@ fun EmailDialog(child: Profile, onClose: () -> Unit, startPreview: Boolean = fal
 /**
  * What the parent's email looks like now: the child's brief for today or this week drawn by the same renderer the sender uses
  * (the phone's own words: the AI is not asked, so a preview costs nothing), in a WebView that runs no script, follows no link
- * and loads nothing from the network. The buttons inside do nothing here; in the email they open the app. Nothing is sent.
+ * and loads nothing from the network. The buttons inside do nothing here; in the email they open the app. Nothing is sent
+ * unless the grown-up asks: once the family's address is confirmed, "Send me this email now" sends the day or the week shown
+ * through the same sender and rules as the schedule (EmailJob.sendTest; it counts as one of the day's two).
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -89,6 +105,10 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
     val context = LocalContext.current.applicationContext
     var weekly by rememberSaveable { mutableStateOf(!startDay) }
     val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val confirmed = remember { EmailSettings.family(context).load().verified }
+    var sending by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf<String?>(null) }
     // The WebView follows the app's theme: the preview is dark when the app is, light otherwise.
     val dark = c.background.luminance() < 0.5f
     val html by produceState<String?>(null, child.id, weekly, dark) {
@@ -99,8 +119,8 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
                 val period = if (weekly) Period.WEEK else Period.DAY
                 val findings = if (samples) BriefSamples.kid(period, now) else BriefLoader.findings(context, child, period, now)
                 val brief = BriefAi.writers(context, child).phone.write(findings, child.name) ?: return@runCatching null
-                val saved = EmailSettings.of(context, child.id).load()
-                val frequency = if (saved.chosen) saved.frequency else EmailFrequency.WEEKLY
+                // The footer says how often this child's emails come; switched off, the preview shows the weekly one.
+                val frequency = EmailSettings.of(context, child.id).own().frequency.takeIf { it != EmailFrequency.OFF } ?: EmailFrequency.WEEKLY
                 val email = BriefEmail.preview(context, child, findings, brief, BriefStore(context, child.id).weeklyOrDefault(child.isKid), frequency)
                 BriefEmail.previewHtml(context, email, dark)
             }.getOrNull()
@@ -117,6 +137,20 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
         }
         Text("${child.name}'s ${if (weekly) "week" else "day"} as the email draws it. Nothing is sent, and the buttons do nothing here.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp))
+        if (confirmed && !samples) Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            PillButton(if (sending) "Sending" else "Send me this email now", busy = sending, enabled = !sending, onClick = {
+                sending = true; sent = null
+                scope.launch {
+                    val period = if (weekly) Period.WEEK else Period.DAY
+                    val out = withContext(Dispatchers.IO) { runCatching { EmailJob.sendTest(context, child, period) }.getOrNull() }
+                    sending = false
+                    sent = if (out == null) "I could not do that just now. Try again in a moment." else EmailFlow.outcomeWords(out)
+                }
+            })
+            Text(sent ?: if (weekly) EmailFlow.TEST_NOTE.replace("today's brief", "this week's brief") else EmailFlow.TEST_NOTE,
+                style = MaterialTheme.typography.bodySmall, color = if (sent != null) c.primary else c.onSurfaceVariant,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
         Box(Modifier.widthIn(max = 640.dp).fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val page = html
             if (page == null) CircularProgressIndicator(strokeWidth = 3.dp)

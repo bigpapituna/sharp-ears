@@ -21,6 +21,7 @@ import com.bigpapituna.sharpears.engine.brief.email.EmailKind
 import com.bigpapituna.sharpears.engine.brief.email.EmailRound
 import com.bigpapituna.sharpears.engine.brief.email.EmailSchedule
 import com.bigpapituna.sharpears.engine.brief.email.EmailSender
+import com.bigpapituna.sharpears.engine.brief.email.FamilyEmail
 import com.bigpapituna.sharpears.engine.brief.email.PlaySpan
 import com.bigpapituna.sharpears.engine.family.Profile
 import java.time.ZoneId
@@ -37,13 +38,17 @@ import java.time.ZoneId
  * screen), at 07:00 and 20:30 every day (the alarm's checkpoints), and right after the grown-up enters an address, a code, a
  * choice or a weekly slot (the screen calls [run]). Sending never happens on the main thread; one run at a time, so nothing
  * goes twice.
+ *
+ * 2.8: one address for the family (data/EmailSettings.kt, FamilyEmail). Every run moves 2.7's per-child addresses to the
+ * family's first (once), then looks at every child when the family has an address; the first email, with the code, goes for
+ * one child only ([FamilyEmail.lead]).
  */
 object EmailJob {
     private const val REQUEST = 70_001
     private val LOCK = Any()
 
-    /** What a run did, per child: [EmailRound.Result] (what was sent, the last outcome, why it was held). */
-    class Report(val results: Map<String, EmailRound.Result>)
+    /** What a run did, per child: [EmailRound.Result] (what was sent, the last outcome, why it was held). [lead]: the child the first email is about. */
+    class Report(val results: Map<String, EmailRound.Result>, val lead: String? = null)
 
     private fun pending(context: Context) = PendingIntent.getBroadcast(context, REQUEST,
         Intent(context, EmailReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -55,7 +60,15 @@ object EmailJob {
 
     private class Kid(val profile: Profile, val store: EmailSettings)
 
-    private fun kids(app: Context) = Profiles(app).all.filter { it.isKid }.map { Kid(it, EmailSettings.of(app, it.id)) }
+    /** Every kid, after 2.7's per-child addresses moved to the family's (once). */
+    private fun kids(app: Context): List<Kid> {
+        val all = Profiles(app).all
+        EmailSettings.migrate(app, all)
+        return all.filter { it.isKid }.map { Kid(it, EmailSettings.of(app, it.id)) }
+    }
+
+    /** The kid the family's first email (with the code) is about. */
+    private fun lead(kids: List<Kid>): String? = FamilyEmail.lead(kids.map { it.profile.id to it.store.own() })
 
     private fun spans(profileId: String, now: Long): List<PlaySpan> {
         val open = Briefs.sessionSoFar(profileId, at = now)
@@ -72,25 +85,29 @@ object EmailJob {
         val results = LinkedHashMap<String, EmailRound.Result>()
         val wakes = ArrayList<Long?>()
         var active = false
-        val todo = kids(app).filter { it.store.load().address != null }
+        val all = kids(app)
+        val lead = lead(all)
+        val todo = if (EmailSettings.family(app).load().address == null) emptyList() else all
         // A process killed mid-send comes back through this alarm; the real one replaces it at the end.
         if (todo.isNotEmpty()) setAlarm(app, now + EmailRound.RETRY_MS)
         for (k in todo) {
-            val prefs = k.store.load()
+            val first = k.profile.id == lead
+            val prefs = k.store.load(first)
             val weekly = BriefStore(app, k.profile.id).weeklyOrDefault(kid = true)
             val child by lazy { BriefEmail.child(app, k.profile, weekly) }
             val writers by lazy { BriefAi.writers(app, k.profile) }
             val result = try {
                 EmailRound.run(now, zone, prefs, weekly, spans(k.profile.id, now),
                     send = { due, p -> BriefEmail.sender(app, k.profile, zone).send(due, p, BriefLoader.findings(app, k.profile, due.period, due.findingsAt), writers.chain, child) },
-                    record = { due, at -> k.store.update { it.sent(due.kind, due.day, at) } })
+                    record = { due, at -> k.store.sent(due.kind, due.day, at, first) })
             } catch (e: Exception) {
                 Log.d(TAG, "email: ${k.profile.id} failed in the job (${e.javaClass.simpleName})")
                 EmailRound.Result(prefs, emptyList(), null, now + EmailRound.RETRY_MS, null)
             }
             // Why something is held (or nothing), for the screen to say.
             val held = result.held?.name
-            val saved = if (k.store.load().held != held) k.store.update { it.copy(held = held) } else k.store.load()
+            if (k.store.own().held != held) k.store.update { it.copy(held = held) }
+            val saved = k.store.load(first)
             results[k.profile.id] = result.copy(prefs = saved)
             wakes += result.wakeAt
             active = active || EmailRound.active(saved)
@@ -102,7 +119,7 @@ object EmailJob {
         setAlarm(app, at)
         Log.d(TAG, "email: job ($reason): ${results.values.sumOf { it.sent.size }} sent, ${todo.size} with an address, next look " +
             (at?.let { "in ${(it - now) / 60_000} min" } ?: "never"))
-        Report(results)
+        Report(results, lead)
     }
 
     /** [run] on a new thread (app start, a screen's button), calling [then] with the report when it is done. */
@@ -122,8 +139,10 @@ object EmailJob {
         val wakes = ArrayList<Long?>()
         var active = false
         wakes += runCatching { com.bigpapituna.sharpears.analytics.TesterDiary.look(app, send = false, now = now, zone = zone) }.getOrNull()
-        for (k in kids(app)) {
-            val prefs = k.store.load()
+        val all = kids(app)
+        val lead = lead(all)
+        for (k in all) {
+            val prefs = k.store.load(first = k.profile.id == lead)
             if (prefs.address == null) continue
             val weekly = BriefStore(app, k.profile.id).weeklyOrDefault(kid = true)
             wakes += EmailRound.wake(now, zone, prefs, weekly, spans(k.profile.id, now))
@@ -146,6 +165,7 @@ object EmailJob {
      */
     fun sendTest(context: Context, profile: Profile, period: Period, now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): EmailSender.Outcome = synchronized(LOCK) {
         val app = context.applicationContext
+        EmailSettings.migrate(app, Profiles(app).all)
         val store = EmailSettings.of(app, profile.id)
         val prefs = store.load()
         if (!prefs.verified) return EmailSender.Outcome.Refused(EmailSender.Refusal.UNVERIFIED)

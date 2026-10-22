@@ -25,12 +25,25 @@ import java.time.temporal.TemporalAdjusters
  * change; the 30 minutes after the last session are real minutes.
  */
 
-/** How often a grown-up wants the child's brief by email. Chosen in the app after the first email; [OFF] sends nothing. */
+/**
+ * How often a grown-up wants the child's brief by email; [OFF] sends nothing. Since 2.8 it is two switches on the child's
+ * row in Settings > Briefs and email, Daily and Weekly ([of]).
+ */
 enum class EmailFrequency {
     DAILY, WEEKLY, BOTH, OFF;
 
     val daily: Boolean get() = this == DAILY || this == BOTH
     val weekly: Boolean get() = this == WEEKLY || this == BOTH
+
+    companion object {
+        /** The frequency the two switches make. */
+        fun of(daily: Boolean, weekly: Boolean): EmailFrequency = when {
+            daily && weekly -> BOTH
+            daily -> DAILY
+            weekly -> WEEKLY
+            else -> OFF
+        }
+    }
 }
 
 /** Which email: the first (with the verification code), a day's, or a week's. */

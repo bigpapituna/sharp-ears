@@ -11,11 +11,11 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** The settings screen's logic: its steps, the resend wait, the choices, the last-sent lines and every refusal in kind words. */
+/** Settings > Briefs and email's logic: the address's steps, the resend wait, a child's row, the last-sent lines and every refusal in kind words. */
 class EmailFlowTest {
     private val at = EmailSchedule.at(LocalDate.of(2026, 10, 20), LocalTime.of(20, 31), ZONE)      // Tuesday 8:31 pm
 
-    @Test fun aChildWalksThroughTheSteps() {
+    @Test fun theFamilysAddressWalksThroughTheSteps() {
         assertEquals(EmailFlow.Stage.NO_ADDRESS, EmailFlow.stage(EmailPrefs()))
         val (started, _) = EmailVerification(clock = { at }, digits = { "123456" }).start(EmailPrefs(), "Parent@Example.com")
         assertEquals(EmailFlow.Stage.FIRST_WAITING, EmailFlow.stage(started))
@@ -63,13 +63,12 @@ class EmailFlowTest {
         assertNull(EmailFlow.heldWords(EmailPrefs(held = "nonsense"))); assertNull(EmailFlow.heldWords(EmailPrefs()))
     }
 
-    @Test fun theFourChoicesSayWhenInTheChildsWords() {
-        val c = EmailFlow.choices("Mia", WeeklySlot(DayOfWeek.FRIDAY, 19 * 60 + 30))
-        assertEquals(EmailFrequency.entries, c.map { it.frequency })
-        assertEquals(listOf("Daily", "Weekly", "Both", "Off"), c.map { it.label })
-        assertEquals("Once a week, on Friday at 7:30 pm.", c[1].line)
-        assertTrue(c[0].line.contains("Mia plays") && c[0].line.contains("8:30 pm at the latest"))
-        for (x in c) assertTrue(x.line, EmailWords.clean(x.line) && x.line.endsWith("."))
+    @Test fun aChildsRowSaysWhenInTheChildsWords() {
+        assertEquals("Each day Mia plays, 8:30 pm at the latest.", EmailFlow.dailyLine("Mia"))
+        assertEquals("Friday at 7:30 pm. Tap to change.", EmailFlow.weeklyLine(WeeklySlot(DayOfWeek.FRIDAY, 19 * 60 + 30)))
+        assertEquals("That's the one. Each child's emails can start now.", EmailFlow.codeWords(EmailVerification.Verified.OK, 3))
+        for (line in listOf(EmailFlow.dailyLine("Mia"), EmailFlow.weeklyLine(WeeklySlot.DEFAULT), EmailFlow.ROWS_WAIT, EmailFlow.TEST_NOTE))
+            assertTrue(line, EmailWords.clean(line) && line.endsWith(".") && line[0].isUpperCase())
     }
 
     @Test fun theLastSentLinesNameTheDayAndTime() {

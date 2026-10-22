@@ -34,8 +34,9 @@ import com.bigpapituna.sharpears.ui.paper
 
 /**
  * "Family" from the kids' grown-ups corner: the Family section of Settings on its own, behind the parent gate (the corner
- * already asked it). Pick a child and there is "Read the brief" and "Email the brief": grown-ups corner > Family > Mia > Email,
- * the path the brief's emails tell parents to follow. Closing it is the caller's (it shuts the gate on a kid's screen).
+ * already asked it). Pick a child and there is "Read the brief": grown-ups corner > Family > Mia, the path the brief's emails
+ * give for each suggestion (the emails themselves are set in Settings > Briefs and email since 2.8). Closing it is the
+ * caller's (it shuts the gate on a kid's screen).
  */
 @Composable
 fun FamilyDialog(profiles: Profiles, onClose: () -> Unit) {

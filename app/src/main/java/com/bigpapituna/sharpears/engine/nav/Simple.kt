@@ -163,12 +163,12 @@ object Simple {
      * The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the layout itself), plus
      * Testing while the tester build exists (Roy, 2026-10-22: "add help Roy test in simple mode as well").
      */
-    val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE,
+    val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE, SettingsPart.BRIEFS,
         SettingsPart.REMINDER, SettingsPart.MICROPHONE, SettingsPart.TESTING)
 
-    /** Advanced adds how playing looks (keys, falling notes, wrong keys) and the briefs; Progress and About wait for Full. */
+    /** Advanced adds how playing looks (keys, falling notes, wrong keys); Progress and About wait for Full. */
     val SETTINGS_ADVANCED: Set<SettingsPart> = SETTINGS_ESSENTIALS + setOf(SettingsPart.KEYS, SettingsPart.FALLING_NOTES,
-        SettingsPart.WRONG_KEYS, SettingsPart.BRIEFS)
+        SettingsPart.WRONG_KEYS)
 
     fun settingsShows(part: SettingsPart, layout: Layout): Boolean = when (layout) {
         Layout.SIMPLE -> part in SETTINGS_ESSENTIALS
