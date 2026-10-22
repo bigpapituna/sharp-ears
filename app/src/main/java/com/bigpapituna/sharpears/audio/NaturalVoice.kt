@@ -91,17 +91,22 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
         try {
             val t0 = System.currentTimeMillis()
             var written = 0
+            var playStart = 0L
             // An object, not a lambda: the native side looks up invoke(float[]): Integer by name, which a lambda lacks.
             tts.generateWithCallback(text, sid = speaker, speed = speed, callback = object : (FloatArray) -> Int {
                 override fun invoke(chunk: FloatArray): Int {
                     if (gen != generation) return 0
-                    if (written == 0) { Log.d(TAG, "voice: (first sound in ${System.currentTimeMillis() - t0} ms) $text"); track.play() }
+                    if (written == 0) { Log.d(TAG, "voice: (first sound in ${System.currentTimeMillis() - t0} ms) $text"); track.play(); playStart = System.currentTimeMillis() }
                     track.write(chunk, 0, chunk.size, AudioTrack.WRITE_BLOCKING)
                     written += chunk.size
                     return 1
                 }
             })
-            while (gen == generation && track.playbackHeadPosition < written) Thread.sleep(20)
+            // The head position can stall short of [written] once the track runs dry (the Fold7 did, 2026-10-22: Pup says
+            // waited for this line for good), so the wait also ends when the audio's own length has passed.
+            val deadline = playStart + written * 1000L / rate + 1500
+            while (gen == generation && track.playbackHeadPosition < written && System.currentTimeMillis() < deadline) Thread.sleep(20)
+            if (gen == generation && track.playbackHeadPosition < written) Log.d(TAG, "voice: ended by the clock, head ${track.playbackHeadPosition} of $written: $text")
         } finally { track.pause(); track.flush(); track.release() }
     }
 

@@ -150,7 +150,8 @@ private fun PupSaysGameScreen(
     fun changed() { version++; phase = game.phase }
 
     fun say(text: String) { line = text; voice?.speak(text) }
-    suspend fun voiceDone() { delay(200); while (voice?.speaking?.value == true) delay(50) }
+    /** Waits for the pup's line, at most six seconds: a voice that never settles must not hold the game (2.8.2). */
+    suspend fun voiceDone() { delay(200); val until = System.currentTimeMillis() + 6_000; while (voice?.speaking?.value == true && System.currentTimeMillis() < until) delay(50) }
 
     fun finish() {
         val day = people.map { p -> stores.getValue(p.id).savePupSays(game.seats.first { it.player.id == p.id }.best) }
