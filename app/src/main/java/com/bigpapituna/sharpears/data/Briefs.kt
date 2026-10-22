@@ -38,6 +38,9 @@ object Briefs {
      */
     @Volatile var onSessionEnd: ((String) -> Unit)? = null
 
+    /** Sees every event as it is logged (analytics/Tester.briefEvent, while "Help Roy test" records). Null in JVM tests. */
+    @Volatile var tap: ((BriefEvent) -> Unit)? = null
+
     private class Open(val profileId: String, val startFg: Long, val practice0: Long)
     @Volatile private var open: Open? = null
 
@@ -48,7 +51,7 @@ object Briefs {
     internal fun reset() {
         logs.values.forEach { it.close() }; logs.clear()
         filesDir = null; currentId = null; open = null
-        clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }; onSessionEnd = null
+        clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }; onSessionEnd = null; tap = null
     }
 
     fun now(): Long = clock()
@@ -67,6 +70,7 @@ object Briefs {
         val log = logOf(profileId) ?: return
         log.append(event)
         logcat("brief: $profileId ${event.encode()}")
+        tap?.let { t -> runCatching { t(event) } }
     }
 
     /** Logs the event [make] builds for [profileId]. */

@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.family
 
+import com.bigpapituna.sharpears.analytics.testerMask
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -97,7 +98,7 @@ fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> 
         Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
             PupSays(Pose.WELCOME, "Who's playing today?", size = 112.dp, style = MaterialTheme.typography.headlineSmall)
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+            FlowRow(Modifier.fillMaxWidth().testerMask(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 roster.profiles.forEach { p ->
                     Tile(p.name, onClick = { onPick(p.id) }, label = "${p.name}, ${avatarLabel(p.avatar)}") { PupAvatar(p.avatar, size = 104.dp) }

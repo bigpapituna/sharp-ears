@@ -240,7 +240,7 @@ fun ShareConcertButton(run: RunRecording?, songTitle: String, stars: Int, modifi
                 val files = runCatching { withContext(Dispatchers.IO) { packConcert(context, run, title, stars, stickerRes) } }
                 busy = false
                 files.onSuccess { Share.files(context, it, title) }
-                    .onFailure { Log.d(TAG, "concert: share failed: $it"); error = "Could not get it ready. Try again?" }
+                    .onFailure { Log.d(TAG, "concert: share failed: $it"); com.bigpapituna.sharpears.analytics.Tester.error("concert share"); error = "Could not get it ready. Try again?" }
             }
         } }) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

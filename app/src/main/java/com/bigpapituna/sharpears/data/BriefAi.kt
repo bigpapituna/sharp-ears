@@ -55,7 +55,7 @@ object BriefAi {
     @Volatile private var budget: Budget? = null
     @Volatile private var transport: OpenRouterTransport? = null
 
-    private fun log(line: String) = Log.d(TAG, line)
+    private fun log(line: String) { Log.d(TAG, line); com.bigpapituna.sharpears.analytics.Tester.logLine(line) }
 
     private fun settings(context: Context) = context.applicationContext.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)
 

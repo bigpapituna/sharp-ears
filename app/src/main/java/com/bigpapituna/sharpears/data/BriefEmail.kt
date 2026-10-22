@@ -57,7 +57,7 @@ object BriefEmail {
     /** True when an email may leave now: an unmetered network, or the grown-up allowed mobile data. */
     fun allowed(context: Context): Boolean = Network.unmetered(context.applicationContext) || mobileData(context)
 
-    private fun log(line: String) = Log.d(TAG, line)
+    private fun log(line: String) { Log.d(TAG, line); com.bigpapituna.sharpears.analytics.Tester.logLine(line) }
 
     // ---- the pictures ----
 
@@ -119,14 +119,21 @@ object BriefEmail {
         val allowed = { allowed(app) }
         val renderer = EmailHtml.renderer(htmlOptions(app))
         return EmailSender(
-            transport = BrevoTransport(
-                BuildConfig.EMAIL_BASE_URL, keyProvider = { BuildConfig.EMAIL_KEY }, senderName = BuildConfig.EMAIL_FROM_NAME,
-                senderEmail = BuildConfig.EMAIL_FROM, allowed = allowed, log = ::log,
-            ),
+            transport = transport(app),
             hasKey = { hasKey }, networkAllowed = allowed,
             pdf = { findings, brief -> pdf(app, profile, findings, brief, zone) },
             render = renderer, zone = zone, log = ::log,
         )
+    }
+
+    /**
+     * Brevo from BuildConfig (the key read at call time), asking [allowed] before every send. The brief's sender and the tester
+     * diary (analytics/TesterDiary.kt) both go through it.
+     */
+    fun transport(context: Context): BrevoTransport {
+        val app = context.applicationContext
+        return BrevoTransport(BuildConfig.EMAIL_BASE_URL, keyProvider = { BuildConfig.EMAIL_KEY }, senderName = BuildConfig.EMAIL_FROM_NAME,
+            senderEmail = BuildConfig.EMAIL_FROM, allowed = { allowed(app) }, log = ::log)
     }
 
     /** The full report as a PDF, drawn by the same code as Send; the temporary file is gone before this returns. Null if it cannot be made. */

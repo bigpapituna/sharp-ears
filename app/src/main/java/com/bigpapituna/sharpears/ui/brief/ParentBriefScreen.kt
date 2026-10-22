@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.brief
 
+import com.bigpapituna.sharpears.analytics.testerMask
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
@@ -107,8 +108,13 @@ fun ParentBriefScreen(
     var exporting by remember { mutableStateOf<Pair<Brief, Findings>?>(null) }
     var weeklyOpen by remember { mutableStateOf(openWeekly) }
     var emailFor by remember { mutableStateOf<Profile?>(null) }
+    // Tester analytics: which period was opened, and for a kid or a grown-up (never who).
+    LaunchedEffect(child?.id, period) {
+        com.bigpapituna.sharpears.analytics.Tester.event("brief_opened", mapOf("period" to period.name.lowercase(), "kind" to if (child?.isKid == true) "kid" else "adult"))
+    }
 
-    Column(modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing), horizontalAlignment = Alignment.CenterHorizontally) {
+    // Hidden as a whole in tester replays: the brief is about a named child.
+    Column(modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).testerMask(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
@@ -226,7 +232,7 @@ fun ExportSheet(env: BriefEnv, brief: Brief, findings: Findings, who: Profile, o
                         BriefExport.pack(context, doc, who.name, findings.period, java.time.Instant.ofEpochMilli(env.now()).atZone(env.zone).toLocalDate())
                     }.onFailure { Log.d(TAG, "brief: export failed: $it") }.getOrNull() }
                     sending = false
-                    if (files == null) failed = true
+                    if (files == null) { failed = true; com.bigpapituna.sharpears.analytics.Tester.error("brief send") }
                     else { Share.files(context, files, "Send this brief", ExportDoc.title(who.name, findings.period, who.kind == ProfileKind.KID)); onDismiss() }
                 }
             }) { Text(if (sending) "Making the files" else "Send") }

@@ -231,13 +231,17 @@ private fun WelcomeStep() {
     // True on every build: one with an AI key sends the parent brief's numbers (never a name or a sound), and says so.
     val ai = com.bigpapituna.sharpears.data.BriefAi.hasKey
     val email = com.bigpapituna.sharpears.data.BriefEmail.hasKey
+    // Roy's testing (analytics/Tester.kt): only while "Help Roy test" (with the dashboard's key) or the diary (with an email key) is on.
+    val testing = com.bigpapituna.sharpears.analytics.Tester.let { t ->
+        t.switchOn.value && t.hasKey || t.diaryOn.value && t.diaryBuilt && email }
     Text(when {
         ai && email -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it, and the brief by email if a grown-up turns it on. " +
             "Settings, Family turns those off."
         ai -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. Settings, Family turns that off."
         email -> "Everything stays on this phone, except the brief by email, if a grown-up turns it on. Settings, Family turns that off."
+        testing -> "Everything stays on this phone, except what Roy's testing sends him while he has it on. Never any sound."
         else -> "Everything stays on this phone. Nothing is sent anywhere."
-    },
+    } + if (testing && (ai || email)) " Roy's testing is on too: what happens on screen goes to Roy. Never any sound." else "",
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

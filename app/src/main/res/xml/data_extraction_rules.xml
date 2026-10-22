@@ -6,6 +6,7 @@
     100 MB, installed by script) would push the app past the 25 MB cloud quota, which stops its whole backup. A
     phone-to-phone transfer has no quota, so the model goes along. The AI brief's quota and reply cache (ai-brief.xml)
     stay home either way, and so do the email brief's settings (email.xml: the grown-ups' addresses, data/EmailSettings.kt).
+    The tester switches, device id and log (tester.xml, files/tester, analytics/Tester.kt) stay on this phone too.
     Keep the cloud rules the same as backup_rules.xml.
 -->
 <data-extraction-rules>
@@ -13,6 +14,8 @@
         <exclude domain="sharedpref" path="reports.xml" />
         <exclude domain="sharedpref" path="ai-brief.xml" />
         <exclude domain="sharedpref" path="email.xml" />
+        <exclude domain="sharedpref" path="tester.xml" />
+        <exclude domain="file" path="tester" />
         <exclude domain="external" path="fixtures" />
         <exclude domain="external" path="stalls" />
         <exclude domain="file" path="kokoro" />
@@ -21,6 +24,8 @@
         <exclude domain="sharedpref" path="reports.xml" />
         <exclude domain="sharedpref" path="ai-brief.xml" />
         <exclude domain="sharedpref" path="email.xml" />
+        <exclude domain="sharedpref" path="tester.xml" />
+        <exclude domain="file" path="tester" />
         <exclude domain="external" path="fixtures" />
         <exclude domain="external" path="stalls" />
     </device-transfer>

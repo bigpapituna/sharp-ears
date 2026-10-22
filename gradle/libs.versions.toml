@@ -9,6 +9,7 @@ testRunner = "1.7.0"
 espresso = "3.7.0"
 window = "1.5.1"
 youtubePlayer = "13.0.0"
+posthog = "3.72.5"
 
 [libraries]
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -25,6 +26,8 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 
 window = { group = "androidx.window", name = "window", version.ref = "window" }
 youtube-player = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "youtubePlayer" }
+# Tester analytics (CLAUDE.md "Tester analytics"): compiled in only on a build with POSTHOG_KEY (app/build.gradle.kts).
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthog" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

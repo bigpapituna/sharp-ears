@@ -72,7 +72,20 @@ on mobile data you did not allow, when the model is slow, after 40 AI briefs in 
 a check, or with AI briefs switched off in Settings, Family, the brief is written on your device instead, and says so. The
 last brief written for each person is kept on your device so opening it again sends nothing.
 
-## Tutorial videos (third-party service)
+## Testing (private test builds only)
+
+> Only in a private test build made with a PostHog key or a diary address (CLAUDE.md, "Tester analytics"). The public app
+> is built without them, has no PostHog code at all, and this section is removed from its policy.
+
+In a test build, Roy can turn on **Help Roy test**, behind the parent gate, on a phone he hands to a tester he has asked
+(and, for a child, their parent). While it is on, the app records what happens on its screens and sends it, with app
+events such as a lesson started or a stage that was hard, to Roy's test dashboard at PostHog (posthog.com). Every text and
+picture on screen is hidden in the recording. No sound is ever recorded. Kid profiles are recorded too; the recording says
+only kid or grown-up, never a name. The device goes by a random id made on it. PostHog keeps recordings for 30 days. With
+**Email Roy a daily diary** on, a plain email goes to Roy once a day through Brevo: which screens, lessons, tries and notes,
+with no names or addresses. Both are off until Roy turns them on, stay on that device (they are not in Android's backup),
+and are removed before any public release.
+
 
 Some songs offer tutorial videos from YouTube, shown in YouTube's official embedded player. When you open a video,
 the player connects to YouTube and Google, which may collect information under their own policies:

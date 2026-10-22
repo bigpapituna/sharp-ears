@@ -68,6 +68,7 @@ object EmailJob {
      */
     fun run(context: Context, reason: String, now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): Report = synchronized(LOCK) {
         val app = context.applicationContext
+        Briefs.init(app)          // the alarm may wake a process with no screen: the logs are read from the files folder
         val results = LinkedHashMap<String, EmailRound.Result>()
         val wakes = ArrayList<Long?>()
         var active = false
@@ -94,6 +95,9 @@ object EmailJob {
             wakes += result.wakeAt
             active = active || EmailRound.active(saved)
         }
+        // The tester diary (analytics/TesterDiary.kt) rides on the same job and alarm.
+        wakes += runCatching { com.bigpapituna.sharpears.analytics.TesterDiary.look(app, send = true, now = now, zone = zone) }
+            .onFailure { Log.d(TAG, "tester: diary failed in the job (${it.javaClass.simpleName})") }.getOrNull()
         val at = EmailRound.alarmAt(now, zone, wakes, active)
         setAlarm(app, at)
         Log.d(TAG, "email: job ($reason): ${results.values.sumOf { it.sent.size }} sent, ${todo.size} with an address, next look " +
@@ -114,8 +118,10 @@ object EmailJob {
      */
     fun plan(context: Context, reason: String, now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()) = synchronized(LOCK) {
         val app = context.applicationContext
+        Briefs.init(app)
         val wakes = ArrayList<Long?>()
         var active = false
+        wakes += runCatching { com.bigpapituna.sharpears.analytics.TesterDiary.look(app, send = false, now = now, zone = zone) }.getOrNull()
         for (k in kids(app)) {
             val prefs = k.store.load()
             if (prefs.address == null) continue

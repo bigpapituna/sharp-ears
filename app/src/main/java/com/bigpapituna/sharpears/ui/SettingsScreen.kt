@@ -72,7 +72,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             progressMessage = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.bigpapituna.sharpears.data.ProgressFiles.export(context, uri) } }
-                .fold({ "Progress saved." }, { "Could not save: ${it.message}" })
+                .fold({ "Progress saved." }, { com.bigpapituna.sharpears.analytics.Tester.error("progress export"); "Could not save: ${it.message}" })
         }
     }
     val importFrom = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
@@ -80,7 +80,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
         scope.launch {
             runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.bigpapituna.sharpears.data.ProgressFiles.read(context, uri) } }
                 .onSuccess { importing = it }
-                .onFailure { progressMessage = it.message ?: "Could not read the file." ; android.util.Log.d(com.bigpapituna.sharpears.TAG, "progress: import refused: ${it.message}") }
+                .onFailure { com.bigpapituna.sharpears.analytics.Tester.error("progress import"); progressMessage = it.message ?: "Could not read the file." ; android.util.Log.d(com.bigpapituna.sharpears.TAG, "progress: import refused: ${it.message}") }
         }
     }
     // Android 13 and up ask before an app may post notifications: asked when the reminder is switched on.

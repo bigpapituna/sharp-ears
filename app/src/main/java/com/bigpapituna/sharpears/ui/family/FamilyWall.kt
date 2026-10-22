@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.family
 
+import com.bigpapituna.sharpears.analytics.testerMask
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -80,7 +81,7 @@ fun FamilyWall(entries: List<FamilyWallEntry>, onSwitch: (String) -> Unit, modif
             Text("Family", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text("  this week", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testerMask(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             entries.forEach { e -> Member(e, crown = e.profile.id == crowned) { onSwitch(e.profile.id) } }
         }
     }
