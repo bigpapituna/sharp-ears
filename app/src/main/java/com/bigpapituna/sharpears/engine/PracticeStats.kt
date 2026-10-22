@@ -24,6 +24,17 @@ object PracticeStats {
     }
 
     /**
+     * Whole minutes from [weekStart] to [today], both included, counted down like [weekMinutes] (any practice is at least
+     * 1). You's goal card counts its week from the goal's Monday (2.7: the home's "This week" line moved there).
+     */
+    fun minutesSince(seconds: Map<LocalDate, Int>, weekStart: LocalDate, today: LocalDate): Int {
+        var total = 0L
+        var day = weekStart
+        while (!day.isAfter(today)) { total += seconds[day] ?: 0; day = day.plusDays(1) }
+        return if (total == 0L) 0 else maxOf(1L, total / 60).toInt()
+    }
+
+    /**
      * "This week: 42 min, 4 days in a row", or null when there was no practice this week. A streak shows from 2 days.
      * [streak]: the profile's (progress.streak(), with its freezes), so the home says what the greeting and You say.
      */

@@ -49,4 +49,14 @@ class PracticeStatsTest {
         assertEquals(11, stale.size)
         assertEquals(today.minusDays(60), stale.maxOrNull())
     }
+
+    /** 2.7: You's goal card counts its week from Monday, beside the week's dots; the home's seven-day line is gone. */
+    @Test fun theGoalCardCountsFromMonday() {
+        val monday = LocalDate.of(2026, 10, 19)
+        val wednesday = monday.plusDays(2)
+        val log = mapOf(monday.minusDays(1) to 3600, monday to 600, monday.plusDays(1) to 59, wednesday to 1200, wednesday.plusDays(1) to 900)
+        assertEquals(30, PracticeStats.minutesSince(log, monday, wednesday))        // 1859 s, counted down; Sunday and Thursday stay out
+        assertEquals(1, PracticeStats.minutesSince(mapOf(monday to 20), monday, wednesday))   // any practice is a minute
+        assertEquals(0, PracticeStats.minutesSince(emptyMap(), monday, wednesday))
+    }
 }

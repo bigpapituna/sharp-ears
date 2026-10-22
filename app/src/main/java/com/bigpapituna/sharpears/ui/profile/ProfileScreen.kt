@@ -86,6 +86,8 @@ private class ProfileData(val store: ProgressStore, val prefs: Prefs, val today:
     val level = Progression.levelFor(xp)
     val days30 = (29 downTo 0).map { today.minusDays(it.toLong()).let { d -> d to (log[d] ?: 0) } }
     val practicedDays = log.filterValues { it > 0 }.keys
+    /** Minutes this week, Monday to today, beside the week's dots (2.7: the home's "This week" line moved here). */
+    val weekMinutes = com.bigpapituna.sharpears.engine.PracticeStats.minutesSince(log, WeeklyGoal.weekStart(today), today)
 }
 
 private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
@@ -102,7 +104,9 @@ private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
 fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onSettings: () -> Unit,
                   kid: Boolean = false, world: (@Composable () -> Unit)? = null, paws: (@Composable () -> Unit)? = null,
                   /** A grown-up's "My week" card (the parent brief, 2.4), under today's panel; null hides it. */
-                  brief: (@Composable () -> Unit)? = null) {
+                  brief: (@Composable () -> Unit)? = null,
+                  /** The family wall (ui/family/FamilyWall.kt), at the top since 2.7 (it was on the home); null with one profile. */
+                  family: (@Composable () -> Unit)? = null) {
     val today = remember { LocalDate.now() }
     val v = store.version.intValue + prefs.version.intValue
     val data = remember(v) { ProfileData(store, prefs, today) }
@@ -116,7 +120,11 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
             world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 8.dp)) { w() } } }
             paws?.let { p -> item(key = "paws") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 8.dp)) { p() } } }
             item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp).padding(top = 12.dp)) { Hero(data) } }
-        } else item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings); Hero(data) } }
+        } else {
+            item(key = "bar") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { TopBar(onSettings) } }
+            family?.let { wall -> item(key = "family") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp)) { wall() } } }
+            item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Hero(data) } }
+        }
         item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }) } }
         if (!kid) brief?.let { b -> item(key = "brief") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { b() } } }
         if (!kid) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
@@ -277,7 +285,9 @@ private fun WeekDots(d: ProfileData) {
     val goal = d.store.weeklyDays
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("This week", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            Text("This week", style = MaterialTheme.typography.labelLarge)
+            if (d.weekMinutes > 0) Text("  ${d.weekMinutes} min", style = MaterialTheme.typography.labelMedium.mono(), color = c.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
             Text("$done of $goal days", style = MaterialTheme.typography.labelMedium.mono(), color = if (done >= goal) c.primary else c.onSurfaceVariant)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

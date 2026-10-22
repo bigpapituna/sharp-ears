@@ -1375,7 +1375,18 @@ class MainActivity : ComponentActivity() {
                                         world = { com.bigpapituna.sharpears.ui.world.WorldCard(world, onOpen = { tab -> screen = Screen.World(s, tab) }) },
                                         paws = { com.bigpapituna.sharpears.ui.skin.PawCalendarCard(kid = current.isKid) },
                                         // The parent brief about themselves (2.4): a card that opens their week, no gate.
-                                        brief = if (current.isKid) null else { { com.bigpapituna.sharpears.ui.brief.MyWeekCard(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(), current) } })
+                                        brief = if (current.isKid) null else { { com.bigpapituna.sharpears.ui.brief.MyWeekCard(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(), current) } },
+                                        // Everyone's week at the top (2.7; it was on the home), when there is more than one of us: tapping
+                                        // someone opens the app as them. Each shows their latest sticker; whoever copied the pup furthest
+                                        // today wears the crown.
+                                        family = if (current.isKid || !roster.needsPicker) null else { {
+                                            val pv = prefs.version.intValue
+                                            val wall = remember(roster, pv, progress.version.intValue) {
+                                                familyWallEntries(this@MainActivity, roster, latestSticker = { id -> WorldStore.latestSticker(this@MainActivity, id) })
+                                            }
+                                            val crowned = remember(roster, pv) { WorldStore.crownOfTheDay(this@MainActivity, roster.profiles.map { it.id }) }
+                                            FamilyWall(wall, onSwitch = profiles::switchTo, crowned = crowned)
+                                        } })
                                 }
                             }
                         }
