@@ -54,7 +54,7 @@ fun BriefAiSettings(gate: ParentGateController = LocalParentGate.current) {
 }
 
 @Composable
-private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     val c = MaterialTheme.colorScheme
     // The whole row toggles (one switch for TalkBack), as in the rest of Settings.
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),

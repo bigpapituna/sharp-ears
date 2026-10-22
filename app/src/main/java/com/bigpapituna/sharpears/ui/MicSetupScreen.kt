@@ -229,7 +229,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
                         }
                         packing = null
                         zip.onSuccess { Log.d(TAG, "mic: sharing ${it.name} (${it.length() / 1024} KB)"); StuckShare.share(context, it) }
-                            .onFailure { Log.d(TAG, "mic: share zip failed (${it.message})"); shareError = "Could not pack them: ${it.message}" }
+                            .onFailure { Log.d(TAG, "mic: share zip failed (${it.message})"); com.bigpapituna.sharpears.analytics.Tester.error("recordings share"); shareError = "Could not pack them: ${it.message}" }
                     }
                 }, modifier = Modifier.semantics { contentDescription = "Share stuck moments" }) { Text("Share") }
                 if (stuck > 0) TextButton(enabled = packing == null, onClick = { mic.deleteStalls(); stuck = mic.stalls().size }) {

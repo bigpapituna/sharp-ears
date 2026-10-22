@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.analytics.testerMask
 import com.bigpapituna.sharpears.data.Profiles
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
@@ -73,7 +74,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             open = if (expanded) null else p.id
         }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             PupAvatar(p.avatar, size = 44.dp)
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).testerMask()) {           // names are hidden in tester replays
                 Text(p.name + if (p.id == roster.currentId) " (playing now)" else "", style = MaterialTheme.typography.titleSmall)
                 Text(kindLabel(p), style = MaterialTheme.typography.bodySmall, color = dim)
             }
@@ -110,6 +111,8 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     } else Text("Eight people is the most one phone holds.", style = MaterialTheme.typography.bodySmall, color = dim)
     // Who writes the parent brief: the AI or the phone, and whether on mobile data (behind the gate, like the rest of Family).
     com.bigpapituna.sharpears.ui.brief.BriefAiSettings(gate)
+    // Testing (analytics/Tester.kt): "Help Roy test" and the diary, each change behind the gate.
+    com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 16.dp), guard = { gate.guard(it) })
 
     renaming?.let { p ->
         var name by remember(p.id) { mutableStateOf(p.name) }

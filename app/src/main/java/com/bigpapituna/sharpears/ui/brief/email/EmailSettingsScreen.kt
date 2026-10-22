@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.brief.email
 
+import com.bigpapituna.sharpears.analytics.testerMask
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -179,7 +180,8 @@ fun EmailSettingsScreen(child: Profile, onBack: () -> Unit, onPreview: () -> Uni
         }
     }
 
-    Column(modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+    // Hidden as a whole in tester replays: the address and the child's name are on it.
+    Column(modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().testerMask(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
             Text("Email the brief", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })

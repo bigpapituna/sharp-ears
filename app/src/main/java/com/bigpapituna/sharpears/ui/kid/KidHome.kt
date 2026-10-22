@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
@@ -87,6 +88,7 @@ import com.bigpapituna.sharpears.engine.play.QuestTask
 import com.bigpapituna.sharpears.engine.world.WorldState
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.analytics.testerMask
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.motion.BounceSize
 import com.bigpapituna.sharpears.ui.play.QuestCardContent
@@ -248,7 +250,7 @@ fun KidHome(
         val bar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bg = MaterialTheme.colorScheme.background
         Box(Modifier.fillMaxWidth().height(bar + 20.dp).background(Brush.verticalGradient(0f to bg, bar / (bar + 20.dp) to bg.copy(alpha = 0.94f), 1f to bg.copy(alpha = 0f))))
-        Whistle(onClick = onGrownUps, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 6.dp, end = 10.dp))
+        Whistle(onClick = onGrownUps, dot = com.bigpapituna.sharpears.analytics.Tester.switchOn.value, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 6.dp, end = 10.dp))
         if (decorate.active && decorActions != null) DecorTray(tray, decorate, decorActions, onDone = { decorate.stop() }, modifier = Modifier.align(Alignment.BottomCenter))
         else KidButtons(onPlay = { playOpen = true }, onSongs = onSongs, onStickers = onStickers, height = bottomBar,
             modifier = Modifier.align(Alignment.BottomCenter))
@@ -351,10 +353,10 @@ private fun KidBubble(text: String, tailLeft: Boolean, style: androidx.compose.u
 
 /**
  * The grown-ups' corner: the pup's silver whistle, small and quiet in the top corner (kids leave it alone; it asks the
- * parent gate).
+ * parent gate). [dot]: a small accent dot while "Help Roy test" records this phone (analytics/Tester.kt).
  */
 @Composable
-private fun Whistle(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun Whistle(onClick: () -> Unit, modifier: Modifier = Modifier, dot: Boolean = false) {
     val c = MaterialTheme.colorScheme
     Box(modifier.size(48.dp).clip(CircleShape).background(c.surfaceContainerHigh.copy(alpha = 0.85f))   // 48 dp: the touch minimum
         .clickable(role = Role.Button, onClickLabel = "Grown-ups", onClick = onClick).semantics { contentDescription = "Grown-ups" },
@@ -374,6 +376,8 @@ private fun Whistle(onClick: () -> Unit, modifier: Modifier = Modifier) {
             drawCircle(ink, w * 0.08f, Offset(w * 0.40f, w * 0.60f))
             drawLine(ink, Offset(w * 0.30f, w * 0.34f), Offset(w * 0.36f, w * 0.42f), line)
         }
+        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 7.dp).size(9.dp).clip(CircleShape).background(c.primary)
+            .semantics { contentDescription = "Help Roy test is on" })
     }
 }
 
@@ -444,7 +448,9 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
     val c = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surfaceContainerLow) {
+        // The whole corner is hidden in tester replays (names, the gate's world); scrolls on a short screen.
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().align(Alignment.CenterHorizontally).navigationBarsPadding()
+            .verticalScroll(androidx.compose.foundation.rememberScrollState()).testerMask()
             .padding(start = 24.dp, end = 24.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("For grown-ups", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             Text("Who's playing?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp))
@@ -464,6 +470,8 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
             corner.onFamily?.let { CornerRow("Family", R.drawable.ic_person, it) }
             CornerRow("Settings", R.drawable.ic_settings, corner.onSettings)
             CornerRow("Microphone setup", R.drawable.ic_mic, corner.onMicSetup)
+            // Testing (analytics/Tester.kt): "Help Roy test", the diary, "Something felt off"; the gate was passed to get here.
+            com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 8.dp))
         }
     }
 }

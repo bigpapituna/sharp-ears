@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui.kid
 
+import com.bigpapituna.sharpears.analytics.testerMask
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -211,8 +212,9 @@ fun CertificateCard(name: String, page: PlaygroundPage, stars: Int, modifier: Mo
     val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     LaunchedEffect(name, page, stars) { image = withContext(Dispatchers.Default) { drawCertificate(context, name, page, stars, date, CERT_W / 2, CERT_H / 2) } }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // The child's name is drawn into the picture: hidden in tester replays.
         Box(Modifier.fillMaxWidth().aspectRatio(CERT_W / CERT_H.toFloat()).shadow(10.dp, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp))
-            .semantics { contentDescription = "${words.heading} ${words.name} ${words.what}, ${words.date}" }) {
+            .testerMask().semantics { contentDescription = "${words.heading} ${words.name} ${words.what}, ${words.date}" }) {
             image?.let { Image(it.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().aspectRatio(CERT_W / CERT_H.toFloat())) }
         }
         OutlinedButton(enabled = !busy, onClick = { gate.guardForKids {
@@ -221,7 +223,7 @@ fun CertificateCard(name: String, page: PlaygroundPage, stars: Int, modifier: Mo
                 val file = runCatching { withContext(Dispatchers.IO) { packCertificate(context, name, page, stars, date) } }
                 busy = false
                 file.onSuccess { Share.files(context, listOf(it), words.title) }
-                    .onFailure { Log.d(TAG, "certificate: share failed: $it"); error = "Could not get it ready. Try again?" }
+                    .onFailure { Log.d(TAG, "certificate: share failed: $it"); com.bigpapituna.sharpears.analytics.Tester.error("certificate share"); error = "Could not get it ready. Try again?" }
             }
         } }) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
