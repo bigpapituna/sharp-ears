@@ -148,6 +148,13 @@ object Placement {
     /** The id the check's first-lesson rewards are kept under (its stars, the XP event, the world's sticker): not a course lesson. */
     const val CHECK_ID = "placement-check"
 
+    /**
+     * The check's title wherever a lesson title is looked up by id (the parent brief's titles, the tester diary). The check
+     * logs no brief event of its own (its reward's sticker drop carries no lesson), so the brief should never need it; the
+     * title is there so the id is never shown raw if it does.
+     */
+    const val CHECK_TITLE = "Let's hear you play"
+
     private val plans = HashMap<Triple<Level, ProfileKind, Boolean>, PlacementPlan>()
 
     /** [startFor] on the app's own course, remembered (the path asks on every look). */

@@ -554,6 +554,12 @@ private fun PlayerStage(args: PlayerArgs) {
         onFinished(transport.report().copy(extraScore = extra, realMs = transport.runRealMs).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
+            // A pop song (songs by chords, 2.6) keeps its runs under its own id, like a library song (see popRunEnd).
+            val popRun = com.bigpapituna.sharpears.engine.chords.PopPlay.runIdOf(original.id)
+            if (popRun != null && embedded == null) {
+                recap = popRunEnd(popRun, transport, run, prefs, progress)?.also { if (touchRun) haptics.success() }
+                return
+            }
             run?.let { recap = RunEnd(it, false, emptyList(), timeMs = transport.runRealMs.toLong()) }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
@@ -1315,6 +1321,33 @@ data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<Troub
                   val reward: com.bigpapituna.sharpears.engine.world.Reward? = null,
                   /** A duet's line naming both players ("Mia and Theo, two stars together"). */
                   val duetLine: String? = null)
+
+/**
+ * A pop song's run to its end (songs by chords, 2.6; [runId] "pop-<id>", PopPlay.runIdOf). It has no library entry, so no
+ * trouble bars, auto speed, sticker or quest, but a run the player played is kept as a library song's is: the parent
+ * brief's SongRun (its stars from the Perform accuracy, or the wrong keys in Wait), a best score from the top, the
+ * progress XP with its first completion, and the recap, Wait as well as Perform. Listen, or nothing played: no recap.
+ */
+private fun popRunEnd(runId: String, transport: Transport, run: Recap?, prefs: Prefs, progress: ProgressStore?): RunEnd? {
+    val report = transport.report()
+    if (transport.mode == Mode.LISTEN || report.empty) {
+        Log.d(TAG, "pop: $runId ${if (transport.mode == Mode.LISTEN) "listened through" else "nothing played"}")
+        return null
+    }
+    val fromTop = transport.scoreFromMs <= 0.0
+    Briefs.logAll(RunEvents.song(Briefs.now(), runId, transport.mode, transport.practice, report, transport.tally, transport.runRealMs.toLong(),
+        fromTop = fromTop, duet = false))
+    val first = !prefs.progress(runId).completed
+    val best = run != null && fromTop && run.accuracy > 0 && prefs.saveScore(runId, run.accuracy)
+    prefs.markCompleted(runId)
+    val xpBefore = progress?.xp
+    val earned = progress?.record(ProgressEvent.SongRun(runId, run?.accuracy, newBest = best, firstCompletion = first))
+    val bar = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
+    Log.d(TAG, "pop: run $runId mode=${transport.mode} accuracy=${run?.accuracy} wrong=${report.wrongKeys} stars=" +
+        Stars.of(run, report.wrongKeys) + " newBest=$best first=$first xp=${earned?.xpGained}")
+    return RunEnd(run, best, emptyList(), wrongKeys = report.wrongKeys, timeMs = transport.runRealMs.toLong(),
+        xpGained = earned?.xpGained?.takeIf { it > 0 }, xpBar = bar)
+}
 
 /** Key labels from the setting: every C with its octave, or every white key's letter as well. */
 private fun keyLabels(setting: KeyLabels, range: IntRange): Map<Int, String> = when (setting) {

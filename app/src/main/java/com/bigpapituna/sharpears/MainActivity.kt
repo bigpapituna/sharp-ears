@@ -339,6 +339,13 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun openSong(who: Profile, songId: String, duet: Boolean) = runOnUiThread {
+            // A pop song's run ("pop-<id>", songs by chords): its page, where it is played along (no duet there).
+            com.bigpapituna.sharpears.engine.chords.PopPlay.ofRun(songId, com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs)?.let { pop ->
+                Log.d(TAG, "brief: open pop song ${pop.id} for ${who.id}")
+                val home = if (who.isKid) Screen.KidSongs(Screen.Home()) else Screen.Home(HomeTab.CHORDS, ChordsTab.SONGS)
+                go(who, Screen.PopSong(pop.id, if (who.isKid) Screen.KidChords(home) else home))
+                return@runOnUiThread
+            }
             val m = repo.all().firstOrNull { it.id == songId && repo.available(it) } ?: return@runOnUiThread
             val song = runCatching { repo.load(m) }.getOrNull() ?: return@runOnUiThread
             val partner = if (duet) com.bigpapituna.sharpears.engine.play.Duet.grownUpFor(who, openId, profiles.all) else null
@@ -914,8 +921,8 @@ class MainActivity : ComponentActivity() {
                         is Screen.Player -> {
                             // A run that reached its end (a song, a progression) may be where a kid's goal was reached.
                             var ranToEnd by remember { mutableStateOf(false) }
-                            // A kid leaving a library song played to its end: the pup's card first (the parent brief, 2.4).
-                            val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(current, ready = profile.isKid && ranToEnd && s.meta != null)
+                            // A kid leaving a library song (or a pop song, 2.6) played to its end: the pup's card first (the parent brief, 2.4).
+                            val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(current, ready = profile.isKid && ranToEnd && (s.meta != null || s.band != null))
                             Box(Modifier.fillMaxSize()) {
                                 PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
                                     s.startMs, dump, s.start, onBack = cardStep.then("All done!") { screen = s.back; if (ranToEnd) maybeGoodnight("a song") },
@@ -1357,6 +1364,7 @@ class MainActivity : ComponentActivity() {
                             val pop = com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.firstOrNull { it.id == s.songId }
                             if (pop == null) com.bigpapituna.sharpears.ui.chords.PopSongMissing { screen = s.back }
                             else {
+                                LaunchedEffect(pop.id) { progress.record(ProgressEvent.FeatureUsed("popsongs")) }
                                 val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
                                 com.bigpapituna.sharpears.ui.chords.PopSongPage(pop, known, sampler, sound = { prefs.sound },
                                     shift = s.shift, pattern = s.pattern ?: pop.pattern, bpm = s.bpm ?: pop.bpm,

@@ -26,10 +26,13 @@ interface Titles {
 }
 
 private class CourseTitles(private val songs: () -> Map<String, String>) : Titles {
-    private val lessons by lazy { COURSE.flatMap { it.lessons }.associate { it.id to it.title } }
+    private val lessons by lazy {
+        COURSE.flatMap { it.lessons }.associate { it.id to it.title } + (com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID to com.bigpapituna.sharpears.engine.family.Placement.CHECK_TITLE)
+    }
     private val pages by lazy { PLAYGROUND_PAGES.associate { it.id to it.title } }
     override fun lesson(id: String) = lessons[id]
-    override fun song(id: String) = songs()[id]
+    /** A library song, or a pop song's run ("pop-<id>", songs by chords: the content's title). */
+    override fun song(id: String) = songs()[id] ?: com.bigpapituna.sharpears.engine.chords.PopPlay.titleOfRun(id)
     override fun page(id: String) = pages[id]
     override fun all(): Collection<String> = lessons.values + pages.values + songs().values
 }

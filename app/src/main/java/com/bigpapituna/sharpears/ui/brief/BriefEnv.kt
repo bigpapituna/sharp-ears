@@ -147,13 +147,18 @@ fun rememberBriefEnv(): BriefEnv {
     return remember(context, profiles, nav) { BriefEnv.live(context, profiles, nav) }
 }
 
-/** Lesson titles from the course, song titles from the library, page titles from the Playground: all on the phone. */
+/**
+ * Lesson titles from the course (and the placement check's), song titles from the library and the pop songs' runs, page
+ * titles from the Playground: all on the phone.
+ */
 class AppTitles(context: Context) : BriefTitles {
-    private val lessons by lazy { COURSE.flatMap { it.lessons }.associate { it.id to it.title } }
+    private val lessons by lazy {
+        COURSE.flatMap { it.lessons }.associate { it.id to it.title } + (com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID to com.bigpapituna.sharpears.engine.family.Placement.CHECK_TITLE)
+    }
     private val songs by lazy { runCatching { SongRepository(context).all().associate { it.id to it.title } }.getOrDefault(emptyMap()) }
     private val pages by lazy { PLAYGROUND_PAGES.associate { it.id to it.title } }
     private fun fallback(id: String) = id.split('-', '_').joinToString(" ").replaceFirstChar { it.uppercase() }
     override fun lesson(id: String) = lessons[id] ?: fallback(id)
-    override fun song(id: String) = songs[id] ?: fallback(id)
+    override fun song(id: String) = songs[id] ?: com.bigpapituna.sharpears.engine.chords.PopPlay.titleOfRun(id) ?: fallback(id)
     override fun page(id: String) = pages[id] ?: fallback(id)
 }

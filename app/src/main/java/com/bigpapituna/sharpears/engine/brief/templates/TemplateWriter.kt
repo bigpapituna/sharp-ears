@@ -89,9 +89,16 @@ class TemplateWriter(
 
 /** Title lookups for [TemplateWriter] built from the course and the playground; songs come from the library. */
 object CourseTitles {
-    private val lessons: Map<String, String> by lazy { COURSE.flatMap { it.lessons }.associate { it.id to it.title } }
+    private val lessons: Map<String, String> by lazy {
+        COURSE.flatMap { it.lessons }.associate { it.id to it.title } + (com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID to com.bigpapituna.sharpears.engine.family.Placement.CHECK_TITLE)
+    }
     private val pages: Map<String, String> by lazy { PLAYGROUND_PAGES.associate { it.id to it.title } }
 
-    /** [songTitle] answers for a library song id (null or blank for an unknown one). Lessons and pages are looked up here. */
-    fun lookup(songTitle: (String) -> String?): (String) -> String = { id -> lessons[id] ?: pages[id] ?: songTitle(id).orEmpty() }
+    /**
+     * [songTitle] answers for a library song id (null or blank for an unknown one). Lessons (and "Let's hear you play", the
+     * placement check), pages and pop songs' runs ("pop-<id>", songs by chords) are looked up here.
+     */
+    fun lookup(songTitle: (String) -> String?): (String) -> String = { id ->
+        lessons[id] ?: pages[id] ?: songTitle(id)?.takeIf { it.isNotBlank() } ?: com.bigpapituna.sharpears.engine.chords.PopPlay.titleOfRun(id).orEmpty()
+    }
 }
