@@ -1238,6 +1238,8 @@ class MainActivity : ComponentActivity() {
                             BackHandler { voice.stop(); screen = s.back }
                             TimedOnScreen(s) { ms -> Briefs.log { BriefEvent.ToyOpened(it, ToyKind.ARCADE, ms) } }
                             val level = remember(s) { s.level ?: arcadeStore.state.of(s.game).level }
+                            // 2.8: a game's first round keeps C D E at level 0; later rounds roll their three keys.
+                            val firstRound = remember(s) { arcadeStore.state.of(s.game).rounds == 0 }
                             val stickerId = com.bigpapituna.sharpears.engine.world.LevelStickers.arcade(s.game.id)
                             val debugResult = s.debugStars?.let { n ->
                                 com.bigpapituna.sharpears.engine.arcade.RoundResult(s.game, level, offered = 20, hits = when (n) { 3 -> 20; 2 -> 12; else -> 4 },
@@ -1258,7 +1260,8 @@ class MainActivity : ComponentActivity() {
                                     onAgain = { voice.stop(); screen = Screen.ArcadeRound(s.game, s.back) },
                                     onGames = { voice.stop(); screen = s.back }, onExit = { voice.stop(); screen = s.back },
                                     debugResult = debugResult,
-                                    bot = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("bot", false))
+                                    bot = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("bot", false),
+                                    first = firstRound)
                             }
                         }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {

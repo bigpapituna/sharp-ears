@@ -8,30 +8,40 @@ import kotlin.random.Random
  * position, then the octave, then both hands), the speed (streams come closer together and go by sooner, the tower's
  * beat quickens), and what is asked at once (two balloons or two moles together, two frogs taking turns). A round's
  * keys never pass [ArcadeKeys.MAX] and stay in [ArcadeKeys.RANGE]; ArcadeRulesTest checks every game and level.
+ *
+ * 2.8 (Roy: "a random key each session"): level 0 of the three-key games (balloons, treats, the tower, the garden) rolls
+ * its three keys per round from the white neighbours of the octave ([ArcadeKeys.threeFrom]); a game's first round keeps
+ * C D E. From level 1 the streams' first pass comes in a shuffled order instead of low to high. Everything is drawn
+ * from the round's seed, so a replay of a seed is the same round.
  */
 object ArcadePlans {
-    /** A new round of [game] at [level], drawn with [seed]. */
-    fun round(game: ArcadeGame, level: Int, seed: Long): ArcadeRound = when (val p = plan(game, level, seed)) {
+    /** A new round of [game] at [level], drawn with [seed]; [first]: the kid's first round of this game (level 0 keeps C D E). */
+    fun round(game: ArcadeGame, level: Int, seed: Long, first: Boolean = false): ArcadeRound = when (val p = plan(game, level, seed, first)) {
         is StreamPlan -> StreamRound(p)
         is CallPlan -> CallRound(p)
     }
 
     /** The plan of a round: a [StreamPlan] or a [CallPlan]. */
-    fun plan(game: ArcadeGame, level: Int, seed: Long): RoundPlan {
+    fun plan(game: ArcadeGame, level: Int, seed: Long, first: Boolean = false): RoundPlan {
         val l = level.coerceIn(0, game.maxLevel)
         val rnd = Random(seed)
+        // Level 0's three keys, rolled first (the rest of the round then draws from the same seed whichever three came up).
+        val three = if (l == 0 && game in THREE_KEYS) ArcadeKeys.levelZero(first, rnd) else ArcadeKeys.CDE
         return when (game) {
-            ArcadeGame.BALLOONS -> balloons(l, rnd)
-            ArcadeGame.FEED -> feed(l, rnd)
+            ArcadeGame.BALLOONS -> balloons(l, rnd, three)
+            ArcadeGame.FEED -> feed(l, rnd, three)
             ArcadeGame.MOLES -> moles(l, rnd)
-            ArcadeGame.GARDEN -> garden(l)
-            ArcadeGame.TOWER -> tower(l, rnd)
+            ArcadeGame.GARDEN -> garden(l, three)
+            ArcadeGame.TOWER -> tower(l, rnd, three)
             ArcadeGame.FROGS -> frogs(l)
             ArcadeGame.BRIDGE -> bridge(l, rnd)
             ArcadeGame.FIREWORKS -> fireworks(l)
             ArcadeGame.PAINTER -> painter(l)
         }
     }
+
+    /** The games whose level 0 is three keys, rolled per round ([ArcadeKeys.levelZero]). */
+    val THREE_KEYS: Set<ArcadeGame> = setOf(ArcadeGame.BALLOONS, ArcadeGame.FEED, ArcadeGame.TOWER, ArcadeGame.GARDEN)
 
     // ---- Streams ---------------------------------------------------------------------------------------------------
 
@@ -46,12 +56,13 @@ object ArcadePlans {
     val MOLE_GAP = longArrayOf(2_000, 1_700, 1_600, 1_400, 1_250)
     val MOLE_LIFE = longArrayOf(4_200, 3_600, 3_400, 3_000, 2_700)
 
-    fun balloonKeys(level: Int): List<Int> = when (level) {
-        0 -> ArcadeKeys.CDE; 1, 2 -> ArcadeKeys.FIVE; 3 -> ArcadeKeys.OCTAVE; else -> ArcadeKeys.LOW_OCTAVE
+    /** Balloon pop's keys at [level]; [three] the round's three at level 0 ([ArcadeKeys.levelZero]). */
+    fun balloonKeys(level: Int, three: List<Int> = ArcadeKeys.CDE): List<Int> = when (level) {
+        0 -> three; 1, 2 -> ArcadeKeys.FIVE; 3 -> ArcadeKeys.OCTAVE; else -> ArcadeKeys.LOW_OCTAVE
     }
 
-    fun feedKeys(level: Int): List<Int> = when (level) {
-        0 -> ArcadeKeys.CDE; 1 -> ArcadeKeys.FIVE; 2 -> ArcadeKeys.OCTAVE; else -> ArcadeKeys.LOW_OCTAVE
+    fun feedKeys(level: Int, three: List<Int> = ArcadeKeys.CDE): List<Int> = when (level) {
+        0 -> three; 1 -> ArcadeKeys.FIVE; 2 -> ArcadeKeys.OCTAVE; else -> ArcadeKeys.LOW_OCTAVE
     }
 
     fun moleKeys(level: Int): List<Int> = when (level) {
@@ -63,16 +74,16 @@ object ArcadePlans {
      * rises over its own key (the scaffold), from level 2 anywhere across the sky. From level 2 every fifth is a pair tied
      * together: two keys at once pop both.
      */
-    private fun balloons(level: Int, rnd: Random): StreamPlan {
-        val keys = balloonKeys(level)
+    private fun balloons(level: Int, rnd: Random, three: List<Int>): StreamPlan {
+        val keys = balloonKeys(level, three)
         val pairs = level == 2 || level >= 4
         return stream(ArcadeGame.BALLOONS, level, 70_000, keys, BALLOON_GAP[level], BALLOON_LIFE[level], rnd,
             pairEvery = if (pairs) 5 else 0, overKeys = level <= 1)
     }
 
     /** Feed the pup: treats fly past with a key on them, at a height of their own; quicker than balloons. */
-    private fun feed(level: Int, rnd: Random) =
-        stream(ArcadeGame.FEED, level, 65_000, feedKeys(level), FEED_GAP[level], FEED_LIFE[level], rnd, pairEvery = 0, overKeys = false)
+    private fun feed(level: Int, rnd: Random, three: List<Int>) =
+        stream(ArcadeGame.FEED, level, 65_000, feedKeys(level, three), FEED_GAP[level], FEED_LIFE[level], rnd, pairEvery = 0, overKeys = false)
 
     /**
      * Boop the moles: a mole peeks out of a key of the big keyboard picture and ducks back; never two on one key. From
@@ -92,8 +103,13 @@ object ArcadePlans {
         return options.takeIf { it.isNotEmpty() }?.random(rnd)
     }
 
+    /**
+     * A stream's targets on their clock. Each key comes once first: at level 0 low to high, the order the demo showed them
+     * (the scaffold); from level 1 in an order shuffled with [rnd], so the kid finds the keys rather than a walk.
+     */
     private fun stream(game: ArcadeGame, level: Int, roundMs: Long, keys: List<Int>, gap: Long, life: Long, rnd: Random,
                        pairEvery: Int, overKeys: Boolean, oneAKey: Boolean = false): StreamPlan {
+        val firstPass = if (level == 0) keys else keys.shuffled(rnd)
         val out = mutableListOf<Target>()
         val busyUntil = HashMap<Int, Long>()
         var t = 0L
@@ -106,8 +122,8 @@ object ArcadePlans {
             val pair = pairEvery > 0 && i >= keys.size && i % pairEvery == pairEvery - 1
             val chosen: List<Int>? = when {
                 pair -> pairFrom(keys, rnd, ::free)
-                // Each key once first, low to high: the round's keys in the order the demo showed them.
-                i < keys.size && free(keys[i]) -> listOf(keys[i])
+                // Each key once first (low to high at level 0, shuffled from level 1).
+                i < keys.size && free(firstPass[i]) -> listOf(firstPass[i])
                 else -> keys.filter { k -> free(k) && !(recent.size >= 2 && recent.all { it == k }) }.takeIf { it.isNotEmpty() }?.let { listOf(it.random(rnd)) }
             }
             if (chosen != null) {
@@ -148,16 +164,17 @@ object ArcadePlans {
      * Grow the garden: walk after walk (cycling the level's), each grows a flower a step a key and opens it at its last;
      * shown first every time at levels 0 and 1, the first time each walk comes from level 2.
      */
-    private fun garden(level: Int): CallPlan {
-        val walks = WALKS[level].map(::keysOf)
+    private fun garden(level: Int, three: List<Int>): CallPlan {
+        // Level 0's walks are written on C D E; the round walks them on its own three (D E F, G A B...), step for step.
+        val walks = WALKS[level].map(::keysOf).map { w -> if (level == 0) w.map { three[ArcadeKeys.CDE.indexOf(it)] } else w }
         val seen = HashSet<Int>()
         val ls = (0 until 40).map { n -> val w = n % walks.size; walks[w] to (level <= 1 || seen.add(w)) }
         return CallPlan(ArcadeGame.GARDEN, level, 75_000, lines(ls, side = { if (level >= 4) handSide(it) else Side.ANY }),
             walks.flatten().toSet(), gapMs = 1_300, needLines = ArcadeStars.minLines(ArcadeGame.GARDEN))
     }
 
-    fun towerKeys(level: Int): List<Int> = when (level) {
-        0 -> ArcadeKeys.CDE; 1 -> ArcadeKeys.FIVE; 2 -> ArcadeKeys.OCTAVE; 3 -> ArcadeKeys.LOW_OCTAVE; else -> ArcadeKeys.LEFT_FIVE + ArcadeKeys.FIVE
+    fun towerKeys(level: Int, three: List<Int> = ArcadeKeys.CDE): List<Int> = when (level) {
+        0 -> three; 1 -> ArcadeKeys.FIVE; 2 -> ArcadeKeys.OCTAVE; 3 -> ArcadeKeys.LOW_OCTAVE; else -> ArcadeKeys.LEFT_FIVE + ArcadeKeys.FIVE
     }
 
     val TOWER_START = longArrayOf(3_400, 3_000, 2_700, 2_400, 2_100)
@@ -168,8 +185,8 @@ object ArcadePlans {
     fun towerBeat(level: Int, blocks: Int): Long = maxOf(TOWER_MIN[level], TOWER_START[level] - TOWER_STEP * blocks)
 
     /** Build the tower: one key a call, never the same twice running; the first call is shown. */
-    private fun tower(level: Int, rnd: Random): CallPlan {
-        val keys = towerKeys(level)
+    private fun tower(level: Int, rnd: Random, three: List<Int>): CallPlan {
+        val keys = towerKeys(level, three)
         var last = -1
         val calls = (0 until 80).map { i ->
             val k = keys.filter { it != last }.random(rnd).also { last = it }

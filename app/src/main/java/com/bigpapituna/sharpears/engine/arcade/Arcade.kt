@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.engine.arcade
 
 import com.bigpapituna.sharpears.engine.isBlack
+import kotlin.random.Random
 
 /*
  * The kid arcade (Roy: "games where they play keys and pop balloons, or play keys that make things grow or build; not
@@ -194,6 +195,21 @@ object ArcadeKeys {
     val CDE = listOf(60, 62, 64)
     val FIVE = whites(60, 67)
     val OCTAVE = whites(60, 72)
+
+    /**
+     * Three white neighbours from [pool], rolled with [rnd] (2.8, Roy: "a random key each session"): from [OCTAVE] that is
+     * C D E, D E F, E F G, F G A, G A B or A B C. The round's own Random rolls it, so a replay of a seed rolls the same three.
+     */
+    fun threeFrom(pool: List<Int>, rnd: Random): List<Int> {
+        val start = rnd.nextInt(pool.size - 2)
+        return pool.subList(start, start + 3)
+    }
+
+    /**
+     * Level 0's three keys for a round: [CDE] on a game's [first] round (the keys a kid meets first, on the path and in
+     * the pup's demo), else three neighbours rolled from [OCTAVE].
+     */
+    fun levelZero(first: Boolean, rnd: Random): List<Int> = if (first) CDE else threeFrom(OCTAVE, rnd)
     val LEFT_FIVE = whites(48, 55)
     val LOW_OCTAVE = whites(57, 72)
     /** C4 to B4 with its black keys: the moles' twelve. */
