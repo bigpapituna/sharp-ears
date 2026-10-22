@@ -357,6 +357,10 @@ class ArcadeRulesTest {
         assertEquals(2, result(ArcadeGame.BALLOONS, 9, 11).stars)        // 45%
         assertEquals(1, result(ArcadeGame.BALLOONS, 8, 12).stars)
         assertEquals(1, result(ArcadeGame.BALLOONS, 0, 0).stars)         // never none
+        // Pressing every key at once: each target hit, but two slips for each.
+        assertEquals(1, RoundResult(ArcadeGame.BALLOONS, 0, 30, 30, 0, 60, 30, 30, 3, 60_000).stars)
+        assertEquals(2, RoundResult(ArcadeGame.BALLOONS, 0, 30, 30, 0, 20, 30, 30, 3, 60_000).stars)       // a slip every other target
+        assertEquals(3, RoundResult(ArcadeGame.BALLOONS, 0, 30, 30, 0, 4, 30, 30, 3, 60_000).stars)
         assertEquals(3, result(ArcadeGame.TOWER, 10, 4, lines = 10).stars)
         assertEquals(2, result(ArcadeGame.TOWER, 5, 0, lines = 5).stars)
         assertEquals(1, result(ArcadeGame.TOWER, 4, 0, lines = 4).stars)

@@ -119,7 +119,8 @@ data class RoundResult(
 
 /**
  * The stars a round earns, never fewer than one (playing to the end is worth a star, as a let-go step is):
- * - streams (balloons, treats, moles): three for three quarters of the targets played, two for under half of them;
+ * - streams (balloons, treats, moles): three for three quarters of the targets played, two from 45%, a slip counting
+ *   as a target missed (a kid pressing every key at once does not earn three);
  * - the tower: three for reaching the clouds ([ArcadeStars.clouds] blocks), two for halfway;
  * - calls: three when the kid played 85% of the notes themselves and finished [RoundResult.needLines] lines (the
  *   plan's [minLines]; a song game, every line of it), two from 55%.
@@ -129,6 +130,12 @@ object ArcadeStars {
     const val STREAM_TWO = 0.45
     const val CALL_THREE = 0.85
     const val CALL_TWO = 0.55
+
+    /** A slip in a stream counts as a target missed: pressing every key at once is no way to three stars. */
+    const val SLIP_WEIGHT = 1.0
+
+    /** A stream's score, 0..1: the targets played over those offered and the slips. */
+    fun streamScore(r: RoundResult): Double = if (r.offered + r.slips <= 0) 0.0 else r.hits / (r.offered + SLIP_WEIGHT * r.slips)
 
     /** Blocks to the clouds at each level of the tower. */
     fun clouds(level: Int): Int = 10 + 2 * level.coerceIn(0, 4)
@@ -147,8 +154,8 @@ object ArcadeStars {
             else -> 1
         }
         r.game.shape == RoundShape.STREAM -> when {
-            r.share >= STREAM_THREE -> 3
-            r.share >= STREAM_TWO -> 2
+            streamScore(r) >= STREAM_THREE -> 3
+            streamScore(r) >= STREAM_TWO -> 2
             else -> 1
         }
         else -> when {
