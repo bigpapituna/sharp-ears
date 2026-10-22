@@ -108,11 +108,86 @@ Not in a lesson, but in the library: Haydn Surprise, Au clair de la lune, Mounta
   (MIDI keyboard, skippable).
 - t2-sight: five sight-reading habits, then one play-through and two Perform lines (one in G with an F sharp).
 
+## Popular songs by chords
+
+The legal line: a popular song in Sharp Ears is its chords only. Key, tempo, time, section order, the chords of each
+bar, the artist and the title, nothing else. No melody, no lyric and no recording of any song, in any build: not in
+the content, the tests, the comments or the notes. A chord progression, a key, a tempo and a song's form are facts
+anyone may write down; the melody, the words and the recordings belong to their owners. The player shows chord
+blocks, the band plays a drum and bass bed, and the learner plays the chords.
+
+The lyric guard is structural, so nothing about a song's words is ever stored, not even a hash:
+- a section is named only from a fixed set: Intro, Verse, Pre-chorus, Chorus, Post-chorus, Bridge, Interlude, Solo,
+  Breakdown, Outro, Tag, Refrain, with an optional number;
+- a note is one line about the chords: no quotation marks, never the words sing, sings, lyric or words, and the
+  song's title at most once.
+`PopSongsTest` enforces both.
+
+Where it lives: `engine/chords/PopSong.kt` (the contract), `PopSongs.kt` (the chart parser and the helpers:
+`fourChordSongs`, `playableWith`, `byStyle`, `sortedForBeginners`, `transposed`, `difficultyByRule`), and one file
+of charts per batch: `PopSongsHits.kt`, `PopSongsYacht.kt`, `PopSongsEighties.kt`, `PopSongsPop.kt`,
+`PopSongsCountry.kt`, `PopSongsFamily.kt`, `PopSongsWorship.kt`. Turning a chart into a playable `Song` is the
+player's job (`PopPlay.toSong` on the popp branch); this branch has none.
+
+### What is there (107 songs)
+
+A song counts under each of its styles, so the style rows add up to more than 107.
+
+| style | songs | CHECKED | LIKELY | SKETCH |
+|---|---|---|---|---|
+| Greatest hits | 24 | 0 | 19 | 5 |
+| Yacht rock | 8 | 0 | 4 | 4 |
+| 80s rock | 23 | 0 | 19 | 4 |
+| Pop | 40 | 0 | 34 | 6 |
+| Rock | 18 | 0 | 15 | 3 |
+| Country | 10 | 0 | 8 | 2 |
+| Soul | 12 | 0 | 10 | 2 |
+| Ballad | 26 | 0 | 19 | 7 |
+| Kids | 13 | 5 | 5 | 3 |
+| Holiday | 5 | 1 | 2 | 2 |
+| Worship | 6 | 1 | 3 | 2 |
+| all songs | 107 | 6 | 78 | 23 |
+
+By difficulty: 34 at 1, 40 at 2, 11 at 3, 22 at 4 (74 at 1 or 2). Four-chord songs (a major key, only I, IV, V and vi,
+slash bass ignored): 31.
+
+Confidence: CHECKED only when every section is sure (so far the short traditional tunes), LIKELY when verse and
+chorus are sure and the rest may be off by a bar or two, SKETCH when the structure is simplified or a section is
+doubtful. Keys and tempos of the songs in doubt were checked against a key and tempo database (songbpm.com), never
+against a page of chords and words.
+
+Left out, because the key or the chords would not settle: No Woman, No Cry (the live key), Dancing in the Dark,
+Let's Stay Together, Baby Come Back, Footloose, Fast Car (Luke Combs), Last Night, Something in the Orange, Baby
+Shark, As It Was, Believer, Diamonds, Die with a Smile, Espresso, Good as Hell, Lose Control; and, earlier, Sailing,
+What a Fool Believes, Summer Breeze, Lowdown, Lido Shuffle, Africa, Man! I Feel Like a Woman!, Whiskey Glasses,
+Beautiful Crazy, Levitating, bad guy, Beautiful Things, Firework, Treat You Better, Stay, Rolling in the Deep.
+
+### How to add a song
+
+1. Pick the batch file for its main style and add a `pop(...)`: id (kebab case, unique), title, artist, year,
+   styles, key (`"Eb"`, `"F#m"`), tempo (within 5 bpm of the record, in the pulse the chart counts: a slow
+   half time feel counts half),
+   pattern, difficulty, confidence, note, the section order, and the chart.
+2. The chart is one line per section: `Chorus: F Am7 | Dm7 F/C | Bb F/A | Gm7 Bb/C`. Bars split by `|`; chords in a
+   bar share it evenly unless they give beats (`F:1 Bb:1 C:2`); `(C G | Am F) x4` writes bars out again. Chords are a
+   root, a `ChordType` suffix (m, 7, maj7, m7, sus2, sus4, 6, m6, add9, 9, dim, dim7, m7b5, aug) and an optional slash
+   bass. The order is `Intro, Verse x2, Chorus`; `Chorus#up` tells two charts of one section apart (the tag is not
+   shown). Compound time counts its dotted quarters: 12/8 as four beats, 6/8 as two. An unknown chord, a bar whose
+   beats do not add up, a section in the order with no chart or a chart never played fails the build's tests.
+3. Difficulty is not a guess: `PopSongs.difficultyByRule` (one to start, one for five chords, one for eight, one for
+   three colour chords, one for changes faster than 0.9 a second). Run `PopSongsTest`; its message gives the number.
+4. Every chord outside the key needs a reason in the note, with one of the words borrowed, secondary, passing,
+   modal, chromatic or blues.
+5. Write the note about the chords and the feel only. Never write, quote or paraphrase a line of the song anywhere.
+6. Leave a song out rather than guess its key or its chords.
+
 ## Tests
 
 - `CourseTest`: 70 unique lesson ids, 3 to 6 steps, every exercise parses and every note gets a finger, no forbidden
   characters in step text, Repertoire lessons have the six-step shape and name a song that is in the library, Technique 2
   has the right step kinds, fingering counts and flat naming, every `songId` exists in `index.json`.
+- `PopSongsTest` (21 tests): the chart language, every popular song parsing with full bars, unique ids, the lyric guard,
+  the difficulty rule, the style, difficulty and four-chord minimums, chords in the key or explained, and the helpers.
 - `LibraryContentTest`: 38 bundled songs parse with both hands; each new song has more than 20 notes, a title,
   composer, licence and attribution, a spread of difficulties, at least ten seconds of music, and sections that match
   between `index.json` and the MIDI markers.

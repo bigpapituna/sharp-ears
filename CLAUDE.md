@@ -776,6 +776,13 @@ left to the integrator, fixed what the walk found and released.
   - The Family list shows "Change" on each child, which also holds Read the brief and Email the brief (the emails say
     "Family > Mia > Email").
 
+### Popular songs by chords (branch `popc`, 2026-10-21, not merged, no version bump)
+- 107 songs as chords only (engine/chords/PopSongs*.kt, docs/CONTENT.md "Popular songs by chords"): key, tempo, section
+  order and the chords of each bar, never a melody or a lyric; every style has 6 or more (holiday 5), 74 at difficulty 1
+  or 2, 31 four-chord songs; 6 CHECKED, 78 LIKELY, 23 SKETCH; songs with an unsure key or chart were left out (listed there).
+- Tests: PopSongsTest, 21 new (the structural lyric guard, beats per bar, the difficulty rule, the minimums, the helpers);
+  1313 JVM (1292 + 21), green. No `toSong` here: the player's `PopPlay.toSong` comes with the popp branch.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
