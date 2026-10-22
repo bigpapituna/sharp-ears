@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.Profiles
+import com.bigpapituna.sharpears.engine.family.Level
+import com.bigpapituna.sharpears.engine.family.Placement
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 
@@ -57,11 +60,13 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     val roster by profiles.rosterFlow.collectAsState()
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<Profile?>(null) }
+    var levelFor by remember { mutableStateOf<Profile?>(null) }              // Family > this person > Piano level (2.6)
     var deleting by remember { mutableStateOf<Pair<Profile, Int>?>(null) }      // the profile and which ask (1, then 2)
     var adding by rememberSaveable { mutableStateOf(false) }
     var briefFor by rememberSaveable { mutableStateOf<String?>(null) }       // the parent brief, opened on this child
     var emailFor by rememberSaveable { mutableStateOf<String?>(null) }       // the email settings of this child
     var newSlot by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }   // chosen at the end of the new-kid flow
+    var newCheck by remember { mutableStateOf(false) }                      // a new kid whose parent asked for "Let's hear you play"
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -75,7 +80,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             PupAvatar(p.avatar, size = 44.dp)
             Column(Modifier.weight(1f)) {
                 Text(p.name + if (p.id == roster.currentId) " (playing now)" else "", style = MaterialTheme.typography.titleSmall)
-                Text(kindLabel(p), style = MaterialTheme.typography.bodySmall, color = dim)
+                Text(kindLabel(p) + levelSuffix(p), style = MaterialTheme.typography.bodySmall, color = dim)
             }
             Text(if (expanded) "Hide" else "Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
@@ -84,6 +89,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             // grown-ups corner > Family > Mia > Email: the brief by email (ui/brief/email), behind the gate like the rest.
             if (p.isKid) TextButton(onClick = { gate.guard { emailFor = p.id } }) { Text("Email the brief") }
             TextButton(onClick = { gate.guard { renaming = p } }) { Text("Rename") }
+            TextButton(onClick = { gate.guard { levelFor = p } }) { Text("Piano level") }
             if (p.isKid) {
                 TextButton(onClick = { gate.guard { profiles.update(p.id) { it.copy(reader = !it.reader) } } }) {
                     Text(if (p.reader) "Not reading yet" else "Reads now")
@@ -118,6 +124,31 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
             confirmButton = { TextButton(enabled = Profile.cleanName(name).isNotEmpty(), onClick = { profiles.rename(p.id, name); renaming = null }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } })
     }
+    // Piano level (2.6): where the course starts for this person. Raising it passes more lessons by (marked skipped, no stars, still
+    // open); lowering it opens the ones that were only passed by. Lessons played and stars are never taken away.
+    levelFor?.let { p ->
+        var picked by remember(p.id) { mutableStateOf(if (p.isKid) p.level.forKid else p.level) }
+        AlertDialog(onDismissRequest = { levelFor = null }, title = { Text("Piano level for ${p.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Level.options(p.kind).forEach { l ->
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(picked == l, role = Role.RadioButton) { picked = l },
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.RadioButton(picked == l, onClick = null)
+                            Column {
+                                Text(if (p.isKid) l.kidLine!! else l.label, style = MaterialTheme.typography.titleSmall)
+                                if (!p.isKid) Text(l.adultLine, style = MaterialTheme.typography.bodySmall, color = dim)
+                            }
+                        }
+                    }
+                    Text(Placement.planFor(picked, p.kind, p.reader).line.let { if (picked == Level.NEVER) "The course starts at its very beginning." else it } +
+                        " Lessons already played, and their stars, are never taken away.", style = MaterialTheme.typography.bodySmall, color = dim,
+                        modifier = Modifier.padding(top = 8.dp))
+                }
+            },
+            confirmButton = { TextButton(onClick = { profiles.update(p.id) { it.copy(level = picked) }; levelFor = null }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { levelFor = null }) { Text("Cancel") } })
+    }
     deleting?.let { (p, ask) ->
         if (ask == 1) AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete ${p.name}?") },
             text = { Text("${p.name}'s progress, practice time and stickers are removed from this phone.") },
@@ -138,9 +169,10 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
                     // The weekly brief: the day and time chosen at the end of the flow (Sunday at 6 pm unless changed).
                     com.bigpapituna.sharpears.data.BriefStore(appContext, kid.id).weekly = newSlot ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
                     com.bigpapituna.sharpears.reminder.BriefReminder.schedule(appContext, kid)
+                    if (newCheck) com.bigpapituna.sharpears.data.Prefs(appContext, kid.id).placementCheckPending = true
                 }
-                newSlot = null; adding = false
-            }, onCancel = { adding = false }, onWeekly = { newSlot = it })
+                newSlot = null; newCheck = false; adding = false
+            }, onCancel = { adding = false }, onWeekly = { newSlot = it }, onCheck = { newCheck = it })
         }
     }
     // The parent brief (ui/brief): one child at a time, behind the gate (the dialog asks again if it has closed).
@@ -154,3 +186,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
         } ?: run { emailFor = null }
     }
 }
+
+/** ", Has played a bit" / ", Some" after a person's kind, once they said how much they have played (nothing for a first time). */
+private fun levelSuffix(p: Profile): String =
+    if (p.level == Level.NEVER) "" else ", " + (if (p.isKid) p.level.forKid.kidLine!! else p.level.label).replaceFirstChar { it.lowercase() }.let { if (p.isKid) it else "played $it" }

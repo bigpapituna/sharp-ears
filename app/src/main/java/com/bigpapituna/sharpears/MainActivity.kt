@@ -435,6 +435,7 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val roster by profiles.rosterFlow.collectAsState()
                     var weekly by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }
+                    var wantsCheck by remember { mutableStateOf(false) }
                     androidx.compose.runtime.CompositionLocalProvider(LocalProfiles provides profiles, LocalParentGate provides gate,
                         com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
                         ProfilePicker(roster,
@@ -447,9 +448,11 @@ class MainActivity : ComponentActivity() {
                                     com.bigpapituna.sharpears.data.BriefStore(this@MainActivity, made.id).weekly = weekly ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
                                     com.bigpapituna.sharpears.reminder.BriefReminder.schedule(this@MainActivity, made)
                                 }
+                                if (made != null && wantsCheck) Prefs(this@MainActivity, made.id).placementCheckPending = true
+                                wantsCheck = false
                                 if (made != null) openApp(fromLaunch = true)
                             },
-                            onWeekly = { weekly = it })
+                            onWeekly = { weekly = it }, onCheck = { wantsCheck = it })
                         BriefFromNotification(roster, openKid = false)
                         ParentGateHost(gate)
                     }
@@ -632,6 +635,11 @@ class MainActivity : ComponentActivity() {
         // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
         // the first Playground game (Back from it goes to the Learn path).
         val opening = when {
+            // 2.6: a parent asked for "Let's hear you play" when adding this kid: it comes before the first stone, once.
+            newKid && first == Screen.Home() && !startDaily && prefs.placementCheckPending && com.bigpapituna.sharpears.engine.family.PlacementCheck.offered(profile.level.forKid) -> {
+                prefs.placementCheckPending = false
+                Screen.Placement(profile.level.forKid)
+            }
             newKid && first == Screen.Home() && !startDaily ->
                 KidMap.next(path, prefs::lessonDone, kidStore.finales(), pace = kidStore.pace(), stars = kidStore::stars)?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
             !progress.onboardingDone && first == Screen.Home() && !startDaily -> Screen.Onboarding

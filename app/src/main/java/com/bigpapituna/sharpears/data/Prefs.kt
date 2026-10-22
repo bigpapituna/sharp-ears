@@ -145,6 +145,11 @@ class Prefs(context: Context, val profileId: String) {
         return r
     }
 
+    /** A parent asked for "Let's hear you play" for a new kid (2.6): it opens on their first start, once. */
+    var placementCheckPending: Boolean
+        get() = p.getBoolean("placementCheck", false)
+        set(v) = edit { if (v) putBoolean("placementCheck", true) else remove("placementCheck") }
+
     /** Chord games: best score (out of 10) per game and level, or -1 before the first full round. */
     fun gameBest(game: String, level: Int) = p.getInt("game:$game:$level", -1)
     /** Returns true when [score] beats the saved best. */
