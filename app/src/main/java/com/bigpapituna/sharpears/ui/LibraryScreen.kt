@@ -93,7 +93,9 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
                   /** Pup's quest (ui/play/QuestCard), under "Practice today". */
                   quest: (@Composable () -> Unit)? = null,
                   /** The play corner (ui/play/PlayRow): high up for a kid ([kid], the Jam is the app for a four-year-old), under the quest otherwise. */
-                  play: (@Composable () -> Unit)? = null, kid: Boolean = false) {
+                  play: (@Composable () -> Unit)? = null, kid: Boolean = false,
+                  /** Songs by chords (ui/chords): a grown-up's card under the play row; null for a kid or while there are no pop songs. */
+                  chordSongs: (@Composable () -> Unit)? = null) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
     val pose = when {
@@ -136,6 +138,7 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
             first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, arts[e.meta.id]) } } }
         }
         if (!kid) playItem?.invoke()
+        if (!kid) chordSongs?.let { card -> item(key = "chordsongs") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) { card() } } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
