@@ -12,9 +12,16 @@ import com.bigpapituna.sharpears.engine.chords.PopSong.Style
  *
  * Nothing here is a melody, a lyric or a recording: a key, a tempo, a section order and the chords of each bar.
  */
-val POP_SONGS: List<PopSong> by lazy { HITS_SONGS + YACHT_SONGS + EIGHTIES_SONGS + POP_HITS + COUNTRY_SONGS + FAMILY_SONGS + WORSHIP_SONGS }
+/** Every chart, the privateOnly ones included. Tests read this; the screens read [PopSongs.visible] (the app) or [POP_SONGS] (public only). */
+val ALL_POP_SONGS: List<PopSong> by lazy { HITS_SONGS + YACHT_SONGS + EIGHTIES_SONGS + POP_HITS + COUNTRY_SONGS + FAMILY_SONGS + WORSHIP_SONGS + TEMP_SONGS }
+
+/** The public songs only: no privateOnly chart. The app layer asks [PopSongs.visible] with BuildConfig.PRIVATE_BUILD instead. */
+val POP_SONGS: List<PopSong> by lazy { PopSongs.visible(ALL_POP_SONGS, privateBuild = false) }
 
 object PopSongs {
+    /** [songs] with the privateOnly ones kept only for a private build; the flag is passed in from the app layer (BuildConfig.PRIVATE_BUILD), never read here. */
+    fun visible(songs: List<PopSong>, privateBuild: Boolean): List<PopSong> = if (privateBuild) songs else songs.filter { !it.privateOnly }
+
     /** Songs whose every chord is already mastered, and songs one new chord away (with that chord). */
     data class Playable(val ready: List<PopSong>, val oneAway: List<Pair<PopSong, Chord>>)
 
@@ -144,6 +151,7 @@ internal fun parseBars(text: String, beatsPerBar: Int): List<PopBar> {
 internal fun pop(
     id: String, title: String, artist: String, year: Int, styles: List<Style>, key: String, bpm: Int, pattern: Pattern,
     difficulty: Int, confidence: PopSong.Confidence, note: String, order: String, chart: String, beatsPerBar: Int = 4,
+    privateOnly: Boolean = false,
 ): PopSong {
     try {
         val minor = key.endsWith("m")
@@ -163,7 +171,7 @@ internal fun pop(
         val unused = defs.keys - order.split(',').map { it.trim().replace(Regex("""\s+x\d+$"""), "") }.toSet()
         require(unused.isEmpty()) { "charted but not in the order: $unused" }
         return PopSong(id, title, artist, year, styles, pitch(key.removeSuffix("m")), minor, bpm, beatsPerBar, sections,
-            pattern, difficulty, confidence, note)
+            pattern, difficulty, confidence, note, privateOnly)
     } catch (e: Exception) {
         throw IllegalArgumentException("pop song $id: ${e.message}", e)
     }

@@ -1027,3 +1027,8 @@ This repo is Roy's private build (keeps personal music, debug build). The public
 - Player debug launch: adb shell am start -n com.bigpapituna.sharpears/.MainActivity --es song fur-elise --el seek <ms> --ez dump true. It logs laneNote rectangles; then: python scripts\lanecheck.py out\lane.png out\lane.log
 - Tap a control by its label: .\scripts\tap.ps1 "Wait"  (uiautomator dump; ~1 s per call). Key centers come from "keyRect <note> = x,y" log lines.
 - Lint caches its analysis; after changing a non-source file, run: .\gradlew.bat lintAnalyzeDebug --rerun lintDebug
+
+## Private songs (2.8.0, section 4 of docs/PLAN-2.8.md)
+- `secrets.properties` keys (all gitignored, all optional): `AI_KEY`, `AI_MODEL`, `AI_BASE_URL`, `EMAIL_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `EMAIL_BASE_URL`, `EMAIL_IMAGE_BASE`, `POSTHOG_KEY`, `POSTHOG_HOST`, `DIARY_TO`, and `PRIVATE_BUILD` (default false). `scripts/set-private-build.ps1` writes `PRIVATE_BUILD=true` (`-Off` for false).
+- `PopSong.privateOnly` marks a chart that must never ship publicly. `engine/chords/PopSongsTemp.kt` holds six (Michael Jackson, chords only, all SKETCH). They are in `ALL_POP_SONGS` but not in `POP_SONGS`; `ui/chords/PopCatalogue.songs` (the screens' one list) adds them only when `BuildConfig.PRIVATE_BUILD` is true, via `PopFind.visible`. The engine never reads BuildConfig.
+- Before any release: delete `PopSongsTemp.kt` and its `TEMP_SONGS` term in `PopSongs.kt`. `PopSongsTest.privateSongsMustNotShipPublic` fails in any build without PRIVATE_BUILD=true while a privateOnly song exists, so a public build fails CI until then.

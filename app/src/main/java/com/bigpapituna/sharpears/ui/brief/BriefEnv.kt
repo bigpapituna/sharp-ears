@@ -159,6 +159,6 @@ class AppTitles(context: Context) : BriefTitles {
     private val pages by lazy { PLAYGROUND_PAGES.associate { it.id to it.title } }
     private fun fallback(id: String) = id.split('-', '_').joinToString(" ").replaceFirstChar { it.uppercase() }
     override fun lesson(id: String) = lessons[id] ?: fallback(id)
-    override fun song(id: String) = songs[id] ?: com.bigpapituna.sharpears.engine.chords.PopPlay.titleOfRun(id) ?: fallback(id)
+    override fun song(id: String) = songs[id] ?: com.bigpapituna.sharpears.engine.chords.PopPlay.titleOfRun(id, com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs) ?: fallback(id)
     override fun page(id: String) = pages[id] ?: fallback(id)
 }

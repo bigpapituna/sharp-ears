@@ -18,7 +18,7 @@ import org.junit.Test
  * (the structural lyric guard among them) and the discovery helpers.
  */
 class PopSongsTest {
-    private val songs = POP_SONGS
+    private val songs = ALL_POP_SONGS     // the private charts too: they pass every content rule
 
     // ---- The chart language ----
 
@@ -211,7 +211,7 @@ class PopSongsTest {
         val easyNew = song("easy-new", "C", "C | F | G", year = 2020)
         val easyOdd = song("easy-odd", "C", "C | Bb", year = 2024)
         assertEquals(listOf(easyNew, easyOld, easyOdd, hard), PopSongs.sortedForBeginners(listOf(hard, easyOld, easyOdd, easyNew)))
-        val all = PopSongs.sortedForBeginners()
+        val all = PopSongs.sortedForBeginners(songs)
         assertEquals(songs.size, all.size)
         assertEquals(all.map { it.difficulty }.sorted(), all.map { it.difficulty })
     }

@@ -25,6 +25,8 @@ data class PopSong(
     val difficulty: Int,                 // 1 easy (three or four chords, slow) .. 4 (sevenths, quick changes, slash chords)
     val confidence: Confidence,          // how sure the content is (docs/CONTENT.md style)
     val note: String = "",               // one line a learner reads: the chords' trick, the feel
+    /** Never in a public build: shown only when BuildConfig.PRIVATE_BUILD is true; the file that holds it is deleted before release. */
+    val privateOnly: Boolean = false,
 ) {
     enum class Style { GREATEST_HITS, YACHT_ROCK, EIGHTIES_ROCK, POP, ROCK, COUNTRY, SOUL, BALLAD, KIDS, HOLIDAY, WORSHIP }
     enum class Pattern { WHOLE, HALVES, QUARTERS, BROKEN, BALLAD_ARPEGGIO, SHUFFLE, EIGHTHS_ROCK }

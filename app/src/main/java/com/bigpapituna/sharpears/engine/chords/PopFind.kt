@@ -99,6 +99,9 @@ object PopFind {
     /** Songs that use [chord] (the page of a chord can offer them). */
     fun withChord(songs: List<PopSong>, chord: Chord): List<PopSong> = songs.filter { chord in chordsOf(it) }.sortedWith(easiest)
 
+    /** [songs] without the privateOnly charts unless [privateBuild] (the app passes BuildConfig.PRIVATE_BUILD; the engine never reads it). */
+    fun visible(songs: List<PopSong>, privateBuild: Boolean): List<PopSong> = PopSongs.visible(songs, privateBuild)
+
     /** The song by id. */
     fun byId(songs: List<PopSong>, id: String): PopSong? = songs.firstOrNull { it.id == id }
 

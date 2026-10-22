@@ -50,6 +50,8 @@ android {
         buildConfigField("String", "POSTHOG_HOST", "\"${secret("POSTHOG_HOST", "https://us.i.posthog.com")}\"")
         buildConfigField("String", "DIARY_TO", "\"${secret("DIARY_TO")}\"")
         buildConfigField("boolean", "POSTHOG_SDK", "$withPostHog")
+        // Songs marked privateOnly (engine/chords/PopSongsTemp.kt) show only when secrets.properties says PRIVATE_BUILD=true (scripts/set-private-build.ps1); public by default.
+        buildConfigField("boolean", "PRIVATE_BUILD", "${secret("PRIVATE_BUILD", "false").trim().equals("true", ignoreCase = true)}")
     }
 
     buildTypes {
