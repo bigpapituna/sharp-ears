@@ -232,7 +232,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                         Level.kid.forEach { l ->
                             BigPill(l.kidLine!!, level == l, Modifier.fillMaxWidth()) { levelName = l.name; if (l == Level.NEVER) tryCheck = false }
                         }
-                        Text(Placement.planFor(level, ProfileKind.KID, reader == true).line.let { if (level == Level.NEVER) "They start at the very beginning, in the garden." else "$it Anything skipped stays open." },
+                        Text(Placement.planFor(level, ProfileKind.KID, reader == true).line.let { if (level == Level.NEVER) "They start at the very beginning, in the garden." else it },
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         // Off unless asked: a kid is not tested. The pup shows two or three tiny things and listens; nothing is marked.
                         if (level != Level.NEVER && onCheck != null) {

@@ -776,6 +776,26 @@ left to the integrator, fixed what the walk found and released.
   - The Family list shows "Change" on each child, which also holds Read the brief and Email the brief (the emails say
     "Family > Mia > Email").
 
+## 2.6 placement (2026-10-21, branch `place`, emulator-5554 only; version not bumped, the integrator does)
+Roy: "when creating a profile, ask what their current piano level is, so we don't have to show them all the introductory stuff." What the
+integrator checks (the brief's skipped lessons, the pop-chords work: none expected): ui/family/INTEGRATION-PLACEMENT.md.
+- Level and plan (engine/family/Placement.kt, Profile.level, default NEVER so old profiles are unchanged): grown-ups say Never / A little /
+  Some / A lot and start at Basics / Beginner (Basics skipped) / Intermediate (Basics, Beginner, Rhythm skipped) / Keys (everything to
+  Intermediate skipped, Learn opens at Keys, the home opens on Songs). A parent answers for a kid with three options: first time (the
+  garden), has played a bit (the pond, the garden skipped), has had lessons (the workshop; garden, pond and hall skipped except the hall's
+  recital, which stays as a "come back" stone). Skipped lessons are `lesson:<id>` + `skip:<id>` in Prefs: done for the path
+  (`lessonDone`), never for credit (`lessonPlayed`: XP, stars, stickers, finales, units complete). A real finish clears the skip.
+- "Let's hear you play" (engine/family/PlacementCheck.kt, ui/family/PlacementCheckScreen.kt; Roy's decision): never shown to NEVER; two
+  tasks for A little (find a C, C D E F G), three for Some and A lot (plus Twinkle's phrase with the band at 70 bpm); the pup demos each,
+  strict keys, let go after three tries, no score or pass/fail ever shown, Skip always in view, quitting keeps the self-report silently.
+  It counts as a first lesson (XP event, three stars, a sticker, sparkles). `suggest(selfReport, score)`: the gentler of the two, never raises.
+- Wiring: the grown-up onboarding's four-level question, then "Let's hear you play" from the "You're all set" screen; a new kid's flow asks
+  the parent (plus a "Let them try the check" pill, off by default, run on the kid's first open); Family > child > Piano level changes it
+  later (re-plans in place, never undoes stars); Learn shows a quiet "You skipped these. Open any time." band over skipped units; the kid map
+  shows skipped stones open with no stars and no finale. Debug: `--es screen placement --es said SOME [--ei task n] [--es inject synth:...]`.
+- Tests: PlacementTest, PlacementCheckTest (the plan per level and kind, the suggestion matrix, reconcile, CoursePath and KidMap after a
+  skip, profile persistence). Screenshots: app/build/screens/place-*.png (not committed).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

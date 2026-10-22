@@ -165,7 +165,7 @@ fun PlacementCheckScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = quit) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
                     Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                        Text("Let's hear you play", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                        Text("Let's hear you play", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                     }
                     Dots(tasks.size, index)
                     // Always in view: nobody has to do this.
