@@ -1205,7 +1205,8 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onAgain = { voice.stop(); screen = Screen.ArcadeRound(s.game, s.back) },
                                     onGames = { voice.stop(); screen = s.back }, onExit = { voice.stop(); screen = s.back },
-                                    debugResult = debugResult)
+                                    debugResult = debugResult,
+                                    bot = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("bot", false))
                             }
                         }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {

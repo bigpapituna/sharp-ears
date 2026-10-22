@@ -93,6 +93,8 @@ fun ArcadeGameScreen(
     game: ArcadeGame, level: Int, seed: Long, deps: LessonDeps, inject: String?, sticker: LevelSticker?,
     onRoundEnd: (RoundResult) -> RoundEnd, onAgain: () -> Unit, onGames: () -> Unit, onExit: () -> Unit,
     debugResult: RoundResult? = null,
+    /** Debug (--ez bot true): the screen plays the right keys itself, as touches, so a round can be watched and shot. */
+    bot: Boolean = false,
 ) {
     val reader = LocalProfile.current.let { !it.isKid || it.reader }
     val play = remember(game, level, seed) { ArcadePlay(ArcadePlans.round(game, level, seed), reader) }
@@ -251,6 +253,20 @@ fun ArcadeGameScreen(
     fun touch(m: Int) {
         if (deps.prefs.sound && (!listening || mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(500); deps.sampler.noteOff(m) } }
         if (phase == Phase.PLAY) key(m, "touched")
+    }
+    if (bot && phase == Phase.PLAY) LaunchedEffect(play) {
+        val pressed = HashSet<Int>()
+        while (!round.over) {
+            delay(150)
+            if (!round.listening) continue
+            val t = now()
+            val due = when (val r = round) {
+                is com.bigpapituna.sharpears.engine.arcade.StreamRound -> r.live.filter { it.id !in pressed && r.clock(t) - it.atMs > it.lifeMs * 2 / 5 }
+                is CallRound -> listOfNotNull(r.current?.takeIf { t - r.beatFrom > 700 && it.id !in pressed })
+                else -> emptyList()
+            }
+            for (target in due) { pressed += target.id; target.keys.forEach { touch(it) } }
+        }
     }
 
     SharpEarsTheme(dark = true) {
