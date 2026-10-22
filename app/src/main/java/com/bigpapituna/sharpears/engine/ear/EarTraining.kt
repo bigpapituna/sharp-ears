@@ -9,7 +9,7 @@ import com.bigpapituna.sharpears.engine.spokenPitch
 
 /*
  * Ear and rhythm training: the five games of Sharp Ears 2.0 (Learn > Ear training). Pure Kotlin, no Android.
- * Same shape as the Chords > Play games (engine/EarGames.kt): ten rounds, a seeded random, a prompt, an answer
+ * Same shape as the chord games, Games in Learn (engine/EarGames.kt): ten rounds, a seeded random, a prompt, an answer
  * check that returns a ChordGame.Answer, score and streak, and a line that says what it was.
  * Levels are 0..2 in code (the screens call them Level 1 to 3).
  */

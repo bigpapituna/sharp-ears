@@ -590,8 +590,12 @@ class MainActivity : ComponentActivity() {
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
         //   [--es mode wait|perform] [--es hands left|right] [--ez mic true] [--es inject <wav path>|synth:76,75,60+64+67@600]
         //   --es song prog:<index>:<key 0-11>   (a chord progression, e.g. prog:0:7 = I-V-vi-IV in G)
-        //   --es screen chords|settings|learn|profile [--es tab play|daily|dictionary|practice|progressions] [--es inject ...]
-        //   --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner]
+        //   2.7, the five tabs: --es screen today|songs [--es section chords]|learn|practice|you (profile)|settings
+        //   --es screen learnchords [--es tab daily|dictionary|practice] [--es inject ...]   (Learn chords; --es pack <id> starts a session there)
+        //   --es screen games [--es game build|hear|mm|int|back --ei level 0-2] [--es inject ...] | progressions
+        //   --es screen chords [--es tab play|daily|dictionary|practice|progressions|songs]   (the old Chords tab's names: each opens its new place)
+        //   --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner]   (no tab: the last tool used)
+        //   --ez welcome true   (What's new and the tour again for the profile) --ez emptyToday true (Today with nothing due)
         //   --es screen ear [--es game rhythm|melody|pitch|degree|prog --ei level 0-2 | --ez workout true]
         //   --es screen onboarding   (the first-run flow, whatever was answered before)
         //   --es screen placement [--es said A_LITTLE|SOME|A_LOT] [--ei task n] [--es inject ...]   (2.6, "Let's hear you play"; the level is not changed unless it is played through)
@@ -672,6 +676,9 @@ class MainActivity : ComponentActivity() {
                     if (intent.hasExtra("kid")) intent.getBooleanExtra("kid", false) else null, intent.getBooleanExtra("pre", false))
             }
             route == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
+            route == "today" -> Screen.Home(HomeTab.TODAY)
+            route == "songs" -> Screen.Home(HomeTab.SONGS, songs = if (intent.getStringExtra("section") == "chords") com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS
+                else com.bigpapituna.sharpears.ui.SongsSection.LIBRARY)
             route == "learn" -> Screen.Home(HomeTab.LEARN)
             route == "profile" || route == "you" -> Screen.Home(HomeTab.YOU)
             route == "onboarding" -> Screen.Onboarding
@@ -1001,7 +1008,7 @@ class MainActivity : ComponentActivity() {
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                                     // Back is "Skip the rest": the chords answered count, and the session ends here (left open,
-                                    // it took over Chords > Daily afterwards).
+                                    // it took over Learn chords afterwards).
                                     fun endChords(n: Int) {
                                         part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
                                         advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
@@ -1018,7 +1025,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     QuietWrongKeys(mic)
                                     androidx.compose.foundation.layout.Column {
-                                        Text("Practice today: chords", style = MaterialTheme.typography.titleLarge,
+                                        Text("Your plan: chords", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 20.dp, top = 20.dp))
                                         DailyChords(lessons, sampler, midi, mic, prefs.micDefault, part.itemIds, inject = debugStart.inject.takeIf { startDaily }, sound = { prefs.sound },
                                             onEnd = ::endChords)

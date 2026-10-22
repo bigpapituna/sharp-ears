@@ -103,7 +103,7 @@ object SpokenCatalog {
     }.map(::normalize).distinct()
 
     /**
-     * The chord and ear games' lines with fixed words (Chords > Play, Ear training): the prompts, the Major or minor
+     * The chord and ear games' lines with fixed words (Games, Ear training): the prompts, the Major or minor
      * verdicts, the wrong keys that name no chord tone, and the scale-degree game's keys outside the key. Build it's
      * "D is not in C major" (504 of them) and the interval answers that name both notes stay generated on the phone.
      */

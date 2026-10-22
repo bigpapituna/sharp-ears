@@ -84,7 +84,7 @@ import com.bigpapituna.sharpears.ui.practice.SlidingSegments
 import com.bigpapituna.sharpears.ui.reducedMotion
 
 /*
- * The game hubs' parts, shared by Ear training and Chords > Play so both families look alike: a grid of game
+ * The game hubs' parts, shared by Ear training and the chord Games so both families look alike: a grid of game
  * cards (an illustration, the title, a star per level mastered, a best-score ring and a round Play button), the
  * sheet a card opens (the how-to in the pup's bubble, the level picker, Play), the ear games' small animated
  * pictures and a mini keyboard for the chord games.

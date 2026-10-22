@@ -2,7 +2,7 @@ package com.bigpapituna.sharpears.engine
 
 import java.util.Random
 
-/** The three chord games on the Chords > Play tab. Each is a round of ten, answered on the piano. */
+/** The three chord games in Games (at the top of Learn since 2.7; Chords > Play before). Each is a round of ten, answered on the piano. */
 enum class GameKind(val id: String, val title: String, val howTo: String, val levels: List<String>) {
     BUILD("build", "Build it",
         "A chord name appears and its root lights up. Add the third and the fifth, in any order and any octave.",

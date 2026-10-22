@@ -84,7 +84,7 @@ fun Interstitial(line: String, voice: Voice, onGo: () -> Unit, onSkip: () -> Uni
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (part != null) Text(if (kid) "Practice today" else "Practice today, part ${index + 1} of ${parts.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
+        if (part != null) Text(if (kid) "Practice today" else "Your plan, part ${index + 1} of ${parts.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
             color = c.primary)
         Pup(Pose.GET_READY, size = 176.dp)
         UpBubble(part?.let { SessionWords.quoted(it, kid) } ?: SessionWords.quoted(line), Modifier.widthIn(max = 480.dp).semantics { heading() })

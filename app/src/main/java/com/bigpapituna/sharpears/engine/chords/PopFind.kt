@@ -5,7 +5,7 @@ import com.bigpapituna.sharpears.engine.Mastery
 
 /**
  * Finding a song by its chords (popular-song chord mode): the style chips with their counts, the sorts, "songs I can
- * play" and "one new chord away", and the count the Chords tab shows. Pure, so it is tested on the JVM; the screens only
+ * play" and "one new chord away", and the count Learn chords and the Songs tab show. Pure, so it is tested on the JVM; the screens only
  * draw what it returns, for whichever list of songs they are given (the app's is `POP_SONGS`).
  *
  * The rules themselves are the content's (engine/chords/PopSongs.kt): the chords a song needs ([PopSongs.chordsOf]), what

@@ -1000,7 +1000,7 @@ val COURSE: List<CourseLevel> by lazy { com.bigpapituna.sharpears.engine.playgro
                         chords(chord("C4 E4 G4", "Root position", build = false), chord("E4 G4 C5", "First inversion"))),
                     scene("C, E, G becomes E, G, C, then G, C, E.",
                         chords(chord("C4 E4 G4", "C E G", build = false), chord("E4 G4 C5", "E G C", build = false), chord("G4 C5 E5", "G C E", build = false), holdMs = 1300), Mood.LISTEN),
-                    scene("Inversions let the hand move less from chord to chord. The Chords tab has every chord in every inversion.",
+                    scene("Inversions let the hand move less from chord to chord. Learn chords, at the top of Learn, has every chord in every inversion.",
                         chords(chord("C4 E4 G4", "C", build = false), chord("C4 F4 A4", "F", build = false), chord("B3 D4 G4", "G", build = false),
                             chord("C4 E4 G4", "C", build = false), holdMs = 1100), Mood.POINT)),
                 listen("Listen: the same C major chord climbing through its inversions.", e),
@@ -1085,7 +1085,7 @@ val COURSE: List<CourseLevel> by lazy { com.bigpapituna.sharpears.engine.playgro
                     scene("C major 7 is C, E, G, B. D minor 7 is D, F, A, C. G7 is G, B, D, F.",
                         chords(chord("C4 E4 G4 B4", "Cmaj7", build = false), chord("D4 F4 A4 C5", "Dm7", build = false), chord("G3 B3 D4 F4", "G7", build = false), low = "E3"),
                         Mood.LISTEN, say = "C major 7 is C, E, G, B. D minor 7 is D, F, A, C. G 7 is G, B, D, F."),
-                    scene("This is the two, five, one progression. The Chords tab has it in five keys.", phrase(e), Mood.POINT)),
+                    scene("This is the two, five, one progression. Progressions, at the top of Learn, has it in five keys.", phrase(e), Mood.POINT)),
                 listen("Listen to D minor 7, G7, and C major 7.", e),
                 play("Your turn, both hands.", e),
                 memory(FROM_MEMORY, e))

@@ -76,7 +76,7 @@ private class Review(val line: GameLine, val clean: Boolean, val picked: Int?)
 /**
  * The generic screen for melody memory, perfect pitch, scale degrees and progressions. Each round: the voice says the
  * prompt (the first round, or when it changes), the sampler plays the key and the question with the mic off, then
- * the player answers with the keys (touch, MIDI, or the mic listening the way Chords > Play does), the choice
+ * the player answers with the keys (touch, MIDI, or the mic listening the way the chord Games do), the choice
  * buttons, or both. A cheer bar says what it was and holds the Continue button. [onFinished] is called once, after
  * the last round's Continue.
  */
@@ -205,7 +205,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
         env.midi.events.collect { e -> if (e is NoteEvent.On) { touched[e.midi] = RightHandColor; strike(e.midi, "midi") } else touched.remove(e.midi) }
     }
 
-    // The mic, the way Chords > Play does it: expected notes and groups for this round; strikes from before listening started do not count.
+    // The mic, the way the chord Games do it: expected notes and groups for this round; strikes from before listening started do not count.
     val visible = onScreen()
     val listen = usesKeys && micOn && visible && phase == Phase.ANSWER && !env.voice.holdsMic
     val listening by rememberUpdatedState(listen)

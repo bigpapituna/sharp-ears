@@ -71,7 +71,7 @@ private const val HIGH = 84  // C6
 /** Debug start for the games: which game and level to open straight away, and the mic injection. */
 data class GameStart(val game: GameKind? = null, val level: Int = 0, val inject: String? = null)
 
-/** Chords > Play: the game picker with best scores, or the game being played. */
+/** Games (Chords > Play before 2.7): the game picker with best scores, or the game being played. */
 @Composable
 fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean, start: GameStart) {
     var playing by remember { mutableStateOf(start.game?.let { it to start.level }) }
