@@ -776,6 +776,53 @@ left to the integrator, fixed what the walk found and released.
   - The Family list shows "Change" on each child, which also holds Read the brief and Email the brief (the emails say
     "Family > Mia > Email").
 
+## Tester analytics (branch `posthog`, 2026-10-21; emulator-5558 Fold only, version not bumped)
+Roy tests with friends and family and wants to see where testers get stuck. He gets the testers' and parents' consent
+himself, and the feature is removed before any public release. app/src/main/java/com/bigpapituna/sharpears/analytics/
+INTEGRATION.md has the details for the integrator.
+- "Help Roy test": one phone-wide switch, off by default, behind the parent gate (the kids' grown-ups corner, and Settings >
+  Family where each change asks the gate), one line: "Sends screen recordings and app events to Roy's test dashboard. No
+  sound." While on, the kids' whistle has a small accent dot. Kid profiles are recorded too: always masked, never sound, the
+  profile's kind (kid or adult) and never its name. On a debug build without a key the row shows and says nothing is sent;
+  a release without a key has no row.
+- PostHog (com.posthog:posthog-android 3.72.5) starts only on a build with POSTHOG_KEY and with the switch on (no setup at
+  all otherwise). Session replay in screenshot mode (needed for Compose), all text and images masked, no logcat, no element
+  texts, the corner, brief, email settings, names and certificate masked whole; distinct id a random device id made once
+  (tester.xml). Events: a screen per route, lesson_started/finished, stage_stuck, hint_step, song_run, toy_opened,
+  profile_kind, brief_opened, email_sent_result, ai_brief_result, error_shown, felt_off. Off after running: replay stopped and
+  opt-out, nothing flushed.
+- Build flag: the SDK dependency and src/posthog are compiled in only with POSTHOG_KEY (src/noposthog is a stub). The keyless
+  debug APK has no com/posthog class (dexdump over all 18 dex files: 0 of 22,464 classes); the merged manifest is the same with
+  or without the SDK (its AAR declares no provider, service or receiver).
+- "Email Roy a daily diary": only on a build with DIARY_TO, off by default. Once a day (20:30 to 21:30, else from 07:00 next
+  morning; never in the quiet hours or twice a day), plain text to DIARY_TO only through the brief's Brevo transport (needs
+  the email key too), by the email job's alarm. It has the device id, the version, screens with time on each, lessons and
+  stages with tries and let-gos, songs, toys, refusals and error lines, AI and email results and every "Something felt off"
+  note (a button in the corner and in Family while a switch is on). People are "kid p1", never a name; no address.
+- Phone-wide, never backed up: tester.xml and files/tester/diary.log. Privacy page "Testing" paragraph, the first and
+  Internet paragraphs, and docs/privacy-policy.md only on a build with a key or a diary address (PostHog, 30 days, kids
+  recorded, no sound); the onboarding line says it only while a switch is on.
+- Fixed on the way: EmailJob read no play in a process the alarm woke with no screen (Briefs.init was only in MainActivity).
+- Roy's setup: 1. posthog.com, sign up (free plan), create a project (US or EU cloud), Settings > Project > Project API key
+  (phc_...). In Settings > Session replay turn "Record user sessions" on; under Data retention keep 30 days. 2.
+  `.\scripts\set-posthog-key.ps1` (the key at the hidden prompt; `-ApiHost https://eu.i.posthog.com` for EU; it also asks for
+  the diary address, Roy's own). The diary needs the Brevo key too (`.\scripts\set-email-key.ps1`). 3. `.\gradlew.bat
+  installDebug` to each test phone (never paste the key in chat). 4. On the phone: the kids' whistle (or Settings > Family) >
+  the gate > Help Roy test on; the dot shows. 5. Replays: PostHog > Session replay (a few minutes after a session, on
+  Wi-Fi or data); events in Activity; filter by `profile_kind`. 6. End of the beta: turn the switch off on each phone,
+  `.\scripts\set-posthog-key.ps1 -Remove`, rebuild, and in PostHog Settings > Project > Danger zone, Delete project (that
+  deletes every recording and event); rotate nothing else.
+- Tests: 1319 JVM (1292 before, 27 new: TesterRulesTest 10, DiaryTest 5, TesterTest 7, TesterWiringTest 5, plus the backup
+  rule lines), green. Lint 0 errors (28 warnings as before).
+- Emulator walk (5558 Fold, keyless debug over 2.5's data): as Mia, the whistle, the gate, the corner's Testing rows (no diary
+  row: no DIARY_TO), Help Roy test on (log `tester: help Roy test on`), the whistle's dot, "Something felt off" kept with
+  `home:SONGS`, the dot still there after a reinstall and restart, a stone's lesson and back logged as screens with `away`;
+  as Roy, Settings > Family's Testing rows, the switch asking the gate and turning off. No posthog file in the app's storage,
+  no posthog line from the app in logcat, no device id made, crash buffer empty. Screenshots: app/build/screens/ph-*.png.
+- Open: nothing ran against PostHog or Brevo (no keys here): Roy checks a replay's masking on his first session (text and
+  pictures should be grey boxes). hint_step comes at a stage's end, not per hint. PostHog's own prefs file is named after the
+  key, so the backup rules cannot list it (it holds SDK ids only). The log copy reads the app's own logcat, best effort.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
