@@ -91,6 +91,12 @@ internal fun GardenField(play: ArcadePlay, modifier: Modifier) {
             return Offset(x, y) to scale
         }
         val stemMax = size.height * 0.42f
+        // The row of seeds waiting their turn: a little mound each.
+        for (k in maxOf(doneLines, current + 1) until slots) {
+            val (base, scale) = slot(k)
+            drawOval(Color(0xFF5E3C26), Offset(base.x - 22f * scale, base.y - 8f * scale), Size(44f * scale, 16f * scale))
+            drawOval(Color(0xFFC9A26B), Offset(base.x - 6f * scale, base.y - 12f * scale), Size(12f * scale, 8f * scale))
+        }
         // Back row first, then the front.
         val count = maxOf(doneLines, current + 1)
         val order = (0 until count).sortedBy { -((it / slots) % 2) }
@@ -120,7 +126,7 @@ internal fun GardenField(play: ArcadePlay, modifier: Modifier) {
 /** A flower at [base]: its stem grown [grown] of the walk's notes up to [height], a leaf a note, a bud, then [bloom] 0..1 open. */
 private fun DrawScope.flower(base: Offset, height: Float, line: Line, grown: Int, bloom: Float, play: ArcadePlay, now: Long, scale: Float) {
     val n = line.targets.size.coerceAtLeast(1)
-    val h = height * (0.15f + 0.85f * grown / n)
+    val h = height * (0.25f + 0.75f * grown / n)
     val sway = sin(now / 700.0).toFloat() * 4f * scale * (if (bloom > 0f) 1f else 0.4f)
     val top = Offset(base.x + sway, base.y - h)
     drawLine(Color(0xFF4E9A4A), base, top, 6f * scale, cap = StrokeCap.Round)
@@ -210,13 +216,15 @@ internal fun TowerField(play: ArcadePlay, modifier: Modifier) {
                 block(Offset(cx + off, y), bw, bh, t.key, play, measurer)
             }
         }
-        // The next block, hovering with its beat ring.
+        // A wooden base for the tower.
+        drawRoundRect(Color(0xFF9A6B45), Offset(cx - bw * 0.75f, y0 - bh * 0.25f), Size(bw * 1.5f, bh * 0.4f), CornerRadius(bh * 0.1f))
+        // The next block, hovering with its beat ring (shown during the pup's demo too).
         val next = r.current
-        if (next != null && r.phase == CallRound.Phase.LISTEN) {
+        if (next != null && (r.phase == CallRound.Phase.LISTEN || r.phase == CallRound.Phase.DEMO)) {
             val c = Offset(cx, y0 - (blocks.size + 1) * bh - bh * 1.4f + sin(now / 260.0).toFloat() * bh * 0.08f)
             if (next.key in play.lit) drawCircle(Brush.radialGradient(listOf(keyColour(next.key).copy(alpha = 0.6f), Color.Transparent), c, bw), bw, c)
             block(c - Offset(0f, bh / 2), bw, bh, next.key, play, measurer)
-            val left = 1f - ((now - r.beatFrom).toFloat() / r.beatMs).coerceIn(0f, 1f)
+            val left = if (r.phase == CallRound.Phase.DEMO) 1f else 1f - ((now - r.beatFrom).toFloat() / r.beatMs).coerceIn(0f, 1f)
             drawArc(PupGold, -90f, 360f * left, false, c - Offset(bw * 0.7f, bw * 0.7f), Size(bw * 1.4f, bw * 1.4f), style = Stroke(5f, cap = StrokeCap.Round))
         }
         play.events.lastOrNull { it.kind == FxKind.LET_GO }?.let { e ->

@@ -130,12 +130,19 @@ internal fun FeedField(play: ArcadePlay, modifier: Modifier) {
         Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Treats flying past the pup: play each treat's key to feed him." }) {
             val now = play.now
             if (night) sky(Color(0xFF2C3557), Color(0xFF5A4E7A)) else sky(Color(0xFFFFE3B8), Color(0xFFFFF6E6))
-            // A picnic blanket under the pup.
-            val blanketY = size.height * 0.82f
-            grass(blanketY, if (night) Color(0xFF3F6B45) else Color(0xFF9BD17C), if (night) Color(0xFF2A4A30) else Color(0xFF6DB35D))
-            val cell = size.width / 14
-            for (i in 0 until 7) for (j in 0 until 2) if ((i + j) % 2 == 0)
-                drawRect(Color(0xFFE5484D).copy(alpha = 0.75f), Offset(cell * i, blanketY + cell * 0.5f * j), Size(cell, cell * 0.5f))
+            drawCircle(if (night) Color(0xFFF4F0D8) else PupGold, size.minDimension * 0.07f, Offset(size.width * 0.85f, size.height * 0.1f))
+            for (i in 0 until 2) {
+                val x = ((now / 50f + i * size.width / 1.8f) % (size.width + 240f)) - 120f
+                cloud(Offset(x, size.height * (0.2f + 0.14f * i)), size.width * 0.11f, Color.White.copy(alpha = if (night) 0.25f else 0.85f))
+            }
+            // A picnic blanket under the pup: red gingham.
+            val blanketY = size.height * 0.84f
+            grass(blanketY - size.height * 0.04f, if (night) Color(0xFF3F6B45) else Color(0xFF9BD17C), if (night) Color(0xFF2A4A30) else Color(0xFF6DB35D))
+            val bw = size.width * 0.5f; val bh = size.height * 0.12f; val bx = size.width * 0.02f
+            drawRoundRect(Color(0xFFFFF4EC), Offset(bx, blanketY), Size(bw, bh), CornerRadius(10f))
+            val cell = bw / 8
+            for (i in 0 until 8) drawRect(Color(0xFFE5484D).copy(alpha = 0.55f), Offset(bx + cell * i + cell * 0.25f, blanketY), Size(cell * 0.5f, bh))
+            for (j in 0 until 3) drawRect(Color(0xFFE5484D).copy(alpha = 0.45f), Offset(bx, blanketY + bh * (j + 0.3f) / 3f), Size(bw, bh * 0.14f))
             val mouth = Offset(pupSize.toPx() * 0.62f, size.height - pupSize.toPx() * 0.62f)
             val r = minOf(size.width / 14f, size.height / 11f)
             fun position(t: Target, at: Long): Offset {
@@ -201,10 +208,10 @@ internal fun MoleField(play: ArcadePlay, modifier: Modifier, onKey: (Int) -> Uni
     val night = isSystemInDarkTheme()
     val still = reducedMotion()
     val (low, high) = remember(play.round) { keyRange(play.round.keys) }
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    val geo = remember(size, low, high) { if (size.width == 0) null else PianoGeometry(low, high, size.width.toFloat(), size.height * 0.56f, size.height * 0.44f) }
+    var area by remember { mutableStateOf(IntSize.Zero) }
+    val geo = remember(area, low, high) { if (area.width == 0) null else PianoGeometry(low, high, area.width.toFloat(), area.height * 0.44f, area.height * 0.56f) }
     val classes = remember(play.round) { play.round.keys.map { it % 12 }.toSet() }
-    Canvas(modifier.onSizeChanged { size = it }.semantics { contentDescription = "Moles peeking out of the keys: play the key a mole is on." }
+    Canvas(modifier.onSizeChanged { area = it }.semantics { contentDescription = "Moles peeking out of the keys: play the key a mole is on." }
         .pointerInput(geo) {
             val g = geo ?: return@pointerInput
             awaitEachGesture {
@@ -216,7 +223,15 @@ internal fun MoleField(play: ArcadePlay, modifier: Modifier, onKey: (Int) -> Uni
         val g = geo ?: return@Canvas
         val now = play.now
         if (night) sky(Color(0xFF243554), Color(0xFF3E5C4A)) else sky(Color(0xFFA8DCF7), Color(0xFFDFF3D9))
-        grass(g.top - size.height * 0.2f, if (night) Color(0xFF3F6B45) else Color(0xFF9BD17C), if (night) Color(0xFF2A4A30) else Color(0xFF6DB35D))
+        drawCircle(if (night) Color(0xFFF4F0D8) else PupGold, size.minDimension * 0.06f, Offset(size.width * 0.86f, size.height * 0.09f))
+        cloud(Offset(((now / 60f) % (size.width + 200f)) - 100f, size.height * 0.12f), size.width * 0.1f, Color.White.copy(alpha = if (night) 0.25f else 0.85f))
+        grass(g.top - size.height * 0.3f, if (night) Color(0xFF3F6B45) else Color(0xFF9BD17C), if (night) Color(0xFF2A4A30) else Color(0xFF6DB35D))
+        // A few flowers on the lawn.
+        for (i in 0 until 7) {
+            val fx = size.width * (0.07f + 0.14f * i); val fy = g.top - size.height * (0.2f + 0.04f * (i % 3))
+            drawLine(Color(0xFF4E9A4A), Offset(fx, fy), Offset(fx, fy + 18f), 3f)
+            drawCircle(keyColour(listOf(60, 64, 67, 69, 62, 71, 65)[i]), 8f, Offset(fx, fy))
+        }
         val sounding = play.demoIndex?.let { play.demoKeys.getOrNull(it) }
         val level = play.round.level
         piano(g, fill = { m -> when {

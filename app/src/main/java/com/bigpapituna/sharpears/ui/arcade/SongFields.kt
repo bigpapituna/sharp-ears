@@ -165,12 +165,15 @@ internal fun PainterField(play: ArcadePlay, modifier: Modifier) {
             // The picture, then paper over every tile not painted yet.
             inset(left, top, size.width - left - cw, size.height - top - ch) { painting(song.picture) }
             val newest = play.events.lastOrNull { it.kind == FxKind.HIT || it.kind == FxKind.LET_GO }
-            for (k in 0 until cols * rows) {
+            val tiles = cols * rows
+            for (k in 0 until tiles) {
                 val tile = order[k]
                 val o = Offset(left + (tile % cols) * tw, top + (tile / cols) * th)
-                val t = targets.getOrNull(k)
+                // The notes spread over every tile (a few notes paint two), so the middle shows only at the song's end.
+                val t = targets.getOrNull(k * n / tiles)
                 val state = t?.let { play.played[it.id] }
                 val reveal = when {
+                    r.over -> 1f
                     t == null -> 1f
                     state == null -> 0f
                     newest?.target?.id == t.id -> play.age(newest.at, 450) ?: 1f
@@ -183,8 +186,8 @@ internal fun PainterField(play: ArcadePlay, modifier: Modifier) {
             // A smudge on the next patch after a slip, wiped away.
             play.events.lastOrNull { it.kind == FxKind.SLIP }?.let { e ->
                 play.age(e.at, 1_200)?.let { p ->
-                    val k = r.hits + r.helped
-                    if (k < cols * rows) {
+                    val k = ((r.hits + r.helped) * tiles + n - 1) / n
+                    if (k < tiles) {
                         val tile = order[k]
                         val c = Offset(left + (tile % cols + 0.5f) * tw, top + (tile / cols + 0.5f) * th)
                         drawCircle(Color(0xFF6E6A66).copy(alpha = 0.55f * (1f - p)), minOf(tw, th) * 0.6f, c)

@@ -103,6 +103,8 @@ fun ArcadeGameScreen(
     val mic = deps.mic
     fun now() = SystemClock.uptimeMillis()
     val endNow by rememberUpdatedState(onRoundEnd)
+    // The caller makes new deps as the sampler gets ready: read the latest (a cold start opens a round before it is).
+    val depsNow = rememberUpdatedState(deps)
 
     fun say(text: String) { play.show(text); if (phase == Phase.PLAY) voice.speakOverMic(text) else voice.speak(text, interrupt = true) }
 
@@ -207,7 +209,7 @@ fun ArcadeGameScreen(
     // The round: the intro said (and the song named), then the demo, then the frame clock till it ends.
     LaunchedEffect(play) {
         if (debugResult != null) { play.result = debugResult; play.end = endNow(debugResult); return@LaunchedEffect }
-        snapshotFlow { deps.ready }.first { it }
+        snapshotFlow { depsNow.value.ready }.first { it }
         val intro = ArcadeLines.intro(game, reader, level)
         play.show(intro); voice.speak(intro, interrupt = true)
         if (game == ArcadeGame.FIREWORKS || game == ArcadeGame.PAINTER) { delay(300); voice.speak(ArcadeLines.song(ArcadeSongs.of(level))) }
@@ -257,11 +259,11 @@ fun ArcadeGameScreen(
             val spec = remember(game) { GameSpec.of(game) }
             Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ExitPill(onExit)
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides com.bigpapituna.sharpears.ui.Ink) { ExitPill(onExit) }
                     Spacer(Modifier.width(12.dp))
                     RoundClock({ if (phase == Phase.INTRO) 0f else round.progress(play.now) }, Modifier.weight(1f).height(40.dp))
                 }
-                val line = rememberFleeting(play.lineSeq, play.line, ms = 2_400)
+                val line = rememberFleeting(play.lineSeq, play.line, ms = 2_400) ?: if (play.demoKeys.isNotEmpty()) ArcadeLines.WATCH else null
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (!spec.pupInField) {
                         PaintedPup(play.pose, size = (roomH * 0.1f).coerceIn(52.dp, 84.dp), poke = play.fx.poke)
