@@ -80,12 +80,15 @@ data class PlacementPlan(
     /** "Begin at Beginner. Basics stays open." / "Begin at Basics." (a kid: "Begin at the pond. The garden stays open.") */
     val line: String get() = "Begin at $startTitle." + openLine().let { if (it.isEmpty()) "" else " $it" }
 
-    /** "Basics stays open." / "Basics and Beginner stay open." / "" */
+    /**
+     * "Basics stays open." / "Basics and Beginner stay open." / "" (a kid: "The garden, the pond and the concert hall stay
+     * open.": only the sentence's first word is capitalised).
+     */
     fun openLine(): String = when (openTitles.size) {
         0 -> ""
         1 -> "${openTitles[0]} stays open."
         else -> "${openTitles.dropLast(1).joinToString(", ")} and ${openTitles.last()} stay open."
-    }
+    }.replaceFirstChar { it.uppercase() }
 }
 
 object Placement {
@@ -141,7 +144,7 @@ object Placement {
             homeFirst = HomeFirst.COURSE,
             learnOpensAt = startPage.levelId,
             startTitle = KidPages.inSentence(startPage),
-            openTitles = before.map { KidPages.inSentence(it).replaceFirstChar { c -> c.uppercase() } },
+            openTitles = before.map { KidPages.inSentence(it) },
         )
     }
 

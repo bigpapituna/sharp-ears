@@ -77,6 +77,8 @@ class PlacementTest {
         assertEquals(listOf(hall.last()), p.comeBackLessonIds)
         assertEquals(page("garden") + page("pond") + hall.dropLast(1), p.skipLessonIds)
         assertFalse(hall.last() in p.skipLessonIds)
+        // Only the sentence's first word is capitalised ("The pond" read "The garden, The pond and ..." before 2.6.0).
+        assertEquals("Begin at the workshop. The garden, the pond and the concert hall stay open.", p.line)
         assertEquals(listOf("playground", "playground-pond"), p.skipUnitIds)
     }
 

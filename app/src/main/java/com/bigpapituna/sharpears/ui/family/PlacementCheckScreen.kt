@@ -153,7 +153,8 @@ fun PlacementCheckScreen(
         if (finished && suggestion != null) {
             Log.d(TAG, "placement: began at ${suggestion.level} (said ${suggestion.said}, ${suggestion.score} of ${tasks.size})")
             Celebration(
-                title = "Lovely playing!", line = suggestion.line, stats = emptyList(),
+                // The pup's line already starts "Lovely playing." when the check agrees: the title does not say it twice.
+                title = if (suggestion.agrees) "Thanks for playing!" else "Lovely playing!", line = suggestion.line, stats = emptyList(),
                 primary = finishLabel, onPrimary = { onDone(suggestion.level, true) },
                 sampler = sampler.takeIf { scratch.sound },
                 reward = rewardShown?.let { rw -> { LessonDrop(rw, stars = 3, sampler = sampler.takeIf { scratch.sound }, say = { voice.speak(it) }) } },

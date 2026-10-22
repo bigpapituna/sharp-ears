@@ -1076,8 +1076,10 @@ class MainActivity : ComponentActivity() {
                                 inject = s.inject, startTask = s.startTask,
                                 onDone = { begin, played ->
                                     Log.d(TAG, "placement: ${profile.id} begins at $begin (check ${if (played) "played" else "skipped"})")
-                                    if (begin != profiles.current.level) profiles.update(profile.id) { it.copy(level = begin) }
-                                    val after = com.bigpapituna.sharpears.engine.family.Placement.planFor(begin, profile.kind, profile.reader)
+                                    // Only a check played through moves the level: skipped or left, the level said stays (it is already
+                                    // stored by the onboarding or the new-kid flow; the debug route's said level is never stored).
+                                    if (played && begin != profiles.current.level) profiles.update(profile.id) { it.copy(level = begin) }
+                                    val after = com.bigpapituna.sharpears.engine.family.Placement.planFor(if (played) begin else profiles.current.level, profile.kind, profile.reader)
                                     screen = if (profile.isKid) Screen.Home()
                                     else if (after.homeFirst == com.bigpapituna.sharpears.engine.family.HomeFirst.SONGS) Screen.Home(HomeTab.SONGS)
                                     else COURSE.flatMap { it.lessons }.firstOrNull { it.id == after.startLessonId }?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home(HomeTab.LEARN)
