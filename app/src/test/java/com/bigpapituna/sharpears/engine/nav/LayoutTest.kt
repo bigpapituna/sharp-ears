@@ -175,6 +175,18 @@ class LayoutTest {
         assertTrue(PracticePart.entries.all { Simple.practiceShows(it, f) })
     }
 
+    // ---- My songs ----
+
+    /** My songs is the learner's own list (2.8.1): it and its Add button show in Simple, Advanced and Full alike, with no "Show more". */
+    @Test fun mySongsAndItsAddButtonShowInEveryLayout() {
+        val rows = mapOf(                         //    Simple, Advanced, Full
+            Simple.SongsPart.MY_SONGS to listOf(true, true, true),
+            Simple.SongsPart.ADD_SONG to listOf(true, true, true),
+        )
+        assertEquals(Simple.SongsPart.entries.toSet(), rows.keys)
+        for ((p, want) in rows) for ((i, l) in Layout.entries.withIndex()) assertEquals("$p in $l", want[i], Simple.songsShows(p, l))
+    }
+
     // ---- Learn ----
 
     @Test fun learnKeepsThePathAndShowsTheSideRowsFromAdvanced() {

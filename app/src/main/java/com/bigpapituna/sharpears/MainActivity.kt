@@ -818,6 +818,9 @@ class MainActivity : ComponentActivity() {
                     var libraryVersion by remember { mutableIntStateOf(0) }       // bumps after an import
                     var importError by remember { mutableStateOf<String?>(null) }
                     var importInto by remember { mutableStateOf<SongMeta?>(null) }
+                    // My songs (2.8.1): a picked file waiting in the title dialog, or the kind line it was refused with.
+                    var mySongDraft by remember { mutableStateOf<com.bigpapituna.sharpears.ui.MySongDraft?>(null) }
+                    var mySongRefused by remember { mutableStateOf<String?>(null) }
                     // "Practice today" just finished: parts done, minutes, days in a row, for the celebration.
                     var dailyDone by remember { mutableStateOf<Triple<Int, Long, Int>?>(null) }
                     val scope = rememberCoroutineScope()
@@ -981,6 +984,26 @@ class MainActivity : ComponentActivity() {
                                 Log.d(TAG, "import failed: ${e.message}"); importError = e.message
                             } catch (e: Exception) {
                                 Log.d(TAG, "import failed: $e"); importError = "Import failed: ${e.message}"
+                            }
+                        }
+                    }
+
+                    // My songs (2.8.1): the picked file's bytes are read once (the URI is never kept) and read for the title
+                    // dialog; nothing is saved until Add (engine/MySongs.kt makes it easy, data/SongRepository.kt keeps it).
+                    val pickMySong = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                        if (uri == null) return@rememberLauncherForActivityResult
+                        scope.launch {
+                            try {
+                                val draft = withContext(Dispatchers.IO) {
+                                    val (bytes, name) = repo.readPicked(uri)
+                                    com.bigpapituna.sharpears.ui.MySongDraft(bytes, com.bigpapituna.sharpears.engine.MySongs.scan(bytes, name))
+                                }
+                                Log.d(TAG, "my songs: picked ${draft.bytes.size} bytes, tune ${draft.scan.melodyNotes} notes, left hand ${draft.scan.leftNotes} notes")
+                                mySongDraft = draft
+                            } catch (e: com.bigpapituna.sharpears.engine.MySongs.Refused) {
+                                Log.d(TAG, "my songs: refused, ${e.problem}"); mySongRefused = e.problem.line
+                            } catch (e: Exception) {
+                                Log.d(TAG, "my songs: pick failed, $e"); mySongRefused = com.bigpapituna.sharpears.engine.MySongs.Problem.UNREADABLE.line
                             }
                         }
                     }
@@ -1447,6 +1470,8 @@ class MainActivity : ComponentActivity() {
                                             LibraryActions(
                                                 onOpen = { openSong(it, back = s) },
                                                 onImport = { into -> importInto = into; pickMidi.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "application/octet-stream", "*/*")) },
+                                                // My songs: MIDI first, any file as the fallback (some file apps call a .mid a plain file).
+                                                onAdd = { pickMySong.launch(arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "*/*")) },
                                                 onRename = { m, title -> repo.rename(m, title); Log.d(TAG, "song ${m.id} renamed"); libraryVersion++ },
                                                 onDelete = { m ->
                                                     repo.delete(m)
@@ -1667,6 +1692,26 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(msg) { com.bigpapituna.sharpears.analytics.Tester.error("song import") }
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
                             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
+                    }
+                    // My songs: the title dialog (title, Melody only or Both hands), then the song joins the list.
+                    mySongDraft?.let { d ->
+                        com.bigpapituna.sharpears.ui.MySongDialog(d, onAdd = { title, both ->
+                            mySongDraft = null
+                            scope.launch {
+                                try {
+                                    val m = withContext(Dispatchers.IO) { repo.addMine(d.bytes, d.scan.title, title, both) }
+                                    Log.d(TAG, "my songs: added ${m.id} both=${m.bothHands}")
+                                    progress.record(ProgressEvent.FeatureUsed("import"))
+                                    libraryVersion++
+                                } catch (e: Exception) {
+                                    Log.d(TAG, "my songs: save failed, $e"); mySongRefused = com.bigpapituna.sharpears.engine.MySongs.Words.SAVE_FAILED
+                                }
+                            }
+                        }, onCancel = { mySongDraft = null; Log.d(TAG, "my songs: add cancelled") })
+                    }
+                    mySongRefused?.let { line ->
+                        AlertDialog(onDismissRequest = { mySongRefused = null }, title = { Text(com.bigpapituna.sharpears.engine.MySongs.Words.REFUSED_TITLE) },
+                            text = { Text(line) }, confirmButton = { TextButton(onClick = { mySongRefused = null }) { Text("OK") } })
                     }
                     // Level-ups and achievement toasts, last so they sit on top. Not on the stage: a level-up waits until
                     // the song is over (the store keeps it pending), so it never interrupts playing.

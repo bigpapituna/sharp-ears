@@ -2,6 +2,28 @@ package com.bigpapituna.sharpears.engine
 
 class MidiFormatException(message: String) : Exception(message)
 
+/** One note as the file has it: its track, channel (0..15; 9 is General MIDI's drums) and ticks. */
+data class SmfNote(val track: Int, val channel: Int, val key: Int, val velocity: Int, val startTick: Long, val endTick: Long)
+
+/**
+ * A file as read, before any hand or timing rule ([SmfParser.read]): ticks per quarter, the tempo map (tick to microseconds
+ * per quarter, sorted, starting at tick 0), the time signature, the key signature's flats (null when the file has none),
+ * every note, each track's name (meta 0x03; absent when the track has none) and the markers.
+ */
+class SmfData(
+    val ppq: Int,
+    val tempos: List<Pair<Long, Int>>,
+    val timeSignature: Pair<Int, Int>,
+    val flats: Boolean?,
+    val notes: List<SmfNote>,
+    val trackNames: Map<Int, String>,
+    val markers: List<Pair<Long, String>>,
+) {
+    private val clock = SmfParser.TempoClock(tempos, ppq)
+    /** [tick] in milliseconds through the tempo map. */
+    fun ms(tick: Long): Long = clock.ms(tick)
+}
+
 /**
  * Minimal Standard MIDI File reader: formats 0 and 1, PPQ timing, running status,
  * note on/off (velocity 0 = off), tempo map, time signature, key signature (flats or not), track names, markers.
@@ -9,10 +31,35 @@ class MidiFormatException(message: String) : Exception(message)
  */
 object SmfParser {
 
-    private class RawNote(val track: Int, val key: Int, val velocity: Int, val startTick: Long, val endTick: Long)
-    private class Marker(val tick: Long, val name: String)
-
     fun parse(bytes: ByteArray, id: String, title: String, rule: HandRule = HandRule.Auto): Song {
+        val data = read(bytes)
+        val noteTracks = data.notes.map { it.track }.distinct().sorted()
+        val hands = { n: SmfNote ->
+            when (rule) {
+                is HandRule.Tracks -> if (n.track == rule.left) Hand.LEFT else Hand.RIGHT
+                HandRule.MiddleCSplit -> split(n.key)
+                HandRule.Auto ->
+                    if (noteTracks.size >= 2) (if (n.track == noteTracks[1]) Hand.LEFT else Hand.RIGHT)
+                    else split(n.key)
+            }
+        }
+        val songNotes = data.notes.map {
+            val start = data.ms(it.startTick)
+            Note(it.key, start, (data.ms(it.endTick) - start).coerceAtLeast(1), hands(it), it.velocity)
+        }.sortedWith(compareBy({ it.startMs }, { it.midi }))
+
+        val durationMs = songNotes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
+        // ponytail: sections come from marker events only; deriving sections from bars waits until a song needs it
+        val marks = data.markers
+        val sections = marks.mapIndexed { i, m ->
+            Section(m.second, data.ms(m.first), marks.getOrNull(i + 1)?.let { data.ms(it.first) } ?: durationMs)
+        }
+        return Song(id, title, 60_000_000.0 / data.tempos.first().second, data.timeSignature,
+            songNotes, groupOnsets(songNotes), sections, durationMs, preferFlats = data.flats == true)
+    }
+
+    /** The file's notes, tempo map, signatures, track names and markers, with nothing decided yet ([parse] decides the hands). */
+    fun read(bytes: ByteArray): SmfData {
         val r = Reader(bytes)
         if (r.ascii(4) != "MThd") throw MidiFormatException("not a MIDI file")
         val headerLen = r.u32()
@@ -25,11 +72,12 @@ object SmfParser {
         if (division and 0x8000 != 0) throw MidiFormatException("SMPTE timing not supported")
         if (division == 0) throw MidiFormatException("no ticks per quarter note")
 
-        val notes = mutableListOf<RawNote>()
+        val notes = mutableListOf<SmfNote>()
         val tempos = mutableListOf(0L to 500_000)   // (tick, microseconds per quarter)
-        val markers = mutableListOf<Marker>()
+        val markers = mutableListOf<Pair<Long, String>>()
+        val names = HashMap<Int, String>()
         var timeSig = 4 to 4
-        var flats = false
+        var flats: Boolean? = null
         var track = 0
         while (track < trackCount && r.remaining() >= 8) {
             val type = r.ascii(4)
@@ -37,7 +85,8 @@ object SmfParser {
             if (len < 0 || len > r.remaining()) throw MidiFormatException("track $track truncated")   // < 0: a length past 2 GB
             val end = r.pos + len
             if (type != "MTrk") { r.skip(len); continue }   // unknown chunk
-            readTrack(r, end, track, notes, tempos, markers, { flats = it }) { timeSig = it }
+            val t = track
+            readTrack(r, end, track, notes, tempos, markers, { flats = it }, { timeSig = it }) { if (t !in names) names[t] = it }
             r.pos = end
             track++
         }
@@ -45,44 +94,22 @@ object SmfParser {
 
         // Later events at the same tick win, so a tempo at tick 0 replaces the 120 bpm default.
         val tempoMap = tempos.groupBy { it.first }.map { it.value.last() }.sortedBy { it.first }
-        val clock = TempoClock(tempoMap, division)
-        val noteTracks = notes.map { it.track }.distinct().sorted()
-        val hands = { n: RawNote ->
-            when (rule) {
-                is HandRule.Tracks -> if (n.track == rule.left) Hand.LEFT else Hand.RIGHT
-                HandRule.MiddleCSplit -> split(n.key)
-                HandRule.Auto ->
-                    if (noteTracks.size >= 2) (if (n.track == noteTracks[1]) Hand.LEFT else Hand.RIGHT)
-                    else split(n.key)
-            }
-        }
-        val songNotes = notes.map {
-            val start = clock.ms(it.startTick)
-            Note(it.key, start, (clock.ms(it.endTick) - start).coerceAtLeast(1), hands(it), it.velocity)
-        }.sortedWith(compareBy({ it.startMs }, { it.midi }))
-
-        val durationMs = songNotes.maxOfOrNull { it.startMs + it.durationMs } ?: 0L
-        // ponytail: sections come from marker events only; deriving sections from bars waits until a song needs it
-        val marks = markers.sortedBy { it.tick }
-        val sections = marks.mapIndexed { i, m ->
-            Section(m.name, clock.ms(m.tick), marks.getOrNull(i + 1)?.let { clock.ms(it.tick) } ?: durationMs)
-        }
-        return Song(id, title, 60_000_000.0 / tempoMap.first().second, timeSig,
-            songNotes, groupOnsets(songNotes), sections, durationMs, preferFlats = flats)
+        return SmfData(division, tempoMap, timeSig, flats, notes, names, markers.sortedBy { it.first })
     }
 
     private fun split(key: Int) = if (key >= MIDDLE_C) Hand.RIGHT else Hand.LEFT
 
     private fun readTrack(
-        r: Reader, end: Int, track: Int, notes: MutableList<RawNote>,
-        tempos: MutableList<Pair<Long, Int>>, markers: MutableList<Marker>, onFlats: (Boolean) -> Unit, onTimeSig: (Pair<Int, Int>) -> Unit,
+        r: Reader, end: Int, track: Int, notes: MutableList<SmfNote>,
+        tempos: MutableList<Pair<Long, Int>>, markers: MutableList<Pair<Long, String>>, onFlats: (Boolean) -> Unit, onTimeSig: (Pair<Int, Int>) -> Unit,
+        onName: (String) -> Unit,
     ) {
         var tick = 0L
         var running = 0
         val open = HashMap<Int, ArrayDeque<Pair<Long, Int>>>()   // (channel shl 8 or key) -> FIFO of (startTick, velocity)
         fun close(channel: Int, key: Int) {
             val start = open[(channel shl 8) or key]?.removeFirstOrNull() ?: return
-            notes += RawNote(track, key, start.second, start.first, tick)
+            notes += SmfNote(track, channel, key, start.second, start.first, tick)
         }
         while (r.pos < end) {
             tick += r.vlq()
@@ -102,7 +129,8 @@ object SmfParser {
                         0x58 -> if (len >= 2) onTimeSig(data[0].toInt() to (1 shl data[1].toInt()))
                         // Key signature: sf is a signed count of sharps (positive) or flats (negative).
                         0x59 -> if (len >= 1) onFlats(data[0] < 0)
-                        0x06 -> markers += Marker(tick, String(data, Charsets.ISO_8859_1))
+                        0x06 -> markers += tick to String(data, Charsets.ISO_8859_1)
+                        0x03 -> onName(String(data, Charsets.ISO_8859_1))
                     }
                     running = 0
                 }
@@ -129,7 +157,7 @@ object SmfParser {
     }
 
     /** Converts ticks to milliseconds through the tempo map. */
-    private class TempoClock(private val tempos: List<Pair<Long, Int>>, private val ppq: Int) {
+    internal class TempoClock(private val tempos: List<Pair<Long, Int>>, private val ppq: Int) {
         private val startMs = DoubleArray(tempos.size).also {
             for (i in 1 until tempos.size)
                 it[i] = it[i - 1] + (tempos[i].first - tempos[i - 1].first) * tempos[i - 1].second / 1000.0 / ppq

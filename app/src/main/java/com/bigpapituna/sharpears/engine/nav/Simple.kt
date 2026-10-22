@@ -102,6 +102,16 @@ object Simple {
     fun popSongs(all: List<PopSong>, layout: Layout): List<PopSong> =
         if (layout == Layout.SIMPLE) all.filter { PopSongs.isFourChord(it) || it.difficulty == 1 } else all
 
+    // ---- My songs ----
+
+    /** The library's own list (2.8.1): My songs, and its "Add a song from a file". */
+    enum class SongsPart { MY_SONGS, ADD_SONG }
+
+    /** The layouts each part shows in: all three, since My songs is the learner's own list (never cut, no "Show more"). */
+    val SONGS_PARTS: Map<SongsPart, Set<Layout>> = SongsPart.entries.associateWith { Layout.entries.toSet() }
+
+    fun songsShows(part: SongsPart, layout: Layout): Boolean = layout in SONGS_PARTS.getValue(part)
+
     /** The patterns a song page offers in Simple: one chord a bar, or two. */
     val PATTERNS: List<PopSong.Pattern> = listOf(PopSong.Pattern.WHOLE, PopSong.Pattern.HALVES)
 

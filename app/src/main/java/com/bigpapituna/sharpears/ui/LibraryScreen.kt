@@ -2,7 +2,9 @@ package com.bigpapituna.sharpears.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +49,9 @@ import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.SongMeta
 import com.bigpapituna.sharpears.data.SongProgress
+import com.bigpapituna.sharpears.engine.MySongs
 import com.bigpapituna.sharpears.engine.SongArt
+import com.bigpapituna.sharpears.engine.nav.Simple
 import com.bigpapituna.sharpears.ui.chords.popBrowseItems
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
@@ -63,6 +67,8 @@ class LibraryActions(
     /** An imported song's menu: a new title (its scores stay), or its file removed from this phone. */
     val onRename: (SongMeta, String) -> Unit = { _, _ -> },
     val onDelete: (SongMeta) -> Unit = {},
+    /** My songs' "Add a song from a file" (2.8.1): the picker, then the title dialog. */
+    val onAdd: () -> Unit = {},
 )
 
 private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "Hard")
@@ -80,8 +86,8 @@ class PopSection(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong
 
 /**
  * The Songs tab (2.7): everything playable in one place. The Play corner at the top (just for fun), then one switch between
- * the library (Start here on a fresh install, plain rows grouped by difficulty, your imported songs with rename and delete)
- * and songs by chords ([pop]). [played] says whether any song was opened yet: until then the library starts with an easy
+ * the library (Start here on a fresh install, My songs with Add a song from a file, rename and delete, then plain rows
+ * grouped by difficulty) and songs by chords ([pop]). [played] says whether any song was opened yet: until then the library starts with an easy
  * first song. Today is the home since 2.7; its Continue and plan used to sit here.
  */
 @Composable
@@ -124,27 +130,37 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
         }
         // Nothing played yet: an easy first song first.
         first?.let { e -> item(key = "start") { StartHereRow(e, a, arts[e.meta.id]) } }
+        // My songs (2.8.1): the songs the learner added from files (and the older imports), in every layout.
+        if (Simple.songsShows(Simple.SongsPart.MY_SONGS, layout)) {
+            val mine = entries.filter { it.meta.mine } + entries.filter { it.meta.user }      // newest added first, then older imports
+            item(key = "h-mine") { GroupHeader(MySongs.Words.SECTION, mine, stars = 0) }
+            if (mine.none { it.available }) item(key = "mine-empty") {
+                Text(MySongs.Words.EMPTY, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp))
+            }
+            items(mine, key = { it.meta.id }) { SongRow(it, a, arts[it.meta.id]) }
+            if (Simple.songsShows(Simple.SongsPart.ADD_SONG, layout)) item(key = "mine-add") { AddSongButton(a) }
+        }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
             item(key = "h-$key") { GroupHeader(label, group, stars = SongArt.stars(key)) }
             items(group, key = { it.meta.id }) { SongRow(it, a, arts[it.meta.id]) }
         }
-        val yours = entries.filter { it.meta.user }
-        item(key = "h-yours") { GroupHeader("Your songs", yours, stars = 0) }
-        items(yours, key = { it.meta.id }) { SongRow(it, a, arts[it.meta.id]) }
-        item(key = "import") {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp)) {
-                TextButton(onClick = { a.onImport(null) }) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.size(8.dp))
-                    Text("Import a MIDI file")
-                }
-                Text("Files stay on this phone. Two tracks become the two hands; one track splits at middle C.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp).widthIn(max = 480.dp))
-            }
+    }
+}
+
+/** My songs' one button: pick a MIDI file (the title dialog follows), and where the file stays. */
+@Composable
+private fun AddSongButton(a: LibraryActions) {
+    Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp)) {
+        TextButton(onClick = a.onAdd) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.size(8.dp))
+            Text(MySongs.Words.ADD)
         }
+        Text(MySongs.Words.NOTE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp).widthIn(max = 480.dp))
     }
 }
 
@@ -186,15 +202,25 @@ private fun GroupHeader(label: String, group: List<LibraryEntry>, stars: Int) {
     }
 }
 
-/** One song: its tile, title, composer (or the bar to work on), difficulty and length, then where it stands. */
+/**
+ * One song: its tile, title, composer (or the bar to work on; My songs: its hands), difficulty and length, then where it
+ * stands. A song of your own (My songs, an older import) has a menu: its overflow button, or a long press on the row.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongRow(e: LibraryEntry, a: LibraryActions, art: SongArt?) {
     val m = e.meta
+    // An imported song could be neither renamed nor removed (a wrong import stayed for good).
+    val ownMenu = (m.user && e.available && m.difficulty == "imported") || m.mine
+    var menu by remember { mutableStateOf(false) }
     Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 76.dp).pressScale()
                 .clip(RoundedCornerShape(16.dp))
-                .clickable { if (e.available) a.onOpen(m) else a.onImport(m) }
+                .combinedClickable(onLongClick = if (ownMenu) ({ menu = true }) else null,
+                    onLongClickLabel = if (ownMenu) "Rename or delete" else null) {
+                    when { e.available -> a.onOpen(m); m.mine -> a.onAdd(); else -> a.onImport(m) }
+                }
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -202,7 +228,12 @@ private fun SongRow(e: LibraryEntry, a: LibraryActions, art: SongArt?) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(m.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val trouble = e.progress.troubleBar
-                Text(when { !e.available -> "Import its MIDI file to unlock"; trouble != null -> "Work on bar $trouble"; else -> m.composer.ifEmpty { "Imported" } },
+                Text(when {
+                        !e.available -> "Import its MIDI file to unlock"
+                        trouble != null -> "Work on bar $trouble"
+                        m.mine -> if (m.bothHands) MySongs.Words.BOTH_HANDS else MySongs.Words.MELODY_ONLY
+                        else -> m.composer.ifEmpty { "Imported" }
+                    },
                     style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (e.available && trouble != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (e.available) SongFacts(m.difficulty, art?.durationMs, Modifier.padding(top = 2.dp))
@@ -215,36 +246,34 @@ private fun SongRow(e: LibraryEntry, a: LibraryActions, art: SongArt?) {
                 }
             }
             Status(e)
-            // An imported song could be neither renamed nor removed (a wrong import stayed for good).
-            if (m.user && e.available && m.difficulty == "imported") SongMenu(m, a)
+            if (ownMenu) SongMenu(m, a, menu) { menu = it }
         }
     }
 }
 
-/** An imported song's own menu: rename it, or delete its file from this phone (asked first). */
+/** A song of your own's menu ([open], from its button or a long press): rename it, or delete its file from this phone (asked once). */
 @Composable
-private fun SongMenu(m: SongMeta, a: LibraryActions) {
-    var open by remember { mutableStateOf(false) }
+private fun SongMenu(m: SongMeta, a: LibraryActions, open: Boolean, onOpen: (Boolean) -> Unit) {
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) {
+        IconButton(onClick = { onOpen(true) }) {
             Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More for ${m.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        DropdownMenu(open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Rename") }, onClick = { open = false; renaming = true })
-            DropdownMenuItem(text = { Text("Delete") }, onClick = { open = false; deleting = true })
+        DropdownMenu(open, onDismissRequest = { onOpen(false) }) {
+            DropdownMenuItem(text = { Text("Rename") }, onClick = { onOpen(false); renaming = true })
+            DropdownMenuItem(text = { Text("Delete") }, onClick = { onOpen(false); deleting = true })
         }
     }
     if (renaming) {
         var title by remember { mutableStateOf(m.title) }
         AlertDialog(onDismissRequest = { renaming = false }, title = { Text("Rename ${m.title}") },
-            text = { OutlinedTextField(title, { title = it.take(80) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            text = { OutlinedTextField(title, { title = it.take(MySongs.TITLE_MAX) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = { TextButton(enabled = title.isNotBlank(), onClick = { a.onRename(m, title.trim()); renaming = false }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } })
     }
     if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text("Delete ${m.title}?") },
-        text = { Text("Its file is removed from this phone. You can import it again any time.") },
+        text = { Text(if (m.mine) MySongs.Words.DELETE_LINE else "Its file is removed from this phone. You can import it again any time.") },
         confirmButton = { TextButton(onClick = { a.onDelete(m); deleting = false }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { deleting = false }) { Text("Keep") } })
 }

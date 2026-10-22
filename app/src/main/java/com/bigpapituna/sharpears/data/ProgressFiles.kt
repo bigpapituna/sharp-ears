@@ -21,9 +21,13 @@ import com.bigpapituna.sharpears.engine.family.Roster
  * The parent brief's event logs are files, not preferences (files/events/<profileId>.log, data/EventLog.kt): the backup
  * carries them beside the files ("events", engine/ProgressBackup.kt) and an import puts them back ([replace]); deleting a
  * profile deletes its log (Profiles.delete). [LOGS] names them for the coverage test.
+ *
+ * My songs (2.8.1, "mysongs", phone-wide like "mic") hold each song's title, hands and bytes, so a backup carries the
+ * songs a learner added and an import writes their files back (data/SongRepository.kt).
  */
 object ProgressFiles {
-    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin", "kid", "brief", "email")
+    val NAMES = listOf("progress", "mastery", "mic", "profile", "ear", "practice", "theory", "world", "play", "skin", "kid", "brief", "email",
+        SongRepository.MINE_FILE)
 
     /** Per-profile data kept as files under the app's files folder rather than preferences: backed up and deleted too. */
     val LOGS = listOf(EventLog.DIR)

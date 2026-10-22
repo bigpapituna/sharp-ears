@@ -41,14 +41,35 @@ class ProgressFilesCoverageTest {
      * come back from it and are deleted with their profile.
      */
     @Test fun thePerProfileLogsAreBackedUpRestoredAndDeletedWithTheirProfile() {
-        val folders = sources.flatMap { f -> Regex("""File\(context\.filesDir, "([a-z]+)"""").findAll(f.readText()).map { it.groupValues[1] }.toList() }.toSet()
-        assertEquals(setOf("runs", "user", "kokoro"), folders)
+        val folders = sources.flatMap { f -> Regex("""File\(context\.filesDir, "([a-z-]+)"""").findAll(f.readText()).map { it.groupValues[1] }.toList() }.toSet()
+        assertEquals(setOf("runs", "user", "kokoro", "songs-import"), folders)
         assertEquals(listOf(EventLog.DIR), ProgressFiles.LOGS)
         fun source(name: String) = sources.first { it.name == name }.readText()
         val files = source("ProgressFiles.kt")
         assertTrue("export carries the logs", Regex("""Briefs\.exportLogs\(""").containsMatchIn(files) && files.contains("ProgressBackup.encode(files, events)"))
         assertTrue("import restores them", files.contains("Briefs.restoreLogs(context, backup.events"))
         assertTrue("deleting a profile deletes its log", Regex("""fun delete\(id: String\)[\s\S]*?Briefs\.forget\(app, id\)""").containsMatchIn(source("Profiles.kt")))
+    }
+
+    /**
+     * My songs (2.8.1): the list is one phone-wide file (the phone's shelf, like the older imports in files/user), so the
+     * progress export carries it and an import writes it back; it holds each song's bytes too, so a restored phone gets the
+     * files under files/songs-import back (SongRepository.mine). Deleting a profile leaves it.
+     */
+    @Test fun mySongsAreSharedBackedUpAndCarryTheirFiles() {
+        assertEquals("mysongs", SongRepository.MINE_FILE)
+        assertTrue(SongRepository.MINE_FILE in ProgressFiles.NAMES && SongRepository.MINE_FILE in ProfileFiles.SHARED)
+        assertTrue(SongRepository.MINE_FILE in ProfileFiles.backupFiles(ProgressFiles.NAMES, listOf("owner", "p2")))
+        assertTrue(SongRepository.MINE_FILE !in ProfileFiles.filesOf("p2", ProgressFiles.NAMES))
+        assertEquals("songs-import", SongRepository.MINE_DIR)
+        val repo = sources.first { it.name == "SongRepository.kt" }.readText()
+        assertTrue("the list keeps the bytes", repo.contains("putString(KEY_BYTES + id, java.util.Base64.getEncoder().encodeToString(bytes))"))
+        assertTrue("the list is written before the file",
+            Regex("""minePrefs\.edit\(commit = true\)[\s\S]{0,200}?File\(context\.filesDir, meta\.file\)\.writeBytes\(bytes\)""").containsMatchIn(repo))
+        assertTrue("a missing file is written back", Regex("""fun mine\(\)[\s\S]*?Base64\.getDecoder\(\)\.decode\(data\)""").containsMatchIn(repo))
+        // Deleting removes the copy too, before the file (a listed song whose file is missing gets it written back).
+        assertTrue("deleting removes the copy first",
+            Regex("""remove\(KEY_BYTES \+ meta\.id\) }\s*File\(context\.filesDir, meta\.file\)\.delete\(\)""").containsMatchIn(repo))
     }
 
     /**

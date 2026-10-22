@@ -18,7 +18,8 @@ class LayoutWiringTest {
         val rules = mapOf(
             "ui/ChordsScreen.kt" to listOf("Simple.packs(", "Simple.chords(", "Simple.progressions(", "LayoutMore(", "Place.LEARN_CHORDS", "Place.PROGRESSIONS"),
             "ui/ChordGamesScreen.kt" to listOf("Simple.games(", "LayoutMore(", "Place.GAMES"),
-            "ui/LibraryScreen.kt" to listOf("Simple.popSongs(", "LayoutMore(", "Place.SONGS_BY_CHORDS"),
+            "ui/LibraryScreen.kt" to listOf("Simple.popSongs(", "LayoutMore(", "Place.SONGS_BY_CHORDS",
+                "Simple.songsShows(Simple.SongsPart.MY_SONGS, layout)", "Simple.songsShows(Simple.SongsPart.ADD_SONG, layout)"),
             "ui/chords/PopSongPage.kt" to listOf("Simple.patterns("),
             "ui/practice/PracticeScreen.kt" to listOf("Simple.practiceShows(", "Simple.SCALE_ROOTS", "LayoutMore(", "Place.PRACTICE"),
             "ui/practice/WarmupsScreen.kt" to listOf("Simple.warmups("),

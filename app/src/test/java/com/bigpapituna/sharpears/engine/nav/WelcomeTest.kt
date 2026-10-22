@@ -45,6 +45,13 @@ class WelcomeTest {
         assertEquals(listOf("a", "b", "c"), Welcome.whatsNew("x", mapOf("x" to listOf("a", "b", "c", "d"))))
     }
 
+    /** 2.8.1 says one thing: My songs. */
+    @Test fun whatsNewIn281IsMySongs() {
+        val lines = Welcome.whatsNew("2.8.1")
+        assertEquals(1, lines.size)
+        assertTrue(lines.single().startsWith("My songs"))
+    }
+
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
         assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
         assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })

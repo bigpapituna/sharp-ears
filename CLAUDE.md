@@ -1079,6 +1079,42 @@ docs/PLAN-2.8.md section 1. Roy: "the address is for the parent, not the child. 
   section's "Open email settings" asks it; Family > Lea without "Email the brief"; the parent brief's Email opening the same
   page. Logcat: no crash, no "@" in the app's lines. Screenshots: app/build/screens/email1-*.png (not committed).
   Another agent was driving 5558 at the same time (installs at 15:43 and 15:53); a walk there may meet the other branch's APK.
+## 2.8.1 My songs (2026-10-22, branch `midi-import`, versionCode 20; emulator-5558 Fold only, not on Roy's phone yet)
+Roy: pop songs (Michael Jackson first) as easy melodies to play; the app ships nobody's melody, so the learner brings a .mid
+and the app makes it a lesson-grade song.
+- Songs > Library opens on **My songs** (after Start here): the songs added from files, then the older imports (files/user,
+  Alicia). "Add a song from a file" (SAF OpenDocument: audio/midi, audio/x-midi, audio/mid, application/x-midi, then */*);
+  the bytes are read once (at most 512 KB, `MySongs.MAX_BYTES`) and the URI is never kept. A file that is no song gets a kind
+  line ("That file did not work": not MIDI, no notes, only drums, too big, could not open). Then the title dialog
+  (ui/MySongDialog.kt): the title the file suggests (editable), "The tune has N notes.", and when a left hand was found
+  Melody only (default) or Both hands. Rows: hands as the subtitle, overflow or long press for Rename and Delete (one
+  confirmation). Every layout shows the section and its button (`Simple.songsShows`, `SongsPart`).
+- Easy mode, engine/MySongs.kt (pure, MySongsTest): the tune is the (track, channel) line, channel 10 never, that moves
+  between pitches most and sits highest (score: moves over the most moves plus mean pitch over the spread, at least 12); a
+  track named Melody, Vocal, Voice, Lead (not a choir, pad or bass) wins outright; notes under half a 16th go; starts snap to
+  the nearest 16th, one note a 16th (the top; the left hand's bottom), a note starting more than a 16th under a held one
+  goes, each note ends where the next begins; the line moves by octaves into G3..C6 (left C2..B3) leaving the fewest
+  outside and nearest F4 (left C3), the rest fold in; the left hand is the lowest other line at least 5 semitones under the
+  tune; an intro without the tune is cut to the bar the tune starts in; one steady tempo, the file's main one, capped at
+  100 bpm (Twinkle, Ode to Joy and Mary's tempo); no sections. Title: the conductor's (or only track's) name when it reads
+  as one, else the file name (slugs as words, capitals when it had none, " - " as a comma). Id: the suggested title's
+  letters and 6 hex of the bytes' SHA-256 ("fur-elise-1c12c2"), so the same file again replaces itself and keeps its stars.
+- Storage (data/SongRepository.kt): files/songs-import/<id>.mid plus the phone-wide preference file "mysongs" (ProgressFiles
+  .NAMES and ProfileFiles.SHARED): the list as MiniJson and each song's bytes in base64, so the progress export carries the
+  songs and an import writes missing files back (`mine()`). `all()` holds them, so the player, Continue, Today's plan,
+  stars, trouble bars, stickers and the brief's titles need nothing new. SmfParser gained `read()` (SmfData: notes with
+  track and channel, track names, tempo map) under `parse()`.
+- What's new 2.8.1 (one line). Tests: MySongsTest (a made-up two-track file built in the test, Twinkle through whole, the
+  ranges and tempo against the built-in songs), MySongsWiringTest, LayoutTest and LayoutWiringTest rows,
+  ProgressFilesCoverageTest (songs-import, mysongs), ProfilesStoreTest, WelcomeTest.
+- Emulator (5558 Fold, over Roy's data, Simple): fur-elise.mid pushed to Download and added through the picker (413 tune
+  notes of 517, 328 left), played in Listen and to the end in Wait by touch (three stars, a sticker, the brief's SongRun
+  under the new id), My week names "Fur Elise", rename, delete (file and copy gone), added again with Both hands (the
+  stars came back), a JSON file refused, the section in Advanced and Full, dark mode. Screenshots:
+  app/build/screens/mysongs-*.png (not committed).
+- Open: My songs is the phone's shelf (every grown-up on the phone sees it, like the older imports), not per profile.
+  A restore from a backup made before 2.8.1 clears the list (restore replaces every shared file); its files stay as
+  orphans. The tile art cache keeps the first art when a song is added again with other hands.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

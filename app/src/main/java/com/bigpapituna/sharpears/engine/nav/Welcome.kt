@@ -32,6 +32,9 @@ object Welcome {
             "One email place: your address and each child's daily or weekly brief live in Settings, under Briefs and email.",
             "The games roll three new keys each round once a game's first round is done.",
         ),
+        "2.8.1" to listOf(
+            "My songs, at the top of Songs, takes a MIDI file of a song you love and makes its tune easy to play.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

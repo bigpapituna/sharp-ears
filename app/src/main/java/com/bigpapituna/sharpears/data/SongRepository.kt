@@ -3,9 +3,13 @@ package com.bigpapituna.sharpears.data
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.engine.HandRule
+import com.bigpapituna.sharpears.engine.MiniJson
+import com.bigpapituna.sharpears.engine.MySongs
 import com.bigpapituna.sharpears.engine.SmfParser
 import com.bigpapituna.sharpears.engine.Song
+import com.bigpapituna.sharpears.engine.family.Profile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -15,7 +19,7 @@ data class Video(val id: String, val title: String, val channel: String, val che
 
 data class SongMeta(
     val id: String,
-    /** Asset path under songs/, or "user/<name>.mid" for a file imported into the app's storage. */
+    /** Asset path under songs/, "user/<name>.mid" for a file imported into the app's storage, or "songs-import/<id>.mid" for My songs. */
     val file: String,
     val title: String,
     val composer: String,
@@ -26,21 +30,32 @@ data class SongMeta(
     val videos: List<Video> = emptyList(),
     /** The other arrangement of the same piece ("fur-elise" and "fur-elise-easy" name each other). */
     val pairWith: String? = null,
+    /** My songs: the left hand is kept as well as the tune (the title dialog's Both hands). */
+    val bothHands: Boolean = false,
 ) {
     /** This one is the easy arrangement of its pair. */
     val easy get() = id.endsWith("-easy")
     val user get() = file.startsWith("user/")
+    /** A song the learner added from a file (My songs, 2.8.1), played as its easy version (engine/MySongs.kt). */
+    val mine get() = file.startsWith("${SongRepository.MINE_DIR}/")
 }
 
 class ImportException(message: String) : Exception(message)
 
 /**
- * Bundled songs (assets/songs/index.json) plus imported ones (files/user/index.json). The bundled index may
- * name a user file (Alicia): it shows in the library as "import to unlock" until that file exists.
+ * Bundled songs (assets/songs/index.json) plus imported ones (files/user/index.json) plus My songs (2.8.1). The bundled
+ * index may name a user file (Alicia): it shows in the library as "import to unlock" until that file exists.
+ *
+ * My songs: the bytes of the file the learner picked, copied to files/songs-import/<id>.mid (the picker's URI is never
+ * kept), and the list in the phone-wide preference file [MINE_FILE] (in ProgressFiles.NAMES and ProfileFiles.SHARED):
+ * each song's title and hands, and a copy of its bytes, so the progress export carries the songs themselves and an import
+ * on another phone writes their files back ([mine]). The song is made easy when it loads (engine/MySongs.kt).
  */
 class SongRepository(private val context: Context) {
     private val userDir = File(context.filesDir, "user").apply { mkdirs() }
     private val userIndex = File(userDir, "index.json")
+    private val mineDir = File(context.filesDir, "songs-import")
+    private val minePrefs get() = context.getSharedPreferences(ProgressFiles.fileFor(MINE_FILE, Profile.OWNER_ID), Context.MODE_PRIVATE)
 
     val bundled: List<SongMeta> by lazy {
         parseIndex(context.assets.open("songs/index.json").bufferedReader().use { it.readText() })
@@ -50,14 +65,64 @@ class SongRepository(private val context: Context) {
     fun imported(): List<SongMeta> = if (!userIndex.exists()) emptyList() else runCatching { parseIndex(userIndex.readText()) }
         .getOrElse { android.util.Log.d(com.bigpapituna.sharpears.TAG, "imported songs: index unreadable, ignored ($it)"); emptyList() }
 
-    fun all() = bundled + imported().filter { u -> bundled.none { it.id == u.id } }
+    fun all() = (bundled + imported().filter { u -> bundled.none { it.id == u.id } }).let { b -> b + mine().filter { m -> b.none { it.id == m.id } } }
 
-    fun available(meta: SongMeta) = !meta.user || File(context.filesDir, meta.file).exists()
+    fun available(meta: SongMeta) = !(meta.user || meta.mine) || File(context.filesDir, meta.file).exists()
 
     fun load(meta: SongMeta): Song {
+        if (meta.mine) return MySongs.song(File(context.filesDir, meta.file).readBytes(), meta.id, meta.title, meta.bothHands)
         val bytes = if (meta.user) File(context.filesDir, meta.file).readBytes()
                     else context.assets.open("songs/${meta.file}").use { it.readBytes() }
         return SmfParser.parse(bytes, meta.id, meta.title, meta.hands)
+    }
+
+    // ---- My songs (2.8.1) ----
+
+    /** My songs, newest first. A song whose file is missing (a progress import from another phone) gets it back from the list's copy. */
+    fun mine(): List<SongMeta> {
+        val p = minePrefs
+        val list = runCatching { parseMine(p.getString(KEY_MINE, null)) }
+            .getOrElse { android.util.Log.d(com.bigpapituna.sharpears.TAG, "my songs: list unreadable, ignored ($it)"); emptyList() }
+        for (m in list) {
+            val f = File(context.filesDir, m.file)
+            if (f.exists()) continue
+            val data = p.getString(KEY_BYTES + m.id, null) ?: continue
+            runCatching { mineDir.mkdirs(); f.writeBytes(java.util.Base64.getDecoder().decode(data)) }
+                .onSuccess { android.util.Log.d(com.bigpapituna.sharpears.TAG, "my songs: ${m.id} file written back from the list") }
+        }
+        return list
+    }
+
+    /**
+     * Reads a picked file for the title dialog: at most [MySongs.MAX_BYTES] (and one byte more, to tell a bigger file),
+     * never keeping the URI. Throws [MySongs.Refused] with the kind line. Returns the bytes and the file's name.
+     */
+    fun readPicked(uri: Uri): Pair<ByteArray, String?> {
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { s ->
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(16 * 1024)
+                while (out.size() <= MySongs.MAX_BYTES) { val n = s.read(buf); if (n < 0) break; out.write(buf, 0, n) }
+                out.toByteArray()
+            }
+        }.getOrNull() ?: throw MySongs.Refused(MySongs.Problem.UNREADABLE)
+        if (bytes.size > MySongs.MAX_BYTES) throw MySongs.Refused(MySongs.Problem.TOO_BIG)
+        return bytes to runCatching { displayName(uri) }.getOrNull()
+    }
+
+    /**
+     * Adds [bytes] to My songs as [title] ([suggested]: the title the file itself suggested, which names its id). The same
+     * file again replaces its entry and keeps its id, so its stars stay. The list first (with its copy of the bytes), then
+     * files/songs-import/<id>.mid.
+     */
+    fun addMine(bytes: ByteArray, suggested: String, title: String, bothHands: Boolean): SongMeta {
+        val id = MySongs.idFor(suggested, bytes)
+        val meta = mineMeta(id, title.trim().take(MySongs.TITLE_MAX).ifBlank { suggested }, bothHands)
+        val list = listOf(meta) + mine().filter { it.id != id }
+        minePrefs.edit(commit = true) { putString(KEY_MINE, mineJson(list)); putString(KEY_BYTES + id, java.util.Base64.getEncoder().encodeToString(bytes)) }
+        mineDir.mkdirs()
+        File(context.filesDir, meta.file).writeBytes(bytes)
+        return meta
     }
 
     /**
@@ -80,12 +145,25 @@ class SongRepository(private val context: Context) {
         return meta
     }
 
-    /** A new title for an imported song; its id, file and scores stay. */
+    /** A new title for an imported song or one of My songs; its id, file and scores stay. */
     fun rename(meta: SongMeta, title: String) {
+        if (meta.mine) {
+            val list = mine().map { if (it.id == meta.id) it.copy(title = title.trim().take(MySongs.TITLE_MAX)) else it }
+            minePrefs.edit { putString(KEY_MINE, mineJson(list)) }
+            return
+        }
         if (imported().any { it.id == meta.id }) writeUserIndex(imported().map { if (it.id == meta.id) it.copy(title = title) else it })
     }
 
+    /** Removes an imported song's file and entry (My songs: its copy in the list too). Its scores stay, for when it comes back. */
     fun delete(meta: SongMeta) {
+        if (meta.mine) {
+            // The list first (with its copy of the bytes), then the file: mine() would write a listed song's missing file back.
+            val list = mine().filter { it.id != meta.id }
+            minePrefs.edit(commit = true) { putString(KEY_MINE, mineJson(list)); remove(KEY_BYTES + meta.id) }
+            File(context.filesDir, meta.file).delete()
+            return
+        }
         File(context.filesDir, meta.file).delete()
         if (imported().any { it.id == meta.id }) writeUserIndex(imported().filter { it.id != meta.id })
     }
@@ -103,6 +181,33 @@ class SongRepository(private val context: Context) {
         }
 
     companion object {
+        /** My songs' folder under files/, and its list's preference file (phone-wide; ProgressFiles.NAMES and ProfileFiles.SHARED). */
+        const val MINE_DIR = "songs-import"
+        const val MINE_FILE = "mysongs"
+        private const val KEY_MINE = "songs"
+        private const val KEY_BYTES = "mid:"
+
+        fun mineMeta(id: String, title: String, bothHands: Boolean) = SongMeta(
+            id = id, file = "$MINE_DIR/$id.mid", title = title, composer = "", difficulty = "mine", hands = HandRule.Auto,
+            license = "personal use, not bundled", attribution = "Added from your device", bothHands = bothHands,
+        )
+
+        /** My songs' list as stored: [{"id", "title", "both"}], newest first (engine/MiniJson, so it is tested on the JVM). */
+        fun mineJson(list: List<SongMeta>): String =
+            MiniJson.write(list.map { linkedMapOf("id" to it.id, "title" to it.title, "both" to it.bothHands) })
+
+        /** The stored list back; an entry without an id or title, or whose id could name another path, is skipped. */
+        fun parseMine(json: String?): List<SongMeta> {
+            if (json.isNullOrEmpty()) return emptyList()
+            return (MiniJson.read(json) as? List<*>).orEmpty().mapNotNull { e ->
+                val m = e as? Map<*, *> ?: return@mapNotNull null
+                val id = (m["id"] as? String)?.takeIf { MINE_ID.matches(it) } ?: return@mapNotNull null
+                mineMeta(id, m["title"] as? String ?: return@mapNotNull null, m["both"] == true)
+            }
+        }
+
+        private val MINE_ID = Regex("[a-z0-9-]{1,48}")
+
         /**
          * The id of a song imported from a file called [name]: "user-" and its letters and digits. A name with none of
          * them (all Chinese, Arabic, emoji) gets a code from the name, so two such songs never replace each other.
