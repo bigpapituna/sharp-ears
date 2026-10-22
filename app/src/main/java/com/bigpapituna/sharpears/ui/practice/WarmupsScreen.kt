@@ -87,7 +87,9 @@ private fun minutesWords(seconds: Double): String {
 private val LEVELS = listOf("Easy", "Medium", "Hard")
 
 @Composable
-internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit) {
+internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit,
+                           /** Simple mode (2.7): one warm-up (engine/nav/Simple.kt), no routine to build. */
+                           simple: Boolean = false, foot: @Composable () -> Unit = {}) {
     var minutes by remember { mutableIntStateOf(store.int("warmup.minutes", 10).let { if (it in listOf(5, 10, 15)) it else 10 }) }
     var level by remember { mutableIntStateOf(store.int("warmup.level", 1).coerceIn(1, 3)) }
     var seed by rememberSaveable { mutableIntStateOf(store.int("warmup.seed", 0)) }
@@ -106,6 +108,30 @@ internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> U
         onOpen(w.at(bpm), w.title)
     }
 
+    if (simple) {
+        // One warm-up: the first of the catalogue, in C, at its usual tempo.
+        val w = remember { com.bigpapituna.sharpears.engine.nav.Simple.warmups(warmupCatalog(0)).first() }
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            PupLine(Pose.GET_READY, "One warm-up to wake the fingers before you play.")
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PatternPreview(remember(w.id) { warmupPreview(w) }, clock, Modifier.size(width = 84.dp, height = 44.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(w.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                        Text(w.description, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                    }
+                }
+                ChunkyButton(onClick = { open(w, w.defaultBpm) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start")
+                }
+            }
+            foot()
+        }
+        return
+    }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PupLine(Pose.GET_READY, routineIntro(minutes, routine))
@@ -154,6 +180,7 @@ internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> U
     }
         // The key picker scrolls edge to edge, so the list sits outside the padding.
         WarmupCatalog(catalog, browseRoot, { browseRoot = it; store.putInt("warmup.root", it) }, store, clock, ::open)
+        foot()
     }
 }
 

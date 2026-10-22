@@ -13,7 +13,8 @@ object Welcome {
     val TOUR = listOf(
         Card("Today is your plan", "One card holds today's chords, lesson and song. Press Start and it walks you through them.", NavTab.TODAY),
         Card("Songs is everything you can play", "Your library, songs by chords with the band, and the Play corner at the top.", NavTab.SONGS),
-        Card("Learn is the road, with chords at the top", "Learn chords, Games and Progressions sit above the course path.", NavTab.LEARN),
+        Card("Learn is the road, with chords at the top",
+            "Learn chords, Games and Progressions sit above the course path. Simple shows each place's first steps, Advanced shows it all.", NavTab.LEARN),
     )
 
     const val MAX_LINES = 3
@@ -22,8 +23,8 @@ object Welcome {
     val WHATS_NEW: Map<String, List<String>> = mapOf(
         "2.7.0" to listOf(
             "Today is the new home: your plan for the day with one Start.",
-            "Songs holds the library, songs by chords and the Play corner.",
-            "Chords moved to the top of Learn. The metronome and tuner are under Tools in Practice.",
+            "Songs holds everything you can play. Chords sit at the top of Learn, the metronome and tuner under Tools.",
+            "Simple mode shows each place's first steps. Advanced, on Today, You or in Settings, shows it all.",
         ),
     )
 

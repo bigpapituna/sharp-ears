@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.engine.nav.Simple
 import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Practice
 import com.bigpapituna.sharpears.engine.Section
@@ -88,6 +89,11 @@ data class BarState(
     val duet: String? = null,
     /** A kid plays (audit 2026-10-20): no times, loop, speed, chord names, metronome, flag or transpose. */
     val kid: Boolean = false,
+    /**
+     * Simple mode (2.7, engine/nav/Simple.kt): the loop, speed, transpose, metronome, chord names and duet wait in one More
+     * sheet; Listen, Wait and Perform, the hands, play, the timeline and the microphone stay on the bar.
+     */
+    val simple: Boolean = false,
 )
 
 class BarActions(
@@ -174,28 +180,12 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
             }
             Text(formatTime(s.durationMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
             Spacer(Modifier.width(4.dp))
-            LoopButton(s, a.onLoop)
-            // One button walks the speeds: 0.25x, 0.5x, 0.75x, 1x, Ramp (50% rising to 100% with clean passes), then Auto.
-            val changed = s.speed != 1.0 || s.ramp != null || s.auto != null
-            TextButton(onClick = {
-                when {
-                    s.auto != null -> a.onSpeed(SPEEDS.first())
-                    s.ramp != null -> a.onAuto()
-                    s.speed == 1.0 -> a.onRamp()
-                    else -> a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size])
-                }
-            }, modifier = Modifier.semantics {
-                contentDescription = (s.auto?.let { "Auto speed, $it percent" } ?: s.ramp?.let { "Speed ramp at $it percent" } ?: "Speed ${speedLabel(s.speed)}") + ", tap to change"
-            }) {
-                Icon(painterResource(R.drawable.ic_speed), contentDescription = null, modifier = Modifier.size(18.dp),
-                    tint = if (changed) MaterialTheme.colorScheme.primary else dim)
-                Spacer(Modifier.width(6.dp))
-                Text(s.auto?.let { "Auto $it%" } ?: s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
-                    color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-            }
-            s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
-            s.chords?.let { Toggle("Chords", it, a.onChords) }
-            Toggle("Metronome", s.metronome, a.onMetronome)
+            fun shows(c: Simple.PlayerControl) = Simple.inBar(c, s.simple)
+            if (shows(Simple.PlayerControl.LOOP)) LoopButton(s, a.onLoop)
+            if (shows(Simple.PlayerControl.SPEED)) SpeedButton(s, a)
+            if (shows(Simple.PlayerControl.DUET)) s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
+            if (shows(Simple.PlayerControl.CHORDS)) s.chords?.let { Toggle("Chords", it, a.onChords) }
+            if (shows(Simple.PlayerControl.METRONOME)) Toggle("Metronome", s.metronome, a.onMetronome)
             s.backing?.let { Toggle(s.backingLabel, it, a.onBacking) }
             MicToggle(s, a.onMic)
             s.videoOn?.let { on ->
@@ -215,8 +205,79 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                     Icon(painterResource(R.drawable.ic_flag), contentDescription = "That wasn't right: flag the last 30 seconds for review", tint = dim)
                 }
             }
-            MoreMenu(s, a)
+            if (s.simple) MoreSheetButton(s, a) else MoreMenu(s, a)
         }
+    }
+}
+
+/** One button walks the speeds: 0.25x, 0.5x, 0.75x, 1x, Ramp (50% rising to 100% with clean passes), then Auto. */
+@Composable
+private fun SpeedButton(s: BarState, a: BarActions) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val changed = s.speed != 1.0 || s.ramp != null || s.auto != null
+    TextButton(onClick = {
+        when {
+            s.auto != null -> a.onSpeed(SPEEDS.first())
+            s.ramp != null -> a.onAuto()
+            s.speed == 1.0 -> a.onRamp()
+            else -> a.onSpeed(SPEEDS[(SPEEDS.indexOf(s.speed) + 1) % SPEEDS.size])
+        }
+    }, modifier = Modifier.semantics {
+        contentDescription = (s.auto?.let { "Auto speed, $it percent" } ?: s.ramp?.let { "Speed ramp at $it percent" } ?: "Speed ${speedLabel(s.speed)}") + ", tap to change"
+    }) {
+        Icon(painterResource(R.drawable.ic_speed), contentDescription = null, modifier = Modifier.size(18.dp),
+            tint = if (changed) MaterialTheme.colorScheme.primary else dim)
+        Spacer(Modifier.width(6.dp))
+        Text(s.auto?.let { "Auto $it%" } ?: s.ramp?.let { "Ramp $it%" } ?: speedLabel(s.speed), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+            color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/**
+ * Simple mode's one "More" (2.7): a pill at the end of the bar that opens a sheet with the loop, the speed, the duet, the chord
+ * names, the metronome and the transpose, the same controls as on the full bar. It wears the accent while any is in use.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreSheetButton(s: BarState, a: BarActions) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val busy = s.loopStart != null || s.speed != 1.0 || s.ramp != null || s.auto != null || s.metronome || s.chords == true ||
+        !s.duet.isNullOrEmpty() || s.transpose != 0
+    Toggle("More", busy) { open = true }
+    if (open) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { open = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("More", style = MaterialTheme.typography.titleLarge)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically) {
+                LoopButton(s, a.onLoop)
+                SpeedButton(s, a)
+                s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
+                s.chords?.let { Toggle("Chords", it, a.onChords) }
+                Toggle("Metronome", s.metronome, a.onMetronome)
+            }
+            if (!s.kid) TransposeRow(s, a, onReset = {})
+        }
+    }
+}
+
+/** Transpose, -6 to +6 semitones, with the way back to the written key once it is moved. */
+@Composable
+private fun TransposeRow(s: BarState, a: BarActions, onReset: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Transpose", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(end = 8.dp))
+        IconButton(onClick = { a.onTranspose(s.transpose - 1) }, enabled = s.transpose > -6) {
+            Icon(painterResource(R.drawable.ic_remove), contentDescription = "Down a semitone")
+        }
+        Text(transposeLabel(s.transpose), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+            modifier = Modifier.width(56.dp).semantics { contentDescription = "Transpose ${if (s.transpose == 0) "off" else transposeLabel(s.transpose) + " semitones"}" },
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            color = if (s.transpose != 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        IconButton(onClick = { a.onTranspose(s.transpose + 1) }, enabled = s.transpose < 6) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = "Up a semitone")
+        }
+        if (s.transpose != 0) TextButton(onClick = { a.onTranspose(0); onReset() }) { Text("Back to the written key") }
     }
 }
 

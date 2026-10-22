@@ -40,6 +40,7 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.KeyLabels
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.SongMeta
+import com.bigpapituna.sharpears.engine.nav.Simple
 
 /**
  * Settings: plain sections separated by space, no cards. Since 2.7 under six headers, in this order: Family (everyone on the
@@ -102,6 +103,10 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val v = prefs.version.intValue
     var confirmReset by remember { mutableStateOf(false) }
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    // Simple mode (2.7, engine/nav/Simple.kt): the essentials only, until "Show all settings".
+    val simple = LocalSimple.current
+    var showAll by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    fun shows(part: Simple.SettingsPart) = Simple.settingsShows(part, simple.on && !showAll)
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -112,6 +117,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             // Family: everyone on the phone, and the progress file that carries them all (export, import; reset is yours).
             Section("Family")
             family?.invoke()
+            if (shows(Simple.SettingsPart.PROGRESS)) {
             if (family != null) Sub("Progress")
             Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
                 "to a file, or bring it back from one.",
@@ -125,9 +131,15 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 "Learn and chord lessons, stickers, XP and achievements are kept.",
                 style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
             TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
+            }
 
             // Playing: how the keys, the falling notes, the sound and the voice behave, wrong keys, and the reminder.
             Section("Playing")
+            val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
+            val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+            // Simple mode (2.7): a grown-up's own switch (kept per profile); a kid never has it.
+            if (!me.isKid && shows(Simple.SettingsPart.SIMPLE)) Toggle(Simple.SETTING_TITLE, Simple.SETTING_LINE, simple.on) { simple.set(it) }
+            if (shows(Simple.SettingsPart.KEYS)) {
             Sub("Keys")
             Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
             SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
@@ -136,11 +148,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                     SegmentedButton(prefs.keyLabels == k && v >= 0, { prefs.keyLabels = k; com.bigpapituna.sharpears.data.Briefs.setting("keyLabels", k) }, SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(label) }
                 }
             }
+            }
 
+            if (shows(Simple.SettingsPart.FALLING_NOTES)) {
             Sub("Falling notes")
             // Colour notes belong to the profile (2.1): on for kids from the start, a choice for grown-ups.
-            val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
-            val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
             if (profiles != null) Toggle("Colour notes", "Each note and key in its own colour: C red, D orange, E yellow, F green, G teal, A blue, B purple, " +
                 "as in many beginners' books.", me.colourNotes) { on -> profiles.update(me.id) { it.copy(colourNotes = on) } }
             Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it; com.bigpapituna.sharpears.data.Briefs.setting("noteNames", it) }
@@ -152,8 +164,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 prefs.beatLines && v >= 0) { prefs.beatLines = it; com.bigpapituna.sharpears.data.Briefs.setting("beatLines", it) }
             Toggle("Ghost hand", "A hand over the keys shows which finger plays next.",
                 prefs.ghostHand && v >= 0) { prefs.ghostHand = it; com.bigpapituna.sharpears.data.Briefs.setting("ghostHand", it) }
+            }
             // Wrong keys heard by the mic: the same switch as Microphone setup's (the phone's mic settings, every profile).
-            if (mic != null) {
+            if (mic != null && shows(Simple.SettingsPart.WRONG_KEYS)) {
                 var wrongFlash by remember { mutableStateOf(mic.paintsWrongKeys) }
                 Toggle("Show wrong keys", "A key the mic hears you hit lights yellow next to the right one and red further away. Touch and MIDI keys always show.",
                     wrongFlash) { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic wrongFlash=$it"); com.bigpapituna.sharpears.data.Briefs.setting("wrongFlash", it) }
@@ -197,7 +210,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             }
 
             // Briefs and email: who writes the parent brief, and where each child's brief and its emails are.
-            if (family != null) {
+            if (family != null && shows(Simple.SettingsPart.BRIEFS)) {
                 Section("Briefs and email")
                 Text("Each child's brief, and the brief by email, are under Family: tap the child, then Read the brief or Email the brief. " +
                     "Your own week is on You, under My week.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -211,6 +224,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 Spacer(Modifier.size(8.dp)); Text("Microphone setup")
             }
 
+            if (shows(Simple.SettingsPart.ABOUT)) {
             Section("About")
             Text("Sharp Ears $versionName, a personal piano trainer.", style = MaterialTheme.typography.bodyMedium)
             Text("Piano samples by Simon Dalzell (Ivy Audio) and Versilian Studios. Tutorial videos belong to their channels on YouTube.",
@@ -219,13 +233,16 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 TextButton(onClick = onPrivacy) { Text("Privacy") }
                 TextButton(onClick = onLicences) { Text("Licences and credits (${songs.size} songs)") }
             }
+            }
 
             // Testing, last (analytics/Tester.kt): "Help Roy test" and the diary, when this build has them; each change behind the gate.
-            if (family != null && (com.bigpapituna.sharpears.analytics.Tester.rowShown(context) || com.bigpapituna.sharpears.analytics.Tester.diaryBuilt)) {
+            if (family != null && shows(Simple.SettingsPart.TESTING) && (com.bigpapituna.sharpears.analytics.Tester.rowShown(context) || com.bigpapituna.sharpears.analytics.Tester.diaryBuilt)) {
                 Section("Testing")
                 val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
                 com.bigpapituna.sharpears.analytics.TesterSettings(titled = false, guard = { gate.guard(it) })
             }
+            // Simple mode: the rest, once, and the offer to switch to Advanced.
+            SimpleMore(showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS)
         }
     }
     if (pickTime) {

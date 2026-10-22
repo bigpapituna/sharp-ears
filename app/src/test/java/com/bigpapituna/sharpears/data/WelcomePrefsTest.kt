@@ -49,4 +49,20 @@ class WelcomePrefsTest {
         assertTrue(p.tourDone)
         assertEquals("2.7.0", p.whatsNewSeen)
     }
+
+    /** 2.7, Simple mode: kept per profile; unset, the piano level decides; set back to null it decides again. */
+    @Test fun simpleModeIsEachPersonsOwn() {
+        val phone = FolderContext(tmp.root)
+        assertNull(Prefs(phone, "owner").simpleMode)
+        Prefs(phone, "owner").simpleMode = false
+        Prefs(phone, "p2").simpleMode = true
+        assertEquals(false, Prefs(phone, "owner").simpleMode)                   // after a restart
+        assertEquals(true, Prefs(phone, "p2").simpleMode)
+        assertNull(Prefs(phone, "p3").simpleMode)
+        Prefs(phone, "owner").simpleMode = null
+        assertNull(Prefs(phone, "owner").simpleMode)
+        // Reset progress leaves the choice: Simple only filters what is shown.
+        val p = Prefs(phone, "p2"); p.resetProgress()
+        assertEquals(true, p.simpleMode)
+    }
 }

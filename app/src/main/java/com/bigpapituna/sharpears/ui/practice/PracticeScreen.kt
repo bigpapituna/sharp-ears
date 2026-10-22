@@ -67,6 +67,7 @@ import com.bigpapituna.sharpears.engine.practice.arpeggioLine
 import com.bigpapituna.sharpears.engine.practice.scaleLine
 import com.bigpapituna.sharpears.engine.practice.scaleRootName
 import com.bigpapituna.sharpears.engine.practice.spokenTitle
+import com.bigpapituna.sharpears.engine.nav.Simple
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.InkDim
@@ -138,23 +139,31 @@ fun PracticeScreen(
         onTab(t)
     }
     val still = reducedMotion()
+    // Simple mode (2.7, engine/nav/Simple.kt): C, G and F major and one warm-up; arpeggios, the other scales and the Tools
+    // wait behind "Show more". The last tool used still opens in Advanced.
+    val simpleMode = com.bigpapituna.sharpears.ui.LocalSimple.current
+    var more by rememberSaveable { mutableStateOf(false) }
+    val simple = simpleMode.on && !more
+    val sections = PracticeSection.entries.filter { it != PracticeSection.TOOLS || Simple.practiceShows(Simple.PracticePart.TOOLS, simple) }
+    val shownTab = if (simple && (tab.section == PracticeSection.TOOLS || tab == PracticeTab.ARPEGGIOS)) PracticeTab.SCALES else tab
+    val foot: @Composable () -> Unit = { com.bigpapituna.sharpears.ui.SimpleMore(more, { more = true }) }
     Column(modifier) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
-        PrimaryTabRow(selectedTabIndex = tab.section.ordinal, containerColor = Color.Transparent, divider = {}) {
-            PracticeSection.entries.forEach { s ->
-                Tab(tab.section == s, {
+        PrimaryTabRow(selectedTabIndex = sections.indexOf(shownTab.section).coerceAtLeast(0), containerColor = Color.Transparent, divider = {}) {
+            sections.forEach { s ->
+                Tab(shownTab.section == s, {
                     pick(when (s) { PracticeSection.SCALES -> lastPattern; PracticeSection.WARMUPS -> PracticeTab.WARMUPS; PracticeSection.TOOLS -> lastTool })
                 }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
                     Text(s.label, maxLines = 1, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 13.dp))
                 }
             }
         }
-        AnimatedContent(tab.section, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { s ->
+        AnimatedContent(shownTab.section, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { s ->
             when (s) {
-                PracticeSection.SCALES -> PatternScreen(lastPattern == PracticeTab.ARPEGGIOS,
-                    { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent, sound)
-                PracticeSection.WARMUPS -> WarmupsScreen(store, onOpenExercise, onEvent)
+                PracticeSection.SCALES -> PatternScreen(!simple && lastPattern == PracticeTab.ARPEGGIOS,
+                    { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent, sound, simple, foot)
+                PracticeSection.WARMUPS -> WarmupsScreen(store, onOpenExercise, onEvent, simple, foot)
                 // Tools: the metronome or the tuner, one switch between them.
                 PracticeSection.TOOLS -> Column(Modifier.fillMaxSize()) {
                     SlidingSegments(listOf(PracticeTab.METRONOME.label, PracticeTab.TUNER.label), if (lastTool == PracticeTab.TUNER) 1 else 0,
@@ -197,10 +206,12 @@ private val HANDS = listOf(Practice.LEFT, Practice.RIGHT, Practice.BOTH)
 private fun PatternScreen(
     arps: Boolean, onMode: (Boolean) -> Unit, sampler: Sampler, store: PracticeStore,
     onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit, sound: () -> Boolean,
+    /** Simple mode (2.7): C, G and F major only, no arpeggios or other scales (the stored choices wait for Advanced). */
+    simple: Boolean = false, foot: @Composable () -> Unit = {},
 ) {
     val p = if (arps) "arp" else "scale"
-    var root by remember(arps) { mutableIntStateOf(store.int("$p.root", 0).coerceIn(0, 11)) }
-    var scaleType by remember { mutableStateOf(store.enum("scale.type", ScaleType.MAJOR)) }
+    var root by remember(arps, simple) { mutableIntStateOf(store.int("$p.root", 0).coerceIn(0, 11).let { if (simple && it !in Simple.SCALE_ROOTS) 0 else it }) }
+    var scaleType by remember(simple) { mutableStateOf(if (simple) ScaleType.MAJOR else store.enum("scale.type", ScaleType.MAJOR)) }
     var arpType by remember { mutableStateOf(store.enum("arp.type", ArpeggioType.MAJOR)) }
     var octaves by remember(arps) { mutableIntStateOf(store.int("$p.octaves", 1).coerceIn(1, 2)) }
     var hand by remember(arps) { mutableStateOf(store.enum("$p.hand", Practice.RIGHT)) }
@@ -286,11 +297,15 @@ private fun PatternScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SlidingSegments(listOf("Scales", "Arpeggios"), if (arps) 1 else 0, { onMode(it == 1) },
+            if (!simple) SlidingSegments(listOf("Scales", "Arpeggios"), if (arps) 1 else 0, { onMode(it == 1) },
                 Modifier.padding(horizontal = 20.dp).fillMaxWidth())
-            KeyPicker(names, root, counts, { root = it; store.putInt("$p.root", it) })
-            if (arps) PillRow(ArpeggioType.entries.map { it.label }, arpType.ordinal, { arpType = ArpeggioType.entries[it]; store.putEnum("arp.type", arpType) })
-            else PillRow(SCALE_ORDER.map { it.label }, SCALE_ORDER.indexOf(scaleType), { scaleType = SCALE_ORDER[it]; store.putEnum("scale.type", scaleType) })
+            if (simple) KeyPicker(Simple.SCALE_ROOTS.map { names[it] }, Simple.SCALE_ROOTS.indexOf(root).coerceAtLeast(0),
+                Simple.SCALE_ROOTS.map { counts[it] }, { root = Simple.SCALE_ROOTS[it]; store.putInt("$p.root", root) })
+            else KeyPicker(names, root, counts, { root = it; store.putInt("$p.root", it) })
+            if (!simple) {
+                if (arps) PillRow(ArpeggioType.entries.map { it.label }, arpType.ordinal, { arpType = ArpeggioType.entries[it]; store.putEnum("arp.type", arpType) })
+                else PillRow(SCALE_ORDER.map { it.label }, SCALE_ORDER.indexOf(scaleType), { scaleType = SCALE_ORDER[it]; store.putEnum("scale.type", scaleType) })
+            }
 
             KeyboardPanel(model, hand, { hand = it; store.putEnum("$p.hand", it) }, octaves, { octaves = it; store.putInt("$p.octaves", it) },
                 bpm, { bpm = it; store.putInt("$p.bpm", it) }, loop, { loop = it; store.putBool("practice.loop", it) },
@@ -309,6 +324,7 @@ private fun PatternScreen(
             Text("Your ${typeWords(arps, if (arps) arpType.label else scaleType.label)}", style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 14.dp))
             StatTiles(stat.times, stat.bestBpm, (0..11).filter { counts[it] > 0 }.toSet(), root, names, Modifier.padding(horizontal = 20.dp))
+            foot()
         }
         AnimatedVisibility(nudge, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
             NudgeBar("Now try it yourself", "You heard it. Play it back with the app listening.", "Practice it", ::practise, { nudge = false })

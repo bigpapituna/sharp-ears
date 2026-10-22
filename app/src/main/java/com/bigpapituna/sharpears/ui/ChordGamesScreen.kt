@@ -71,7 +71,7 @@ private const val HIGH = 84  // C6
 /** Debug start for the games: which game and level to open straight away, and the mic injection. */
 data class GameStart(val game: GameKind? = null, val level: Int = 0, val inject: String? = null)
 
-/** Games (Chords > Play before 2.7): the game picker with best scores, or the game being played. */
+/** Games (Chords > Play before 2.7): the game picker with best scores, or the game being played. Simple mode shows Build it and Hear it. */
 @Composable
 fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean, start: GameStart) {
     var playing by remember { mutableStateOf(start.game?.let { it to start.level }) }
@@ -88,6 +88,10 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
     }
     val v = prefs.version.intValue
     var sheet by remember { mutableStateOf<GameKind?>(null) }
+    // Simple mode (2.7, engine/nav/Simple.kt): Build it and Hear it, until "Show more".
+    val simpleMode = LocalSimple.current
+    var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val games = if (simpleMode.on && !more) com.bigpapituna.sharpears.engine.nav.Simple.games(GameKind.entries) else GameKind.entries
     fun bests(g: GameKind) = g.levels.indices.map { if (v >= 0) prefs.gameBest(g.id, it) else -1 }
     // Each game opens on its first level not yet mastered, until another is picked in its sheet.
     fun levelOf(g: GameKind) = levels[g] ?: bests(g).indexOfFirst { it < STAR_AT }.let { if (it < 0) g.levels.lastIndex else it }
@@ -95,14 +99,15 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
         horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             PupSays(Pose.GET_READY, "Pick a game. Each one is ten quick rounds on the keys.", size = 64.dp)
-            CardGrid(GameKind.entries.size) { i, m ->
-                val g = GameKind.entries[i]
+            CardGrid(games.size) { i, m ->
+                val g = games[i]
                 val level = levelOf(g)
                 val b = bests(g)
                 GameCard(g.title, level, b.map { it >= STAR_AT }, b[level], onOpen = { sheet = g }, onPlay = { playing = g to level },
                     modifier = m, artOnPanel = true) { ChordArt(g) }
             }
         }
+        SimpleMore(more, { more = true })
     }
     sheet?.let { g ->
         GameSheet(g.title, g::howToFor, g.levels, bests(g), levelOf(g), onPlay = { l -> levels[g] = l; sheet = null; playing = g to l },

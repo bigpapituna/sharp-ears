@@ -174,6 +174,8 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
 private fun TopBar(onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("You", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f).padding(top = 8.dp).semantics { heading() })
+        // Simple mode (2.7), beside Settings; a kid never has it.
+        if (!com.bigpapituna.sharpears.ui.family.isKid()) com.bigpapituna.sharpears.ui.SimplePill()
         IconButton(onClick = onSettings) {
             Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }

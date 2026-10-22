@@ -137,6 +137,11 @@ fun LearnChordsScreen(
     onBack: () -> Unit,
 ) {
     var drill by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(start == LearnChordsStart.PRACTICE) }
+    // Simple mode (2.7, engine/nav/Simple.kt): the six beginner chords only, until "Show more".
+    val simpleMode = LocalSimple.current
+    var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val simple = simpleMode.on && !more
+    val only = if (simple) com.bigpapituna.sharpears.engine.nav.Simple.CHORDS else null
     var dictionary by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(start == LearnChordsStart.DICTIONARY) }
     // The chords learned so far (Leitner box 3 or more) decide which songs "you can play".
     val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
@@ -146,8 +151,9 @@ fun LearnChordsScreen(
             onBack = { if (drill) drill = false else onBack() })
         if (drill) {
             BackHandler { drill = false }                 // Back leaves the practice, not Learn chords
-            Practice(sampler, midi, mic, inject, sound = { prefs.sound })
-        } else Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound },
+            Practice(sampler, midi, mic, inject, sound = { prefs.sound }, only = only)
+        } else Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound }, simple = simple,
+            footer = { SimpleMore(more, { more = true }) },
             songsAfter = if (popSongs.isEmpty()) null else SessionSongs(popSongs, onOpenPopSong, onShowPlayable),
             header = {
                 // The count of songs the learned chords play; a tap shows them in the Songs tab.
@@ -155,12 +161,13 @@ fun LearnChordsScreen(
             },
             tools = {
                 Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ToolTile("Dictionary", "Every chord in every key and inversion, with fingers.", R.drawable.ic_book, Modifier.weight(1f)) { dictionary = true }
+                    ToolTile("Dictionary", if (simple) "The six first chords: C, F, G, Am, Dm and Em, with fingers." else "Every chord in every key and inversion, with fingers.",
+                        R.drawable.ic_book, Modifier.weight(1f)) { dictionary = true }
                     ToolTile("Practise any chord", "One chord at a time, by touch, keyboard or mic.", R.drawable.ic_hand, Modifier.weight(1f)) { drill = true }
                 }
             })
     }
-    if (dictionary) DictionarySheet(onDismiss = { dictionary = false }) { Dictionary(sampler, sound = { prefs.sound }) }
+    if (dictionary) DictionarySheet(onDismiss = { dictionary = false }) { Dictionary(sampler, sound = { prefs.sound }, only = only) }
 }
 
 /** One of Learn chords' two ways in beside the packs: an icon, a name and a line, the whole tile a button. */
@@ -201,7 +208,7 @@ private fun DictionarySheet(onDismiss: () -> Unit, content: @Composable () -> Un
 fun ChordGamesPage(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean, start: GameStart, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         PageTop(com.bigpapituna.sharpears.engine.nav.Names.GAMES, onBack)
-        ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, start)
+        ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, start)    // Simple mode is read inside (Build it and Hear it)
     }
 }
 
@@ -210,7 +217,9 @@ fun ChordGamesPage(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Vo
 fun ProgressionsPage(sampler: Sampler, prefs: Prefs, onPlay: (Progression, Int) -> Unit, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         PageTop(com.bigpapituna.sharpears.engine.nav.Names.PROGRESSIONS, onBack)
-        Progressions(sampler, onPlay, sound = { prefs.sound })
+        val simpleMode = LocalSimple.current
+        var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+        Progressions(sampler, onPlay, sound = { prefs.sound }, simple = simpleMode.on && !more, footer = { SimpleMore(more, { more = true }) })
     }
 }
 
@@ -237,9 +246,11 @@ private fun ordinalWord(i: Int) = listOf("Root position", "First inversion", "Se
  * segmented control. Never a wrapping wall of chips.
  */
 @Composable
-internal fun Dictionary(sampler: Sampler, sound: () -> Boolean, initial: Chord = Chord(0, ChordType.MAJOR)) {
-    var root by remember { mutableIntStateOf(initial.root) }
-    var type by remember { mutableStateOf(initial.type) }
+internal fun Dictionary(sampler: Sampler, sound: () -> Boolean, initial: Chord = Chord(0, ChordType.MAJOR),
+                        /** Simple mode (2.7): just these chords, in root position (no roots, qualities or inversions to pick). */
+                        only: List<Chord>? = null) {
+    var root by remember { mutableIntStateOf((only?.firstOrNull() ?: initial).root) }
+    var type by remember { mutableStateOf((only?.firstOrNull() ?: initial).type) }
     var inversion by remember { mutableIntStateOf(0) }
     val chord = Chord(root, type)
     if (inversion >= chord.inversionCount) inversion = 0
@@ -312,8 +323,11 @@ internal fun Dictionary(sampler: Sampler, sound: () -> Boolean, initial: Chord =
         }
         // Under it, the choices: one strip each.
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            KeyPicker((0..11).map { rootName(it) }, root, List(12) { 0 }, { root = it })
+            if (only != null) com.bigpapituna.sharpears.ui.practice.PillRow(only.map { it.name }, only.indexOfFirst { it.root == root && it.type == type }.coerceAtLeast(0),
+                { root = only[it].root; type = only[it].type; inversion = 0 })
+            if (only == null) KeyPicker((0..11).map { rootName(it) }, root, List(12) { 0 }, { root = it })
             val strip = rememberLazyListState(initialFirstVisibleItemIndex = 0)
+            if (only == null) {
             LazyRow(Modifier.fillMaxWidth(), state = strip, contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 QUALITY_GROUPS.forEachIndexed { g, (name, types) ->
@@ -330,6 +344,7 @@ internal fun Dictionary(sampler: Sampler, sound: () -> Boolean, initial: Chord =
             SlidingSegments((0 until chord.inversionCount).map { if (it == 0) "Root" else listOf("1st", "2nd", "3rd")[it - 1] }, inversion,
                 { inversion = it }, Modifier.padding(horizontal = 20.dp).fillMaxWidth(), height = 40.dp,
                 descriptions = (0 until chord.inversionCount).map(::ordinalWord))
+            }
             val built = type.intervals.drop(1).joinToString(", ") { intervalWord(it, type) }.let { s ->
                 val i = s.lastIndexOf(", "); if (i < 0) s else s.substring(0, i) + " and " + s.substring(i + 2)
             }
@@ -347,15 +362,19 @@ private val FAMILIES = listOf(
 )
 
 @Composable
-private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject: String?, sound: () -> Boolean) {
+private fun Practice(sampler: Sampler, midi: MidiDevices, mic: MicInput, inject: String?, sound: () -> Boolean,
+                     /** Simple mode (2.7): only these chords, and no families to pick. */
+                     only: List<Chord>? = null) {
     var families by remember { mutableStateOf(setOf("Major", "Minor")) }
-    val pool = remember(families) { (0..11).flatMap { r -> FAMILIES.filter { it.first in families }.flatMap { it.second }.map { Chord(r, it) } } }
+    val pool = remember(families, only) { only ?: (0..11).flatMap { r -> FAMILIES.filter { it.first in families }.flatMap { it.second }.map { Chord(r, it) } } }
     // Injected (debug) runs use a fixed seed so the chord order is known in advance.
     val drill = remember(pool) { ChordDrill(pool.ifEmpty { listOf(Chord(0, ChordType.MAJOR)) }, seed = if (inject != null) 1 else System.nanoTime()) }
     ChordTrainer(drill, sampler, midi, mic, micStart = inject != null, inject = inject, sound = sound,
         header = {
             // One row of pills (several can be on), never a wrapping cloud.
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (only != null) Text("The six first chords: " + only.dropLast(1).joinToString(", ") { it.name } + " and ${only.last().name}.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FAMILIES.forEach { (name, _) ->
                     Pill(name, name in families, { families = if (name in families && families.size > 1) families - name else families + name })
                 }
@@ -496,7 +515,9 @@ private fun Stat(label: String, value: Int) = Column(horizontalAlignment = Align
 }
 
 @Composable
-private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, sound: () -> Boolean) {
+private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, sound: () -> Boolean,
+                         /** Simple mode (2.7): the pop progressions only (engine/nav/Simple.kt). */
+                         simple: Boolean = false, footer: @Composable () -> Unit = {}) {
     var key by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf<Pair<Int, Int>?>(null) }      // progression, chord sounding
     var job by remember { mutableStateOf<Job?>(null) }
@@ -534,7 +555,9 @@ private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, s
         PupLine(if (playing != null) Pose.LISTENING else Pose.LEARNING,
             "Tap a row to hear it. Practise opens it in the player: chords in the right hand, roots in the left.",
             Modifier.padding(horizontal = 16.dp))
+        val shown = if (simple) com.bigpapituna.sharpears.engine.nav.Simple.progressions(PROGRESSIONS) else PROGRESSIONS
         PROGRESSIONS.forEachIndexed { pi, p ->
+            if (p !in shown) return@forEachIndexed
             val chords = p.degrees.map { Chord((key + it.semitones) % 12, it.type) }
             Column(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
                 .clickable(onClickLabel = "Hear it") { if (playing?.first == pi) job?.cancel() else hear(pi) }.padding(8.dp),
@@ -558,6 +581,7 @@ private fun Progressions(sampler: Sampler, onPlay: (Progression, Int) -> Unit, s
                 }
             }
         }
+        footer()
     }
 }
 
@@ -590,6 +614,10 @@ private fun Lessons(
     header: @Composable () -> Unit = {},
     /** Under the review line: the dictionary and free practice (Learn chords). */
     tools: @Composable () -> Unit = {},
+    /** Simple mode (2.7): the packs cut to the six beginner chords (engine/nav/Simple.kt). */
+    simple: Boolean = false,
+    /** At the very bottom: Simple mode's "Show more". */
+    footer: @Composable () -> Unit = {},
 ) {
     val v = store.version.intValue
     if (store.session.isNotEmpty()) {
@@ -598,7 +626,9 @@ private fun Lessons(
     }
     val now = remember(v) { System.currentTimeMillis() }
     val songPacks = store.songPacks.value
-    val cur = remember(v, songPacks) { store.curriculum() }
+    val cur = remember(v, songPacks, simple) {
+        store.curriculum().let { if (simple) com.bigpapituna.sharpears.engine.Curriculum(com.bigpapituna.sharpears.engine.nav.Simple.packs(it.packs)) else it }
+    }
     val mastery = remember(v) { store.mastery() }
     val today = remember(cur, mastery) { cur.queue(mastery, now) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -628,6 +658,7 @@ private fun Lessons(
             if (fromSongs.isEmpty()) PupSays(Pose.LISTENING, "Finding the chords in your songs.", size = 48.dp, style = MaterialTheme.typography.bodyMedium)
             fromSongs.forEach { PackRow(it, store, true, cur, mastery, now) }
         }
+        footer()
       }
     }
 }

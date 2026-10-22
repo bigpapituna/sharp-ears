@@ -328,7 +328,9 @@ private fun PatternPicker(pattern: PopSong.Pattern, suggested: PopSong.Pattern, 
     val c = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("How to play it", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 20.dp).semantics { heading() })
-        PillRow(PopSong.Pattern.entries.map { PopPlay.patternName(it) }, pattern.ordinal, { onPick(PopSong.Pattern.entries[it]) })
+        // Simple mode (2.7): Whole and Halves only (engine/nav/Simple.kt).
+        val options = if (com.bigpapituna.sharpears.ui.LocalSimple.current.on) com.bigpapituna.sharpears.engine.nav.Simple.patterns(PopSong.Pattern.entries) else PopSong.Pattern.entries
+        PillRow(options.map { PopPlay.patternName(it) }, options.indexOf(pattern).coerceAtLeast(0), { onPick(options[it]) })
         Text(PopPlay.feel(pattern) + if (pattern == suggested) " The band suggests it for this song." else "",
             style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp))
     }

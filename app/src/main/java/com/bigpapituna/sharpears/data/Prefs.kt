@@ -172,6 +172,14 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getString("lastPlayed", null)
         set(v) = edit { if (v == null) remove("lastPlayed") else putString("lastPlayed", v) }
 
+    /**
+     * Simple mode as this person chose it (2.7, engine/nav/Simple.kt), or null before they chose: the default then follows
+     * their piano level (on for Never and A little). Simple only filters what is shown; nothing else is kept apart.
+     */
+    var simpleMode: Boolean?
+        get() = if (p.contains("simpleMode")) p.getBoolean("simpleMode", false) else null
+        set(v) = edit { if (v == null) remove("simpleMode") else putBoolean("simpleMode", v) }
+
     /** The 2.7 tour (engine/nav/Welcome.kt) was walked or skipped by this profile: it never shows again. */
     var tourDone: Boolean
         get() = p.getBoolean("tourDone", false)

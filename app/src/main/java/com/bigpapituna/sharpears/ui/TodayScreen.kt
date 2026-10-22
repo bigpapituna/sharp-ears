@@ -149,11 +149,13 @@ private fun Header() {
             Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.size(40.dp))
         }
         Spacer(Modifier.size(12.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(Names.TODAY, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             Text(remember { java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.getDefault())) },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        // Simple mode (engine/nav/Simple.kt), one tap from the home.
+        SimplePill()
     }
 }
 

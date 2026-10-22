@@ -547,6 +547,11 @@ class MainActivity : ComponentActivity() {
         if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("welcome", false)) {
             prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
         }
+        // Debug --es simple on|off|default: Simple mode for the profile (default: forget the choice, the level decides again).
+        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) intent.getStringExtra("simple")?.let { v ->
+            prefs.simpleMode = when (v) { "on" -> true; "off" -> false; else -> null }
+            Log.d(TAG, "simple: set to $v for ${profile.id} (debug)")
+        }
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         // A kid goes straight in: no questions, the goal the profile was made with, and the first game opens at once.
         val newKid = profile.isKid && !progress.onboardingDone
@@ -765,11 +770,20 @@ class MainActivity : ComponentActivity() {
             KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
+            // Simple mode (2.7, engine/nav/Simple.kt): this person's choice, or the default from their piano level; never a kid's.
+            val simpleOn = prefs.version.intValue >= 0 && com.bigpapituna.sharpears.engine.nav.Simple.isOn(current.isKid, prefs.simpleMode, current.level)
+            val simple = remember(simpleOn) {
+                com.bigpapituna.sharpears.ui.SimpleMode(simpleOn) { on ->
+                    prefs.simpleMode = on
+                    Briefs.setting("simpleMode", on)
+                    Log.d(TAG, "simple: ${if (on) "on" else "off"} for ${profile.id}")
+                }
+            }
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
             // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
                 LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
-                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
+                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalSimple provides simple) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
                 Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
@@ -862,8 +876,10 @@ class MainActivity : ComponentActivity() {
                         else kidStore.pace().pin?.let(path::lesson) ?: path.next { prefs.lessonDone(it) }
                     // Where Songs is: the kid's own list for a kid, the Songs tab for a grown-up.
                     fun songsScreen(back: Screen = Screen.Home()): Screen = if (profile.isKid) Screen.KidSongs(back) else Screen.Home(HomeTab.SONGS)
+                    // The chord packs the daily review draws from: in Simple mode only the six beginner chords (engine/nav/Simple.kt).
+                    fun chordCurriculum() = lessons.curriculum().let { if (simpleOn) com.bigpapituna.sharpears.engine.Curriculum(com.bigpapituna.sharpears.engine.nav.Simple.packs(it.packs)) else it }
                     fun todayPlan(): SessionPlan {
-                        val queue = lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis())
+                        val queue = chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
                         val asleep = profile.isKid && bedtime.goodnightOn == java.time.LocalDate.now()
                         val next = if (asleep) null else nextLesson()
@@ -1263,8 +1279,8 @@ class MainActivity : ComponentActivity() {
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.TODAY) { screen = Screen.Home() }
                             val lv = lessons.version.intValue
-                            val due = remember(lv, lessons.songPacks.value) {
-                                lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
+                            val due = remember(lv, lessons.songPacks.value, simpleOn) {
+                                chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
                             HomeShell(s.tab, { screen = s.copy(tab = it) }, badge = mapOf(HomeTab.LEARN to due)) { tab ->
                                 when (tab) {
@@ -1485,7 +1501,10 @@ class MainActivity : ComponentActivity() {
                                 }
                                 val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
                                 com.bigpapituna.sharpears.ui.chords.PopSongPage(pop, known, sampler, sound = { prefs.sound },
-                                    shift = s.shift, pattern = s.pattern ?: pop.pattern, bpm = s.bpm ?: pop.bpm,
+                                    // Simple mode keeps to Whole and Halves: a song that suggests another pattern opens on Halves.
+                                    shift = s.shift, pattern = (s.pattern ?: pop.pattern).let { p ->
+                                        if (simpleOn && p !in com.bigpapituna.sharpears.engine.nav.Simple.PATTERNS) com.bigpapituna.sharpears.engine.chords.PopSong.Pattern.HALVES else p
+                                    }, bpm = s.bpm ?: pop.bpm,
                                     onState = { sh, pa, bp -> screen = s.copy(shift = sh, pattern = pa, bpm = bp, hear = false) },
                                     onPlayAlong = { run ->
                                         Log.d(TAG, "pop: play along ${pop.id} ${run.song.id}")
