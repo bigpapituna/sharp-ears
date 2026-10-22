@@ -66,6 +66,16 @@ class LessonStore(private val context: Context, profileId: String) {
         version.intValue++
     }
 
+    /**
+     * Debug (`--es known C,F,G,Am` with `--es screen popsongs`): those chords as played cleanly [box] times running, due in
+     * four days, so songs by chords has songs "you can play" and "one new chord away" to show.
+     */
+    fun debugKnow(names: List<String>, box: Int, now: Long = System.currentTimeMillis()) {
+        prefs.edit { names.forEach { putString("chord:$it", "$box,${now + 4 * 86_400_000L}") } }
+        Log.d(TAG, "lessons: debug known ${names.joinToString()} at box $box")
+        version.intValue++
+    }
+
     // The running session: a fixed queue and how far through it the player is.
     var session by mutableStateOf<List<LessonItem>>(emptyList())
     var sessionIndex by mutableIntStateOf(0)

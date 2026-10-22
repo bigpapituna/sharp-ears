@@ -630,6 +630,8 @@ class MainActivity : ComponentActivity() {
                 //   [--es song <id> [--ei shift n] [--es pattern WHOLE|HALVES|...] [--ei bpm n] [--ez hear true] [--ez kid true]]
                 //   [--ez kid true]   (no song: a kid's chord songs, from the kid's Songs)
                 //   [--es view cards]   (the Songs-tab card and "Songs that use these chords", over a plain page)
+                //   [--es known C,F,G,Am]   (those chords as known, Leitner box 3, before it opens)
+                intent.getStringExtra("known")?.let { k -> lessons.debugKnow(k.split(',').map { it.trim() }.filter { it.isNotEmpty() }, PopFind.KNOWN_BOX) }
                 val chipArg = intent.getStringExtra("chip") ?: "all"
                 val chip = PopFind.Chip.entries.firstOrNull { c -> c.name.startsWith(chipArg.uppercase()) || c.label.startsWith(chipArg, ignoreCase = true) } ?: PopFind.Chip.ALL
                 val sort = when (intent.getStringExtra("sort")) { "newest" -> PopFind.Sort.NEWEST; "can" -> PopFind.Sort.CAN_PLAY; "one" -> PopFind.Sort.ONE_AWAY; else -> PopFind.Sort.EASIEST }
