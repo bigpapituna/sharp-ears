@@ -234,6 +234,19 @@ object World {
         return finish(s, counted.copy(history = s.history.after(drop), records = records), listOf(drop), record = up)
     }
 
+    /**
+     * A round of an arcade game ended (2.7, engine/arcade): it counts like a song played to its end in the ledger (two
+     * sparkles, within the five songs a day), with no sticker drop (a round is a minute; a drop each would flood the
+     * album). [sticker] is the game's own sticker (LevelStickers' arcade page) on its first three stars: earned into the
+     * tray like a stone's. Items the ledger opens wait for the next finish screen, as a song's do.
+     */
+    fun gameRound(s: WorldState, sticker: String?, today: LocalDate = LocalDate.now()): Outcome {
+        val counted = unlock(s.copy(ledger = s.ledger.song(today)), today)
+        val level = LevelStickers.byLesson(sticker)?.takeIf { it.lessonId !in s.levels }
+        val after = counted.copy(levels = level?.let { counted.levels + it.lessonId } ?: counted.levels, earned = counted.earned + listOfNotNull(level?.key))
+        return finish(s, after, emptyList(), level = level)
+    }
+
     private fun finish(before: WorldState, after: WorldState, drops: List<Drop>, eggLaid: Boolean = false, eggHatched: Boolean = false,
                        record: RecordUp? = null, level: LevelSticker? = null): Outcome {
         val newKeys = drops.filter { it.isNew }.map { it.sticker.key }.distinct().filter { it !in after.earned }

@@ -105,8 +105,11 @@ class DecorTest {
 
     @Test fun levelStickersOnePerStonePageByPage() {
         val playground = PLAYGROUND_PAGES.flatMap { it.lessonIds }
-        assertEquals(playground, LevelStickers.ALL.filter { it.page != LevelStickers.ROAD }.map { it.lessonId })
-        assertEquals(PLAYGROUND_PAGES.map { it.id } + LevelStickers.ROAD, LevelStickers.PAGES)
+        assertEquals(playground, LevelStickers.ALL.filter { it.page != LevelStickers.ROAD && it.page != LevelStickers.ARCADE }.map { it.lessonId })
+        // 2.7: the arcade's page comes last, a sticker a game.
+        assertEquals(PLAYGROUND_PAGES.map { it.id } + LevelStickers.ROAD + LevelStickers.ARCADE, LevelStickers.PAGES)
+        assertEquals(com.bigpapituna.sharpears.engine.arcade.ArcadeGame.entries.map { LevelStickers.arcade(it.id) },
+            LevelStickers.of(LevelStickers.ARCADE).map { it.lessonId })
         assertEquals(6, LevelStickers.of(LevelStickers.ROAD).size)
         val basics = com.bigpapituna.sharpears.engine.COURSE.first { it.id == "basics" }.lessons.map { it.id }
         assertEquals(basics, LevelStickers.of(LevelStickers.ROAD).map { it.lessonId })

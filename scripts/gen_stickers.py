@@ -12,6 +12,8 @@ nightsky, fair; n: 1..10)
 2.5 adds the stones' own stickers, one per Playground lesson and per Basics lesson (engine/world/LevelStickers.kt),
 sticker_lv_<lesson id with _ for ->.webp, in the same style:
     python -I scripts/gen_stickers.py --levels [--only pond_3] [--sheet out.png]
+2.7 adds the arcade's nine (lv_arcade_*), a sticker a game on its first three-star round:
+    python -I scripts/gen_stickers.py --levels --only arcade_balloons
 The names and order match engine/world/Stickers.kt.
 """
 import argparse
@@ -1639,6 +1641,96 @@ def lv_white_keys(s):  # an alphabet train: an engine and two cars
             s.shape(ellipse(x + dx, 400, 24), DARK)
     s.shape(rrect(84, 190, 130, 260, 8), RED_D)
     s.shape(ellipse(107, 160, 30, 20), GREY, outline=False)
+
+
+# ---- 2.7: the arcade's games, a sticker each on its first three-star round (engine/world/LevelStickers.kt ARCADE) ----
+
+def lv_arcade_balloons(s):  # two balloons tied with a gold bow
+    for x, y, c, cd in ((190, 180, RED, RED_D), (330, 170, TEAL, TEAL_D)):
+        s.line(stroke([(x, y + 100), (260, 400)], 5), DARK)
+        s.shape(ellipse(x, y, 84, 100), c, cd, light=True)
+    s.shape(ellipse(230, 405, 34, 22, angle=20), GOLD, GOLD_D)
+    s.shape(ellipse(290, 405, 34, 22, angle=-20), GOLD, GOLD_D)
+    s.shape(ellipse(260, 405, 16), GOLD_D)
+
+
+def lv_arcade_garden(s):  # a watering can over a flower
+    s.shape(stroke([(380, 470), (380, 360)], 14), LEAF, LEAF_D)
+    for k, (c, cd) in enumerate([(RED, RED_D), (ORANGE, ORANGE_D), (YELLOW, YELLOW_D), (GREEN, GREEN_D), (TEAL, TEAL_D)]):
+        a = math.radians(-90 + k * 72)
+        s.shape(ellipse(380 + 44 * math.cos(a), 330 + 44 * math.sin(a), 30), c, cd)
+    s.shape(ellipse(380, 330, 22), GOLD, GOLD_D)
+    s.shape(rrect(70, 160, 260, 320, 30), BLUE, BLUE_D, light=True)
+    s.shape(stroke([(250, 200), (340, 150)], 22), BLUE, BLUE_D)
+    s.line(arc(160, 160, 60, 180, 360, 14), INK)
+    for dx in (0, 20, 40):
+        s.shape(drop(350 + dx, 220 + dx * 1.5, 10), SKY, SKY_D, outline=False)
+
+
+def lv_arcade_feed(s):  # a dog bowl with a bone
+    s.shape(ellipse(256, 380, 190, 70), RED, RED_D, light=True)
+    s.shape(ellipse(256, 350, 160, 40), RED_D)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            s.shape(ellipse(256 + sx * 120, 250 + sy * 28, 38), CREAM, CREAM_D)
+    s.shape(rrect(136, 222, 376, 278, 26), CREAM, CREAM_D, light=True)
+
+
+def lv_arcade_tower(s):  # a stack of toy blocks
+    for i, (c, cd) in enumerate([(RED, RED_D), (ORANGE, ORANGE_D), (YELLOW, YELLOW_D), (GREEN, GREEN_D)]):
+        y = 430 - i * 92
+        x = 256 + (20 if i % 2 else -20)
+        s.shape(rrect(x - 100, y - 84, x + 100, y, 16), c, cd, light=True)
+    s.shape(star(256, 60, 44), GOLD, GOLD_D)
+
+
+def lv_arcade_moles(s):  # a mole peeking out of a burrow
+    s.shape(ellipse(256, 420, 200, 56), WOOD_D)
+    s.shape(rrect(156, 170, 356, 440, 100), WOOD, WOOD_D, light=True)
+    s.shape(ellipse(256, 300, 70, 54), SAND, SAND_D, outline=False)
+    s.eye(210, 250, 16)
+    s.eye(302, 250, 16)
+    s.shape(ellipse(256, 290, 24, 18), PINK, PINK_D)
+    s.shape(ellipse(256, 440, 210, 40), WOOD_D)
+
+
+def lv_arcade_frogs(s):  # a frog leaping over a lily pad
+    s.shape(ellipse(256, 420, 180, 60), LEAF, LEAF_D)
+    s.shape(ellipse(256, 230, 130, 100), GREEN, GREEN_D, light=True)
+    for x in (190, 322):
+        s.shape(ellipse(x, 140, 46), GREEN, GREEN_D)
+        s.eye(x, 140, 22)
+    s.line(arc(256, 230, 60, 20, 160, 8), INK)
+    for sx in (-1, 1):
+        s.shape(ellipse(256 + sx * 140, 320, 60, 30, angle=sx * 30), GREEN, GREEN_D)
+
+
+def lv_arcade_fireworks(s):  # a sky rocket with sparks
+    s.shape(poly([(256, 60), (320, 160), (320, 340), (192, 340), (192, 160)]), RED, RED_D, light=True)
+    s.shape(ellipse(256, 210, 34), SKY, SKY_D)
+    s.shape(poly([(192, 260), (130, 360), (192, 340)]), BLUE, BLUE_D)
+    s.shape(poly([(320, 260), (382, 360), (320, 340)]), BLUE, BLUE_D)
+    s.shape(drop(256, 400, 40), ORANGE, ORANGE_D)
+    for x, y, c, cd in ((100, 120, YELLOW, YELLOW_D), (420, 110, PINK, PINK_D), (420, 260, YELLOW, YELLOW_D)):
+        s.shape(star(x, y, 40), c, cd)
+
+
+def lv_arcade_painter(s):  # a paint palette with a brush
+    s.shape(union(ellipse(256, 270, 210, 160), ellipse(180, 380, 70)), CREAM, CREAM_D, light=True)
+    s.fill(ellipse(200, 330, 34), (255, 255, 255))
+    for (x, y), (c, cd) in zip(((150, 220), (240, 180), (330, 190), (390, 260), (350, 340)),
+                               ((RED, RED_D), (YELLOW, YELLOW_D), (GREEN, GREEN_D), (BLUE, BLUE_D), (PURPLE, PURPLE_D))):
+        s.shape(ellipse(x, y, 34), c, cd)
+    s.shape(stroke([(300, 470), (440, 330)], 20), WOOD, WOOD_D)
+    s.shape(drop(450, 316, 22), RED, RED_D)
+
+
+def lv_arcade_bridge(s):  # a rainbow over a little bridge
+    for k, (c, cd) in enumerate([(RED, RED_D), (ORANGE, ORANGE_D), (YELLOW, YELLOW_D), (GREEN, GREEN_D), (BLUE, BLUE_D), (PURPLE, PURPLE_D)]):
+        s.shape(arc(256, 330, 200 - k * 26, 180, 360, 26), c, cd, outline=(k == 0))
+    s.shape(rrect(60, 340, 452, 380, 12), WOOD, WOOD_D, light=True)
+    for x in (100, 180, 260, 340, 420):
+        s.line(stroke([(x, 344), (x, 376)], 4), WOOD_D)
 
 
 LEVELS = {name[3:]: fn for name, fn in list(globals().items()) if name.startswith("lv_") and callable(fn)}

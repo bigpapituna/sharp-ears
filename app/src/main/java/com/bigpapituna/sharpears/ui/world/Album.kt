@@ -73,8 +73,9 @@ fun albumLine(a: Album): String = when {
     else -> "${a.collected} of ${a.size}. ${a.size - a.collected} still hiding."
 }
 
-/** A trail page's title and colour: the Playground's pages by their place, then the big kids' road. */
+/** A trail page's title and colour: the Playground's pages by their place, the big kids' road, then the arcade (2.7). */
 private fun trailPage(id: String): Pair<String, Color> {
+    if (id == LevelStickers.ARCADE) return "The arcade" to Color(0xFFE0A866)
     val page = PLAYGROUND_PAGES.firstOrNull { it.id == id } ?: return "The big kids' road" to Color(0xFF8A9A8E)
     return page.title to KidPages.worldPlace(page).colour()
 }
@@ -106,7 +107,7 @@ fun AlbumView(state: WorldState, modifier: Modifier = Modifier, showPup: Boolean
 /** What the pup says over the album: the trail's stickers first. */
 fun trailAlbumLine(state: WorldState): String = when {
     state.levels.isEmpty() && state.unique == 0 -> "Finish a game on the map and its sticker lands here."
-    state.levels.size == LevelStickers.ALL.size -> "Every stone's sticker found. What an album."
+    state.levels.size == LevelStickers.ALL.size -> "Every sticker found. What an album."
     state.tray.isNotEmpty() -> "Stick your stickers on the map. Tap one at the bottom."
     else -> "Each stone on the map has a sticker to find."
 }
