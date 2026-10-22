@@ -539,6 +539,14 @@ class MainActivity : ComponentActivity() {
         Briefs.currentId = profile.id
         if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) Briefs.sessionStart(profile.id)
         // Someone who already played (XP from catchUp or since) skips the first-run questions.
+        // 2.7, What's new and the tour (engine/nav/Welcome.kt): a newcomer has nothing new to hear about (they get the tour after
+        // the first-run questions), and a kid sees neither (the tour waits for grown-up mode).
+        val appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        if ((profile.isKid || !progress.onboardingDone && progress.xp == 0) && prefs.whatsNewSeen != appVersion) prefs.whatsNewSeen = appVersion
+        // Debug --ez welcome true: What's new and the tour again for this profile.
+        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("welcome", false)) {
+            prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
+        }
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         // A kid goes straight in: no questions, the goal the profile was made with, and the first game opens at once.
         val newKid = profile.isKid && !progress.onboardingDone
@@ -1411,6 +1419,23 @@ class MainActivity : ComponentActivity() {
                                             FamilyWall(wall, onSwitch = profiles::switchTo, crowned = crowned)
                                         } })
                                 }
+                            }
+                            // 2.7 (engine/nav/Welcome.kt): What's new once per version, then the tour once per profile, over the tabs.
+                            val wv = prefs.version.intValue
+                            when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion)) {
+                                com.bigpapituna.sharpears.engine.nav.Welcome.Show.WHATS_NEW -> com.bigpapituna.sharpears.ui.WhatsNewSheet(appVersion,
+                                    com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew(appVersion)) {
+                                    prefs.whatsNewSeen = appVersion; Log.d(TAG, "welcome: what's new $appVersion seen")
+                                }
+                                com.bigpapituna.sharpears.engine.nav.Welcome.Show.TOUR -> {
+                                    val from = remember { s.tab }
+                                    com.bigpapituna.sharpears.ui.TourDialog(onCard = { t -> screen = s.copy(tab = HomeTab.entries.first { it.nav == t }) },
+                                        onDone = { skipped ->
+                                            prefs.tourDone = true; screen = s.copy(tab = from)
+                                            Log.d(TAG, "welcome: tour ${if (skipped) "skipped" else "done"}")
+                                        })
+                                }
+                                com.bigpapituna.sharpears.engine.nav.Welcome.Show.NOTHING -> {}
                             }
                         }
                         // 2.7, the top of Learn: Learn chords, Games and Progressions (the Chords tab's places before).

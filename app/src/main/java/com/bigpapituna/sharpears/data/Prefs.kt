@@ -172,6 +172,16 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getString("lastPlayed", null)
         set(v) = edit { if (v == null) remove("lastPlayed") else putString("lastPlayed", v) }
 
+    /** The 2.7 tour (engine/nav/Welcome.kt) was walked or skipped by this profile: it never shows again. */
+    var tourDone: Boolean
+        get() = p.getBoolean("tourDone", false)
+        set(v) = edit { putBoolean("tourDone", v) }
+
+    /** The versionName whose What's new this profile saw (or skipped as a newcomer, or as a kid): it shows once per version. */
+    var whatsNewSeen: String?
+        get() = p.getString("whatsNewSeen", null)
+        set(v) = edit { if (v == null) remove("whatsNewSeen") else putString("whatsNewSeen", v) }
+
     /** Today's "Set up the microphone" banner was put away by hand (2.7); it also goes for good once the mic is allowed. */
     var micBannerClosed: Boolean
         get() = p.getBoolean("micBannerClosed", false)
