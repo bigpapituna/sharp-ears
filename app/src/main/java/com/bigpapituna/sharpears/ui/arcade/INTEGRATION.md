@@ -73,6 +73,8 @@ two sessions of a typical kid). The hub syncs the ledger as it opens and the pup
 - `--es screen arcade`: the hub.
 - `--es screen arcade --es game balloons|garden|feed|tower|moles|frogs|fireworks|painter|bridge [--ei level n] [--el seed n]`
   `[--es inject synth:60,62,64@700~3000]`: a round (injection: the Playground's, PianoSynth or a WAV).
+- `--ez bot true` with a game: the screen plays the right keys itself as touches (a stream's at 40% of its way, a call's
+  0.7 s into its beat), so a round can be watched, shot and finished on an emulator with no piano.
 - `--ei stars 1|2|3` with a game: straight to the finish with such a round (it is recorded: the first three stars earn the
   sticker, as a real round would).
 
