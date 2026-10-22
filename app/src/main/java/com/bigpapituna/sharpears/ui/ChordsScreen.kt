@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -23,8 +23,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -108,47 +106,111 @@ import kotlinx.coroutines.launch
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6
 
-enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS }
+/**
+ * Where Learn chords opens (2.7): the daily review and the packs, with the dictionary's sheet up, or the free chord practice.
+ * Before 2.7 these were the Chords tab's Daily, Dictionary and Practice tabs.
+ */
+enum class LearnChordsStart { REVIEW, DICTIONARY, PRACTICE }
 
+/** A chord page's top: Back and the page's name, as on Settings. */
 @Composable
-fun ChordsScreen(
-    sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs,
-    lessons: LessonStore, micDefault: Boolean,
-    startTab: ChordsTab = ChordsTab.PLAY, inject: String? = null, gameStart: GameStart = GameStart(),
+internal fun PageTop(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
+        Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 4.dp).semantics { heading() })
+    }
+}
+
+/**
+ * Learn chords (2.7, at the top of Learn): the daily chord review as one line, the dictionary as a sheet, free practice on any
+ * chord, and the lesson packs. The Chords tab's Daily, Dictionary and Practice merged into one page. [onShowPlayable] opens
+ * the Songs tab's songs by chords narrowed to what the chords learned already play; [onOpenPopSong] a song after a session.
+ */
+@Composable
+fun LearnChordsScreen(
+    sampler: Sampler, midi: MidiDevices, mic: MicInput, prefs: Prefs, lessons: LessonStore, micDefault: Boolean,
+    start: LearnChordsStart = LearnChordsStart.REVIEW, inject: String? = null,
     onPlayProgression: (Progression, Int) -> Unit,
-    /** Songs by chords (ui/chords, the Songs tab's section): the catalogue, for "You can play N songs" and the songs after a session. */
     popSongs: List<com.bigpapituna.sharpears.engine.chords.PopSong> = emptyList(),
     onOpenPopSong: (com.bigpapituna.sharpears.engine.chords.PopSong) -> Unit = {},
-    /** The Songs tab's songs by chords, narrowed to the ones the chords learned already play. */
     onShowPlayable: () -> Unit = {},
+    onBack: () -> Unit,
 ) {
-    var tab by remember { mutableStateOf(startTab) }
-    fun showPlayable() = onShowPlayable()
+    var drill by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(start == LearnChordsStart.PRACTICE) }
+    var dictionary by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(start == LearnChordsStart.DICTIONARY) }
     // The chords learned so far (Leitner box 3 or more) decide which songs "you can play".
     val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
     val playable = remember(popSongs, known) { com.bigpapituna.sharpears.engine.chords.PopFind.playableCount(popSongs, known) }
-    Column {
-        Text("Chords", style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
-        PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background,
-            divider = {}) {
-            Tab(tab == ChordsTab.PLAY, { tab = ChordsTab.PLAY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Play") })
-            Tab(tab == ChordsTab.LESSONS, { tab = ChordsTab.LESSONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Daily") })
-            Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
-            Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
-            Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })
+    Column(Modifier.fillMaxSize()) {
+        PageTop(if (drill) "Practise any chord" else com.bigpapituna.sharpears.engine.nav.Names.LEARN_CHORDS,
+            onBack = { if (drill) drill = false else onBack() })
+        if (drill) {
+            BackHandler { drill = false }                 // Back leaves the practice, not Learn chords
+            Practice(sampler, midi, mic, inject, sound = { prefs.sound })
+        } else Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound },
+            songsAfter = if (popSongs.isEmpty()) null else SessionSongs(popSongs, onOpenPopSong, onShowPlayable),
+            header = {
+                // The count of songs the learned chords play; a tap shows them in the Songs tab.
+                if (popSongs.isNotEmpty()) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable, Modifier.padding(start = 4.dp, bottom = 8.dp), onShowPlayable)
+            },
+            tools = {
+                Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ToolTile("Dictionary", "Every chord in every key and inversion, with fingers.", R.drawable.ic_book, Modifier.weight(1f)) { dictionary = true }
+                    ToolTile("Practise any chord", "One chord at a time, by touch, keyboard or mic.", R.drawable.ic_hand, Modifier.weight(1f)) { drill = true }
+                }
+            })
+    }
+    if (dictionary) DictionarySheet(onDismiss = { dictionary = false }) { Dictionary(sampler, sound = { prefs.sound }) }
+}
+
+/** One of Learn chords' two ways in beside the packs: an icon, a name and a line, the whole tile a button. */
+@Composable
+private fun ToolTile(title: String, detail: String, icon: Int, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier.fillMaxSize().pressScale().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .clickable(role = Role.Button, onClickLabel = "Open $title", onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * The dictionary as a sheet over Learn chords: tall, with its own close. Its keys are played by touch, so dragging on the
+ * sheet never moves it (only the close and Back put it away).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DictionarySheet(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetGesturesEnabled = false, containerColor = MaterialTheme.colorScheme.surfaceContainerLow, dragHandle = null) {
+        val tall = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height.toDp() } * 0.88f
+        Column(Modifier.fillMaxWidth().height(tall).navigationBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Dictionary", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+                androidx.compose.material3.IconButton(onClick = onDismiss) { Icon(painterResource(R.drawable.ic_close), contentDescription = "Close the dictionary") }
+            }
+            Box(Modifier.weight(1f)) { content() }
         }
-        // The count of songs the learned chords play; a tap shows them in the Songs tab.
-        if (popSongs.isNotEmpty() && playable > 0) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable,
-            Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)) { showPlayable() }
-        when (tab) {
-            ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
-            ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound },
-                songsAfter = if (popSongs.isEmpty()) null else SessionSongs(popSongs, onOpenPopSong, ::showPlayable))
-            ChordsTab.DICTIONARY -> Dictionary(sampler, sound = { prefs.sound })
-            ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject, sound = { prefs.sound })
-            ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression, sound = { prefs.sound })
-        }
+    }
+}
+
+/** Games (2.7, at the top of Learn; the Chords tab's Play before): the chord games' picker, or the game being played. */
+@Composable
+fun ChordGamesPage(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean, start: GameStart, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        PageTop(com.bigpapituna.sharpears.engine.nav.Names.GAMES, onBack)
+        ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, start)
+    }
+}
+
+/** Progressions (2.7, at the top of Learn; the Chords tab's Progressions before): hear each one, then practise it in the player. */
+@Composable
+fun ProgressionsPage(sampler: Sampler, prefs: Prefs, onPlay: (Progression, Int) -> Unit, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        PageTop(com.bigpapituna.sharpears.engine.nav.Names.PROGRESSIONS, onBack)
+        Progressions(sampler, onPlay, sound = { prefs.sound })
     }
 }
 
@@ -514,7 +576,7 @@ private fun ActionRow(title: String, detail: String, action: String?, onAction: 
 }
 
 /**
- * After a chord session in Daily (a pack's Practise, or today's chords): the popular songs those chords play
+ * After a chord session in Learn chords (a pack's Practise, or today's chords): the popular songs those chords play
  * ("Songs that use these chords", ui/chords), [onOpen] a song's page, [onMore] the list narrowed to what can be played.
  */
 private class SessionSongs(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong>,
@@ -524,10 +586,14 @@ private class SessionSongs(val songs: List<com.bigpapituna.sharpears.engine.chor
 private fun Lessons(
     store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, inject: String?,
     onPlayProgression: (Progression, Int) -> Unit, sound: () -> Boolean, songsAfter: SessionSongs? = null,
+    /** Above the review line: "You can play N songs" (Learn chords). */
+    header: @Composable () -> Unit = {},
+    /** Under the review line: the dictionary and free practice (Learn chords). */
+    tools: @Composable () -> Unit = {},
 ) {
     val v = store.version.intValue
     if (store.session.isNotEmpty()) {
-        BackHandler { store.endSession() }                 // Back leaves the session, not the Chords tab
+        BackHandler { store.endSession() }                 // Back leaves the session, not Learn chords
         Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = sound, songsAfter = songsAfter); return
     }
     val now = remember(v) { System.currentTimeMillis() }
@@ -535,27 +601,25 @@ private fun Lessons(
     val cur = remember(v, songPacks) { store.curriculum() }
     val mastery = remember(v) { store.mastery() }
     val today = remember(cur, mastery) { cur.queue(mastery, now) }
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState())) {
-        // The one raised surface on this tab: today's session.
-        Column(
-            Modifier.fillMaxWidth().widthIn(max = 720.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            val due = today.count { mastery[it.id]?.seen == true }
-            Text("Today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(if (today.isEmpty()) "All caught up" else "${com.bigpapituna.sharpears.engine.plural(today.size, "chord")} to practise", style = MaterialTheme.typography.headlineMedium)
-            if (today.isEmpty()) PupSays(Pose.RESTING, "Come back tomorrow, or practise any pack below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
-                style = MaterialTheme.typography.bodyLarge)
-            else Text(
-                if (due == 0) "All new. Chords you play cleanly come back less often." else "$due to review and ${today.size - due} new.",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (today.isNotEmpty()) {
-                Spacer(Modifier.size(8.dp))
-                ChunkyButton(onClick = { store.startSession(today) }) { Text("Start practice") }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+      Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        header()
+        // The daily chord review as one line (2.7; the Daily tab's panel before): how many are due, and Start.
+        val due = today.count { mastery[it.id]?.seen == true }
+        Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Pup(if (today.isEmpty()) Pose.RESTING else Pose.GET_READY, size = 52.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Daily review", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(if (today.isEmpty()) "All caught up" else "${com.bigpapituna.sharpears.engine.plural(today.size, "chord")} to practise", style = MaterialTheme.typography.titleLarge)
+                Text(when {
+                    today.isEmpty() -> "Come back tomorrow, or practise any pack below."
+                    due == 0 -> "All new. Chords you play cleanly come back less often."
+                    else -> "$due to review and ${today.size - due} new."
+                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (today.isNotEmpty()) ChunkyButton(onClick = { store.startSession(today) }) { Text("Start") }
         }
+        tools()
         val (authored, fromSongs) = cur.packs.partition { it.level < 6 }
         Column(Modifier.padding(horizontal = 4.dp)) {
             Text("Packs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
@@ -564,6 +628,7 @@ private fun Lessons(
             if (fromSongs.isEmpty()) PupSays(Pose.LISTENING, "Finding the chords in your songs.", size = 48.dp, style = MaterialTheme.typography.bodyMedium)
             fromSongs.forEach { PackRow(it, store, true, cur, mastery, now) }
         }
+      }
     }
 }
 
@@ -586,7 +651,7 @@ private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur
 }
 
 /**
- * The chord part of "Practice today": the due chords ([itemIds]) one after another, as in the Daily tab.
+ * The chord part of "Practice today": the due chords ([itemIds]) one after another, as in Learn chords.
  * [onEnd] runs with how many were answered when the last one is done or the rest is skipped.
  */
 @Composable
@@ -623,7 +688,7 @@ private fun Session(
         LaunchedEffect(n) { if (songsAfter != null) Log.d(TAG, "pop: songs for the session's chords: " + found.joinToString { it.id }.ifEmpty { "none" }) }
         Celebration("Session done!", "The ones that were not clean come back tomorrow.",
             listOf(Stat("${store.sessionCorrect}/$n", "Clean"), Stat("$n", "Practised")),
-            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler.takeIf { sound() },
+            primary = "Back to Learn chords", onPrimary = store::endSession, sampler = sampler.takeIf { sound() },
             reward = if (songsAfter == null || found.isEmpty()) null else { {
                 com.bigpapituna.sharpears.ui.chords.SongsForChordsCard(songsAfter.songs, chords,
                     onOpen = { song -> store.endSession(); songsAfter.onOpen(song) },

@@ -119,7 +119,9 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 /** A lesson a grown-up pinned as the next one from the parent brief (2.4): Start opens it while its day lasts. */
                 pinned: CourseLesson? = null,
                 /** Lessons placement skipped (2.6): done for the path, but not played: a quiet band over the unit, grey stops, no tick, no trophy. */
-                skipped: (String) -> Boolean = { false }) {
+                skipped: (String) -> Boolean = { false },
+                /** The Chords section (2.7, [ChordsSection]) at the top, above Theory, Ear training and Sight-read; null for a kid. */
+                chords: (@Composable () -> Unit)? = null) {
     val next = pinned ?: path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
@@ -165,6 +167,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     Pup(Pose.LEARNING, size = 64.dp)
                 }
                 grownUp?.let { Box(Modifier.padding(bottom = 12.dp)) { it() } }
+                chords?.let { Box(Modifier.padding(bottom = 16.dp)) { it() } }
                 // Beside the course: practice that is never "done" (new music, new rounds each time). Not before a kid
                 // can read: the cards are words, and the pup's world below is the whole path for them.
                 if (!kid || reader) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -203,6 +206,37 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         if (next == null) item(key = "end") {
             PupSays(Pose.LEVEL_UP, "Every lesson done. Keep going with songs and daily practice.", Modifier.widthIn(max = 560.dp).padding(20.dp), size = 96.dp)
         }
+    }
+}
+
+/**
+ * Learn's Chords section (2.7; the Chords tab before): Learn chords (the daily review, the dictionary and the packs), Games
+ * (the chord games) and Progressions, three tiles in a row under one heading. [due] chord review items wait in Learn chords.
+ */
+@Composable
+fun ChordsSection(due: Int, onLearnChords: () -> Unit, onGames: () -> Unit, onProgressions: () -> Unit) {
+    val names = com.bigpapituna.sharpears.engine.nav.Names
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Chords", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChordTile(names.LEARN_CHORDS, if (due > 0) "${com.bigpapituna.sharpears.engine.plural(due, "chord")} due today" else "Review, dictionary and packs",
+                R.drawable.ic_piano, Modifier.weight(1f), accent = due > 0, onClick = onLearnChords)
+            ChordTile(names.GAMES, "Build, hear and name chords", R.drawable.ic_hearing, Modifier.weight(1f), onClick = onGames)
+            ChordTile(names.PROGRESSIONS, "Hear them, then play along", R.drawable.ic_music_note, Modifier.weight(1f), onClick = onProgressions)
+        }
+    }
+}
+
+/** One of the Chords section's tiles: its icon, name and a line, in the Learn rows' raised colour; [accent] colours the line. */
+@Composable
+private fun ChordTile(title: String, detail: String, icon: Int, modifier: Modifier, accent: Boolean = false, onClick: () -> Unit) {
+    Column(modifier.fillMaxSize().heightIn(min = 104.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .clickable(role = Role.Button, onClickLabel = "Open $title", onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+        Text(detail, style = MaterialTheme.typography.bodySmall, maxLines = 3,
+            color = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -153,7 +153,7 @@ fun PopBrowse(
 }
 
 private fun emptyLine(chip: PopFind.Chip, sort: PopFind.Sort) = when {
-    sort == PopFind.Sort.CAN_PLAY -> "No song is ready yet. Practise a few chords in Daily and the songs they play show up here."
+    sort == PopFind.Sort.CAN_PLAY -> "No song is ready yet. Practise a few chords in Learn chords and the songs they play show up here."
     sort == PopFind.Sort.ONE_AWAY -> "No song is one chord away yet."
     chip == PopFind.Chip.ALL -> "No songs yet."
     else -> "No songs in ${chip.label.lowercase()} yet."
