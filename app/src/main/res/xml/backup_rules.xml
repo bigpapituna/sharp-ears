@@ -6,12 +6,15 @@
     stays out: the clips or the model alone are over the 25 MB backup limit, which stops the whole backup. The AI brief's
     weekly quota and reply cache (ai-brief.xml, data/BriefAi.kt) are not worth carrying either. The email brief's
     settings (email.xml, data/EmailSettings.kt) hold the grown-ups' addresses: they stay on the phone too (the progress
-    export the grown-up saves carries them).
+    export the grown-up saves carries them). The tester switches, the random device id and the tester log (tester.xml,
+    files/tester, analytics/Tester.kt) belong to this phone: a restored phone starts with "Help Roy test" off and a new id.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="reports.xml" />
     <exclude domain="sharedpref" path="ai-brief.xml" />
     <exclude domain="sharedpref" path="email.xml" />
+    <exclude domain="sharedpref" path="tester.xml" />
+    <exclude domain="file" path="tester" />
     <exclude domain="external" path="fixtures" />
     <exclude domain="external" path="stalls" />
     <exclude domain="file" path="kokoro" />

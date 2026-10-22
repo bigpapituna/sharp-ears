@@ -29,6 +29,9 @@ class BackupRulesTest {
             assertTrue(name, text.contains("<exclude domain=\"external\" path=\"stalls\" />"))
             // The email brief's settings hold the grown-ups' addresses (data/EmailSettings.kt): never in Android's backup.
             assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"${EmailSettings.FILE}.xml\" />"))
+            // Tester analytics (analytics/Tester.kt): the switches, the device id and the tester log belong to this phone.
+            assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"${com.bigpapituna.sharpears.analytics.Tester.FILE}.xml\" />"))
+            assertTrue(name, text.contains("<exclude domain=\"file\" path=\"${com.bigpapituna.sharpears.analytics.Tester.DIR}\" />"))
         }
         assertEquals(2, Regex("<(cloud-backup|device-transfer)>").findAll(extraction).count())
     }

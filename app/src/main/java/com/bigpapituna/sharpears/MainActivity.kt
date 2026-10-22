@@ -376,6 +376,9 @@ class MainActivity : ComponentActivity() {
         profiles = Profiles(this)
         gate = ParentGateController(profiles)
         Briefs.init(this)                                  // the parent brief's event logs, files/events/<profile>.log
+        // Tester analytics (analytics/Tester.kt): PostHog starts only on a build with a key and "Help Roy test" on.
+        com.bigpapituna.sharpears.analytics.Tester.init(this)
+        Briefs.tap = com.bigpapituna.sharpears.analytics.Tester::briefEvent
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         // --es profile <id> (debug): open as that profile, no picker.
         val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
@@ -396,6 +399,11 @@ class MainActivity : ComponentActivity() {
                 runCatching { w.sync() }.onFailure { Log.d(TAG, "wardrobe: ledger sync at the session's end failed: ${it.javaClass.simpleName}") }
             }
             com.bigpapituna.sharpears.reminder.EmailJob.afterSession(applicationContext)
+            // The tester diary keeps the session's refusal and error lines before logcat rolls them away.
+            if (com.bigpapituna.sharpears.analytics.Tester.switchOn.value || com.bigpapituna.sharpears.analytics.Tester.diaryOn.value) {
+                val app = applicationContext
+                Thread { com.bigpapituna.sharpears.analytics.Tester.collectLog(app) }.start()
+            }
         }
         com.bigpapituna.sharpears.reminder.EmailJob.runAsync(this, "app start")
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
@@ -458,6 +466,7 @@ class MainActivity : ComponentActivity() {
         openKind = profile.kind
         openReader = profile.reader
         Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
+        com.bigpapituna.sharpears.analytics.Tester.profile(profile.isKid, profile.id)     // "kid" or "adult" only, never the name
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
         // The mic follows the player: a kid's offset and report tag for every mic screen (chords, ear games, tuner,
@@ -638,7 +647,7 @@ class MainActivity : ComponentActivity() {
         val opened = if (fromLaunch) ++launches else launches
         setContent { androidx.compose.runtime.key(profile.id, opened) {
             var screen by remember { mutableStateOf(requested ?: reopened ?: opening) }
-            androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen) }
+            androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen); com.bigpapituna.sharpears.analytics.Tester.screen(shownRoute!!) }
             // A parent brief action's screen for the person open now ([briefNav]: Replay, Practise together).
             val asked = navRequest.value
             LaunchedEffect(asked) { if (asked != null) { voice.stop(); screen = asked; navRequest.value = null } }
@@ -1297,6 +1306,7 @@ class MainActivity : ComponentActivity() {
                     var motionDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "motion") }
                     if (motionDemo) com.bigpapituna.sharpears.ui.motion.MotionDemo(intent.getStringExtra("demo"), sampler) { motionDemo = false }
                     importError?.let { msg ->
+                        LaunchedEffect(msg) { com.bigpapituna.sharpears.analytics.Tester.error("song import") }
                         AlertDialog(onDismissRequest = { importError = null }, title = { Text("Could not import") }, text = { Text(msg) },
                             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } })
                     }
@@ -1480,8 +1490,14 @@ class MainActivity : ComponentActivity() {
     }
 
     // A session of the parent brief's log runs while the app is on screen as someone (the picker is no one).
-    override fun onStart() { super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start(); openId?.let(Briefs::sessionStart) }
-    override fun onStop() { Briefs.sessionEnd(); com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); super.onStop() }
+    override fun onStart() {
+        super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start(); openId?.let(Briefs::sessionStart)
+        com.bigpapituna.sharpears.analytics.Tester.back()
+    }
+    override fun onStop() {
+        Briefs.sessionEnd(); com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); com.bigpapituna.sharpears.analytics.Tester.away()
+        super.onStop()
+    }
 
     override fun onPause() {
         Juice.world?.flush()            // the treat jar saves every few notes; the rest now
