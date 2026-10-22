@@ -84,7 +84,7 @@ internal fun BalloonField(play: ArcadePlay, modifier: Modifier) {
             val p = play.along(t, at)
             val x = t.lane?.let { it * size.width + (t.keys.indexOf(key) - (t.keys.size - 1) / 2f) * r * 2.3f } ?: g.rect(key).center.x
             val sway = sin(at / 520.0 + t.id).toFloat() * r * 0.18f
-            return Offset(x + sway, size.height + r * 3f - (size.height + r * 6.5f) * p)
+            return Offset((x + sway).coerceIn(r * 1.1f, size.width - r * 1.1f), size.height + r * 3f - (size.height + r * 6.5f) * p)
         }
         for (t in play.stream?.live.orEmpty()) {
             val half = play.last(FxKind.HALF, t.id)
