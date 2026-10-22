@@ -80,7 +80,7 @@ class Profiles(
     private fun briefChanges(before: Profile, after: Profile) {
         fun put(key: String, a: Any, b: Any) { if (a != b) Briefs.settingFor(after.id, key, b) }
         put("kind", before.kind, after.kind); put("reader", before.reader, after.reader); put("colourNotes", before.colourNotes, after.colourNotes)
-        put("micOffsetDb", before.micOffsetDb, after.micOffsetDb); put("hintSeconds", before.hintSeconds.joinToString(":"), after.hintSeconds.joinToString(":"))
+        put("level", before.level, after.level); put("micOffsetDb", before.micOffsetDb, after.micOffsetDb); put("hintSeconds", before.hintSeconds.joinToString(":"), after.hintSeconds.joinToString(":"))
     }
 
     /** Grown-up mode for a kid (or back): the kind's defaults for goal, hints, colour notes and mic offset. */

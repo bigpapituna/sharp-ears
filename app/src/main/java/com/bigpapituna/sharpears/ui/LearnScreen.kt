@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -116,7 +117,9 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 /** A kid who finished Beginner: the offer of grown-up mode, at the top of the path (null: none). */
                 grownUp: (@Composable () -> Unit)? = null,
                 /** A lesson a grown-up pinned as the next one from the parent brief (2.4): Start opens it while its day lasts. */
-                pinned: CourseLesson? = null) {
+                pinned: CourseLesson? = null,
+                /** Lessons placement skipped (2.6): done for the path, but not played: a quiet band over the unit, grey stops, no tick, no trophy. */
+                skipped: (String) -> Boolean = { false }) {
     val next = pinned ?: path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
@@ -156,7 +159,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     Column(Modifier.weight(1f).padding(top = 20.dp, bottom = 12.dp)) {
                         Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
                         // A kid's path has no count to keep up with (the map and its ticks say it).
-                        if (!kid) Text("${path.counted.count { done(it.id) }} of ${path.counted.size} lessons", style = MaterialTheme.typography.bodySmall,
+                        if (!kid) Text("${path.counted.count { done(it.id) && !skipped(it.id) }} of ${path.counted.count { !skipped(it.id) }} lessons", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Pup(Pose.LEARNING, size = 64.dp)
@@ -176,10 +179,10 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"
             is PathRow.Trophy -> "t-${r.level.id}"; is PathRow.Scene -> "s-${r.level.id}" } }) { r ->
             when (r) {
-                is PathRow.Banner -> UnitBanner(r.level, r.level.lessons.count { done(it.id) }, current = r.level.lessons.any { it == next },
+                is PathRow.Banner -> UnitBanner(r.level, r.level.lessons.count { done(it.id) && !skipped(it.id) }, r.level.lessons.count { skipped(it.id) }, current = r.level.lessons.any { it == next },
                     number = path.levels.indexOf(r.level) + 1, extra = path.isExtra(r.level))
                 is PathRow.Stop -> {
-                    val state = when { done(r.lesson.id) -> StopState.DONE; r.lesson == next -> StopState.NEXT; else -> StopState.LATER }
+                    val state = when { skipped(r.lesson.id) -> StopState.SKIPPED; done(r.lesson.id) -> StopState.DONE; r.lesson == next -> StopState.NEXT; else -> StopState.LATER }
                     StopRow(r.lesson, path.numberOf(r.lesson), WIND[r.i % WIND.size], state) {
                         open = if (open == r.lesson.id) null else r.lesson.id
                     }
@@ -188,13 +191,13 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     stops = r.lessons.size,
                     stop = { i ->
                         r.lessons.getOrNull(i)?.let { l ->
-                            val state = when { done(l.id) -> StopState.DONE; l == next -> StopState.NEXT; else -> StopState.LATER }
+                            val state = when { skipped(l.id) -> StopState.SKIPPED; done(l.id) -> StopState.DONE; l == next -> StopState.NEXT; else -> StopState.LATER }
                             MapStop(l, i + 1, state) { open = if (open == l.id) null else l.id }
                         }
                     })
-                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
+                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id) && !skipped(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
                     extra = path.levelOf(r.lesson)?.let(path::isExtra) == true)
-                is PathRow.Trophy -> UnitTrophy(r.level, r.level.lessons.all { done(it.id) })
+                is PathRow.Trophy -> if (r.level.lessons.all { skipped(it.id) }) Spacer(Modifier.height(4.dp)) else UnitTrophy(r.level, r.level.lessons.all { done(it.id) && !skipped(it.id) })
             }
         }
         if (next == null) item(key = "end") {
@@ -218,7 +221,7 @@ private fun SideRow(title: String, detail: String, status: String?, icon: Int, o
     }
 }
 
-private enum class StopState { DONE, NEXT, LATER }
+private enum class StopState { DONE, NEXT, LATER, SKIPPED }
 
 /** The icon for a lesson (or step) kind: a book to read, an ear to listen, a hand to play, the metronome to perform, a note for a song. */
 private fun LessonKind.icon() = when (this) {
@@ -234,7 +237,7 @@ private fun LessonKind.icon() = when (this) {
  * small icons. The unit in progress is filled with the accent.
  */
 @Composable
-private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean, number: Int, extra: Boolean) {
+private fun UnitBanner(level: CourseLevel, done: Int, skippedCount: Int, current: Boolean, number: Int, extra: Boolean) {
     val c = MaterialTheme.colorScheme
     val bg = if (current) c.primary else c.surfaceContainerHigh
     val ink = if (current) c.onPrimary else c.onSurface
@@ -259,12 +262,15 @@ private fun UnitBanner(level: CourseLevel, done: Int, current: Boolean, number: 
         }
         Row(verticalAlignment = Alignment.Bottom) {
             Text(level.title, style = MaterialTheme.typography.headlineSmall, color = ink, modifier = Modifier.weight(1f).semantics { heading() })
-            Text("$done of ${level.lessons.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = ink.copy(alpha = 0.8f))
+            Text(if (skippedCount >= level.lessons.size) "Skipped" else "$done of ${level.lessons.size - skippedCount}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = ink.copy(alpha = 0.8f))
         }
         Text(level.about, style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = 0.8f))
         Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(CircleShape).background(ink.copy(alpha = 0.18f))) {
-            Box(Modifier.fillMaxWidth(done / level.lessons.size.toFloat()).height(6.dp).clip(CircleShape).background(if (current) c.onPrimary else c.primary))
+            Box(Modifier.fillMaxWidth(done / (level.lessons.size - skippedCount).coerceAtLeast(1).toFloat()).height(6.dp).clip(CircleShape).background(if (current) c.onPrimary else c.primary))
         }
+        // Placement (2.6): a quiet band over a unit the learner skipped; every stop in it stays open.
+        if (skippedCount > 0) Text("You skipped these. Open any time.", style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = 0.7f),
+            modifier = Modifier.padding(top = 4.dp).semantics { contentDescription = "You skipped these lessons. Open any time." })
     }
 }
 
@@ -285,7 +291,7 @@ private fun StopRow(lesson: CourseLesson, number: Int, wind: Float, state: StopS
             }
             StopButton(state, number, lesson.title, lesson.kind, onClick)
             Text(lesson.title, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 2,
-                color = if (state == StopState.LATER) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                color = if (state == StopState.LATER || state == StopState.SKIPPED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.widthIn(max = 150.dp).padding(top = 2.dp).clearAndSetSemantics { })
         }
         // The pup on the roomier side, pointing at the stop (his pose points right, so he is mirrored on the right).
@@ -325,8 +331,8 @@ private fun StopButton(state: StopState, number: Int, title: String, kind: Lesso
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val sink by animateDpAsState(if (pressed) lip else 0.dp, spring(dampingRatio = 0.45f, stiffness = 1100f), label = "sink")
-    val face = when (state) { StopState.DONE, StopState.NEXT -> c.primary; StopState.LATER -> c.surfaceContainerHighest }
-    val edge = when (state) { StopState.DONE, StopState.NEXT -> lerp(c.primary, Color.Black, 0.3f); StopState.LATER -> lerp(c.surfaceContainerHighest, Color.Black, 0.35f) }
+    val face = when (state) { StopState.DONE, StopState.NEXT -> c.primary; StopState.LATER, StopState.SKIPPED -> c.surfaceContainerHighest }
+    val edge = when (state) { StopState.DONE, StopState.NEXT -> lerp(c.primary, Color.Black, 0.3f); StopState.LATER, StopState.SKIPPED -> lerp(c.surfaceContainerHighest, Color.Black, 0.35f) }
     val still = reducedMotion()
     val ring = if (state == StopState.NEXT && !still) rememberInfiniteTransition(label = "ring")
         .animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "pulse").value else 0f
@@ -336,10 +342,10 @@ private fun StopButton(state: StopState, number: Int, title: String, kind: Lesso
             val k = 1f + 0.28f * ring; scaleX = k; scaleY = k; alpha = (1f - ring) * 0.5f
         }.border(3.dp, c.primary, CircleShape))
         Box(Modifier.size(size, size + lip).clickable(source, indication = null, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "Lesson $number, $title, ${kind.label.lowercase()}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started" } }) {
+            .semantics { contentDescription = "Lesson $number, $title, ${kind.label.lowercase()}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started"; StopState.SKIPPED -> "skipped, open any time" } }) {
             Box(Modifier.size(size).offset(y = lip).background(edge, CircleShape))
             Box(Modifier.size(size).offset { IntOffset(0, sink.roundToPx()) }.background(face, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(painterResource(kind.icon()), contentDescription = null, tint = if (state == StopState.LATER) c.onSurfaceVariant else c.onPrimary,
+                Icon(painterResource(kind.icon()), contentDescription = null, tint = if (state == StopState.LATER || state == StopState.SKIPPED) c.onSurfaceVariant else c.onPrimary,
                     modifier = Modifier.size(if (state == StopState.NEXT) 36.dp else 30.dp))
                 if (state == StopState.DONE) Box(Modifier.align(Alignment.BottomEnd).size(24.dp).background(c.surface, CircleShape),
                     contentAlignment = Alignment.Center) {
@@ -409,7 +415,7 @@ private fun MapStop(lesson: CourseLesson, number: Int, state: StopState, onClick
     val c = MaterialTheme.colorScheme
     val still = reducedMotion()
     val size: Dp = if (state == StopState.NEXT) 52.dp else 42.dp
-    val face = when (state) { StopState.DONE, StopState.NEXT -> c.primary; StopState.LATER -> c.surfaceContainerHighest }
+    val face = when (state) { StopState.DONE, StopState.NEXT -> c.primary; StopState.LATER, StopState.SKIPPED -> c.surfaceContainerHighest }
     val ring = if (state == StopState.NEXT && !still) rememberInfiniteTransition(label = "ring")
         .animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "pulse").value else 0f
     Box(Modifier.size(size + 20.dp), contentAlignment = Alignment.Center) {
@@ -418,11 +424,11 @@ private fun MapStop(lesson: CourseLesson, number: Int, state: StopState, onClick
         }.border(3.dp, Color.White, CircleShape))
         Box(Modifier.size(size).pressScale().clip(CircleShape).background(face).border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape)
             .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "Lesson $number, ${lesson.title}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started" } },
+            .semantics { contentDescription = "Lesson $number, ${lesson.title}, " + when (state) { StopState.DONE -> "done"; StopState.NEXT -> "next"; StopState.LATER -> "not started"; StopState.SKIPPED -> "skipped, open any time" } },
             contentAlignment = Alignment.Center) {
             if (state == StopState.DONE) Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.onPrimary, modifier = Modifier.size(22.dp))
             else Text("$number", style = Numeric.merge(MaterialTheme.typography.titleMedium),
-                color = if (state == StopState.LATER) c.onSurfaceVariant else c.onPrimary)
+                color = if (state == StopState.LATER || state == StopState.SKIPPED) c.onSurfaceVariant else c.onPrimary)
         }
     }
 }

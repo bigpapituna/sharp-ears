@@ -201,6 +201,8 @@ private sealed interface Screen {
     data class EarTraining(val back: Screen, val start: EarStart? = null) : Screen
     /** First run: four questions, then the suggested lesson. */
     data object Onboarding : Screen
+    /** "Let's hear you play" (2.6): the short listen after the piano level was said ([said]); [startTask] and [inject] are debug. */
+    data class Placement(val said: com.bigpapituna.sharpears.engine.family.Level, val startTask: Int = 0, val inject: String? = null) : Screen
     data class Theory(val back: Screen) : Screen
     /** The pup's world (2.1): the places, the jar and egg, the album, dress-up and the records, from the You tab's card. */
     data class World(val back: Screen, val tab: WorldTab = WorldTab.WORLD) : Screen
@@ -223,7 +225,7 @@ private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS ->
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.World, is Screen.KidSongs, is Screen.KidStickers, is Screen.PopSong -> 1
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidStickers, is Screen.PopSong -> 1
     is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play,
     is Screen.Finale -> 2
 }
@@ -246,6 +248,7 @@ private fun routeOf(s: Screen): String = when (s) {
     is Screen.Settings -> "${routeOf(s.back)}/settings"
     is Screen.EarTraining -> "${routeOf(s.back)}/ear"
     Screen.Onboarding -> "onboarding"
+    is Screen.Placement -> "home:SONGS"
     is Screen.Theory -> "${routeOf(s.back)}/theory"
     is Screen.World -> "${routeOf(s.back)}/world:${s.tab.name}"
     is Screen.Play -> "${routeOf(s.back)}/play:${s.toy.name}"
@@ -263,7 +266,7 @@ private fun playerShown(s: Screen) = s is Screen.Player ||
 private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
 
 /** Screens played at the piano, hands off the phone for minutes: the screen stays on (see [KeepScreenOnWhile]). */
-private fun keepsScreenOn(s: Screen) = s is Screen.Player || s is Screen.Lesson || s is Screen.Daily || s is Screen.SightRead ||
+private fun keepsScreenOn(s: Screen) = s is Screen.Player || s is Screen.Placement || s is Screen.Lesson || s is Screen.Daily || s is Screen.SightRead ||
     s is Screen.Play || s is Screen.EarTraining || s is Screen.Theory || s is Screen.Finale
 
 /**
@@ -292,6 +295,8 @@ class MainActivity : ComponentActivity() {
     private var openKind: com.bigpapituna.sharpears.engine.family.ProfileKind? = null
     /** A kid reads or not, as the app was opened (a big kid's course path differs, so a change reopens it too). */
     private var openReader: Boolean? = null
+    /** The piano level the open profile was placed with: a change re-plans the marks in place, with no reopen (see the profile flow). */
+    private var openLevel: com.bigpapituna.sharpears.engine.family.Level? = null
     /** Launches of this activity's content ([openApp] with fromLaunch), so a new one forgets the last one's screen. */
     private var launches = 0
     /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
@@ -415,8 +420,16 @@ class MainActivity : ComponentActivity() {
         // Someone else picked (the family wall, Settings > Family, the player deleted): the app opens again as them. So it
         // does when the player turns from kid to grown-up or back: the course path, the skin and the mic offset change.
         lifecycleScope.launch {
-            profiles.currentFlow.map { Triple(it.id, it.kind, it.reader) }.distinctUntilChanged().collect { (id, kind, reader) ->
-                if (openId != null && (openId != id || openKind != kind || openReader != reader)) openApp(fromLaunch = false)
+            profiles.currentFlow.map { listOf(it.id, it.kind, it.reader, it.level) }.distinctUntilChanged().collect {
+                val now = profiles.current
+                if (openId != null && (openId != now.id || openKind != now.kind || openReader != now.reader)) openApp(fromLaunch = false)
+                // A new piano level (the onboarding, Family > Piano level) re-plans the open profile's marks where it stands: the
+                // path and the map read the prefs, so nothing reopens and no screen is lost.
+                else if (openId != null && openLevel != now.level) {
+                    openLevel = now.level
+                    openPrefs?.let { p -> p.applyPlacement(com.bigpapituna.sharpears.engine.family.Placement.planOf(now)); p.version.intValue++ }
+                    openKid?.let { it.version.intValue++ }
+                }
             }
         }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us;
@@ -436,6 +449,7 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val roster by profiles.rosterFlow.collectAsState()
                     var weekly by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }
+                    var wantsCheck by remember { mutableStateOf(false) }
                     androidx.compose.runtime.CompositionLocalProvider(LocalProfiles provides profiles, LocalParentGate provides gate,
                         com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
                         ProfilePicker(roster,
@@ -448,9 +462,11 @@ class MainActivity : ComponentActivity() {
                                     com.bigpapituna.sharpears.data.BriefStore(this@MainActivity, made.id).weekly = weekly ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
                                     com.bigpapituna.sharpears.reminder.BriefReminder.schedule(this@MainActivity, made)
                                 }
+                                if (made != null && wantsCheck) Prefs(this@MainActivity, made.id).placementCheckPending = true
+                                wantsCheck = false
                                 if (made != null) openApp(fromLaunch = true)
                             },
-                            onWeekly = { weekly = it })
+                            onWeekly = { weekly = it }, onCheck = { wantsCheck = it })
                         BriefFromNotification(roster, openKid = false)
                         ParentGateHost(gate)
                     }
@@ -474,6 +490,9 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "profiles: open as ${profile.id} (${profile.kind}, reader=${profile.reader})")
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
+        // Placement (2.6): the lessons this person's level skips are marked "done, skipped" (idempotent; a played lesson is never touched).
+        prefs.applyPlacement(com.bigpapituna.sharpears.engine.family.Placement.planOf(profile))
+        openLevel = profile.level
         // The mic follows the player: a kid's offset and report tag for every mic screen (chords, ear games, tuner,
         // playground), and a new player starts with wrong keys painted again (the last one's room may have been noisier).
         mic.forProfile(profile.isKid, profile.micOffsetDb, newSession = newPlayer)
@@ -512,11 +531,12 @@ class MainActivity : ComponentActivity() {
         // from the kid store (a page whose last lesson is done counts at once: its rare item shows on that lesson's finish).
         world.ledgerSource = {
             com.bigpapituna.sharpears.engine.world.LedgerInput(progress.practiceLog(), kidStore.allStars().filterValues { it >= 3 }.keys,
-                kidStore.finales() + PLAYGROUND_PAGES.filter { it.lessonIds.isNotEmpty() && prefs.lessonDone(it.lastLessonId) }.map { it.id })
+                kidStore.finales() + PLAYGROUND_PAGES.filter { it.lessonIds.isNotEmpty() && prefs.lessonPlayed(it.lastLessonId) }.map { it.id })
         }
         fun quest(e: QuestEvent) = playStore.recordQuest(e, profile.isKid).forEach { Log.d(TAG, "quest: ${it.kind} done ($e)") }
         // The course in this person's order: a kid's Playground first, a grown-up's Basics (the Playground an extra).
-        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader, startAt = { progress.experience?.startLessonId })
+        val path = CoursePath(profile.firstUnitId, bigKid = profile.isKid && profile.reader,
+            startAt = { com.bigpapituna.sharpears.engine.family.Placement.startLessonId(profiles.current) ?: progress.experience?.startLessonId })
         val bedtime = com.bigpapituna.sharpears.ui.skin.BedtimeStore(this, profile.id)
         val practiceStore = PracticeStore(this, profile.id)
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
@@ -524,7 +544,7 @@ class MainActivity : ComponentActivity() {
         val micCheck = micCheckExercise()
         if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) kidDebugSeed(intent, prefs, kidStore, progress, bedtime)
         // Stones finished before 2.5 earn their own stickers into the tray; the ledger catches up with what was played.
-        world.earnLevels(prefs::lessonDone)
+        world.earnLevels(prefs::lessonPlayed)
         world.sync()
         if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) worldDebugSeed(intent, world)
 
@@ -536,6 +556,7 @@ class MainActivity : ComponentActivity() {
         //   --es screen practice [--es tab scales|arpeggios|warmups|metronome|tuner]
         //   --es screen ear [--es game rhythm|melody|pitch|degree|prog --ei level 0-2 | --ez workout true]
         //   --es screen onboarding   (the first-run flow, whatever was answered before)
+        //   --es screen placement [--es said A_LITTLE|SOME|A_LOT] [--ei task n] [--es inject ...]   (2.6, "Let's hear you play"; the level is not changed unless it is played through)
         //   --es screen chords --es game build|hear|mm [--ei level 0-2] [--es inject ...]   (a chord game, seeded)
         //   --es lesson <course lesson id> [--ei step <0-based step>] [--es inject ...]
         //   --es say "<text>"   (speaks the line 1.5 s after launch, through the mic rule)
@@ -606,6 +627,8 @@ class MainActivity : ComponentActivity() {
             route == "learn" -> Screen.Home(HomeTab.LEARN)
             route == "profile" || route == "you" -> Screen.Home(HomeTab.YOU)
             route == "onboarding" -> Screen.Onboarding
+            // --es screen placement [--es said A_LITTLE|SOME|A_LOT] [--ei task n] [--es inject synth:...] (2.6): "Let's hear you play"
+            route == "placement" -> Screen.Placement(com.bigpapituna.sharpears.engine.family.Level.parse(intent.getStringExtra("said") ?: "SOME"), intent.getIntExtra("task", 0), debugStart.inject)
             route == "practice" -> Screen.Home(HomeTab.PRACTICE,
                 practiceTab = PracticeTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: PracticeTab.SCALES)
             route == "ear" -> Screen.EarTraining(Screen.Home(HomeTab.LEARN), when {
@@ -643,6 +666,11 @@ class MainActivity : ComponentActivity() {
         // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
         // the first Playground game (Back from it goes to the Learn path).
         val opening = when {
+            // 2.6: a parent asked for "Let's hear you play" when adding this kid: it comes before the first stone, once.
+            newKid && first == Screen.Home() && !startDaily && prefs.placementCheckPending && com.bigpapituna.sharpears.engine.family.PlacementCheck.offered(profile.level.forKid) -> {
+                prefs.placementCheckPending = false
+                Screen.Placement(profile.level.forKid)
+            }
             newKid && first == Screen.Home() && !startDaily ->
                 KidMap.next(path, prefs::lessonDone, kidStore.finales(), pace = kidStore.pace(), stars = kidStore::stars)?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
             !progress.onboardingDone && first == Screen.Home() && !startDaily -> Screen.Onboarding
@@ -998,11 +1026,40 @@ class MainActivity : ComponentActivity() {
                         }
                         Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
-                                askReminder = profile.isOwner) { lessonId ->
-                                // The suggested first lesson opens straight away; Back from it lands on Learn.
+                                askReminder = profile.isOwner,
+                                // How much they have played (2.6): the profile keeps it and the flow below re-plans the marks in place.
+                                onLevel = { l -> profiles.update(profile.id) { it.copy(level = l) } },
+                                onCheck = { l -> screen = Screen.Placement(l) }) { lessonId ->
+                                // The suggested first lesson opens straight away; Back from it lands on Learn. Someone here for
+                                // songs ("a lot") lands on the library, the rest on the course.
+                                val songsFirst = com.bigpapituna.sharpears.engine.family.Placement.planOf(profiles.current).homeFirst == com.bigpapituna.sharpears.engine.family.HomeFirst.SONGS
                                 screen = lessonId?.let { id -> COURSE.flatMap { it.lessons }.firstOrNull { it.id == id } }
-                                    ?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home()
+                                    ?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home(if (songsFirst) HomeTab.SONGS else HomeTab.LEARN)
                             }
+                        }
+                        // "Let's hear you play" (2.6): two or three tiny things, then where they begin; it counts as a first lesson.
+                        is Screen.Placement -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            val plan = com.bigpapituna.sharpears.engine.family.Placement.planFor(s.said, profile.kind, profile.reader)
+                            val songsFirst = plan.homeFirst == com.bigpapituna.sharpears.engine.family.HomeFirst.SONGS
+                            com.bigpapituna.sharpears.ui.family.PlacementCheckScreen(sampler, midi, mic, voice, samplerReady.value, current, s.said,
+                                award = {
+                                    // The first lesson's rewards, once: the XP event, three stars on its stone, the world's sticker and sparkles.
+                                    if (kidStore.stars(com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID) > 0) null else {
+                                        progress.record(ProgressEvent.LessonComplete(com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID))
+                                        kidStore.recordStars(com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID, 3)
+                                        world.lessonComplete(com.bigpapituna.sharpears.engine.family.Placement.CHECK_ID, null)
+                                    }
+                                },
+                                finishLabel = if (profile.isKid) "To the map" else if (songsFirst) "Show me the songs" else "Start learning",
+                                inject = s.inject, startTask = s.startTask,
+                                onDone = { begin, played ->
+                                    Log.d(TAG, "placement: ${profile.id} begins at $begin (check ${if (played) "played" else "skipped"})")
+                                    if (begin != profiles.current.level) profiles.update(profile.id) { it.copy(level = begin) }
+                                    val after = com.bigpapituna.sharpears.engine.family.Placement.planFor(begin, profile.kind, profile.reader)
+                                    screen = if (profile.isKid) Screen.Home()
+                                    else if (after.homeFirst == com.bigpapituna.sharpears.engine.family.HomeFirst.SONGS) Screen.Home(HomeTab.SONGS)
+                                    else COURSE.flatMap { it.lessons }.firstOrNull { it.id == after.startLessonId }?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home(HomeTab.LEARN)
+                                })
                         }
                         is Screen.Settings -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -1072,7 +1129,7 @@ class MainActivity : ComponentActivity() {
                             val home = s.copy(kidFrom = null)
                             val pv = prefs.version.intValue
                             val kv = kidStore.version.intValue
-                            val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales(), pace = kidStore.pace()) }
+                            val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales(), pace = kidStore.pace(), skipped = prefs::lessonSkipped) }
                             val today = remember { java.time.LocalDate.now() }
                             val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
@@ -1089,7 +1146,7 @@ class MainActivity : ComponentActivity() {
                             val roadLine = remember(kv) { model.roadOpen && !kidStore.roadSaid && kidStore.finales().containsAll(PLAYGROUND_PAGES.map { it.id }) }
                             // A finale left waiting (its lesson was left another way, or the app was closed before): it plays now.
                             LaunchedEffect(pendingFinale) {
-                                (pendingFinale ?: Finale.owed(prefs::lessonDone, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
+                                (pendingFinale ?: Finale.owed(prefs::lessonPlayed, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
                             }
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
                                 onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
@@ -1227,7 +1284,8 @@ class MainActivity : ComponentActivity() {
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
                                         val kv = kidStore.version.intValue
-                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
+                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, skipped = { pv >= 0 && prefs.lessonSkipped(it) },
+                                            onOpen = { screen = Screen.Lesson(it, s) },
                                             pinned = remember(pv, kv) { kidStore.pace().pin?.let(path::lesson) },
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },

@@ -123,7 +123,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         val progress = ids.map { prefs.progress(it) }
         val lessons = COURSE.flatMap { it.lessons }
         val ownLessons = strings("lessons")
-        fun lessonDone(id: String) = id in ownLessons || prefs.lessonDone(id)
+        fun lessonDone(id: String) = id in ownLessons || prefs.lessonPlayed(id)
         val completedSongs = ids.filterIndexed { i, _ -> progress[i].completed }.toSet() + strings("songs")
         return Snapshot(
             today = today,
@@ -286,7 +286,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
      */
     fun catchUp() {
         if (p.getBoolean("caughtUp", false)) return
-        val lessons = COURSE.flatMap { it.lessons }.filter { prefs.lessonDone(it.id) }
+        val lessons = COURSE.flatMap { it.lessons }.filter { prefs.lessonPlayed(it.id) }
         val songs = songIds().filter { prefs.progress(it).completed }
         val seconds = prefs.practice().values.sumOf { it.toLong() }
         val xpBefore = xp

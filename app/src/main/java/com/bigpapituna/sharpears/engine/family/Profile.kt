@@ -14,6 +14,8 @@ enum class ProfileKind { ADULT, KID }
  * [dailyGoalMin] seeds the daily goal when the profile first opens (ProgressStore.goalMinutes is the live value).
  * [hintSeconds] are the three steps of hint escalation (glow, the hand points, the app plays it).
  * [micOffsetDb] makes the microphone that much easier to trigger for this person (kids strike lighter).
+ * [level] is how much piano they have played already (engine/family/Placement.kt): where the course starts for them. A
+ * profile made before 2.6 has none and reads as [Level.NEVER], so nothing changes for it.
  */
 data class Profile(
     val id: String,
@@ -26,6 +28,7 @@ data class Profile(
     val colourNotes: Boolean,
     val micOffsetDb: Double,
     val createdAt: Long,
+    val level: Level = Level.NEVER,
 ) {
     val isKid: Boolean get() = kind == ProfileKind.KID
     val isOwner: Boolean get() = id == OWNER_ID
@@ -36,16 +39,20 @@ data class Profile(
      */
     val firstUnitId: String get() = firstUnitId(kind)
 
-    /** The same person as [newKind], with that kind's defaults for goal, hints, colour notes and mic offset. */
+    /**
+     * The same person as [newKind], with that kind's defaults for goal, hints, colour notes and mic offset. The piano level
+     * starts over at [Level.NEVER]: what "has had lessons" meant for a kid's pages means nothing on a grown-up's units
+     * (Family > Piano level sets it again).
+     */
     fun withKind(newKind: ProfileKind): Profile = if (newKind == kind) this else {
         val d = defaults(newKind, reader)
-        copy(kind = newKind, dailyGoalMin = d.dailyGoalMin, hintSeconds = d.hintSeconds, colourNotes = d.colourNotes, micOffsetDb = d.micOffsetDb)
+        copy(kind = newKind, dailyGoalMin = d.dailyGoalMin, hintSeconds = d.hintSeconds, colourNotes = d.colourNotes, micOffsetDb = d.micOffsetDb, level = Level.NEVER)
     }
 
     fun toMap(): Map<String, Any?> = linkedMapOf(
         "id" to id, "name" to name, "avatar" to avatar, "kind" to kind.name, "reader" to reader,
         "dailyGoalMin" to dailyGoalMin, "hintSeconds" to hintSeconds, "colourNotes" to colourNotes,
-        "micOffsetDb" to micOffsetDb, "createdAt" to createdAt,
+        "micOffsetDb" to micOffsetDb, "createdAt" to createdAt, "level" to level.name,
     )
 
     fun encode(): String = MiniJson.write(toMap())
@@ -113,6 +120,7 @@ data class Profile(
                 colourNotes = m["colourNotes"] as? Boolean ?: d.colourNotes,
                 micOffsetDb = (m["micOffsetDb"] as? Number)?.toDouble() ?: d.micOffsetDb,
                 createdAt = (m["createdAt"] as? Number)?.toLong() ?: 0L,
+                level = Level.parse(m["level"] as? String),
             )
         }
 

@@ -71,13 +71,13 @@ private class StoreMemory(private val app: Context, private val who: Profile) : 
     override var focus: String? by kid::focus
     override var early: Set<String> by kid::early
     override var shelf: List<ShelfSong> by kid::shelf
-    override fun done(lessonId: String) = prefs.lessonDone(lessonId)
+    override fun done(lessonId: String) = prefs.lessonPlayed(lessonId)      // a placement skip is not a mark to forget or to undo
     override fun stars(lessonId: String) = kid.stars(lessonId)
     override fun forget(lessonIds: Collection<String>) { lessonIds.forEach(prefs::forgetLessonDone); kid.forgetStars(lessonIds) }
     override fun restore(done: Set<String>, stars: Map<String, Int>) { done.forEach(prefs::markLessonDone); kid.restoreStars(stars) }
     override fun next(): String? {
         val path = CoursePath(who.firstUnitId, bigKid = who.isKid && who.reader,
-            startAt = { runCatching { ProgressStore(app, prefs).experience?.startLessonId }.getOrNull() })
+            startAt = { com.bigpapituna.sharpears.engine.family.Placement.startLessonId(who) ?: runCatching { ProgressStore(app, prefs).experience?.startLessonId }.getOrNull() })
         return if (who.isKid) KidMap.next(path, prefs::lessonDone, kid.finales(), pace = kid.pace().copy(pin = null), stars = kid::stars)?.id
         else path.next(prefs::lessonDone)?.id
     }

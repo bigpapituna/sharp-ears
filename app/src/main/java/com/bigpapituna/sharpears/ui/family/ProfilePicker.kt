@@ -64,6 +64,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.engine.family.Level
+import com.bigpapituna.sharpears.engine.family.Placement
+import com.bigpapituna.sharpears.engine.family.PlacementCheck
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.engine.family.Roster
@@ -82,9 +85,11 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 @Composable
 fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> Unit,
                   /** A new kid's weekly brief time, chosen at the end of the flow (the caller stores it once the profile exists). */
-                  onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null) {
+                  onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null,
+                  /** A new kid whose parent asked for "Let's hear you play" (2.6); the caller keeps it for the kid's first open. */
+                  onCheck: ((Boolean) -> Unit)? = null) {
     var adding by rememberSaveable { mutableStateOf(false) }
-    if (adding) { NewProfileFlow(onDone = onAdd, onCancel = { adding = false }, onWeekly = onWeekly); return }
+    if (adding) { NewProfileFlow(onDone = onAdd, onCancel = { adding = false }, onWeekly = onWeekly, onCheck = onCheck); return }
     // Centred on the screen, scrolling when eight people do not fit.
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing)) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
@@ -127,19 +132,25 @@ private fun AddCircle(size: androidx.compose.ui.unit.Dp) {
 
 /**
  * Someone new, in one screen and about twenty seconds: a name, a pup colour, "Who is this for?" (a kid or a grown-up)
- * and, for a kid, "Can they read yet?". Go hands back a [Profile] with the kind's defaults (not stored yet).
+ * and, for a kid, "Can they read yet?" and how much piano they have played (2.6; a parent answers, and may let the pup listen to them
+ * play a little). Go hands back a [Profile] with the kind's defaults and that level (not stored yet).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                    /** A kid's weekly brief: asked at the end ("When should we send you Mia's weekly brief?"); the caller stores it once the profile exists. Null: not asked. */
-                   onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null) {
+                   onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null,
+                   /** A kid whose parent asked for the short listen ("Let them try"): told just before the profile is handed back; the caller keeps it for the kid's first open. Null: not offered. */
+                   onCheck: ((Boolean) -> Unit)? = null) {
     BackHandler(onBack = onCancel)
     val still = reducedMotion()
     var name by rememberSaveable { mutableStateOf("") }
     var avatar by rememberSaveable { mutableIntStateOf(1) }
     var kind by rememberSaveable { mutableStateOf<ProfileKind?>(null) }
     var reader by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var levelName by rememberSaveable { mutableStateOf(Level.NEVER.name) }
+    var tryCheck by rememberSaveable { mutableStateOf(false) }
+    val level = Level.parse(levelName)
     val focus = LocalFocusManager.current
     // Kids never see the grown-ups' questions, and their games listen through the microphone from the first one: a phone
     // that has not allowed it yet asks the grown-up making a kid's profile, once (before, the stages heard nothing and
@@ -215,12 +226,28 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                         true -> "Colours with letters on the keys, eight minutes a day."
                         null -> "Before they read, the keys get colours and animals."
                     }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // Placement (2.6): a parent says how much piano the kid has played, so the pages before it can be passed by.
+                    if (reader != null) {
+                        Question(if (clean.isEmpty()) "Have they played piano before?" else "Has $clean played piano before?")
+                        Level.kid.forEach { l ->
+                            BigPill(l.kidLine!!, level == l, Modifier.fillMaxWidth()) { levelName = l.name; if (l == Level.NEVER) tryCheck = false }
+                        }
+                        Text(Placement.planFor(level, ProfileKind.KID, reader == true).line.let { if (level == Level.NEVER) "They start at the very beginning, in the garden." else it },
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Off unless asked: a kid is not tested. The pup shows two or three tiny things and listens; nothing is marked.
+                        if (level != Level.NEVER && onCheck != null) {
+                            BigPill(if (tryCheck) "Let them try: on" else "Let them try the check", tryCheck, Modifier.fillMaxWidth()) { tryCheck = !tryCheck }
+                            Text("The pup plays two or three tiny things and listens. Nothing is marked, and it only ever makes the start gentler.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
         }
         ChunkyButton(onClick = {
             val k = kind ?: return@ChunkyButton
-            val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true) else Profile.adult(clean, avatar)
+            val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true).copy(level = level.forKid) else Profile.adult(clean, avatar)
+            if (k == ProfileKind.KID) onCheck?.invoke(tryCheck && PlacementCheck.offered(level))
             if (k == ProfileKind.KID && onWeekly != null) weeklyFor = p else go(p)
         }, enabled = ready, modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
             Text("Go")

@@ -37,6 +37,6 @@ class SettingsWiringTest {
         assertTrue("prefs.voice = it; if (!it) voice?.stop()" in src("ui/SettingsScreen.kt"))
         val mic = src("ui/MicSetupScreen.kt")
         assertTrue("mutableStateOf(mic.paintsWrongKeys)" in mic && "if (it) mic.wrongPaintOff = false" in mic)
-        assertTrue("Triple(it.id, it.kind, it.reader)" in src("MainActivity.kt"))
+        assertTrue("listOf(it.id, it.kind, it.reader, it.level)" in src("MainActivity.kt"))      // 2.6: a new piano level re-plans in place
     }
 }

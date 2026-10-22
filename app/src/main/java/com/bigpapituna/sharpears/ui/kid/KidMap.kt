@@ -169,7 +169,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     val label = stone.title + (badge?.let { ", it gives the ${it.name.lowercase()} sticker" } ?: "") + ", " + when (stone.state) {
         StoneState.DONE -> "done, " + com.bigpapituna.sharpears.engine.skin.Stars.spoken(stone.stars).lowercase()
         StoneState.NEXT -> if (asleep) "next, the pup is asleep" else "next, tap to play"
-        StoneState.OPEN -> "open to play"
+        StoneState.OPEN -> if (stone.skipped) "passed by, open to play" else "open to play"
         StoneState.LATER -> "later"
     }
     Layout(content = {
