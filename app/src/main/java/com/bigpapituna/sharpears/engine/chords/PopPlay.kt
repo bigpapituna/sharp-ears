@@ -70,13 +70,18 @@ object PopPlay {
 
     /** "Am7", "C/E", "Bb" (flats when the key reads in flats). */
     fun name(c: PopChord, flats: Boolean): String {
-        val root = Chord(c.root, c.type).nameIn(flats)
-        return if (c.slash) root + "/" + Chord(c.bass!!, ChordType.MAJOR).nameIn(flats) else root
+        val root = rootName(c.root, flats) + c.type.suffix
+        return if (c.slash) root + "/" + rootName(c.bass!!, flats) else root
     }
 
+    private val SHARP_NAMES = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+    private val FLAT_NAMES = listOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
+
+    /** A root as the key spells it: G# in B major, Ab in E flat (the dictionary's own names write every black key as the one or the other). */
+    fun rootName(pc: Int, flats: Boolean): String = (if (flats) FLAT_NAMES else SHARP_NAMES)[Math.floorMod(pc, 12)]
+
     /** The key as it is read: "C", "Eb", "F#m". */
-    fun keyName(key: Int, minor: Boolean): String =
-        Chord(key, if (minor) ChordType.MINOR else ChordType.MAJOR).nameIn(flats(key, minor))
+    fun keyName(key: Int, minor: Boolean): String = rootName(key, flats(key, minor)) + if (minor) "m" else ""
 
     /** The dictionary chord of a pop chord (the slash bass is a left-hand matter, the chord is the root's). */
     fun chord(c: PopChord): Chord = Chord(c.root, c.type)
@@ -232,6 +237,22 @@ object PopPlay {
         val worked = Fingering.of(base)
         return base.copy(fingering = sorted.filter { it.hand == Hand.RIGHT }.map { fingerOf[it] ?: worked[it] ?: 1 })
     }
+
+    /**
+     * The chord names over time for the player's "Chords" pill (the lane's label): one chord per beat, merged into changes,
+     * so a bar with two chords shows both. Follows the key like [toSong].
+     */
+    fun chordTrack(song: PopSong, key: Int = song.key, bpm: Int = song.bpm): com.bigpapituna.sharpears.engine.ChordTrack {
+        val by = shift(song, key)
+        val perBeat = bars(song, by).flatMap { b -> b.slots.flatMap { s -> List(s.beats) { chord(s.chord) } } }
+        return com.bigpapituna.sharpears.engine.ChordTrack(perBeat, 60_000.0 / bpm)
+    }
+
+    /** Everything "Play along" hands the player: the chord blocks, the band, and the chord names. */
+    class Run(val song: Song, val band: BandBed, val chords: com.bigpapituna.sharpears.engine.ChordTrack)
+
+    fun run(song: PopSong, pattern: PopSong.Pattern = song.pattern, key: Int = song.key, bpm: Int = song.bpm): Run =
+        Run(toSong(song, pattern, key, bpm), bandBed(song, pattern, key, bpm), chordTrack(song, key, bpm))
 
     // --- the band ----------------------------------------------------------------------------------------------
 

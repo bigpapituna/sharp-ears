@@ -145,6 +145,14 @@ class PopPlayTest {
     @Test fun chordNamesFollowTheKeysSpelling() {
         assertEquals("Bb", PopPlay.name(maj(10), flats = true))
         assertEquals("Am7", PopPlay.name(PopChord(9, ChordType.MIN7), false))
+        // A sharp key writes its black keys as sharps: G sharp minor in B major, not A flat minor.
+        assertEquals("G#m", PopPlay.name(PopChord(8, ChordType.MINOR), false))
+        assertEquals("Abm", PopPlay.name(PopChord(8, ChordType.MINOR), true))
+        assertEquals("F#", PopPlay.name(maj(6), false))
+        assertEquals("A#", PopPlay.name(maj(10), false))
+        assertEquals("B", PopPlay.keyName(11, false))
+        assertEquals("F#m", PopPlay.keyName(6, true))
+        assertEquals("Eb", PopPlay.keyName(3, false))
         assertEquals("C/E", PopPlay.name(PopChord(0, ChordType.MAJOR, bass = 4), false))
         assertEquals("Db/F", PopPlay.name(PopChord(1, ChordType.MAJOR, bass = 5), true))
         assertEquals("F", PopPlay.keyName(5, false))

@@ -33,6 +33,8 @@ class BandPlayer(context: Context, private val sampler: Sampler) {
     }
 
     fun play(cues: List<BandCue>, bass: Boolean = true) {
+        if (cues.isNotEmpty()) Log.d(TAG, "band: " + cues.joinToString(" ") { c ->
+            when (c) { is BandCue.Drum -> c.kit.name.lowercase(); is BandCue.BassOn -> "bass${c.midi}"; is BandCue.BassOff -> "off${c.midi}" } })
         for (c in cues) when (c) {
             is BandCue.Drum -> {
                 val v = 0.25f + 0.75f * c.velocity / 127f
