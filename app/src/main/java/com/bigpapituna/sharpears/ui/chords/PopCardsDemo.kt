@@ -15,15 +15,15 @@ import com.bigpapituna.sharpears.engine.Chord
 import com.bigpapituna.sharpears.engine.ChordType
 
 /**
- * Debug only (`--es screen popsongs --es view cards`): the Songs-tab card and the "Songs that use these chords" card, as
- * they look after a pack of C, F, G and Am is finished, on a plain page. Not reachable in a release.
+ * Debug only (`--es screen popsongs --es view cards`): the "Songs that use these chords" card, as it looks after a pack of
+ * C, F, G and Am is finished, on a plain page. Not reachable in a release. The home's card for songs by chords went in 2.7:
+ * the Songs tab is the way in.
  */
 @Composable
 fun PopCardsDemo(lessons: LessonStore) {
     val learned = setOf(Chord(0, ChordType.MAJOR), Chord(5, ChordType.MAJOR), Chord(7, ChordType.MAJOR), Chord(9, ChordType.MINOR))
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.safeDrawingPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            PopSongsCard(playable = 2) {}
             SongsForChordsCard(PopCatalogue.songs, learned, onOpen = {})
         }
     }

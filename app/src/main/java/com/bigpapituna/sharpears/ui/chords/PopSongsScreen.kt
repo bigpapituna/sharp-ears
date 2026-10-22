@@ -67,16 +67,77 @@ import com.bigpapituna.sharpears.ui.skin.noteColour
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /**
- * Songs by chords (popular-song chord mode), the Chords tab's "Songs" section: browse by style, order by what is easiest
- * or newest, or narrow to the songs the chords a profile has learned already play ("Songs I can play", "One new chord
- * away"). Each song is a tile of its chords, difficulty bars and how sure the content is. Chords, keys and tempos only.
+ * Songs by chords (popular-song chord mode), a section of the Songs tab since 2.7 (the Chords tab's "Songs" before): browse
+ * by style, order by what is easiest or newest, or narrow to the songs the chords a profile has learned already play ("Songs
+ * I can play", "One new chord away"). Each song is a tile of its chords, difficulty bars and how sure the content is.
+ * Chords, keys and tempos only.
  *
  * Takes its list as a parameter (the app passes PopCatalogue.songs, the content's 107). The lists are lazy: a tile is
- * composed only as it scrolls into view.
+ * composed only as it scrolls into view. [popBrowseItems] puts them into the Songs tab's own list; [PopBrowse] is the same
+ * on a list of its own.
  */
 
-/** Where the browse screen opens: a style chip and a sort (a debug route, and "You can play N songs" taps). */
+/** Where the browse list opens: a style chip and a sort (a debug route, "You can play N songs" taps, a song page's Back). */
 data class PopStart(val chip: PopFind.Chip = PopFind.Chip.ALL, val sort: PopFind.Sort = PopFind.Sort.EASIEST)
+
+/** The browse list's choices: the style chip and the sort, kept by the screen that shows the list. */
+@androidx.compose.runtime.Stable
+class PopBrowseState(start: PopStart) {
+    var chip by mutableStateOf(start.chip)
+    var sort by mutableStateOf(start.sort)
+    val now: PopStart get() = PopStart(chip, sort)
+}
+
+private val PopBrowseSaver = androidx.compose.runtime.saveable.listSaver<PopBrowseState, String>(
+    save = { listOf(it.chip.name, it.sort.name) },
+    restore = { s -> PopBrowseState(PopStart(PopFind.Chip.entries.firstOrNull { it.name == s[0] } ?: PopFind.Chip.ALL,
+        PopFind.Sort.entries.firstOrNull { it.name == s[1] } ?: PopFind.Sort.EASIEST)) })
+
+/** The choices, starting again from [start] when it changes (a tap on "You can play N songs" asks for Songs I can play). */
+@Composable
+fun rememberPopBrowseState(start: PopStart): PopBrowseState = rememberSaveable(start, saver = PopBrowseSaver) { PopBrowseState(start) }
+
+/** What the list shows for the choices: the chips with their counts, the songs in order, and how many can be played. */
+class PopBrowseModel(val chips: List<PopFind.Chip>, val counts: Map<PopFind.Chip, Int>, val list: List<PopSong>, val playable: Int)
+
+@Composable
+fun rememberPopBrowseModel(songs: List<PopSong>, known: Set<Chord>, state: PopBrowseState): PopBrowseModel {
+    val chips = remember(songs) { PopFind.chipsFor(songs) }
+    val counts = remember(songs) { PopFind.chipCounts(songs) }
+    val list = remember(songs, state.chip, state.sort, known) { PopFind.browse(songs, state.chip, state.sort, known) }
+    val playable = remember(songs, known) { PopFind.playableCount(songs, known) }
+    return PopBrowseModel(chips, counts, list, playable)
+}
+
+/**
+ * The browse list's rows for a LazyColumn: the line about it (with [title], its heading too), "You can play N songs", the
+ * chips and sorts, then a tile per song. Keys start with "pop-", so they sit beside other rows (the Songs tab's library).
+ */
+fun androidx.compose.foundation.lazy.LazyListScope.popBrowseItems(m: PopBrowseModel, state: PopBrowseState, known: Set<Chord>,
+                                                                 onOpen: (PopSong) -> Unit, title: Boolean = true) {
+    item(key = "pop-head") {
+        val c = MaterialTheme.colorScheme
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (title) Text("Songs by chords", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+            Text("Pick a song, see its chords, then play them with the band.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+            PlayableLine(m.playable, Modifier.padding(top = 4.dp)) { state.sort = PopFind.Sort.CAN_PLAY; state.chip = PopFind.Chip.ALL }
+        }
+    }
+    item(key = "pop-chips") {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillRow(m.chips.map { PopFind.chipLabel(it, m.counts[it] ?: 0) }, m.chips.indexOf(state.chip).coerceAtLeast(0), { state.chip = m.chips[it] })
+            PillRow(PopFind.Sort.entries.map { it.label }, state.sort.ordinal, { state.sort = PopFind.Sort.entries[it] })
+        }
+    }
+    if (m.list.isEmpty()) item(key = "pop-empty") {
+        Text(emptyLine(state.chip, state.sort), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 480.dp).padding(horizontal = 24.dp, vertical = 28.dp))
+    }
+    items(m.list, key = { "pop-" + it.id }) { s ->
+        PopSongTile(s, known, Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+            showNeeds = state.sort == PopFind.Sort.ONE_AWAY) { onOpen(s) }
+    }
+}
 
 @Composable
 fun PopBrowse(
@@ -84,35 +145,10 @@ fun PopBrowse(
     modifier: Modifier = Modifier, kid: Boolean = false, start: PopStart = PopStart(),
 ) {
     if (kid) { PopKidBrowse(songs, onOpen, modifier); return }
-    var chip by rememberSaveable { mutableStateOf(start.chip) }
-    var sort by rememberSaveable { mutableStateOf(start.sort) }
-    val chips = remember(songs) { PopFind.chipsFor(songs) }
-    val counts = remember(songs) { PopFind.chipCounts(songs) }
-    val list = remember(songs, chip, sort, known) { PopFind.browse(songs, chip, sort, known) }
-    val playable = remember(songs, known) { PopFind.playableCount(songs, known) }
-    val c = MaterialTheme.colorScheme
-    LazyColumn(modifier, contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally) {
-        item(key = "head") {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Songs by chords", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-                Text("Pick a song, see its chords, then play them with the band.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
-                PlayableLine(playable, Modifier.padding(top = 4.dp)) { sort = PopFind.Sort.CAN_PLAY; chip = PopFind.Chip.ALL }
-            }
-        }
-        item(key = "chips") {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillRow(chips.map { PopFind.chipLabel(it, counts[it] ?: 0) }, chips.indexOf(chip).coerceAtLeast(0), { chip = chips[it] })
-                PillRow(PopFind.Sort.entries.map { it.label }, sort.ordinal, { sort = PopFind.Sort.entries[it] })
-            }
-        }
-        if (list.isEmpty()) item(key = "empty") {
-            Text(emptyLine(chip, sort), style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 480.dp).padding(horizontal = 24.dp, vertical = 28.dp))
-        }
-        items(list, key = { it.id }) { s ->
-            PopSongTile(s, known, Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 12.dp), showNeeds = sort == PopFind.Sort.ONE_AWAY) { onOpen(s) }
-        }
+    val state = rememberPopBrowseState(start)
+    val m = rememberPopBrowseModel(songs, known, state)
+    LazyColumn(modifier, contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        popBrowseItems(m, state, known, onOpen)
     }
 }
 
@@ -281,24 +317,7 @@ internal fun ChordDot(root: Int) {
     Box(Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(noteColour(60 + root)))
 }
 
-// --- cards that lead here ---
-
-/** The Songs tab's card for grown-ups: songs by chords, with how many are ready. */
-@Composable
-fun PopSongsCard(playable: Int, modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    val c = MaterialTheme.colorScheme
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
-        .clickable(role = Role.Button, onClickLabel = "Open songs by chords", onClick = onOpen).padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Icon(painterResource(R.drawable.ic_library_music), contentDescription = null, tint = c.primary, modifier = Modifier.size(28.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Songs by chords", style = MaterialTheme.typography.titleMedium)
-            Text(if (playable > 0) "You can play ${plural(playable, "song")} already" else "Popular songs, just their chords, with a band",
-                style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
-        }
-        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = null, tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp).rotate(180f))
-    }
-}
+// --- a card that leads here ---
 
 /**
  * After a chord pack is finished: songs that use only chords the profile knows (the pack's included), the easiest first.

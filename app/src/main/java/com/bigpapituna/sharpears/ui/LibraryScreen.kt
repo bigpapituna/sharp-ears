@@ -48,6 +48,7 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.SongMeta
 import com.bigpapituna.sharpears.data.SongProgress
 import com.bigpapituna.sharpears.engine.SongArt
+import com.bigpapituna.sharpears.ui.chords.popBrowseItems
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /** One library row: the song, whether its file is present, and saved progress. */
@@ -81,6 +82,17 @@ class LibraryActions(
 
 private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "Hard")
 
+/** The Songs tab's two sections (2.7): the library, and songs by chords (the Chords tab's Songs before). */
+enum class SongsSection(val label: String) { LIBRARY("Library"), BY_CHORDS(com.bigpapituna.sharpears.engine.nav.Names.SONGS_BY_CHORDS) }
+
+/**
+ * Songs by chords in the Songs tab: the catalogue, the chords known (Leitner box 3), where the list opens, and the song a tap
+ * opens with the list's choices at that moment (so Back from the song finds them again).
+ */
+class PopSection(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong>, val known: Set<com.bigpapituna.sharpears.engine.Chord>,
+                 val start: com.bigpapituna.sharpears.ui.chords.PopStart,
+                 val onOpen: (com.bigpapituna.sharpears.engine.chords.PopSong, com.bigpapituna.sharpears.ui.chords.PopStart) -> Unit)
+
 /**
  * Songs: a "continue" panel (the one raised surface), then plain rows grouped by difficulty.
  * [continueWith] is the song last played, or null on a fresh install (the panel then suggests a first song).
@@ -94,8 +106,8 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
                   quest: (@Composable () -> Unit)? = null,
                   /** The play corner (ui/play/PlayRow): high up for a kid ([kid], the Jam is the app for a four-year-old), under the quest otherwise. */
                   play: (@Composable () -> Unit)? = null, kid: Boolean = false,
-                  /** Songs by chords (ui/chords): a grown-up's card under the play row; null for a kid or while there are no pop songs. */
-                  chordSongs: (@Composable () -> Unit)? = null) {
+                  /** Songs by chords (ui/chords), the tab's second section; null for a kid or while there are no pop songs. */
+                  pop: PopSection? = null, section: SongsSection = SongsSection.LIBRARY, onSection: (SongsSection) -> Unit = {}) {
     val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
     val pose = when {
@@ -108,6 +120,9 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
     var tapLine by remember { mutableStateOf<String?>(null) }
     // Tile art and lengths, read off the main thread and filled in as they arrive.
     val arts = rememberSongArts(remember(entries) { entries.map { it.meta } })
+    val popState = pop?.let { com.bigpapituna.sharpears.ui.chords.rememberPopBrowseState(it.start) }
+    val popModel = if (pop != null && popState != null) com.bigpapituna.sharpears.ui.chords.rememberPopBrowseModel(pop.songs, pop.known, popState) else null
+    val showPop = section == SongsSection.BY_CHORDS && pop != null && popState != null && popModel != null
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -138,7 +153,15 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
             first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, arts[e.meta.id]) } } }
         }
         if (!kid) playItem?.invoke()
-        if (!kid) chordSongs?.let { card -> item(key = "chordsongs") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) { card() } } }
+        // The two sections, one switch: the library, or songs by chords.
+        if (pop != null) item(key = "sections") {
+            com.bigpapituna.sharpears.ui.practice.SlidingSegments(SongsSection.entries.map { it.label }, section.ordinal, { onSection(SongsSection.entries[it]) },
+                Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp), height = 40.dp)
+        }
+        if (showPop && pop != null && popState != null && popModel != null) {
+            popBrowseItems(popModel, popState, pop.known, onOpen = { s -> pop.onOpen(s, popState.now) }, title = false)
+            return@LazyColumn
+        }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach

@@ -108,7 +108,7 @@ import kotlinx.coroutines.launch
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6
 
-enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS, SONGS }
+enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS }
 
 @Composable
 fun ChordsScreen(
@@ -116,15 +116,14 @@ fun ChordsScreen(
     lessons: LessonStore, micDefault: Boolean,
     startTab: ChordsTab = ChordsTab.PLAY, inject: String? = null, gameStart: GameStart = GameStart(),
     onPlayProgression: (Progression, Int) -> Unit,
-    /** Songs by chords (ui/chords): the list shown in the Songs tab, and the song a tap opens. */
+    /** Songs by chords (ui/chords, the Songs tab's section): the catalogue, for "You can play N songs" and the songs after a session. */
     popSongs: List<com.bigpapituna.sharpears.engine.chords.PopSong> = emptyList(),
-    popStart: com.bigpapituna.sharpears.ui.chords.PopStart = com.bigpapituna.sharpears.ui.chords.PopStart(),
     onOpenPopSong: (com.bigpapituna.sharpears.engine.chords.PopSong) -> Unit = {},
+    /** The Songs tab's songs by chords, narrowed to the ones the chords learned already play. */
+    onShowPlayable: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(startTab) }
-    // Where Songs opens: the caller's start, or "Songs I can play" after a tap on the count or the session's card.
-    var popOpen by remember { mutableStateOf(popStart) }
-    fun showPlayable() { popOpen = com.bigpapituna.sharpears.ui.chords.PopStart(sort = com.bigpapituna.sharpears.engine.chords.PopFind.Sort.CAN_PLAY); tab = ChordsTab.SONGS }
+    fun showPlayable() = onShowPlayable()
     // The chords learned so far (Leitner box 3 or more) decide which songs "you can play".
     val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
     val playable = remember(popSongs, known) { com.bigpapituna.sharpears.engine.chords.PopFind.playableCount(popSongs, known) }
@@ -138,10 +137,9 @@ fun ChordsScreen(
             Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
             Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
             Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })
-            if (popSongs.isNotEmpty()) Tab(tab == ChordsTab.SONGS, { tab = ChordsTab.SONGS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Songs") })
         }
-        // The count of songs the learned chords play, on every tab but the songs' own (which says it itself).
-        if (popSongs.isNotEmpty() && playable > 0 && tab != ChordsTab.SONGS) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable,
+        // The count of songs the learned chords play; a tap shows them in the Songs tab.
+        if (popSongs.isNotEmpty() && playable > 0) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable,
             Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)) { showPlayable() }
         when (tab) {
             ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
@@ -150,9 +148,6 @@ fun ChordsScreen(
             ChordsTab.DICTIONARY -> Dictionary(sampler, sound = { prefs.sound })
             ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject, sound = { prefs.sound })
             ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression, sound = { prefs.sound })
-            ChordsTab.SONGS -> androidx.compose.runtime.key(popOpen) {
-                com.bigpapituna.sharpears.ui.chords.PopBrowse(popSongs, known, onOpenPopSong, Modifier.fillMaxSize(), start = popOpen)
-            }
         }
     }
 }

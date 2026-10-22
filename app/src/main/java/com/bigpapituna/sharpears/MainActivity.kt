@@ -172,7 +172,9 @@ private sealed interface Screen {
                     val game: GameStart = GameStart(), val practiceTab: PracticeTab = PracticeTab.SCALES,
                     /** A kid's home (2.2) after a page's finale: the map opens at that page's end and rolls on to the next stone. */
                     val kidFrom: String? = null,
-                    /** Chords > Songs: the style chip and sort it opens on (popular-song chord mode). */
+                    /** The Songs tab's section (2.7): the library, or songs by chords. */
+                    val songs: com.bigpapituna.sharpears.ui.SongsSection = com.bigpapituna.sharpears.ui.SongsSection.LIBRARY,
+                    /** Songs by chords: the style chip and sort it opens on (popular-song chord mode). */
                     val pop: com.bigpapituna.sharpears.ui.chords.PopStart = com.bigpapituna.sharpears.ui.chords.PopStart()) : Screen
     /** [meta] is null for generated songs (mic check, progressions). [back] is where Back goes. [band] is a pop song's drums and bass. */
     data class Player(val song: Song, val meta: SongMeta?, val start: PlayerStart, val startMs: Double, val back: Screen,
@@ -239,7 +241,7 @@ private fun depthOf(s: Screen) = when (s) {
  * practice patterns) save as where they go back to. Read by [MainActivity.screenAt].
  */
 private fun routeOf(s: Screen): String = when (s) {
-    is Screen.Home -> "home:${s.tab.name}"
+    is Screen.Home -> "home:${s.tab.name}" + if (s.songs == com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS) ":chords" else ""
     is Screen.Player -> if (s.meta == null) routeOf(s.back) else "${routeOf(s.back)}/song:${s.meta.id}"
     is Screen.Lesson -> "${routeOf(s.back)}/lesson:${s.step}:${s.lesson.id}"
     is Screen.MicSetup -> "${routeOf(s.back)}/micsetup"
@@ -342,7 +344,7 @@ class MainActivity : ComponentActivity() {
             // A pop song's run ("pop-<id>", songs by chords): its page, where it is played along (no duet there).
             com.bigpapituna.sharpears.engine.chords.PopPlay.ofRun(songId, com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs)?.let { pop ->
                 Log.d(TAG, "brief: open pop song ${pop.id} for ${who.id}")
-                val home = if (who.isKid) Screen.KidSongs(Screen.Home()) else Screen.Home(HomeTab.CHORDS, ChordsTab.SONGS)
+                val home = if (who.isKid) Screen.KidSongs(Screen.Home()) else Screen.Home(HomeTab.SONGS, songs = com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS)
                 go(who, Screen.PopSong(pop.id, if (who.isKid) Screen.KidChords(home) else home))
                 return@runOnUiThread
             }
@@ -629,13 +631,13 @@ class MainActivity : ComponentActivity() {
                 // --es screen popsongs [--es chip all|hits|yacht|80s|pop|rock|country|soul|kids|holiday] [--es sort easiest|newest|can|one]
                 //   [--es song <id> [--ei shift n] [--es pattern WHOLE|HALVES|...] [--ei bpm n] [--ez hear true] [--ez kid true]]
                 //   [--ez kid true]   (no song: a kid's chord songs, from the kid's Songs)
-                //   [--es view cards]   (the Songs-tab card and "Songs that use these chords", over a plain page)
+                //   [--es view cards]   ("Songs that use these chords", over a plain page)
                 //   [--es known C,F,G,Am]   (those chords as known, Leitner box 3, before it opens)
                 intent.getStringExtra("known")?.let { k -> lessons.debugKnow(k.split(',').map { it.trim() }.filter { it.isNotEmpty() }, PopFind.KNOWN_BOX) }
                 val chipArg = intent.getStringExtra("chip") ?: "all"
                 val chip = PopFind.Chip.entries.firstOrNull { c -> c.name.startsWith(chipArg.uppercase()) || c.label.startsWith(chipArg, ignoreCase = true) } ?: PopFind.Chip.ALL
                 val sort = when (intent.getStringExtra("sort")) { "newest" -> PopFind.Sort.NEWEST; "can" -> PopFind.Sort.CAN_PLAY; "one" -> PopFind.Sort.ONE_AWAY; else -> PopFind.Sort.EASIEST }
-                val home = Screen.Home(HomeTab.CHORDS, ChordsTab.SONGS, pop = com.bigpapituna.sharpears.ui.chords.PopStart(chip, sort))
+                val home = Screen.Home(HomeTab.SONGS, songs = com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS, pop = com.bigpapituna.sharpears.ui.chords.PopStart(chip, sort))
                 val id = intent.getStringExtra("song")
                 if (intent.getStringExtra("view") == "cards") return setContent {
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { com.bigpapituna.sharpears.ui.chords.PopCardsDemo(lessons) } }
@@ -1297,13 +1299,14 @@ class MainActivity : ComponentActivity() {
                                             },
                                             play = { com.bigpapituna.sharpears.ui.play.PlayRow(onToy = { t -> screen = Screen.Play(t, s) }) },
                                             kid = current.isKid,
-                                            chordSongs = if (current.isKid || com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.isEmpty()) null else ({
-                                                val lv2 = lessons.version.intValue
-                                                val playable = remember(lv2) { PopFind.playableCount(com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs, PopFind.known(lessons.mastery())) }
-                                                com.bigpapituna.sharpears.ui.chords.PopSongsCard(playable) {
-                                                    screen = Screen.Home(HomeTab.CHORDS, ChordsTab.SONGS)
+                                            // Songs by chords, the tab's second section (2.7; the Chords tab's Songs before).
+                                            pop = if (current.isKid || com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.isEmpty()) null else {
+                                                val known = remember(lv) { PopFind.known(lessons.mastery()) }
+                                                com.bigpapituna.sharpears.ui.PopSection(com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs, known, s.pop) { song, at ->
+                                                    screen = Screen.PopSong(song.id, s.copy(songs = com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS, pop = at))
                                                 }
-                                            }))
+                                            },
+                                            section = s.songs, onSection = { screen = s.copy(songs = it) })
                                     }
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
@@ -1350,8 +1353,12 @@ class MainActivity : ComponentActivity() {
                                                 screen = Screen.Player(progressionSong(p, key), null, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
                                                     0.0, s.copy(chordsTab = if (lessons.session.isNotEmpty()) ChordsTab.LESSONS else ChordsTab.PROGRESSIONS, inject = null, game = GameStart()))
                                             },
-                                            popSongs = com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs, popStart = s.pop,
-                                            onOpenPopSong = { screen = Screen.PopSong(it.id, s.copy(chordsTab = ChordsTab.SONGS, inject = null, game = GameStart(), pop = com.bigpapituna.sharpears.ui.chords.PopStart())) })
+                                            popSongs = com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs,
+                                            onOpenPopSong = { screen = Screen.PopSong(it.id, s.copy(chordsTab = ChordsTab.LESSONS, inject = null, game = GameStart())) },
+                                            onShowPlayable = {
+                                                screen = Screen.Home(HomeTab.SONGS, songs = com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS,
+                                                    pop = com.bigpapituna.sharpears.ui.chords.PopStart(sort = PopFind.Sort.CAN_PLAY))
+                                            })
                                     }
                                     HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { screen = Screen.Settings(s) } },
                                         kid = current.isKid,
@@ -1606,7 +1613,8 @@ class MainActivity : ComponentActivity() {
     private fun screenAt(route: String, prefs: Prefs, kid: Boolean): Screen = route.split("/").fold<String, Screen>(Screen.Home()) { back, part ->
         val arg = part.substringAfter(":", "")
         when (part.substringBefore(":")) {
-            "home" -> Screen.Home(HomeTab.valueOf(arg))
+            "home" -> Screen.Home(HomeTab.valueOf(arg.substringBefore(":")),
+                songs = if (arg.substringAfter(":", "") == "chords") com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS else com.bigpapituna.sharpears.ui.SongsSection.LIBRARY)
             "song" -> repo.all().first { it.id == arg }.let { m ->
                 val p = prefs.progress(m.id)
                 Screen.Player(repo.load(m), m, PlayerStart(Mode.WAIT, mic = prefs.micDefault && mic.hasPermission()),
