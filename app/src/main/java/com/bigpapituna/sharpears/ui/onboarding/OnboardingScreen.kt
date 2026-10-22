@@ -236,9 +236,9 @@ private fun WelcomeStep() {
         t.switchOn.value && t.hasKey || t.diaryOn.value && t.diaryBuilt && email }
     Text(when {
         ai && email -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it, and the brief by email if a grown-up turns it on. " +
-            "Settings, Family turns those off."
-        ai -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. Settings, Family turns that off."
-        email -> "Everything stays on this phone, except the brief by email, if a grown-up turns it on. Settings, Family turns that off."
+            "Settings, Briefs and email turns those off."
+        ai -> "Everything stays on this phone, except the parent brief's numbers, sent to an AI to write it. Settings, Briefs and email turns that off."
+        email -> "Everything stays on this phone, except the brief by email, if a grown-up turns it on. Settings, Briefs and email turns that off."
         testing -> "Everything stays on this phone, except what Roy's testing sends him while he has it on. Never any sound."
         else -> "Everything stays on this phone. Nothing is sent anywhere."
     } + if (testing && (ai || email)) " Roy's testing is on too: what happens on screen goes to Roy. Never any sound." else "",

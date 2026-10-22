@@ -59,6 +59,22 @@ class SettingsWiringTest {
         assertTrue("mutableStateOf(mic.paintsWrongKeys)" in s && "mic.wrongFlash = it; if (it) mic.wrongPaintOff = false" in s)
         // The family's own switches (AI briefs, Testing) moved to their groups; the kids' corner's Family keeps them.
         assertTrue("FamilySettings(profiles, extras = false)" in File(root, "MainActivity.kt").readText())
-        assertTrue("com.bigpapituna.sharpears.ui.brief.BriefAiSettings()" in s)
+        // 2.8: Briefs and email is the email form, with who writes the brief at its bottom.
+        assertTrue("com.bigpapituna.sharpears.ui.brief.email.BriefsAndEmail(kids)" in s)
+        assertTrue("BriefAiSettings(gate)" in File(root, "ui/brief/email/BriefsAndEmail.kt").readText())
+    }
+
+    /**
+     * 2.8: one email form. The address field lives in BriefsAndEmail only; Family's child has no "Email the brief"; the parent
+     * brief's Email button opens the same composable in a dialog (SimpleTest checks that Simple shows the section).
+     */
+    @Test fun theBriefByEmailHasOnePlace() {
+        val files = root.walkTopDown().filter { it.extension == "kt" }.toList()
+        assertEquals(listOf("BriefsAndEmail.kt"), files.filter { "label = { Text(\"Your email address\") }" in it.readText() }.map { it.name })
+        assertEquals(emptyList<String>(), files.filter { "Text(\"Email the brief\")" in it.readText() }.map { it.name })
+        assertTrue("EmailDialog(children.filter { it.isKid }" in File(root, "ui/brief/ParentBriefScreen.kt").readText())
+        val dialog = File(root, "ui/brief/email/EmailPreview.kt").readText()
+        assertTrue("Gated(onCancel = onClose) { BriefsAndEmailPage(kids, onBack = onClose) }" in dialog)
+        assertTrue("BriefsAndEmail(kids)" in File(root, "ui/brief/email/BriefsAndEmail.kt").readText())
     }
 }

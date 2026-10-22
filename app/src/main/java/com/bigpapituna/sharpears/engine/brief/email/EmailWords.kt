@@ -239,7 +239,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
     // ---- the first email ----
 
     fun welcome(code: String, weekly: WeeklySlot, empty: Boolean): Welcome {
-        val corner = "grown-ups corner > Family > $name > Email"
+        val place = SETTINGS_PLACE
         return Welcome(
             title = "Welcome to $name's piano brief",
             paragraphs = listOfNotNull(
@@ -249,15 +249,15 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
                 if (empty) "$name has not played yet, so this first one is short. The next ones bring the brief." else null,
             ),
             code = code,
-            codeLine = "To confirm this is your address, type the code in the app: $corner. It works for 24 hours; three wrong tries and the app asks for a new one.",
+            codeLine = "To confirm this is your address, type the code in the app: $place. It works for 24 hours; three wrong tries and the app asks for a new one.",
             howOften = HowOften(
                 title = "Choose how often",
-                where = "In the same place, once the code is in, choose one:",
+                where = "In the same place, once the code is in, each child has a Daily and a Weekly switch:",
                 choices = listOf(
                     FrequencyChoice(EmailFrequency.DAILY, "Daily", "each day $name plays, once the playing is done (${WeeklyPlan.timeLabel(CUTOFF_MIN)} at the latest)."),
                     FrequencyChoice(EmailFrequency.WEEKLY, "Weekly", "once a week, on ${WeeklyPlan.label(weekly)}."),
-                    FrequencyChoice(EmailFrequency.BOTH, "Both", "the daily ones and the weekly one."),
-                    FrequencyChoice(EmailFrequency.OFF, "Off", "no emails; the brief stays in the app."),
+                    FrequencyChoice(EmailFrequency.BOTH, "Both", "both switches on, for the daily ones and the weekly one."),
+                    FrequencyChoice(EmailFrequency.OFF, "Off", "both switches off, so no emails; the brief stays in the app."),
                 ),
                 note = "Nothing is sent between ${WeeklyPlan.timeLabel(QUIET_FROM_MIN)} and ${WeeklyPlan.timeLabel(QUIET_TO_MIN)}, and never more than two a day.",
             ),
@@ -275,7 +275,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
             EmailFrequency.BOTH -> "A day's email comes each day $name plays, and the week's on ${WeeklyPlan.label(weekly)}."
             EmailFrequency.OFF -> "These emails are off."
         },
-        "To change how often these come, or stop them: grown-ups corner > Family > $name > Email, in the app.",
+        "To change how often these come, or stop them: $SETTINGS_PLACE, in the app.",
         if (attached) "The full report is attached as a PDF, for mail apps that cannot open the sections." else null,
     )
 
@@ -283,6 +283,8 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
         /** A subject longer than this is cut off by most phones' mail apps. */
         const val SUBJECT_MAX = 78
         const val PREHEADER_MAX = 110
+        /** Where the brief by email is set (2.8: one place for the family's address and each child's switches). */
+        const val SETTINGS_PLACE = "Settings > Briefs and email"
         /** What a suggestion's button says: nothing in the email can act. */
         const val DO_IN_APP = "Do this in the app"
         /** The flags that are good news. */

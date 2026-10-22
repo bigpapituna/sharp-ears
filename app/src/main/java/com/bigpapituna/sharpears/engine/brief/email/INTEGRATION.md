@@ -1,5 +1,13 @@
 # The parent brief by email, step 1: the engine
 
+> **2.8 (branch `email-one`): one address for the family.** `EmailPrefs` is now stored as two records joined on load
+> (`FamilyEmail.join`): the family's address, confirmation and code under `email.family`, and each child's Daily and Weekly
+> switches, last sent, held reason and sends (for the caps) under the profile id. `EmailSettings.of(context, id).load(first)`
+> gives the same view the schedule and the sender always read; `EmailSettings.family(context)` starts, verifies and stops the
+> address; the first email (the code) goes for one child only (`FamilyEmail.lead`); `EmailSettings.migrate` moves 2.7's
+> per-child addresses once (the first confirmed child's address becomes the family's, nothing is confirmed again; children
+> who had no address are switched off). The per-child API below is 2.5's.
+
 Branch `mail-engine` (Roy, 2026-10-21: design D, docs/email-design-D.py). Parents get each child's brief by email without
 opening the app: a DAILY email each day the child played, once their playing is done; a WEEKLY email on the grown-up's day
 and time; after the first email the grown-up picks DAILY, WEEKLY, BOTH or OFF. The grown-up enters the address in the app

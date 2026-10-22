@@ -7,17 +7,22 @@ import java.security.SecureRandom
 import java.time.LocalDate
 
 /**
- * One child's email brief settings (Roy, 2026-10-21): per child, not per grown-up. data/EmailSettings keeps them on the
- * phone (never in Android's own backup); the weekly day and time are the weekly notification's (data/BriefStore.weekly),
- * shared, so they are not here.
+ * One child's email brief settings as the schedule and the sender read them. data/EmailSettings keeps them on the phone
+ * (never in Android's own backup); the weekly day and time are the weekly notification's (data/BriefStore.weekly), shared,
+ * so they are not here.
+ *
+ * Since 2.8 (Roy, 2026-10-22: "the address is for the parent, not the child") the same shape is stored as two records and
+ * joined on load ([FamilyEmail.join]): the family's one address (the parent's, confirmed once: [address], [verified], the
+ * code and its tries, [firstSent], and [sends] of the first emails for the resend wait) and each child's own part (the
+ * [frequency] the Daily and Weekly switches make, [chosen], the last daily and weekly, [held], and [sends] for the caps).
  *
  * - [address]: the grown-up's address. It goes to Brevo as the recipient and nowhere else: never into a log, a crash
  *   report, an AI prompt or [toString].
  * - [verified]: the code the first email carried was typed in the app ([EmailVerification.verify]).
  * - [code], [codeExpiresAt], [wrongTries]: the pending 6-digit code, good for 24 hours and three wrong tries.
  * - [firstSent]: the first email (with [code]) went out.
- * - [frequency]: what the grown-up chose after the first email ([chosen]); WEEKLY until they choose, so a verified
- *   address gets the weekly brief rather than silence (the settings screen asks right after the code).
+ * - [frequency]: what the grown-up chose with the child's two switches ([chosen]); WEEKLY until they touch one, so a
+ *   confirmed address gets each child's weekly brief rather than silence.
  * - [lastDaily], [lastWeekly]: the last day a daily email covered, the date of the last weekly slot sent.
  * - [lastDailyAt], [lastWeeklyAt]: when (epoch ms) the last daily and weekly email went out, for the screen's "Daily: sent Tuesday 8:31 pm".
  * - [held]: why the last try to send did not go ([EmailSender.Refusal] name: no key, a metered network, the writer), for the

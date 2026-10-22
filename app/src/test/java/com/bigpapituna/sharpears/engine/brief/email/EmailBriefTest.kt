@@ -165,7 +165,9 @@ class EmailBriefTest {
         val e = email(week(), first = true)
         val w = e.welcome!!
         assertEquals("482913", w.code)
-        assertTrue(w.codeLine.contains("grown-ups corner > Family > Mia > Email"))
+        assertTrue("2.8: one place for the family's address", w.codeLine.contains("Settings > Briefs and email"))
+        assertTrue(w.howOften.where.contains("Daily and a Weekly switch"))
+        assertTrue(e.footer.lines.any { it == "To change how often these come, or stop them: Settings > Briefs and email, in the app." })
         assertTrue(w.codeLine.contains("24 hours"))
         assertEquals(listOf(EmailFrequency.DAILY, EmailFrequency.WEEKLY, EmailFrequency.BOTH, EmailFrequency.OFF), w.howOften.choices.map { it.frequency })
         assertEquals("once a week, on Sunday at 6 pm.", w.howOften.choices[1].text)

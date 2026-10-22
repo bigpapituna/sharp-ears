@@ -4,6 +4,8 @@ Roy, 2026-10-22. Grounded in the code as of 2.7.2. Nothing removed; everything h
 
 ## 1. One email setting (not per child under Family)
 
+Status: built on branch `email-one` (2026-10-22); CLAUDE.md "2.8 one email place" has what changed and the decisions.
+
 Today: Settings > "Briefs and email" is a paragraph pointing at Family > child > "Email the brief" (`ui/SettingsScreen.kt:213`,
 `ui/family/FamilySettings.kt:93`). The address, code and cadence live per child in `EmailSettingsScreen`.
 

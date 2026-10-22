@@ -81,6 +81,23 @@ class EmailRoundTest {
         assertTrue(run(r.prefs, emptyList()).sent.isEmpty())
     }
 
+    /** 2.8: one address for the family. Three children, one code: the first email goes for the lead child only. */
+    @Test fun aFamilyGetsOneCodeWhateverTheNumberOfChildren() {
+        clock = ms(wed, 10, 0)
+        val family = EmailPrefs("parent@example.com", code = "482913", codeExpiresAt = clock + 1_000_000)
+        val kids = listOf("p1" to EmailPrefs(frequency = EmailFrequency.OFF), "p2" to EmailPrefs(), "p3" to EmailPrefs(frequency = EmailFrequency.DAILY))
+        val lead = FamilyEmail.lead(kids)
+        assertEquals("the first child whose emails are on", "p2", lead)
+        val sent = kids.map { (id, own) -> run(FamilyEmail.join(family, own, first = id == lead), emptyList()).sent }
+        assertEquals(listOf(emptyList<EmailKind>(), listOf(EmailKind.FIRST), emptyList()), sent)
+        assertEquals(1, sentMessages.size)
+        // Confirmed: each child's own switches decide, a day played each.
+        val confirmed = family.copy(code = null, verified = true, firstSent = true)
+        clock = ms(wed, 18, 55)
+        val days = kids.map { (id, own) -> run(FamilyEmail.join(confirmed, own, first = id == lead), listOf(session(18, 0, 18, 20))).sent }
+        assertEquals(listOf(emptyList<EmailKind>(), emptyList(), listOf(EmailKind.DAILY)), days)
+    }
+
     @Test fun refusalsSayWhyAndWhenToLookAgain() {
         val spans = listOf(session(18, 0, 18, 20))
         val due = verified()

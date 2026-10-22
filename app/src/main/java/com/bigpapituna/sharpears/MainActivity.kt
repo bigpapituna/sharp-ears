@@ -1279,7 +1279,7 @@ class MainActivity : ComponentActivity() {
                             var corner by remember { mutableStateOf(false) }
                             // The parent brief from the corner (2.4): every kid on the phone, this one's tab first.
                             var briefOpen by remember { mutableStateOf(false) }
-                            // Family (2.4.1): grown-ups corner > Family > Mia > Email.
+                            // Family (2.4.1): grown-ups corner > Family > Mia > Read the brief.
                             var familyOpen by remember { mutableStateOf(false) }
                             // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
                             // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
