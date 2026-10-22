@@ -22,9 +22,9 @@ enum class RunMode { WAIT, PERFORM, LISTEN }
 /** The hands a run asked for. */
 enum class Hands { RIGHT, LEFT, BOTH }
 
-/** The play corner's toys; on the wire as jam, pupSays and clapAlong. */
+/** The play corner's toys; on the wire as jam, pupSays and clapAlong; 2.7 the arcade's games as arcade. */
 enum class ToyKind(val wire: String) {
-    JAM("jam"), PUP_SAYS("pupSays"), CLAP_ALONG("clapAlong");
+    JAM("jam"), PUP_SAYS("pupSays"), CLAP_ALONG("clapAlong"), ARCADE("arcade");
 
     companion object {
         fun of(s: String?): ToyKind? = entries.firstOrNull { it.wire == s || it.name == s }
@@ -184,6 +184,16 @@ sealed class BriefEvent {
         override fun body(m: MutableMap<String, Any?>) { m["game"] = game; m["correct"] = correct; m.opt("level", level) }
     }
 
+    /**
+     * A round of an arcade game ended (2.7, engine/arcade): [game] its id (balloons, garden, feed, tower, moles, frogs,
+     * fireworks, painter, bridge), [stars] one to three, [keys] the keys the round listened for, the [level] it was played
+     * at and how long it took.
+     */
+    data class GameRound(override val at: Long, val game: String, val stars: Int, val keys: Int, val level: Int = 0, val durationMs: Long = 0) : BriefEvent() {
+        override val name get() = "game"
+        override fun body(m: MutableMap<String, Any?>) { m["game"] = game; m["stars"] = stars; m["keys"] = keys; m.opt("level", level, 0); m.opt("ms", durationMs, 0L) }
+    }
+
     /** A task of Pup's quest was completed ([task] is the engine/play QuestKind name): a star. */
     data class QuestStar(override val at: Long, val task: String) : BriefEvent() {
         override val name get() = "quest"
@@ -275,6 +285,7 @@ sealed class BriefEvent {
             "noisy" -> NoisyRoom(at, f.str("screen")!!)
             "toy" -> ToyOpened(at, ToyKind.of(f.str("toy"))!!, f.long("ms"))
             "ear" -> EarRound(at, f.str("game")!!, f.bool("correct"), f.intOrNull("level"))
+            "game" -> GameRound(at, f.str("game")!!, f.intOrNull("stars")!!, f.int("keys"), f.int("level"), f.long("ms"))
             "quest" -> QuestStar(at, f.str("task")!!)
             "sticker" -> StickerDrop(at, StickerRarity.valueOf(f.str("rarity")!!), f.str("sticker"), f.bool("new"), f.str("source"))
             "goal" -> GoalReached(at, f.int("goal"))

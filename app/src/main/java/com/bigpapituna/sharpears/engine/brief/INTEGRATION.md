@@ -65,7 +65,8 @@ All through `Briefs` (a no-op before `Briefs.init`, so JVM tests and previews lo
 | RunDetail (on LessonStep and SongRun) | `engine/Transport.kt` feeds the run's `RunTally` the notes itself: a wait group as it comes due (`tick`), each key as heard (`noteInput`, the mic's latency taken off), the group done; each Perform group played (`PerformScore.onHit`, its offset) or missed (`onMiss`). The Playground's let-go (`RunTally.letGo`, PlayerScreen) marks the rest of the group never played | skipped notes, hesitation (mean, per key slowest, per hand), each hand's clean notes, the Perform spread, hint counts past 32. No PlayerScreen change was needed. The drum stage (`ui/playground/ClapStage.kt`) reports its beats as `rounds` |
 | OctaveHint | with each LessonStep and SongRun that had one | |
 | NoisyRoom | `PlayerScreen.checkNoise` ("player"), `ui/playground/PlaygroundKit.kt` stage clip watch ("stage:<GAME>") | |
-| ToyOpened | `MainActivity` `Screen.Play` (`TimedOnScreen`) | on leaving the toy |
+| ToyOpened | `MainActivity` `Screen.Play` (`TimedOnScreen`); 2.7 `Screen.Arcade` and `Screen.ArcadeRound` as ARCADE | on leaving the toy |
+| GameRound (2.7) | `MainActivity` `Screen.ArcadeRound`'s round end (ui/arcade/INTEGRATION.md) | each arcade round played to its end |
 | EarRound | `MainActivity.earEvent` (ear training: rhythm, melody, pitch, degree, prog), `ui/ChordGamesScreen.kt` ("chord:build" ...) | one per round answered |
 | QuestStar | `data/PlayStore.recordQuest` | for the store's own profile |
 | StickerDrop | `data/WorldStore.lessonComplete` / `songComplete` | each drop, egg included |

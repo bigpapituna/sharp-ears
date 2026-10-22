@@ -36,6 +36,7 @@ class BriefHistory {
         }
         fun toy(toy: ToyKind, minutes: Int) { events += BriefEvent.ToyOpened(next(), toy, minutes * 60_000L) }
         fun ear(game: String, correct: Boolean) { events += BriefEvent.EarRound(next(), game, correct, 0) }
+        fun game(id: String, stars: Int, keys: Int = 5) { events += BriefEvent.GameRound(next(), id, stars, keys, 0, 70_000) }
         fun noisy(screen: String = "player") { events += BriefEvent.NoisyRoom(next(), screen) }
         fun goal(min: Int = 5) { events += BriefEvent.GoalReached(next(), min) }
         fun sticker(r: StickerRarity) { events += BriefEvent.StickerDrop(next(), r, "garden-1", true, "lesson") }

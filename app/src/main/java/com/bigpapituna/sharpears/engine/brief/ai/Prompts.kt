@@ -41,7 +41,7 @@ import com.bigpapituna.sharpears.engine.family.ProfileKind
  */
 object Prompts {
     /** Part of every cache key: a new prompt rewrites rather than reusing what the old one wrote. */
-    const val VERSION = 2
+    const val VERSION = 3
     /** Where the person's name goes; the app fills it in on the phone, so the name never leaves it. */
     const val NAME = "{name}"
 
@@ -140,8 +140,9 @@ object Prompts {
         "NEAR_MISSES is wrong keys right next to the right one, of all wrong keys. TIMING is the average in milliseconds " +
         "off the beat, over that many runs. HANDS is the left hand's hit rate in percent, of the right hand's. EAR_ROUNDS is " +
         "ear game rounds answered right, of rounds. CLAP is the percent of drum beats with a clap. TOY_MINUTES is minutes " +
-        "in the toys (Jam, Pup says, Clap along), of minutes on screen. STICKERS is stickers won, of them new. QUEST_STARS " +
-        "is the pup's quest stars. HINTS is stuck moments where the app played the key, of stuck moments with any hint. " +
+        "in the toys (Jam, Pup says, Clap along, the arcade's games), of minutes on screen. STICKERS is stickers won, of them new. QUEST_STARS " +
+        "is the pup's quest stars. GAMES is rounds of the arcade's games, of the best stars (one to three) of the best game, " +
+        "whose id comes first in songs (balloons, garden, feed, tower, moles, frogs, fireworks, painter, bridge). HINTS is stuck moments where the app played the key, of stuck moments with any hint. " +
         "SKIPPED_NOTES is notes that came up and were never played (let go by the app, or missed in Perform), of notes that " +
         "came up. HESITATION is the average milliseconds from a note coming up to its key being played, over that many notes. " +
         "TEMPO_SPREAD is how much the beat wanders in Perform, in milliseconds (lower is steadier), over that many runs.\n" +

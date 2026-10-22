@@ -156,6 +156,11 @@ object Insights {
         )
     }
 
+    /** 2.7: the arcade's rounds by game, the best first (most stars, then most rounds, then the id). */
+    private fun gameStats(w: Window): List<GameStat> = w.of<BriefEvent.GameRound>().groupBy { it.game }
+        .map { (g, r) -> GameStat(g, r.size, r.maxOf { it.stars }.coerceIn(1, 3)) }
+        .sortedWith(compareBy({ -it.bestStars }, { -it.rounds }, { it.game }))
+
     // ---- facts ----------------------------------------------------------------------------------------------------
 
     private fun facts(w: Window, period: Period): List<Fact> = buildList {
@@ -179,6 +184,7 @@ object Insights {
         if (w.toyMs >= 60_000) add(Fact(FactKind.TOY_MINUTES, (w.toyMs / 60_000), w.minutes.toLong()))
         w.of<BriefEvent.StickerDrop>().takeIf { it.isNotEmpty() }?.let { s -> add(Fact(FactKind.STICKERS, s.size.toLong(), s.count { it.isNew }.toLong())) }
         w.of<BriefEvent.QuestStar>().takeIf { it.isNotEmpty() }?.let { add(Fact(FactKind.QUEST_STARS, it.size.toLong())) }
+        gameStats(w).takeIf { it.isNotEmpty() }?.let { g -> add(Fact(FactKind.GAMES, g.sumOf { it.rounds }.toLong(), g.first().bestStars.toLong(), songs = g.map { it.game })) }
         if (w.hints.isNotEmpty()) add(Fact(FactKind.HINTS, w.hints.count { it == HintDepth.PLAY }.toLong(), w.hints.size.toLong()))
         if (w.skippedNotes >= SKIPPED_MIN) add(Fact(FactKind.SKIPPED_NOTES, w.skippedNotes.toLong(), w.notesDue.toLong()))
         if (w.hesitationN >= HESITATION_MIN_NOTES) w.hesitationMean?.let { add(Fact(FactKind.HESITATION, it.roundToInt().toLong(), w.hesitationN.toLong())) }
@@ -564,6 +570,7 @@ object Insights {
             if (opened.isEmpty()) null else ToyStat(t, opened.size, (opened.sumOf { it.durationMs } / 60_000.0).roundToInt())
         }
         val parts = DayPart.entries.map { p -> PartStat(p, w.minutesByPart[p] ?: 0, w.sessions.count { partOf(it.start, zone) == p }) }
+        val games = gameStats(w)
         val stickers = w.of<BriefEvent.StickerDrop>()
         val totals = Totals(
             minutes = w.minutes, practiceMinutes = w.practiceMinutes, sessions = w.sessions.size, daysPractised = w.daysPractised.size,
@@ -595,7 +602,7 @@ object Insights {
             tempoSpreadMs = w.tempoSpread?.roundToInt(), tempoRuns = w.spreads.size, left = hand(true), right = hand(false),
             hintsBefore = before.firstOrNull()?.takeIf { it.steps.isNotEmpty() || it.runs.isNotEmpty() }?.hintStats(),
             clap = drum.takeIf { it.isNotEmpty() }?.let { d -> ClapStat(d.sumOf { it.notes }, d.sumOf { it.rounds }, d.size) },
-            ear = ear, weeks = weeks.map { it.practiceMinutes },
+            ear = ear, games = games, weeks = weeks.map { it.practiceMinutes },
             sessionMinutes = meanSession(listOf(w)), sessionMinutesBefore = meanSession(before),
             mix = PlayMix(min(w.steps.sumOf { it.durationMs }), min(w.of<BriefEvent.SongRun>().sumOf { it.durationMs }), min(w.toyMs)),
         )

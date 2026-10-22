@@ -37,7 +37,7 @@ object BriefFormat {
         titles.song(s.songId) + ": played " + com.bigpapituna.sharpears.engine.times(s.runs) +
             (if (s.bestStars > 0) ", best ${stars(s.bestStars)}" else "")
 
-    fun toyLabel(t: ToyKind): String = when (t) { ToyKind.JAM -> "Jam"; ToyKind.PUP_SAYS -> "Pup says"; ToyKind.CLAP_ALONG -> "Clap along" }
+    fun toyLabel(t: ToyKind): String = when (t) { ToyKind.JAM -> "Jam"; ToyKind.PUP_SAYS -> "Pup says"; ToyKind.CLAP_ALONG -> "Clap along"; ToyKind.ARCADE -> "Games" }
 
     fun partLabel(p: DayPart): String = when (p) {
         DayPart.MORNING -> "Morning"; DayPart.AFTERNOON -> "Afternoon"; DayPart.EVENING -> "Evening"; DayPart.NIGHT -> "Night"
