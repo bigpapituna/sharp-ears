@@ -47,13 +47,11 @@ object ArcadeLines {
     /** Song painter: the phrases again from memory. */
     const val BY_YOURSELF = "Now paint it by yourself!"
     const val ENCORE = "Once more, the encore!"
-    const val SHOW_DONE = "What a show!"
-    const val PICTURE_DONE = "Look at your picture!"
     const val FINISH_REST = "Let me finish the song for you!"
-    const val CLOUDS = "You reached the clouds!"
-    const val HIGHER = "Higher, up to the moon!"
 
     /** Shown in the bubble while playing (never said: the mic keeps listening). */
+    const val CLOUDS = "You reached the clouds!"
+    const val HIGHER = "Higher, up to the moon!"
     val STREAK = listOf("So quick!", "Keep it up!", "Wow, wow, wow!")
     const val HELP = "Look, it's lit up!"
     const val SLIP = "Oops! Try another key."
@@ -76,12 +74,12 @@ object ArcadeLines {
         for (g in ArcadeGame.entries) for (reader in listOf(true, false)) for (level in 0..g.maxLevel) add(intro(g, reader, level))
         ArcadeSongs.ALL.forEach { add(song(it)) }
         addAll(GARDEN_DONE); addAll(FROGS_DONE); addAll(BRIDGE_DONE); addAll(FIREWORKS_DONE)
-        add(JOINED); add(WHOLE_SONG); add(ENCORE); add(BY_YOURSELF); add(SHOW_DONE); add(PICTURE_DONE); add(FINISH_REST); add(CLOUDS); add(HIGHER)
+        add(JOINED); add(WHOLE_SONG); add(ENCORE); add(BY_YOURSELF); add(FINISH_REST)
         for (s in 1..3) add(finish(s))
         add(STICKER); add(PAINTED); add(HARDER)
     }.distinct()
 
     /** Every line the arcade shows or says (the copy test reads these). */
-    fun all(): List<String> = (spoken() + STREAK + listOf(HELP, SLIP, WATCH, GO) + ArcadeGame.entries.map { it.title } +
+    fun all(): List<String> = (spoken() + STREAK + listOf(HELP, SLIP, WATCH, GO, CLOUDS, HIGHER) + ArcadeGame.entries.map { it.title } +
         ArcadeGame.entries.map(ArcadeQuest::title)).distinct()
 }

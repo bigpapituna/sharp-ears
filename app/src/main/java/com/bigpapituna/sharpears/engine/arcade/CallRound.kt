@@ -64,6 +64,10 @@ class CallRound(val plan: CallPlan) : ArcadeRound {
     var linesDone = 0; private set
     var cleanLines = 0; private set
 
+    /** When the current stuck beat began (the tower's ring), and how long a beat is now. */
+    val beatFrom: Long get() = quietFrom
+    val beatMs: Long get() = plan.beat(hits)
+
     /** The note being waited for, or null between lines or at the end. */
     val current: Target? get() = if (phase == Phase.LISTEN || phase == Phase.DEMO) plan.lines.getOrNull(line)?.targets?.getOrNull(note) else null
 

@@ -189,7 +189,7 @@ internal fun longestPhrase(ex: com.bigpapituna.sharpears.engine.Exercise): Int =
     com.bigpapituna.sharpears.engine.parseTokens(ex.right).fold(listOf(0)) { acc, t -> if (t.rest) acc + 0 else acc.dropLast(1) + (acc.last() + 1) }.max()
 
 /** A balloon at [c], [r] wide, in [colour], its [letter] on it for a reader, on a curly string; [glow] when it is next. */
-private fun DrawScope.balloon(c: Offset, r: Float, colour: Color, letter: String?, measurer: androidx.compose.ui.text.TextMeasurer, glow: Boolean) {
+internal fun DrawScope.balloon(c: Offset, r: Float, colour: Color, letter: String?, measurer: androidx.compose.ui.text.TextMeasurer, glow: Boolean) {
     val string = Path().apply { moveTo(c.x, c.y + r * 1.15f); quadraticTo(c.x - r * 0.3f, c.y + r * 1.6f, c.x, c.y + r * 2.0f); quadraticTo(c.x + r * 0.3f, c.y + r * 2.4f, c.x, c.y + r * 2.9f) }
     drawPath(string, Color.White.copy(alpha = 0.6f), style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round))
     if (glow) drawCircle(Brush.radialGradient(listOf(colour.copy(alpha = 0.55f), Color.Transparent), c, r * 1.9f), r * 1.9f, c)
@@ -204,7 +204,7 @@ private fun DrawScope.balloon(c: Offset, r: Float, colour: Color, letter: String
 }
 
 /** A balloon popping: bits flying out and fading, [p] 0..1. */
-private fun DrawScope.burst(c: Offset, r: Float, colour: Color, p: Float) {
+internal fun DrawScope.burst(c: Offset, r: Float, colour: Color, p: Float) {
     for (k in 0 until 12) {
         val a = 2 * PI * k / 12
         val d = r * (0.4f + 1.6f * p)
