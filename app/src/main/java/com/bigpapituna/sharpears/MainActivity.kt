@@ -1202,7 +1202,8 @@ class MainActivity : ComponentActivity() {
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
                                         val kv = kidStore.version.intValue
-                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, onOpen = { screen = Screen.Lesson(it, s) },
+                                        LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, skipped = { pv >= 0 && prefs.lessonSkipped(it) },
+                                            onOpen = { screen = Screen.Lesson(it, s) },
                                             pinned = remember(pv, kv) { kidStore.pace().pin?.let(path::lesson) },
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
