@@ -463,7 +463,7 @@ fun LessonScreen(
  * sees the lesson's [stars] first (2.2: the same stars land on its stone on the map).
  */
 @Composable
-private fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null) {
+internal fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null) {
     // In order (2.5.0): the stars, the stone's own sticker (its shape turning into the sticker), the drop flipping in, and
     // once it has landed the rest, something new to wear last.
     var dropped by remember(reward) { mutableStateOf(reward.drops.isEmpty()) }

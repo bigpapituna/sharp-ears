@@ -59,7 +59,11 @@ import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.ProgressStore
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.progress.DailyGoal
-import com.bigpapituna.sharpears.engine.progress.Experience
+import com.bigpapituna.sharpears.engine.family.HomeFirst
+import com.bigpapituna.sharpears.engine.family.Level
+import com.bigpapituna.sharpears.engine.family.Placement
+import com.bigpapituna.sharpears.engine.family.PlacementCheck
+import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.reminder.Reminder
 import com.bigpapituna.sharpears.ui.Celebration
 import com.bigpapituna.sharpears.ui.ChunkyButton
@@ -82,6 +86,10 @@ private const val STEPS = 4
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -> Unit = {}, askReminder: Boolean = true,
+                     /** The level they said (2.6, engine/family/Placement.kt), once the questions are answered: the profile keeps it and the course is placed. */
+                     onLevel: (Level) -> Unit = {},
+                     /** Offered after the questions to anyone above "never": the short listen ("Let's hear you play", ui/family/PlacementCheckScreen.kt). Null: not offered. */
+                     onCheck: ((Level) -> Unit)? = null,
                      onDone: (startLessonId: String?) -> Unit) {
     val context = LocalContext.current
     val still = reducedMotion()
@@ -95,7 +103,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
     var pickTime by remember { mutableStateOf(false) }
 
     fun finish(notifyOk: Boolean) {
-        store.experience = Experience.fromOrdinal(experience)
+        Level.entries.getOrNull(experience)?.let(onLevel)
         store.goalMinutes = goal
         store.useMic = useMic
         prefs.micDefault = useMic
@@ -124,15 +132,23 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
     val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> afterNotify(granted) }
 
     if (finished) {
-        val exp = Experience.fromOrdinal(experience) ?: Experience.NEVER
-        val unit = COURSE.firstOrNull { it.id == exp.startUnit }
-        val lesson = unit?.lessons?.firstOrNull { it.id == exp.startLessonId }
+        val level = Level.entries.getOrNull(experience) ?: Level.NEVER
+        val plan = Placement.planFor(level, ProfileKind.ADULT)
+        val unit = COURSE.firstOrNull { it.id == plan.startUnitId }
+        val lesson = unit?.lessons?.firstOrNull { it.id == plan.startLessonId }
+        // Someone above "never" is asked to play a little (never someone who has not played): two or three tiny things, skippable.
+        val check = onCheck?.takeIf { PlacementCheck.offered(level) }
+        val songsFirst = plan.homeFirst == HomeFirst.SONGS
+        val start = { onDone(if (songsFirst) null else lesson?.id) }
+        val firstLine = if (songsFirst) "The songs are ready for you." else lesson?.let { "Your first lesson is ready: ${it.title}." } ?: "Your first lesson is ready."
         Celebration(
             title = "You're all set",
-            line = lesson?.let { "Your first lesson is ready: ${it.title}." } ?: "Your first lesson is ready.",
+            line = if (level != Level.NEVER) "${plan.line} $firstLine" else firstLine,
             stats = listOf(Stat("$goal min", "Daily goal"), Stat(unit?.title ?: "Basics", "Start at")),
-            primary = "Start learning", onPrimary = { onDone(lesson?.id) },
-            secondary = "Look around first", onSecondary = { onDone(null) },
+            primary = if (check != null) "Let's hear you play" else if (songsFirst) "Show me the songs" else "Start learning",
+            onPrimary = { if (check != null) check(level) else start() },
+            secondary = if (check != null) (if (songsFirst) "Skip, show me the songs" else "Skip, start learning") else "Look around first",
+            onSecondary = { if (check != null) start() else onDone(null) },
             pose = Pose.LEVEL_UP,
         )
         return
@@ -227,14 +243,14 @@ private fun WelcomeStep() {
 
 @Composable
 private fun ExperienceStep(picked: Int, onPick: (Int) -> Unit) {
-    PupSays(Pose.LEARNING, "Have you played before? Any answer is fine. I'll pick a good place to start.", Modifier.fillMaxWidth(), size = 96.dp)
+    PupSays(Pose.LEARNING, "Have you played before? Any answer is fine. I'll pick a good place to start, and everything before it stays open.", Modifier.fillMaxWidth(), size = 96.dp)
     StepTitle("Have you played before?")
-    Experience.entries.forEach { e -> Choice(picked == e.ordinal, e.label, e.detail) { onPick(e.ordinal) } }
-    val exp = Experience.fromOrdinal(picked)
-    if (exp != null) {
-        val unit = COURSE.firstOrNull { it.id == exp.startUnit }
-        val lesson = unit?.lessons?.firstOrNull { it.id == exp.startLessonId }
-        Text("We'll start you in ${unit?.title ?: "Basics"}" + (lesson?.let { ", with \"${it.title}\"." } ?: "."),
+    Level.adult.forEach { l -> Choice(picked == l.ordinal, l.label, l.adultLine) { onPick(l.ordinal) } }
+    val level = Level.entries.getOrNull(picked)
+    if (level != null) {
+        val plan = Placement.planFor(level, ProfileKind.ADULT)
+        val lesson = COURSE.firstOrNull { it.id == plan.startUnitId }?.lessons?.firstOrNull { it.id == plan.startLessonId }
+        Text("We'll start you in ${plan.startTitle}" + (lesson?.let { ", with \"${it.title}\"." } ?: ".") + plan.openLine().let { if (it.isEmpty()) "" else " $it" },
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
     }
 }

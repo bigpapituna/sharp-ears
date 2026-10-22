@@ -145,6 +145,9 @@ object Placement {
         )
     }
 
+    /** The id the check's first-lesson rewards are kept under (its stars, the XP event, the world's sticker): not a course lesson. */
+    const val CHECK_ID = "placement-check"
+
     private val plans = HashMap<Triple<Level, ProfileKind, Boolean>, PlacementPlan>()
 
     /** [startFor] on the app's own course, remembered (the path asks on every look). */
