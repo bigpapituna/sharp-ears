@@ -998,6 +998,36 @@ against the adult navigation branch.
 - Debug: `--es screen arcade [--es game <id> [--ei level n] [--el seed n] [--es inject synth:...] [--ez bot true] [--ei stars 1|2|3]]`
   (bot: the screen plays the right keys as touches).
 
+## 2.8 three layouts (2026-10-22, branch `layout-3`, emulator-5558 Fold only; version not bumped, the integrator does)
+docs/PLAN-2.8.md section 5. 2.7's one Simple switch became three layouts per grown-up: **Simple** (the first steps, exactly
+2.7's Simple), **Advanced** (lessons, songs and practice) and **Full** (everything, 2.7's Advanced).
+- Engine: `enum class Layout { SIMPLE, ADVANCED, FULL }` (engine/nav/Layout.kt: titles, card lines, the chooser's question and
+  note, wire names); every rule in engine/nav/Simple.kt takes a `Layout`. `Simple.layoutOf(kid, chosen, level)`: a kid is
+  always Full (nothing cut, never asked), else the choice, else the level's default (Never and A little Simple, else Full).
+  `Simple.asks(kid, chosen)`: a grown-up with no choice. `Simple.cuts(place, layout)` says which places a layout cuts.
+- Advanced = Simple plus: Learn's side rows (Theory, Ear training, Sight-read; the path was never cut), Practice in full, every
+  song by chords, the song packs whole in Learn chords ("Chords of <song>": the generic packs, the dictionary and the drill keep
+  the six chords), Major or minor in Games, Quarters and Broken on a song page, the loop and speed back on the player's bar
+  (transpose, metronome, chords and duet stay in More), and Settings' Keys, Falling notes, Show wrong keys and Briefs. Still
+  cut in Advanced (each with "Show more"): Learn chords, Games, Progressions (the two pop ones), song patterns, the player bar,
+  Settings (Progress and About).
+- Prefs: `Prefs.layout: Layout?` (key "layout", wire name) replaces `simpleMode`; read-time migration: an old `simpleMode` true
+  reads as Simple, false as Full, absent is null (asked). The first new choice removes `simpleMode`.
+- The launch chooser (ui/LayoutChooser.kt): in MainActivity's grown-up Home branch, before HomeShell, while `Simple.asks` is
+  true: the pup, "How much do you want on screen?", three cards (a small page with one, two or three lines lit, the name, one
+  line), "Change any time on You or in Settings." A tap saves and the tabs open (What's new and the tour after it). It is not a
+  Screen of its own (NavGraph unchanged), so it catches a launch, a profile switch and the return from a newcomer's first
+  lesson alike. Kids never reach it (their home comes first).
+- UI: ui/LayoutMode.kt (was SimpleMode.kt): `LayoutMode`/`LocalLayout` (was SimpleMode/LocalSimple), `LayoutPicker` (three
+  segmented buttons: Settings > Playing > Layout, and a place's "Show more" offer), `LayoutPill` (Today's header and You: the
+  layout's name, a tap opens a menu of three), `LayoutMore(place, ...)` (was SimpleMore; draws nothing where the layout cuts
+  nothing). A change is logged as `Briefs.setting("layout", "<wire>")` and the brief says "The layout was set to Advanced.".
+- Copy: the tour's third card and What's new 2.8.0 (one line) name all three.
+- Debug: `--es simple simple|advanced|full|unset` (or `--es layout ...`; 2.7's on|off|default still read as simple|full|unset).
+- Tests: LayoutTest (was SimpleTest: one row per place part per layout, cuts agree with each rule, copy rules), LayoutWiringTest
+  (was SimpleWiringTest), WelcomePrefsTest (the layout per profile, the 2.7 switch carried over), NavTest (the chooser sits
+  before the tabs, after the kid home).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

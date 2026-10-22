@@ -94,11 +94,11 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
     // Tile art and lengths, read off the main thread and filled in as they arrive.
     val arts = rememberSongArts(remember(entries) { entries.map { it.meta } })
     val popState = pop?.let { com.bigpapituna.sharpears.ui.chords.rememberPopBrowseState(it.start) }
-    // Simple mode (2.7, engine/nav/Simple.kt): four-chord and easiest songs, until "Show more".
-    val simpleMode = LocalSimple.current
+    // The layouts (2.8, engine/nav/Simple.kt): Simple keeps four-chord and easiest songs, until "Show more"; Advanced has them all.
+    val layout = LocalLayout.current.layout
     var morePop by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val popSongs = remember(pop?.songs, simpleMode.on, morePop) {
-        pop?.songs?.let { if (simpleMode.on && !morePop) com.bigpapituna.sharpears.engine.nav.Simple.popSongs(it) else it }.orEmpty()
+    val popSongs = remember(pop?.songs, layout, morePop) {
+        pop?.songs?.let { com.bigpapituna.sharpears.engine.nav.Simple.popSongs(it, com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, morePop)) }.orEmpty()
     }
     val popModel = if (pop != null && popState != null) com.bigpapituna.sharpears.ui.chords.rememberPopBrowseModel(popSongs, pop.known, popState) else null
     val showPop = section == SongsSection.BY_CHORDS && pop != null && popState != null && popModel != null
@@ -119,7 +119,7 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
         }
         if (showPop && pop != null && popState != null && popModel != null) {
             popBrowseItems(popModel, popState, pop.known, onOpen = { s -> pop.onOpen(s, popState.now) }, title = false)
-            item(key = "pop-more") { SimpleMore(morePop, { morePop = true }) }
+            item(key = "pop-more") { LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.SONGS_BY_CHORDS, morePop, { morePop = true }) }
             return@LazyColumn
         }
         // Nothing played yet: an easy first song first.

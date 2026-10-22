@@ -1,6 +1,8 @@
 package com.bigpapituna.sharpears.data
 
 import com.bigpapituna.sharpears.engine.nav.ContinueWith
+import com.bigpapituna.sharpears.engine.nav.Layout
+import com.bigpapituna.sharpears.engine.nav.Simple
 import com.bigpapituna.sharpears.engine.nav.Welcome
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,19 +52,39 @@ class WelcomePrefsTest {
         assertEquals("2.7.0", p.whatsNewSeen)
     }
 
-    /** 2.7, Simple mode: kept per profile; unset, the piano level decides; set back to null it decides again. */
-    @Test fun simpleModeIsEachPersonsOwn() {
+    /** 2.8, the layout: kept per profile; unset, the launch asks (and the piano level decides meanwhile); null forgets it. */
+    @Test fun theLayoutIsEachPersonsOwn() {
         val phone = FolderContext(tmp.root)
-        assertNull(Prefs(phone, "owner").simpleMode)
-        Prefs(phone, "owner").simpleMode = false
-        Prefs(phone, "p2").simpleMode = true
-        assertEquals(false, Prefs(phone, "owner").simpleMode)                   // after a restart
-        assertEquals(true, Prefs(phone, "p2").simpleMode)
-        assertNull(Prefs(phone, "p3").simpleMode)
-        Prefs(phone, "owner").simpleMode = null
-        assertNull(Prefs(phone, "owner").simpleMode)
-        // Reset progress leaves the choice: Simple only filters what is shown.
+        assertNull(Prefs(phone, "owner").layout)
+        Prefs(phone, "owner").layout = Layout.ADVANCED
+        Prefs(phone, "p2").layout = Layout.SIMPLE
+        assertEquals(Layout.ADVANCED, Prefs(phone, "owner").layout)              // after a restart
+        assertEquals(Layout.SIMPLE, Prefs(phone, "p2").layout)
+        assertNull(Prefs(phone, "p3").layout)
+        assertTrue(Simple.asks(kid = false, chosen = Prefs(phone, "p3").layout))
+        Prefs(phone, "owner").layout = null
+        assertNull(Prefs(phone, "owner").layout)
+        // Reset progress leaves the choice: a layout only filters what is shown.
         val p = Prefs(phone, "p2"); p.resetProgress()
-        assertEquals(true, p.simpleMode)
+        assertEquals(Layout.SIMPLE, p.layout)
+    }
+
+    /** 2.7's Simple switch, as a 2.7 phone kept it: on reads as Simple, off as Full, and neither is asked again. */
+    @Test fun theSimpleSwitchCarriesOverAndIsNeverAskedAgain() {
+        val phone = FolderContext(tmp.root)
+        fun file(id: String) = phone.getSharedPreferences(ProgressFiles.fileFor("progress", id), android.content.Context.MODE_PRIVATE)
+        file("owner").edit().putBoolean("simpleMode", true).apply()
+        file("p2").edit().putBoolean("simpleMode", false).apply()
+        assertEquals(Layout.SIMPLE, Prefs(phone, "owner").layout)
+        assertEquals(Layout.FULL, Prefs(phone, "p2").layout)
+        assertFalse(Simple.asks(kid = false, chosen = Prefs(phone, "owner").layout))
+        assertFalse(Simple.asks(kid = false, chosen = Prefs(phone, "p2").layout))
+        // A new choice replaces the old switch for good; forgetting the choice (the debug "unset") forgets it too.
+        Prefs(phone, "owner").layout = Layout.ADVANCED
+        assertEquals(Layout.ADVANCED, Prefs(phone, "owner").layout)
+        assertFalse(file("owner").contains("simpleMode"))
+        Prefs(phone, "p2").layout = null
+        assertNull(Prefs(phone, "p2").layout)
+        assertTrue(Simple.asks(kid = false, chosen = Prefs(phone, "p2").layout))
     }
 }

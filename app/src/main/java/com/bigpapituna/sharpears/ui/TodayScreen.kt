@@ -154,8 +154,8 @@ private fun Header() {
             Text(remember { java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.getDefault())) },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        // Simple mode (engine/nav/Simple.kt), one tap from the home.
-        SimplePill()
+        // The layout (2.8, engine/nav/Layout.kt), one tap from the home.
+        LayoutPill()
     }
 }
 

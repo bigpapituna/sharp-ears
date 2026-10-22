@@ -71,7 +71,7 @@ private const val HIGH = 84  // C6
 /** Debug start for the games: which game and level to open straight away, and the mic injection. */
 data class GameStart(val game: GameKind? = null, val level: Int = 0, val inject: String? = null)
 
-/** Games (Chords > Play before 2.7): the game picker with best scores, or the game being played. Simple mode shows Build it and Hear it. */
+/** Games (Chords > Play before 2.7): the game picker with best scores, or the game being played. Simple shows Build it and Hear it, Advanced adds Major or minor. */
 @Composable
 fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: Voice, prefs: Prefs, micDefault: Boolean, start: GameStart) {
     var playing by remember { mutableStateOf(start.game?.let { it to start.level }) }
@@ -88,10 +88,10 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
     }
     val v = prefs.version.intValue
     var sheet by remember { mutableStateOf<GameKind?>(null) }
-    // Simple mode (2.7, engine/nav/Simple.kt): Build it and Hear it, until "Show more".
-    val simpleMode = LocalSimple.current
+    // The layouts (2.8, engine/nav/Simple.kt): Simple has Build it and Hear it, Advanced adds Major or minor, until "Show more".
+    val layout = LocalLayout.current.layout
     var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val games = if (simpleMode.on && !more) com.bigpapituna.sharpears.engine.nav.Simple.games(GameKind.entries) else GameKind.entries
+    val games = com.bigpapituna.sharpears.engine.nav.Simple.games(GameKind.entries, com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, more))
     fun bests(g: GameKind) = g.levels.indices.map { if (v >= 0) prefs.gameBest(g.id, it) else -1 }
     // Each game opens on its first level not yet mastered, until another is picked in its sheet.
     fun levelOf(g: GameKind) = levels[g] ?: bests(g).indexOfFirst { it < STAR_AT }.let { if (it < 0) g.levels.lastIndex else it }
@@ -107,7 +107,7 @@ fun ChordGamesScreen(sampler: Sampler, midi: MidiDevices, mic: MicInput, voice: 
                     modifier = m, artOnPanel = true) { ChordArt(g) }
             }
         }
-        SimpleMore(more, { more = true })
+        LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.GAMES, more, { more = true })
     }
     sheet?.let { g ->
         GameSheet(g.title, g::howToFor, g.levels, bests(g), levelOf(g), onPlay = { l -> levels[g] = l; sheet = null; playing = g to l },

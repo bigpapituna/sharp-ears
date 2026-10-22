@@ -558,10 +558,12 @@ class MainActivity : ComponentActivity() {
         if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("welcome", false)) {
             prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
         }
-        // Debug --es simple on|off|default: Simple mode for the profile (default: forget the choice, the level decides again).
-        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) intent.getStringExtra("simple")?.let { v ->
-            prefs.simpleMode = when (v) { "on" -> true; "off" -> false; else -> null }
-            Log.d(TAG, "simple: set to $v for ${profile.id} (debug)")
+        // Debug --es simple simple|advanced|full|unset (or --es layout ...; 2.7's on|off|default still read as simple|full|unset):
+        // the profile's layout; unset forgets the choice, so the launch asks again.
+        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) (intent.getStringExtra("layout") ?: intent.getStringExtra("simple"))?.let { v ->
+            prefs.layout = when (v) { "on" -> com.bigpapituna.sharpears.engine.nav.Layout.SIMPLE; "off" -> com.bigpapituna.sharpears.engine.nav.Layout.FULL
+                else -> com.bigpapituna.sharpears.engine.nav.Layout.parse(v) }
+            Log.d(TAG, "layout: set to ${prefs.layout?.wire ?: "unset"} for ${profile.id} (debug)")
         }
         if (!progress.onboardingDone && progress.xp > 0) progress.onboardingDone = true
         // A kid goes straight in: no questions, the goal the profile was made with, and the first game opens at once.
@@ -793,20 +795,22 @@ class MainActivity : ComponentActivity() {
             KeepScreenOnWhile(mic, stage = keepsScreenOn(screen))
             val current by profiles.currentFlow.collectAsState()
             val roster by profiles.rosterFlow.collectAsState()
-            // Simple mode (2.7, engine/nav/Simple.kt): this person's choice, or the default from their piano level; never a kid's.
-            val simpleOn = prefs.version.intValue >= 0 && com.bigpapituna.sharpears.engine.nav.Simple.isOn(current.isKid, prefs.simpleMode, current.level)
-            val simple = remember(simpleOn) {
-                com.bigpapituna.sharpears.ui.SimpleMode(simpleOn) { on ->
-                    prefs.simpleMode = on
-                    Briefs.setting("simpleMode", on)
-                    Log.d(TAG, "simple: ${if (on) "on" else "off"} for ${profile.id}")
+            // The layouts (2.8, engine/nav/Layout.kt and Simple.kt): this person's choice (2.7's Simple switch carried over), or
+            // the default from their piano level until they choose at launch; a kid's is Full (nothing cut, never asked).
+            val chosenLayout = if (prefs.version.intValue >= 0) prefs.layout else null
+            val layout = com.bigpapituna.sharpears.engine.nav.Simple.layoutOf(current.isKid, chosenLayout, current.level)
+            val layoutMode = remember(layout) {
+                com.bigpapituna.sharpears.ui.LayoutMode(layout) { l ->
+                    prefs.layout = l
+                    Briefs.setting("layout", l.wire)
+                    Log.d(TAG, "layout: ${l.wire} for ${profile.id}")
                 }
             }
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
             // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
                 LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
-                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalSimple provides simple) {
+                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
                 Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
@@ -899,8 +903,9 @@ class MainActivity : ComponentActivity() {
                         else kidStore.pace().pin?.let(path::lesson) ?: path.next { prefs.lessonDone(it) }
                     // Where Songs is: the kid's own list for a kid, the Songs tab for a grown-up.
                     fun songsScreen(back: Screen = Screen.Home()): Screen = if (profile.isKid) Screen.KidSongs(back) else Screen.Home(HomeTab.SONGS)
-                    // The chord packs the daily review draws from: in Simple mode only the six beginner chords (engine/nav/Simple.kt).
-                    fun chordCurriculum() = lessons.curriculum().let { if (simpleOn) com.bigpapituna.sharpears.engine.Curriculum(com.bigpapituna.sharpears.engine.nav.Simple.packs(it.packs)) else it }
+                    // The chord packs the daily review draws from: until Full only the six beginner chords (Advanced keeps the song
+                    // packs whole; engine/nav/Simple.kt).
+                    fun chordCurriculum() = lessons.curriculum().let { com.bigpapituna.sharpears.engine.Curriculum(com.bigpapituna.sharpears.engine.nav.Simple.packs(it.packs, layout)) }
                     fun todayPlan(): SessionPlan {
                         val queue = chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
@@ -1344,10 +1349,19 @@ class MainActivity : ComponentActivity() {
                                 roster.profiles.filter { it.isKid }, initial = current.id,
                                 // Closed, the phone is the kid's again: the gate shuts as it does with the corner.
                                 onClose = { briefOpen = false; gate.close(); Log.d(TAG, "gate: closed with the parent brief") })
+                        } else if (com.bigpapituna.sharpears.engine.nav.Simple.asks(current.isKid, chosenLayout)) {
+                            // 2.8, the launch chooser: a grown-up who never chose a layout picks one before the tabs (Today); a
+                            // tap saves it and the home opens under it. Kids never see it; 2.7's Simple switch counts as chosen.
+                            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                com.bigpapituna.sharpears.ui.LayoutChooser(current.name, returning = progress.xp > 0) { l ->
+                                    Log.d(TAG, "layout: chosen at launch")
+                                    layoutMode.set(l)
+                                }
+                            }
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.TODAY) { screen = Screen.Home() }
                             val lv = lessons.version.intValue
-                            val due = remember(lv, lessons.songPacks.value, simpleOn) {
+                            val due = remember(lv, lessons.songPacks.value, layout) {
                                 chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
                             HomeShell(s.tab, { screen = s.copy(tab = it) }, badge = mapOf(HomeTab.LEARN to due)) { tab ->
@@ -1569,10 +1583,8 @@ class MainActivity : ComponentActivity() {
                                 }
                                 val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
                                 com.bigpapituna.sharpears.ui.chords.PopSongPage(pop, known, sampler, sound = { prefs.sound },
-                                    // Simple mode keeps to Whole and Halves: a song that suggests another pattern opens on Halves.
-                                    shift = s.shift, pattern = (s.pattern ?: pop.pattern).let { p ->
-                                        if (simpleOn && p !in com.bigpapituna.sharpears.engine.nav.Simple.PATTERNS) com.bigpapituna.sharpears.engine.chords.PopSong.Pattern.HALVES else p
-                                    }, bpm = s.bpm ?: pop.bpm,
+                                    // Simple keeps to Whole and Halves, Advanced to the plain four: a song that suggests another pattern opens on Halves.
+                                    shift = s.shift, pattern = com.bigpapituna.sharpears.engine.nav.Simple.openingPattern(s.pattern ?: pop.pattern, layout), bpm = s.bpm ?: pop.bpm,
                                     onState = { sh, pa, bp -> screen = s.copy(shift = sh, pattern = pa, bpm = bp, hear = false) },
                                     onPlayAlong = { run ->
                                         Log.d(TAG, "pop: play along ${pop.id} ${run.song.id}")

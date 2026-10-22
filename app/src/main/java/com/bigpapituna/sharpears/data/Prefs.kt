@@ -173,12 +173,15 @@ class Prefs(context: Context, val profileId: String) {
         set(v) = edit { if (v == null) remove("lastPlayed") else putString("lastPlayed", v) }
 
     /**
-     * Simple mode as this person chose it (2.7, engine/nav/Simple.kt), or null before they chose: the default then follows
-     * their piano level (on for Never and A little). Simple only filters what is shown; nothing else is kept apart.
+     * The layout this person chose (2.8, engine/nav/Layout.kt and Simple.kt), or null before they chose: a grown-up is asked at
+     * launch, and until then their piano level decides (Simple for Never and A little). 2.7's Simple switch ("simpleMode") is
+     * a choice already: on reads as Simple, off as Full (2.7's Advanced was the whole app); the first new choice replaces it.
+     * A layout only filters what is shown; nothing else is kept apart.
      */
-    var simpleMode: Boolean?
-        get() = if (p.contains("simpleMode")) p.getBoolean("simpleMode", false) else null
-        set(v) = edit { if (v == null) remove("simpleMode") else putBoolean("simpleMode", v) }
+    var layout: com.bigpapituna.sharpears.engine.nav.Layout?
+        get() = com.bigpapituna.sharpears.engine.nav.Layout.parse(p.getString("layout", null))
+            ?: if (p.contains("simpleMode")) com.bigpapituna.sharpears.engine.nav.Layout.fromSimpleMode(p.getBoolean("simpleMode", false)) else null
+        set(v) = edit { remove("simpleMode"); if (v == null) remove("layout") else putString("layout", v.wire) }
 
     /** The 2.7 tour (engine/nav/Welcome.kt) was walked or skipped by this profile: it never shows again. */
     var tourDone: Boolean
