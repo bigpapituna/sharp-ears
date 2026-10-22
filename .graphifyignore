@@ -1,0 +1,10 @@
+build/
+app/build/
+.gradle/
+fixtures/
+stalls/
+hosting/
+founder/
+*.png
+*.ogg
+*.mid

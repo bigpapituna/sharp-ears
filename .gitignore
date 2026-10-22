@@ -16,3 +16,4 @@ app/src/test/resources/fixtures/session-*
 app/src/test/resources/stalls/
 scripts/__pycache__/
 secrets.properties
+graphify-out/
