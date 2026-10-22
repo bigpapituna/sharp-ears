@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -26,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -231,6 +233,25 @@ fun FourChordBadge() {
 }
 
 // --- the kids' list: big blocks, only the kids' songs, no numbers ---
+
+/**
+ * A kid's songs by chords (2.6), from the "Songs by chords" tile on the kid's Songs: a back arrow, the title, and the kid
+ * list ([PopBrowse] with `kid = true`). A song opens the kid page ([PopSongPage] reads the profile: letters for a reader,
+ * animals for a child who cannot read yet).
+ */
+@Composable
+fun KidChordSongs(songs: List<PopSong>, onOpen: (PopSong) -> Unit, onBack: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(56.dp)) {
+                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to the songs", tint = c.onSurface, modifier = Modifier.size(30.dp))
+            }
+            Text("Songs by chords", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+        }
+        PopBrowse(songs, emptySet(), onOpen, Modifier.fillMaxSize(), kid = true)
+    }
+}
 
 @Composable
 private fun PopKidBrowse(songs: List<PopSong>, onOpen: (PopSong) -> Unit, modifier: Modifier) {

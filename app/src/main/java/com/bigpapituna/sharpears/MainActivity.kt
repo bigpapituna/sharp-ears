@@ -210,6 +210,8 @@ private sealed interface Screen {
     data class Play(val toy: Toy, val back: Screen, val hint: String? = null) : Screen
     /** A kid's songs (2.2, the kid home's Songs button): only the songs played by colour, big tiles. */
     data class KidSongs(val back: Screen) : Screen
+    /** A kid's songs by chords (2.6, the "Songs by chords" tile on the kid's songs): the Kids style's chord songs, big tiles. */
+    data class KidChords(val back: Screen) : Screen
     /** A kid's stickers (2.2, My stickers): the album, dress-up, records and paws as pages. */
     data class KidStickers(val back: Screen, val page: StickerPage = StickerPage.ALBUM) : Screen
     /** A Playground page's finale (2.2): fireworks, the album page, the certificate, then on along the path. */
@@ -225,7 +227,7 @@ private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS ->
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidStickers, is Screen.PopSong -> 1
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidChords, is Screen.KidStickers, is Screen.PopSong -> 1
     is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play,
     is Screen.Finale -> 2
 }
@@ -253,6 +255,7 @@ private fun routeOf(s: Screen): String = when (s) {
     is Screen.World -> "${routeOf(s.back)}/world:${s.tab.name}"
     is Screen.Play -> "${routeOf(s.back)}/play:${s.toy.name}"
     is Screen.KidSongs -> "${routeOf(s.back)}/kidsongs"
+    is Screen.KidChords -> "${routeOf(s.back)}/kidchords"
     is Screen.PopSong -> "${routeOf(s.back)}/popsong:${s.songId}:${s.shift}:${s.pattern?.name ?: "-"}:${s.bpm ?: 0}"
     is Screen.KidStickers -> "${routeOf(s.back)}/kidstickers:${s.page.name}"
     is Screen.Finale -> "finale:${s.pageId}"
@@ -618,6 +621,7 @@ class MainActivity : ComponentActivity() {
             route == "popsongs" -> {
                 // --es screen popsongs [--es chip all|hits|yacht|80s|pop|rock|country|soul|kids|holiday] [--es sort easiest|newest|can|one]
                 //   [--es song <id> [--ei shift n] [--es pattern WHOLE|HALVES|...] [--ei bpm n] [--ez hear true] [--ez kid true]]
+                //   [--ez kid true]   (no song: a kid's chord songs, from the kid's Songs)
                 //   [--es view cards]   (the Songs-tab card and "Songs that use these chords", over a plain page)
                 val chipArg = intent.getStringExtra("chip") ?: "all"
                 val chip = PopFind.Chip.entries.firstOrNull { c -> c.name.startsWith(chipArg.uppercase()) || c.label.startsWith(chipArg, ignoreCase = true) } ?: PopFind.Chip.ALL
@@ -626,7 +630,7 @@ class MainActivity : ComponentActivity() {
                 val id = intent.getStringExtra("song")
                 if (intent.getStringExtra("view") == "cards") return setContent {
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { com.bigpapituna.sharpears.ui.chords.PopCardsDemo(lessons) } }
-                if (id == null) home
+                if (id == null) { if (intent.getBooleanExtra("kid", false)) Screen.KidChords(Screen.KidSongs(Screen.Home())) else home }
                 else Screen.PopSong(id, home, intent.getIntExtra("shift", 0),
                     com.bigpapituna.sharpears.engine.chords.PopSong.Pattern.entries.firstOrNull { it.name.equals(intent.getStringExtra("pattern"), ignoreCase = true) },
                     intent.getIntExtra("bpm", 0).takeIf { it > 0 }, intent.getBooleanExtra("hear", false),
@@ -1372,7 +1376,16 @@ class MainActivity : ComponentActivity() {
                             com.bigpapituna.sharpears.ui.kid.KidSongsScreen(songs, repo, onSong = { openSong(it, back = s) }, onBack = { screen = s.back },
                                 shelf = remember(kv) { kidStore.shelf },
                                 duetWith = duetNext.value?.takeIf { it.whoId == profile.id }?.partnerId?.let { id -> roster.profiles.firstOrNull { it.id == id }?.name },
-                                say = { voice.speak(it, interrupt = true) })
+                                say = { voice.speak(it, interrupt = true) },
+                                onChordSongs = if (com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.none { com.bigpapituna.sharpears.engine.chords.PopSong.Style.KIDS in it.styles }) null
+                                    else ({ screen = Screen.KidChords(s) }),
+                                reader = current.reader)
+                        }
+                        // A kid's chord songs (2.6): the kid list; a song opens the kid page (colour blocks; animals for a pre-reader).
+                        is Screen.KidChords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { screen = s.back }
+                            com.bigpapituna.sharpears.ui.chords.KidChordSongs(com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs,
+                                onOpen = { screen = Screen.PopSong(it.id, s) }, onBack = { screen = s.back })
                         }
                         is Screen.KidStickers -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -1600,6 +1613,7 @@ class MainActivity : ComponentActivity() {
             "world" -> Screen.World(back, WorldTab.valueOf(arg))
             "play" -> Screen.Play(Toy.valueOf(arg), back)
             "kidsongs" -> Screen.KidSongs(back)
+            "kidchords" -> Screen.KidChords(back)
             "popsong" -> arg.split(":").let { a ->
                 Screen.PopSong(a[0], back, a.getOrNull(1)?.toIntOrNull() ?: 0, com.bigpapituna.sharpears.engine.chords.PopSong.Pattern.entries.firstOrNull { it.name == a.getOrNull(2) },
                     a.getOrNull(3)?.toIntOrNull()?.takeIf { it > 0 })

@@ -39,7 +39,8 @@ object TesterRules {
 
     /**
      * The screen a route names (MainActivity.routeOf: "home:LEARN/lesson:2:find-c"), as one event's name: its last part, a
-     * lesson without its step ("lesson:find-c"), an imported song as "song:user-song". Never a name: routes hold only ids.
+     * lesson without its step ("lesson:find-c"), an imported song as "song:user-song", a pop song's page without its key,
+     * pattern and tempo ("popsong:let-it-be"). Never a name: routes hold only ids.
      */
     fun screenOf(route: String): String {
         val last = route.substringAfterLast('/')
@@ -47,6 +48,7 @@ object TesterRules {
         return when (parts[0]) {
             "lesson" -> "lesson:" + (parts.getOrNull(2) ?: "?")
             "song" -> "song:" + safeId(parts.getOrNull(1) ?: "?")
+            "popsong" -> "popsong:" + (parts.getOrNull(1) ?: "?")
             else -> last
         }
     }

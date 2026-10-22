@@ -39,6 +39,8 @@ class TesterRulesTest {
         assertEquals("song:twinkle", TesterRules.screenOf("home:SONGS/song:twinkle"))
         assertEquals("song:user-song", TesterRules.screenOf("home:SONGS/song:user-mias-recital"))
         assertEquals("settings", TesterRules.screenOf("home:YOU/settings"))
+        assertEquals("popsong:let-it-be", TesterRules.screenOf("home:CHORDS/popsong:let-it-be:-2:HALVES:72"))
+        assertEquals("kidchords", TesterRules.screenOf("home:SONGS/kidsongs/kidchords"))
         assertEquals("home:SONGS/song:user-song", TesterRules.safeRoute("home:SONGS/song:user-mias-recital"))
         assertEquals("twinkle", TesterRules.safeId("twinkle"))
         assertNull(TesterRules.safeId(null))

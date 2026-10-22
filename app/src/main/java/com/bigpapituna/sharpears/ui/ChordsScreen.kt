@@ -122,6 +122,9 @@ fun ChordsScreen(
     onOpenPopSong: (com.bigpapituna.sharpears.engine.chords.PopSong) -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(startTab) }
+    // Where Songs opens: the caller's start, or "Songs I can play" after a tap on the count or the session's card.
+    var popOpen by remember { mutableStateOf(popStart) }
+    fun showPlayable() { popOpen = com.bigpapituna.sharpears.ui.chords.PopStart(sort = com.bigpapituna.sharpears.engine.chords.PopFind.Sort.CAN_PLAY); tab = ChordsTab.SONGS }
     // The chords learned so far (Leitner box 3 or more) decide which songs "you can play".
     val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
     val playable = remember(popSongs, known) { com.bigpapituna.sharpears.engine.chords.PopFind.playableCount(popSongs, known) }
@@ -139,14 +142,17 @@ fun ChordsScreen(
         }
         // The count of songs the learned chords play, on every tab but the songs' own (which says it itself).
         if (popSongs.isNotEmpty() && playable > 0 && tab != ChordsTab.SONGS) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable,
-            Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)) { tab = ChordsTab.SONGS }
+            Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)) { showPlayable() }
         when (tab) {
             ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
-            ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound })
+            ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound },
+                songsAfter = if (popSongs.isEmpty()) null else SessionSongs(popSongs, onOpenPopSong, ::showPlayable))
             ChordsTab.DICTIONARY -> Dictionary(sampler, sound = { prefs.sound })
             ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject, sound = { prefs.sound })
             ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression, sound = { prefs.sound })
-            ChordsTab.SONGS -> com.bigpapituna.sharpears.ui.chords.PopBrowse(popSongs, known, onOpenPopSong, Modifier.fillMaxSize(), start = popStart)
+            ChordsTab.SONGS -> androidx.compose.runtime.key(popOpen) {
+                com.bigpapituna.sharpears.ui.chords.PopBrowse(popSongs, known, onOpenPopSong, Modifier.fillMaxSize(), start = popOpen)
+            }
         }
     }
 }
@@ -512,15 +518,22 @@ private fun ActionRow(title: String, detail: String, action: String?, onAction: 
     }
 }
 
+/**
+ * After a chord session in Daily (a pack's Practise, or today's chords): the popular songs those chords play
+ * ("Songs that use these chords", ui/chords), [onOpen] a song's page, [onMore] the list narrowed to what can be played.
+ */
+private class SessionSongs(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong>,
+                           val onOpen: (com.bigpapituna.sharpears.engine.chords.PopSong) -> Unit, val onMore: () -> Unit)
+
 @Composable
 private fun Lessons(
     store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, inject: String?,
-    onPlayProgression: (Progression, Int) -> Unit, sound: () -> Boolean,
+    onPlayProgression: (Progression, Int) -> Unit, sound: () -> Boolean, songsAfter: SessionSongs? = null,
 ) {
     val v = store.version.intValue
     if (store.session.isNotEmpty()) {
         BackHandler { store.endSession() }                 // Back leaves the session, not the Chords tab
-        Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = sound); return
+        Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = sound, songsAfter = songsAfter); return
     }
     val now = remember(v) { System.currentTimeMillis() }
     val songPacks = store.songPacks.value
@@ -600,15 +613,27 @@ private fun Session(
     /** Set inside "Practice today": the end of the queue (or End) hands back to the session instead of a summary. */
     onEnd: (() -> Unit)? = null,
     sound: () -> Boolean,
+    songsAfter: SessionSongs? = null,
 ) {
     val scope = rememberCoroutineScope()
     val item = store.session.getOrNull(store.sessionIndex)
     val n = store.session.size
     if (item == null && onEnd != null) { LaunchedEffect(Unit) { onEnd() }; return }
     if (item == null) {
+        // The songs these chords play: the ones learned before and the ones just practised (still new to the Leitner boxes).
+        val chords = remember(n) {
+            com.bigpapituna.sharpears.engine.chords.PopFind.known(store.mastery()) + store.session.mapNotNull { (it as? LessonItem.ChordItem)?.chord }
+        }
+        val found = remember(n) { songsAfter?.let { com.bigpapituna.sharpears.engine.chords.PopFind.using(it.songs, chords, limit = 3) }.orEmpty() }
+        LaunchedEffect(n) { if (songsAfter != null) Log.d(TAG, "pop: songs for the session's chords: " + found.joinToString { it.id }.ifEmpty { "none" }) }
         Celebration("Session done!", "The ones that were not clean come back tomorrow.",
             listOf(Stat("${store.sessionCorrect}/$n", "Clean"), Stat("$n", "Practised")),
-            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler.takeIf { sound() })
+            primary = "Back to lessons", onPrimary = store::endSession, sampler = sampler.takeIf { sound() },
+            reward = if (songsAfter == null || found.isEmpty()) null else { {
+                com.bigpapituna.sharpears.ui.chords.SongsForChordsCard(songsAfter.songs, chords,
+                    onOpen = { song -> store.endSession(); songsAfter.onOpen(song) },
+                    onMore = { store.endSession(); songsAfter.onMore() })
+            } })
         return
     }
     val progress = @Composable {

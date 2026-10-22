@@ -52,9 +52,11 @@ import com.bigpapituna.sharpears.engine.Hand
 import com.bigpapituna.sharpears.engine.kid.KidSongs
 import com.bigpapituna.sharpears.engine.kid.ShelfSong
 import com.bigpapituna.sharpears.engine.kid.SongFacts
+import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.motion.pressScale
+import com.bigpapituna.sharpears.ui.skin.drawAnimal
 import com.bigpapituna.sharpears.ui.skin.noteColour
 import com.bigpapituna.sharpears.ui.world.WorldInk
 import kotlinx.coroutines.Dispatchers
@@ -74,10 +76,14 @@ private val factsCache = HashMap<String, Pair<SongFacts, List<Int>>>()
  * 2.4, the parent brief: songs a grown-up put on the [shelf] (Teacher mode) come first, each with the grown-up's note
  * (tap the note and [say] reads it aloud: it is made on the phone, like every line with a name); [duetWith] names the
  * grown-up when the song picked here opens as a duet with them (Practise together).
+ *
+ * 2.6, songs by chords: [onChordSongs] puts one more tile after the shelf, "Songs by chords", that opens the kids' chord
+ * songs (ui/chords, the kid page: colour blocks, letters for a [reader], animals for a child who cannot read yet).
  */
 @Composable
 fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMeta) -> Unit, onBack: () -> Unit,
-                   shelf: List<ShelfSong> = emptyList(), duetWith: String? = null, say: ((String) -> Unit)? = null) {
+                   shelf: List<ShelfSong> = emptyList(), duetWith: String? = null, say: ((String) -> Unit)? = null,
+                   onChordSongs: (() -> Unit)? = null, reader: Boolean = true) {
     val assigned = remember(shelf, songs) { shelf.mapNotNull { s -> songs.firstOrNull { it.id == s.songId && repo.available(it) }?.let { it to s.note } } }
     var list by remember { mutableStateOf<List<KidSong>?>(null) }
     LaunchedEffect(songs) {
@@ -117,6 +123,8 @@ fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMet
                 }, Modifier.widthIn(max = 560.dp).padding(bottom = 4.dp), size = 84.dp)
             }
             items(assigned, key = { "shelf:" + it.first.id }) { (m, note) -> ShelfTile(m, note, say) { onSong(m) } }
+            // Not while a grown-up waits for a duet: a chord song has no duet.
+            if (onChordSongs != null && duetWith == null) item(key = "chordsongs") { ChordSongsTile(reader, onChordSongs) }
             items(list.orEmpty().filter { s -> assigned.none { it.first.id == s.meta.id } }, key = { it.meta.id }) { s -> SongTile(s) { onSong(s.meta) } }
         }
     }
@@ -136,6 +144,33 @@ private fun ShelfTile(meta: SongMeta, note: String, say: ((String) -> Unit)?, on
                 .background(c.surface.copy(alpha = 0.6f)).padding(horizontal = 12.dp, vertical = 8.dp))
     }
 }
+
+/**
+ * The way into the kids' chord songs: three chord blocks in their colours (C, F and G, the first chords most of them use),
+ * with the letters for a reader and the animals for a child who cannot read yet, then the name.
+ */
+@Composable
+private fun ChordSongsTile(reader: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.secondaryContainer)
+        .clickable(role = Role.Button, onClickLabel = "Open songs by chords", onClick = onClick).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth().height(52.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(60, 65, 67).forEach { midi ->
+                val colour = Color(NoteColours.colour(midi))
+                val ink = Color(NoteColours.inkFor(NoteColours.colour(midi)))
+                val animal = NoteColours.animal(midi)
+                Box(Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(14.dp)).background(colour), contentAlignment = Alignment.Center) {
+                    if (!reader && animal != null) Canvas(Modifier.size(36.dp)) { drawAnimal(animal, center, size.minDimension, ink, colour) }
+                    else Text(noteLetter(midi), style = MaterialTheme.typography.titleLarge, color = ink)
+                }
+            }
+        }
+        Text("Songs by chords", style = MaterialTheme.typography.titleLarge, color = c.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun noteLetter(midi: Int) = listOf("C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B")[Math.floorMod(midi, 12)]
 
 /** One song: its opening notes as coloured balls on a little line, then its name, big. */
 @Composable
