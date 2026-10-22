@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.CoursePath
@@ -239,10 +241,16 @@ fun ChordsSection(due: Int, onLearnChords: () -> Unit, onGames: () -> Unit, onPr
     val names = com.bigpapituna.sharpears.engine.nav.Names
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Chords", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ChordTile(names.LEARN_CHORDS, R.drawable.ic_piano, Modifier.weight(1f), due = due, onClick = onLearnChords)
-            ChordTile(names.GAMES, R.drawable.ic_hand, Modifier.weight(1f), onClick = onGames)
-            ChordTile(names.PROGRESSIONS, R.drawable.ic_music_note, Modifier.weight(1f), onClick = onProgressions)
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // Roomy (the unfolded screen): each tile has its icon beside its name. A phone's third of the width: the icon over
+            // the name, which shrinks a little rather than break ("Progressions" on the cover screen).
+            val stacked = (maxWidth - 16.dp) / 3 < 150.dp
+            Row(Modifier.fillMaxWidth().then(if (stacked) Modifier else Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Max)),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ChordTile(names.LEARN_CHORDS, R.drawable.ic_piano, Modifier.weight(1f), stacked, due = due, onClick = onLearnChords)
+                ChordTile(names.GAMES, R.drawable.ic_hand, Modifier.weight(1f), stacked, onClick = onGames)
+                ChordTile(names.PROGRESSIONS, R.drawable.ic_music_note, Modifier.weight(1f), stacked, onClick = onProgressions)
+            }
         }
     }
 }
@@ -252,16 +260,23 @@ fun ChordsSection(due: Int, onLearnChords: () -> Unit, onGames: () -> Unit, onPr
  * colour; [due] chord review items show as a badge on Learn chords' icon (the rail's Learn badge counts the same).
  */
 @Composable
-private fun ChordTile(title: String, icon: Int, modifier: Modifier, due: Int = 0, onClick: () -> Unit) {
-    Row(modifier.fillMaxSize().heightIn(min = 56.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+private fun ChordTile(title: String, icon: Int, modifier: Modifier, stacked: Boolean, due: Int = 0, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val tile = modifier.heightIn(min = 56.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerHigh)
         .clickable(role = Role.Button, onClickLabel = "Open $title", onClick = onClick)
         .semantics(mergeDescendants = true) { contentDescription = title + if (due > 0) ", ${com.bigpapituna.sharpears.engine.plural(due, "chord")} due today" else "" }
-        .padding(horizontal = 12.dp, vertical = 10.dp),
+    @Composable fun Glyph() = androidx.compose.material3.BadgedBox(badge = {
+        if (due > 0) androidx.compose.material3.Badge(containerColor = c.primary, contentColor = c.onPrimary) { Text("$due") }
+    }) { Icon(painterResource(icon), contentDescription = null, tint = c.primary, modifier = Modifier.size(22.dp)) }
+    if (!stacked) Row(tile.fillMaxHeight().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        androidx.compose.material3.BadgedBox(badge = {
-            if (due > 0) androidx.compose.material3.Badge(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Text("$due") }
-        }) { Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp)) }
+        Glyph()
         Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 2)
+    } else Column(tile.padding(horizontal = 6.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Glyph()
+        androidx.compose.foundation.text.BasicText(title, style = MaterialTheme.typography.labelLarge.copy(color = c.onSurface, textAlign = TextAlign.Center),
+            maxLines = 1, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize))
     }
 }
 
