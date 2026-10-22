@@ -80,6 +80,8 @@ data class BarState(
     val chords: Boolean? = null,
     /** null: not a progression (no backing to offer). */
     val backing: Boolean? = null,
+    /** The backing toggle's word: a pop song's drum and bass bed is the "Band". */
+    val backingLabel: String = "Backing",
     /** Semitones the song is moved (-6..6). */
     val transpose: Int = 0,
     /** Duet (2.1): null hides the pill (one profile, or not a library song), "" offers it, a label says it is on. */
@@ -194,7 +196,7 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
             s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
             s.chords?.let { Toggle("Chords", it, a.onChords) }
             Toggle("Metronome", s.metronome, a.onMetronome)
-            s.backing?.let { Toggle("Backing", it, a.onBacking) }
+            s.backing?.let { Toggle(s.backingLabel, it, a.onBacking) }
             MicToggle(s, a.onMic)
             s.videoOn?.let { on ->
                 IconToggleButton(on, { a.onVideo() }, modifier = Modifier.semantics { stateDescription = if (on) "shown" else "hidden" }) {
