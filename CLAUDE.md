@@ -901,6 +901,82 @@ integrator, fixed what the walk found and released.
   - The new-kid flow's "Go" is ready before the level question is answered (it appears once "Can they read yet?" is), so a
     parent who taps Go at once gets "first time"; Family > Piano level fixes it.
 
+## 2.7.0 navigation (2026-10-22, branch `ux-today`, versionCode 16; emulator-5558 Fold only, not on Roy's phone yet)
+Roy's restructure of the grown-ups' navigation, plus his Simple / Advanced mode. Nothing new was built beyond that; the kid
+home (ui/kid) is untouched and ui/kid/INTEGRATION.md did not change (the kid Songs tile still opens the kid chord list).
+- Five tabs, in this order: **Today · Songs · Learn · Practice · You** (ui/HomeShell.kt `HomeTab`, labels from
+  engine/nav/Nav.kt `NavTab`). Before: Songs (the old home) · Learn · Practice · Chords · You.
+- Where everything moved:
+  - Today (new first tab, ui/TodayScreen.kt): the header (logo, "Today", the date, the Simple pill), the pup's one greeting
+    line, the one-time "Set up mic" banner (closing it is per profile; Settings > Microphone stays the way in), the Today
+    card (the plan rows from DailySession's plan in Start order: "N chords due", the next lesson, a song or a two-minute loop;
+    one Start walking the plan as "Your plan, part N of M"; Pup's quest as a row of three stars that opens; the goal as one
+    small line), Continue (the last song, pop song or lesson, one tile; `Prefs.lastPlayed`, cleared by Reset progress) and
+    Explore (Songs, Chords = Learn, Play corner = a sheet with Jam, Pup says, Clap along). The engine side is
+    engine/nav/Today.kt (`TodayCard.of`, `ContinueWith`).
+  - Off the old home: the header stats went into You's goal card ("This week  N min"), the family wall went to the top of You
+    (shown with 2 or more profiles), My week stays on You.
+  - Songs (ui/LibraryScreen.kt): the Play corner row at the top ("just for fun"), then Library | Songs by chords. Library
+    keeps filters, Start here and imported songs (rename, delete). Songs by chords (was Chords > Songs) is the same list,
+    chips and sorts (`popBrowseItems`); the home's pop-songs card is gone.
+  - Learn: a Chords section pinned over the path (a sticky header on the page's paper): Learn chords, Games, Progressions.
+    The Chords tab is gone. Learn chords (`Screen.LearnChords`) merges Daily, Lesson packs and the Dictionary (now a sheet)
+    and keeps "Practise any chord" and the daily chord review line; Games (`Screen.ChordGames`) is the old Chords > Play;
+    Progressions (`Screen.Progressions`). The daily chord review is also a row of Today's plan. Theory, Ear training and
+    Sight-read keep their cards under the Chords section.
+  - Practice: Scales and Warm-ups are the main sub-tabs; Metronome and Tuner share a third, Tools. It opens on the last tool
+    used (`PracticeStore.lastTool()`, key `practice.lastTab`, per profile).
+  - You: the family wall at the top, the goal card with the week's minutes, the Simple pill beside the gear.
+  - Settings, six groups: Family (people, Progress), Playing (Simple mode, keys, falling notes, show wrong keys, sound,
+    voice, reminder), Briefs and email, Microphone, About, Testing (last). Every switch kept its key.
+- Naming, fixed once (engine/nav/Nav.kt `Names`): "Today" is the home, "Songs" is the Songs tab, "Songs by chords" its
+  second half, "Learn chords", "Games" (the chord games), "Progressions", "Play corner" (Jam, Pup says, Clap along), "Tools"
+  (metronome and tuner). Lines that said "the Chords tab" now say where it went (Course.kt's two captions, re-rendered:
+  4 voice files new, 4 deleted).
+- Simple / Advanced (Roy, mid-task): one switch per grown-up (`Prefs.simpleMode`, null = the placement decides: Never and A
+  little start Simple, Some and A lot Advanced; a kid is never Simple). It is on Today's header and on You (the Simple pill)
+  and in Settings > Playing. Every rule is a pure function in engine/nav/Simple.kt and Simple only filters: Learn chords keeps
+  C, F, G, Am, Dm, Em (the dictionary as six pills, no key picker, qualities or inversions; the packs cut to those chords;
+  the drill draws from them), Games keeps Build it and Hear it, Progressions keeps the plain-triad ones (I-V-vi-IV and
+  I-vi-IV-V: only two exist), Songs by chords keeps four-chord and difficulty-1 songs with Whole and Halves, Practice keeps C,
+  G and F major and one warm-up and hides Tools and arpeggios, Learn hides Theory, Ear training and Sight-read (the path
+  stays), the player keeps hands, modes, play, the timeline and the mic and puts loop, speed, transpose, metronome, chords
+  and duet in one More sheet, Settings shows Family, Simple, Sound, Voice, Reminder and Microphone. Each place ends on a
+  quiet "Show more" (ui/SimpleMode.kt `SimpleMore`; "Show all settings" in Settings) that shows the rest once and then
+  offers "Switch to Advanced?". Today's plan and the Learn badge count the Simple chord curriculum.
+- Tour and What's new (engine/nav/Welcome.kt, ui/WelcomeTour.kt): grown-ups only, per profile. What's new once per
+  versionName (at most three lines, `Welcome.WHATS_NEW`, filled for 2.7.0), then a skippable three-card tour with the pup
+  that switches tabs as it goes ("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at
+  the top", the third naming Simple and Advanced). A new grown-up sees the tour after placement and no What's new; a kid
+  sees neither.
+- Debug (debug builds only): `--es screen today`, `songs [--es section chords]`, `learnchords [--es tab
+  daily|dictionary|practice]`, `games [--es game <id> --ei level n]`, `progressions`, `practice [--es tab
+  scales|arpeggios|warmups|metronome|tuner]`; the old `chords [--es tab ...]` routes still open the new places. `--ez welcome
+  true` shows What's new and the tour again; `--es simple on|off|default` sets the profile's switch.
+- Tests: 1454 JVM, green (1415 before): NavTest (every Screen route reachable from the five tabs, the tab order and names),
+  TodayTest (the plan's composition, Continue), WelcomeTest and WelcomePrefsTest (once per profile and version, kids never,
+  Simple kept per profile), LastToolTest, SimpleTest (the default from placement, each place's rule, the copy rules),
+  SimpleWiringTest (each screen asks its rule), plus SettingsWiringTest, TesterWiringTest and PracticeStatsTest additions.
+- Lint: 0 errors, 28 warnings, 9 hints (as 2.6.0). APK: app/build/outputs/apk/debug/app-debug.apk, versionCode 16, 2.7.0.
+- Emulator walk (5558 Fold, as Roy over 2.6's data, Lea and Sam kids; touch keys): What's new then the tour in light and
+  dark; Today's Start walking the plan (chords, lesson, song), Continue after Twinkle and after Ring of Fire, the Explore
+  tiles and the Play corner sheet; Songs by chords in Songs (the sort kept after Back from a page); Learn's Chords section
+  opening Learn chords (dictionary sheet, Practise any chord), Games and Progressions; Practice Tools and a restart reopening
+  the Tuner; You with the wall; Settings' groups; every tab in dark and on the cover screen (`emu fold`). Simple: Today and
+  You pills, Learn's Show more and Switch to Advanced, Learn chords with six chords and cut packs, Games two, Progressions
+  two, Songs by chords 42 songs and a page with Whole and Halves, Practice C/G/F and one warm-up (Show more brings Tools
+  back), the player's More sheet, Settings' essentials and Show all settings, dark and cover. Logcat: no app exception, no
+  ANR, crash buffer empty. Screenshots: app/build/screens/ux-*.png (not committed).
+- Fixed on the walk: BoxWithConstraints under an intrinsic-height Row crashed Learn (the width is read outside it now);
+  "Progressions" broke over two lines on the cover (the tiles stack there); Learn opened scrolled past the Chords section
+  (now pinned).
+- Open:
+  - Only two progressions are plain triads, so Simple's Progressions shows two, not three.
+  - Simple cuts song packs to the six chords, so "Chords of Moonlight Sonata" can show one chord (Em). Roy decides: keep,
+    or drop a song pack that loses chords.
+  - Simple's Progressions keeps the five key pills (C, G, F, D, A); D and A use chords outside the six.
+  - Continue for a lesson reopens the last lesson opened, done or not.
+  - The double open on a debug cold start with extras (seen before 2.7) is unchanged.
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
