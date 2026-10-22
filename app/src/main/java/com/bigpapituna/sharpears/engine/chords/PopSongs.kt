@@ -12,7 +12,7 @@ import com.bigpapituna.sharpears.engine.chords.PopSong.Style
  *
  * Nothing here is a melody, a lyric or a recording: a key, a tempo, a section order and the chords of each bar.
  */
-val POP_SONGS: List<PopSong> by lazy { HITS_SONGS }
+val POP_SONGS: List<PopSong> by lazy { HITS_SONGS + YACHT_SONGS }
 
 object PopSongs {
     /** Songs whose every chord is already mastered, and songs one new chord away (with that chord). */
