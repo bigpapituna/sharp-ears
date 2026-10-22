@@ -83,20 +83,33 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.coroutineContext
 
-enum class PracticeTab(val label: String) { SCALES("Scales"), ARPEGGIOS("Arpeggios"), WARMUPS("Warm-ups"), METRONOME("Metronome"), TUNER("Tuner") }
+/** What the Practice tab shows: a pattern, the warm-ups or a tool. Each sits in one of the three [PracticeSection]s. */
+enum class PracticeTab(val label: String, val section: PracticeSection) {
+    SCALES("Scales", PracticeSection.SCALES), ARPEGGIOS("Arpeggios", PracticeSection.SCALES), WARMUPS("Warm-ups", PracticeSection.WARMUPS),
+    METRONOME("Metronome", PracticeSection.TOOLS), TUNER("Tuner", PracticeSection.TOOLS),
+}
+
+/**
+ * The Practice tab's row (2.7): Scales (and arpeggios, a toggle on the screen) and Warm-ups are the two main ones; the
+ * metronome and the tuner share the third, Tools (they were tabs of their own before).
+ */
+enum class PracticeSection(val label: String) { SCALES("Scales"), WARMUPS("Warm-ups"), TOOLS(com.bigpapituna.sharpears.engine.nav.Names.TOOLS) }
+
+/** The store's key for the last tab or tool used: the Practice tab opens there again (2.7). */
+internal const val LAST_TOOL = "practice.lastTab"
+
+/** The tab or tool last used on this profile's Practice tab, scales on a first visit (or a value from an older version). */
+fun PracticeStore.lastTool(): PracticeTab = enum(LAST_TOOL, PracticeTab.SCALES)
 
 enum class PracticeKind { SCALE, ARPEGGIO, WARMUP }
 
 /** Reported through `onEvent` when the player is about to open a practice item, for XP, streaks and goals. */
 data class PracticeEvent(val kind: PracticeKind, val id: String, val title: String, val bpm: Int)
 
-/** The tab row: scales and arpeggios share the first tab (a toggle on the screen switches between them). */
-private val TOP_TABS = listOf("Scales", "Warm-ups", "Metronome", "Tuner")
-private fun topIndex(t: PracticeTab) = when (t) { PracticeTab.SCALES, PracticeTab.ARPEGGIOS -> 0; PracticeTab.WARMUPS -> 1; PracticeTab.METRONOME -> 2; PracticeTab.TUNER -> 3 }
-
 /**
  * The Practice tab. [onOpenExercise] opens an exercise in the player (wait mode, scored) with the given title.
- * [onEvent] says what was started; [startTab] is for a debug route.
+ * [onEvent] says what was started; [startTab] (a debug route, or the tab kept across the player) wins over the last tool used,
+ * which the tab opens on otherwise (2.7, [lastTool]).
  */
 @Composable
 fun PracticeScreen(
@@ -105,41 +118,52 @@ fun PracticeScreen(
     store: PracticeStore,
     onOpenExercise: (Exercise, String) -> Unit,
     modifier: Modifier = Modifier,
-    startTab: PracticeTab = PracticeTab.SCALES,
+    startTab: PracticeTab? = null,
     onEvent: (PracticeEvent) -> Unit = {},
     /** A tab was picked (integration: remembers it across the player and counts the metronome and tuner as used). */
     onTab: (PracticeTab) -> Unit = {},
     /** Settings > App sound: off, "Play it" and the touch keys are silent (the tuner's A is the tool itself). */
     sound: () -> Boolean = { true },
 ) {
-    var tab by rememberSaveable { mutableStateOf(startTab) }
-    // Which of scales and arpeggios the first tab shows (kept while another tab is open).
-    var lastPattern by rememberSaveable { mutableStateOf(if (startTab == PracticeTab.ARPEGGIOS) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }
+    val first = remember { startTab ?: store.lastTool() }
+    var tab by rememberSaveable { mutableStateOf(first) }
+    // Which of scales and arpeggios the first tab shows, and which tool the third (each kept while another tab is open).
+    var lastPattern by rememberSaveable { mutableStateOf(if (first == PracticeTab.ARPEGGIOS) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }
+    var lastTool by rememberSaveable { mutableStateOf(if (first == PracticeTab.TUNER) PracticeTab.TUNER else PracticeTab.METRONOME) }
     fun pick(t: PracticeTab) {
         tab = t
         if (t == PracticeTab.SCALES || t == PracticeTab.ARPEGGIOS) lastPattern = t
+        if (t == PracticeTab.METRONOME || t == PracticeTab.TUNER) lastTool = t
+        store.putEnum(LAST_TOOL, t)
         onTab(t)
     }
     val still = reducedMotion()
     Column(modifier) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
-        PrimaryTabRow(selectedTabIndex = topIndex(tab), containerColor = Color.Transparent, divider = {}) {
-            TOP_TABS.forEachIndexed { i, label ->
-                Tab(topIndex(tab) == i, {
-                    pick(when (i) { 0 -> lastPattern; 1 -> PracticeTab.WARMUPS; 2 -> PracticeTab.METRONOME; else -> PracticeTab.TUNER })
+        PrimaryTabRow(selectedTabIndex = tab.section.ordinal, containerColor = Color.Transparent, divider = {}) {
+            PracticeSection.entries.forEach { s ->
+                Tab(tab.section == s, {
+                    pick(when (s) { PracticeSection.SCALES -> lastPattern; PracticeSection.WARMUPS -> PracticeTab.WARMUPS; PracticeSection.TOOLS -> lastTool })
                 }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
-                    Text(label, maxLines = 1, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 13.dp))
+                    Text(s.label, maxLines = 1, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 13.dp))
                 }
             }
         }
-        AnimatedContent(topIndex(tab), Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { i ->
-            when (i) {
-                0 -> PatternScreen(lastPattern == PracticeTab.ARPEGGIOS,
+        AnimatedContent(tab.section, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { ScreenMotion.tab(still) }, label = "practiceTab") { s ->
+            when (s) {
+                PracticeSection.SCALES -> PatternScreen(lastPattern == PracticeTab.ARPEGGIOS,
                     { arps -> pick(if (arps) PracticeTab.ARPEGGIOS else PracticeTab.SCALES) }, sampler, store, onOpenExercise, onEvent, sound)
-                1 -> WarmupsScreen(store, onOpenExercise, onEvent)
-                2 -> MetronomeScreen(store)
-                else -> TunerScreen(mic, sampler)
+                PracticeSection.WARMUPS -> WarmupsScreen(store, onOpenExercise, onEvent)
+                // Tools: the metronome or the tuner, one switch between them.
+                PracticeSection.TOOLS -> Column(Modifier.fillMaxSize()) {
+                    SlidingSegments(listOf(PracticeTab.METRONOME.label, PracticeTab.TUNER.label), if (lastTool == PracticeTab.TUNER) 1 else 0,
+                        { pick(if (it == 1) PracticeTab.TUNER else PracticeTab.METRONOME) },
+                        Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 4.dp).fillMaxWidth(), height = 40.dp)
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        if (lastTool == PracticeTab.TUNER) TunerScreen(mic, sampler) else MetronomeScreen(store)
+                    }
+                }
             }
         }
     }

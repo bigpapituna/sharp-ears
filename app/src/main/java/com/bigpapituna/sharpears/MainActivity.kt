@@ -163,8 +163,8 @@ private fun QuietWrongKeys(mic: MicInput) = androidx.compose.runtime.DisposableE
 }
 
 private sealed interface Screen {
-    /** The tabs (a kid's map for a kid). [practiceTab] only matters for Practice. */
-    data class Home(val tab: HomeTab = HomeTab.TODAY, val practiceTab: PracticeTab = PracticeTab.SCALES,
+    /** The tabs (a kid's map for a kid). [practiceTab] only matters for Practice: null opens its last tool used (2.7). */
+    data class Home(val tab: HomeTab = HomeTab.TODAY, val practiceTab: PracticeTab? = null,
                     /** A kid's home (2.2) after a page's finale: the map opens at that page's end and rolls on to the next stone. */
                     val kidFrom: String? = null,
                     /** The Songs tab's section (2.7): the library, or songs by chords. */
@@ -670,7 +670,7 @@ class MainActivity : ComponentActivity() {
             // --es screen placement [--es said A_LITTLE|SOME|A_LOT] [--ei task n] [--es inject synth:...] (2.6): "Let's hear you play"
             route == "placement" -> Screen.Placement(com.bigpapituna.sharpears.engine.family.Level.parse(intent.getStringExtra("said") ?: "SOME"), intent.getIntExtra("task", 0), debugStart.inject)
             route == "practice" -> Screen.Home(HomeTab.PRACTICE,
-                practiceTab = PracticeTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: PracticeTab.SCALES)
+                practiceTab = PracticeTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) })
             route == "ear" -> Screen.EarTraining(Screen.Home(HomeTab.LEARN), when {
                 intent.getBooleanExtra("workout", false) -> EarStart(workout = true)
                 else -> intent.getStringExtra("game")?.let(EarKind::byId)?.let { EarStart(it, intent.getIntExtra("level", 0)) }
