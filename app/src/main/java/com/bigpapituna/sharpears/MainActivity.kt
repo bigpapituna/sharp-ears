@@ -216,6 +216,14 @@ private sealed interface Screen {
     data class KidStickers(val back: Screen, val page: StickerPage = StickerPage.ALBUM) : Screen
     /** A Playground page's finale (2.2): fireworks, the album page, the certificate, then on along the path. */
     data class Finale(val pageId: String) : Screen
+    /** The kid arcade's hub (2.7, ui/arcade): a tile a game, from the kid's Play sheet. */
+    data class Arcade(val back: Screen) : Screen
+    /**
+     * A round of an arcade game; [seed] draws it, [level] (debug) plays it at that level instead of the book's, [inject]
+     * (debug) feeds the mic, [debugStars] (debug) skips to the finish with a round of that many stars.
+     */
+    data class ArcadeRound(val game: com.bigpapituna.sharpears.engine.arcade.ArcadeGame, val back: Screen, val seed: Long = System.nanoTime(),
+                           val level: Int? = null, val inject: String? = null, val debugStars: Int? = null) : Screen
 }
 
 /** Practise together with nothing chosen (the parent brief, 2.4): the next song [whoId] picks opens as a duet with [partnerId]. */
@@ -227,9 +235,10 @@ private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS ->
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidChords, is Screen.KidStickers, is Screen.PopSong -> 1
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidChords, is Screen.KidStickers, is Screen.PopSong,
+    is Screen.Arcade -> 1
     is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play,
-    is Screen.Finale -> 2
+    is Screen.Finale, is Screen.ArcadeRound -> 2
 }
 
 /**
@@ -259,6 +268,8 @@ private fun routeOf(s: Screen): String = when (s) {
     is Screen.PopSong -> "${routeOf(s.back)}/popsong:${s.songId}:${s.shift}:${s.pattern?.name ?: "-"}:${s.bpm ?: 0}"
     is Screen.KidStickers -> "${routeOf(s.back)}/kidstickers:${s.page.name}"
     is Screen.Finale -> "finale:${s.pageId}"
+    is Screen.Arcade -> "${routeOf(s.back)}/arcade"
+    is Screen.ArcadeRound -> "${routeOf(s.back)}/arcadegame:${s.game.id}"
 }
 
 /** The player is always dark, like a video; everything else follows the system. */
@@ -270,7 +281,7 @@ private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.
 
 /** Screens played at the piano, hands off the phone for minutes: the screen stays on (see [KeepScreenOnWhile]). */
 private fun keepsScreenOn(s: Screen) = s is Screen.Player || s is Screen.Placement || s is Screen.Lesson || s is Screen.Daily || s is Screen.SightRead ||
-    s is Screen.Play || s is Screen.EarTraining || s is Screen.Theory || s is Screen.Finale
+    s is Screen.Play || s is Screen.EarTraining || s is Screen.Theory || s is Screen.Finale || s is Screen.ArcadeRound
 
 /**
  * The screen stays on while [stage] or while the mic listens (chord games, the tuner): a phone's 30 s timeout used to
@@ -545,6 +556,11 @@ class MainActivity : ComponentActivity() {
         val playStore = PlayStore(this, profile.id)
         // The kid home's memory (2.2): each lesson's best stars, the finales played (kept for grown-ups too, never shown).
         val kidStore = KidStore(this, profile.id)
+        // 2.7: the kid arcade's games (bests, levels, what is open), in the profile's "play" file.
+        val arcadeStore = com.bigpapituna.sharpears.data.ArcadeStore(this, profile.id)
+        // Pup's quest asks for one of the open games every other day (engine/arcade ArcadeQuest).
+        fun questGame(): Pair<String, String>? = com.bigpapituna.sharpears.engine.arcade.ArcadeQuest.pick(java.time.LocalDate.now(),
+            arcadeStore.open(world.state.ledger.sparkles))?.let { it.id to com.bigpapituna.sharpears.engine.arcade.ArcadeQuest.title(it) }
         openPrefs = prefs; openKid = kidStore; openWorld = world
         // 2.5, the wardrobe's practice ledger: minutes and days from the practice log, three-star lessons and pages walked
         // from the kid store (a page whose last lesson is done counts at once: its rare item shows on that lesson's finish).
@@ -665,6 +681,13 @@ class MainActivity : ComponentActivity() {
             route == "kidstickers" -> Screen.KidStickers(Screen.Home(),
                 StickerPage.entries.firstOrNull { it.name.equals(intent.getStringExtra("page"), ignoreCase = true) } ?: StickerPage.ALBUM)
             route == "finale" -> Screen.Finale(intent.getStringExtra("page") ?: PLAYGROUND_PAGES.first().id)
+            // 2.7: --es screen arcade [--es game <id> [--ei level n] [--el seed n] [--es inject synth:...] [--ei stars 1|2|3]]
+            route == "arcade" -> Screen.Arcade(Screen.Home()).let { hub ->
+                com.bigpapituna.sharpears.engine.arcade.ArcadeGame.byId(intent.getStringExtra("game"))?.let { g ->
+                    Screen.ArcadeRound(g, hub, intent.getLongExtra("seed", System.nanoTime()), intent.getIntExtra("level", -1).takeIf { it >= 0 },
+                        debugStart.inject, intent.getIntExtra("stars", 0).takeIf { it in 1..3 })
+                } ?: hub
+            }
             route == "jam" || route == "pupsays" || route == "clap" ->
                 Screen.Play(when (route) { "jam" -> Toy.JAM; "pupsays" -> Toy.PUP_SAYS; else -> Toy.CLAP }, Screen.Home(), intent.getStringExtra("hint"))
             // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
@@ -1143,6 +1166,48 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        is Screen.Arcade -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            BackHandler { voice.stop(); screen = s.back }
+                            TimedOnScreen(s) { ms -> Briefs.log { BriefEvent.ToyOpened(it, ToyKind.ARCADE, ms) } }
+                            val av = arcadeStore.version.intValue
+                            // The ledger catches up first, so practice since the last session's end counts toward the next game.
+                            val sparkles = remember { world.sync(); world.state.ledger.sparkles }
+                            val newGame = remember { arcadeStore.opened(sparkles) }
+                            LaunchedEffect(Unit) {
+                                voice.speak(if (newGame != null) com.bigpapituna.sharpears.engine.arcade.ArcadeLines.NEW_GAME else com.bigpapituna.sharpears.engine.arcade.ArcadeLines.HUB, interrupt = true)
+                            }
+                            androidx.compose.runtime.key(av) {
+                                com.bigpapituna.sharpears.ui.arcade.ArcadeHub(arcadeStore.state, sparkles,
+                                    onGame = { g -> voice.stop(); screen = Screen.ArcadeRound(g, s) },
+                                    onBack = { voice.stop(); screen = s.back }, say = { voice.speak(it, interrupt = true) }, newGame = newGame)
+                            }
+                        }
+                        is Screen.ArcadeRound -> Box(Modifier.fillMaxSize()) {
+                            BackHandler { voice.stop(); screen = s.back }
+                            TimedOnScreen(s) { ms -> Briefs.log { BriefEvent.ToyOpened(it, ToyKind.ARCADE, ms) } }
+                            val level = remember(s) { s.level ?: arcadeStore.state.of(s.game).level }
+                            val stickerId = com.bigpapituna.sharpears.engine.world.LevelStickers.arcade(s.game.id)
+                            val debugResult = s.debugStars?.let { n ->
+                                com.bigpapituna.sharpears.engine.arcade.RoundResult(s.game, level, offered = 20, hits = when (n) { 3 -> 20; 2 -> 12; else -> 4 },
+                                    helped = when (n) { 3 -> 0; 2 -> 8; else -> 16 }, slips = 1,
+                                    lines = if (s.game == com.bigpapituna.sharpears.engine.arcade.ArcadeGame.TOWER) listOf(2, 8, 30)[n - 1] else 20, clean = 10, keys = 5,
+                                    durationMs = 70_000, needLines = if (n == 3) 0 else 99)
+                            }
+                            androidx.compose.runtime.key(s.seed) {
+                                com.bigpapituna.sharpears.ui.arcade.ArcadeGameScreen(s.game, level, s.seed, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
+                                    sticker = com.bigpapituna.sharpears.engine.world.LevelStickers.byLesson(stickerId),
+                                    onRoundEnd = { r ->
+                                        val end = arcadeStore.record(r)
+                                        world.gameRound(r.game.id, stickerId.takeIf { end.firstThree })
+                                        Briefs.log { BriefEvent.GameRound(it, r.game.id, end.stars, r.keys, r.level, r.durationMs) }
+                                        quest(QuestEvent.GameRound(r.game.id))
+                                        end
+                                    },
+                                    onAgain = { voice.stop(); screen = Screen.ArcadeRound(s.game, s.back) },
+                                    onGames = { voice.stop(); screen = s.back }, onExit = { voice.stop(); screen = s.back },
+                                    debugResult = debugResult)
+                            }
+                        }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
@@ -1157,7 +1222,7 @@ class MainActivity : ComponentActivity() {
                             val today = remember { java.time.LocalDate.now() }
                             val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
-                            val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null) }
+                            val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null, game = questGame()) }
                             var corner by remember { mutableStateOf(false) }
                             // The parent brief from the corner (2.4): every kid on the phone, this one's tab first.
                             var briefOpen by remember { mutableStateOf(false) }
@@ -1175,6 +1240,7 @@ class MainActivity : ComponentActivity() {
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
                                 onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
                                 onToy = { t -> screen = Screen.Play(t, home) },
+                                onGames = { voice.stop(); screen = Screen.Arcade(home) },
                                 onSongs = { screen = Screen.KidSongs(home) },
                                 onStickers = { screen = Screen.KidStickers(home) },
                                 onQuestTask = { t ->
@@ -1183,6 +1249,7 @@ class MainActivity : ComponentActivity() {
                                         "jam" -> Screen.Play(Toy.JAM, home, hint = "Can you find all the Cs?")
                                         "pupsays" -> Screen.Play(Toy.PUP_SAYS, home)
                                         "songs" -> Screen.KidSongs(home)
+                                        "games" -> com.bigpapituna.sharpears.engine.arcade.ArcadeGame.byId(t.ref)?.let { Screen.ArcadeRound(it, Screen.Arcade(home)) } ?: Screen.Arcade(home)
                                         else -> home
                                     }
                                 },
@@ -1632,6 +1699,8 @@ class MainActivity : ComponentActivity() {
             }
             "kidstickers" -> Screen.KidStickers(back, StickerPage.valueOf(arg))
             "finale" -> Screen.Finale(arg)
+            "arcade" -> Screen.Arcade(back)
+            "arcadegame" -> com.bigpapituna.sharpears.engine.arcade.ArcadeGame.byId(arg)?.let { Screen.ArcadeRound(it, back) } ?: back
             else -> back
         }
     }
