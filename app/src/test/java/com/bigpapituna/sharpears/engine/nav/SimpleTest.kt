@@ -81,7 +81,7 @@ class SimpleTest {
     }
 
     @Test fun settingsKeepTheEssentials() {
-        assertEquals(setOf(SettingsPart.FAMILY, SettingsPart.SIMPLE, SettingsPart.SOUND, SettingsPart.VOICE, SettingsPart.REMINDER, SettingsPart.MICROPHONE),
+        assertEquals(setOf(SettingsPart.FAMILY, SettingsPart.SIMPLE, SettingsPart.SOUND, SettingsPart.VOICE, SettingsPart.REMINDER, SettingsPart.MICROPHONE, SettingsPart.TESTING),
             SettingsPart.entries.filter { Simple.settingsShows(it, true) }.toSet())
         assertTrue(SettingsPart.entries.all { Simple.settingsShows(it, false) })
     }

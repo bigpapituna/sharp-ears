@@ -104,9 +104,12 @@ object Simple {
 
     enum class SettingsPart { FAMILY, PROGRESS, SIMPLE, KEYS, FALLING_NOTES, WRONG_KEYS, SOUND, VOICE, REMINDER, BRIEFS, MICROPHONE, ABOUT, TESTING }
 
-    /** The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the switch itself). */
+    /**
+     * The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the switch itself), plus
+     * Testing while the tester build exists (Roy, 2026-10-22: "add help Roy test in simple mode as well").
+     */
     val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.SIMPLE, SettingsPart.SOUND, SettingsPart.VOICE,
-        SettingsPart.REMINDER, SettingsPart.MICROPHONE)
+        SettingsPart.REMINDER, SettingsPart.MICROPHONE, SettingsPart.TESTING)
 
     fun settingsShows(part: SettingsPart, simple: Boolean): Boolean = !simple || part in SETTINGS_ESSENTIALS
 }
