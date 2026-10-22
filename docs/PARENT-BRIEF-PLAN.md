@@ -4,7 +4,11 @@ Agreed with Roy on 2026-10-21 in a brainstorm. Status: built and integrated in 2
 versionCode 13); the brief by email (design D, Brevo, daily and weekly, a code to confirm the address) integrated in 2.5.0
 (2026-10-21, branch `release-2.5`, versionCode 14; emulator only). Every brief is written by the templates and no email has
 been sent until Roy puts his keys in, hosts the email's pictures (hosting/README.md) and runs the manual checks (CLAUDE.md,
-"2.4.0 parent brief" and "2.5.0"). The relay (Option A) and Gemini Nano are still open.
+"2.4.0 parent brief" and "2.5.0"). The relay (Option A) and Gemini Nano are still open. 2.6.0 (2026-10-21, branch
+`release-2.6`, versionCode 15): a pop song's run is a SongRun under `pop-<id>` with the song's title in every brief, the
+placement check's first-lesson reward logs only its sticker drop, no lesson (its id has a title all the same), skipped
+lessons log nothing, and
+a piano-level change is a `level` setting event the writers do not word yet.
 
 ## What it is
 

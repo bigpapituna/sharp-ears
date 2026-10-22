@@ -127,7 +127,8 @@ Where it lives: `engine/chords/PopSong.kt` (the contract), `PopSongs.kt` (the ch
 `fourChordSongs`, `playableWith`, `byStyle`, `sortedForBeginners`, `transposed`, `difficultyByRule`), and one file
 of charts per batch: `PopSongsHits.kt`, `PopSongsYacht.kt`, `PopSongsEighties.kt`, `PopSongsPop.kt`,
 `PopSongsCountry.kt`, `PopSongsFamily.kt`, `PopSongsWorship.kt`. Turning a chart into a playable `Song` is the
-player's job (`PopPlay.toSong` on the popp branch); this branch has none.
+player's job (`PopPlay.toSong`, engine/chords/PopPlay.kt, the only one). Since 2.6.0 the screens use these helpers as the
+one rule for the four-chord badge, "Easiest first" (`beginnerOrder`), "can play" and keys; ui/chords/INTEGRATION.md.
 
 ### What is there (107 songs)
 

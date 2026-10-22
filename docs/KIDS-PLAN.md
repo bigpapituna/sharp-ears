@@ -1,6 +1,12 @@
 # Family plan (2.1): profiles, a kid skin, Pup's Playground, and the things that make kids come back
 
-## Status (2026-10-21, 2.5.0 integrated on branch `release-2.5`, versionCode 14)
+## Status (2026-10-21, 2.6.0 integrated on branch `release-2.6`, versionCode 15)
+
+2.6.0 for kids: a parent says how much piano a new kid has played (first time: the garden; has played a bit: the pond;
+has had lessons: the workshop) and the pages before it are passed by, open with no stars; "Let them try the check" runs
+"Let's hear you play" on the kid's first open, and Family > Piano level changes it later. The kid's Songs gain a "Songs by
+chords" tile (letters for a reader, animals for a pre-reader) that opens the Kids-style chord songs and their colour-block
+page with the band. "Help Roy test" records kids masked, with a dot on the whistle while on. See CLAUDE.md, 2.6.0.
 
 Shipped (emulator-tested on the Fold emulator, JVM-tested; not yet on Roy's phone or in front of a child):
 

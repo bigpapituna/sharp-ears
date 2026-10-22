@@ -44,8 +44,13 @@ Skipped lessons are done for the path (`CoursePath.next`, `KidMap.next`, Practic
 - `Profiles.update` logs `level` as a `SettingChanged` event like the other profile settings. The email brief's `settingLine`
   ignores unknown keys, so it says nothing about it; the AI/template writers see it only as a setting change. If the brief
   should ever say it ("started at the pond"), that is a new `settingLine` case.
-- "Let's hear you play" is recorded as a first lesson without a brief event: the id `placement-check` is not a course lesson,
-  and `CourseTitles.lookup` has no title for it. If the brief should show it, add an event and a title; nothing does now.
+- "Let's hear you play" is recorded as a first lesson without a brief event: the id `placement-check` is not a course lesson.
+  2.6.0: it has a title all the same, `Placement.CHECK_TITLE` ("Let's hear you play"), in the three title lookups (the
+  templates' `CourseTitles.lookup`, the AI's `Titles.course`, the screens' and emails' `AppTitles`), so the id never shows raw.
+  Its reward goes through the finish screens' stores: `ProgressStore` (the XP event), `KidStore.recordStars` (three stars,
+  which the wardrobe ledger counts as a lesson's first three stars, 4 sparkles at the next sync) and `WorldStore.lessonComplete`
+  (a sticker drop, logged as the brief's StickerDrop with no lesson; no stone sticker, the check is no stone). If the brief
+  should ever say it, add a LessonDone event; the title is ready.
 
 ## Check against the pop-chords work (popc, popp)
 
@@ -65,6 +70,9 @@ conflict in MainActivity is the only likely thing; the hunks are small and self-
   part, not a grade.
 - A grown-up's check follows the onboarding's questions (the mic choice comes first), from the "You're all set" screen. A kid's
   runs on their first open when a parent tapped "Let them try the check" (`Prefs.placementCheckPending`).
+- 2.6.0: only a check played through moves the stored level (MainActivity's `Screen.Placement` onDone); skipped or left, the
+  level already stored stays. The end screen's title is "Thanks for playing!" when the check agrees (the pup's line already
+  starts "Lovely playing."), else "Lovely playing!". A kid's line names the pages passed by in sentence case.
 - A change of level (onboarding, Family > child > Piano level) is read by MainActivity's profile collector: it re-plans the
   open profile's marks in place (no reopen, no lost screen). A lower level opens the lessons that were only passed by; a lesson
   played, its stars, stickers and finales are never touched. A profile that is not open is re-planned when it opens.

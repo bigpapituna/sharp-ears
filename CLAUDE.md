@@ -776,77 +776,130 @@ left to the integrator, fixed what the walk found and released.
   - The Family list shows "Change" on each child, which also holds Read the brief and Email the brief (the emails say
     "Family > Mia > Email").
 
-### Popular songs by chords (branch `popc`, 2026-10-21, not merged, no version bump)
-- 107 songs as chords only (engine/chords/PopSongs*.kt, docs/CONTENT.md "Popular songs by chords"): key, tempo, section
-  order and the chords of each bar, never a melody or a lyric; every style has 6 or more (holiday 5), 74 at difficulty 1
-  or 2, 31 four-chord songs; 6 CHECKED, 78 LIKELY, 23 SKETCH; songs with an unsure key or chart were left out (listed there).
-- Tests: PopSongsTest, 21 new (the structural lyric guard, beats per bar, the difficulty rule, the minimums, the helpers);
-  1313 JVM (1292 + 21), green. No `toSong` here: the player's `PopPlay.toSong` comes with the popp branch.
-## 2.6 placement (2026-10-21, branch `place`, emulator-5554 only; version not bumped, the integrator does)
-Roy: "when creating a profile, ask what their current piano level is, so we don't have to show them all the introductory stuff." What the
-integrator checks (the brief's skipped lessons, the pop-chords work: none expected): ui/family/INTEGRATION-PLACEMENT.md.
-- Level and plan (engine/family/Placement.kt, Profile.level, default NEVER so old profiles are unchanged): grown-ups say Never / A little /
-  Some / A lot and start at Basics / Beginner (Basics skipped) / Intermediate (Basics, Beginner, Rhythm skipped) / Keys (everything to
-  Intermediate skipped, Learn opens at Keys, the home opens on Songs). A parent answers for a kid with three options: first time (the
-  garden), has played a bit (the pond, the garden skipped), has had lessons (the workshop; garden, pond and hall skipped except the hall's
-  recital, which stays as a "come back" stone). Skipped lessons are `lesson:<id>` + `skip:<id>` in Prefs: done for the path
-  (`lessonDone`), never for credit (`lessonPlayed`: XP, stars, stickers, finales, units complete). A real finish clears the skip.
-- "Let's hear you play" (engine/family/PlacementCheck.kt, ui/family/PlacementCheckScreen.kt; Roy's decision): never shown to NEVER; two
-  tasks for A little (find a C, C D E F G), three for Some and A lot (plus Twinkle's phrase with the band at 70 bpm); the pup demos each,
-  strict keys, let go after three tries, no score or pass/fail ever shown, Skip always in view, quitting keeps the self-report silently.
-  It counts as a first lesson (XP event, three stars, a sticker, sparkles). `suggest(selfReport, score)`: the gentler of the two, never raises.
-- Wiring: the grown-up onboarding's four-level question, then "Let's hear you play" from the "You're all set" screen; a new kid's flow asks
-  the parent (plus a "Let them try the check" pill, off by default, run on the kid's first open); Family > child > Piano level changes it
-  later (re-plans in place, never undoes stars); Learn shows a quiet "You skipped these. Open any time." band over skipped units; the kid map
-  shows skipped stones open with no stars and no finale. Debug: `--es screen placement --es said SOME [--ei task n] [--es inject synth:...]`.
-- Tests: PlacementTest, PlacementCheckTest (the plan per level and kind, the suggestion matrix, reconcile, CoursePath and KidMap after a
-  skip, profile persistence). Screenshots: app/build/screens/place-*.png (not committed).
-## Tester analytics (branch `posthog`, 2026-10-21; emulator-5558 Fold only, version not bumped)
-Roy tests with friends and family and wants to see where testers get stuck. He gets the testers' and parents' consent
-himself, and the feature is removed before any public release. app/src/main/java/com/bigpapituna/sharpears/analytics/
-INTEGRATION.md has the details for the integrator.
-- "Help Roy test": one phone-wide switch, off by default, behind the parent gate (the kids' grown-ups corner, and Settings >
-  Family where each change asks the gate), one line: "Sends screen recordings and app events to Roy's test dashboard. No
-  sound." While on, the kids' whistle has a small accent dot. Kid profiles are recorded too: always masked, never sound, the
-  profile's kind (kid or adult) and never its name. On a debug build without a key the row shows and says nothing is sent;
-  a release without a key has no row.
-- PostHog (com.posthog:posthog-android 3.72.5) starts only on a build with POSTHOG_KEY and with the switch on (no setup at
-  all otherwise). Session replay in screenshot mode (needed for Compose), all text and images masked, no logcat, no element
-  texts, the corner, brief, email settings, names and certificate masked whole; distinct id a random device id made once
-  (tester.xml). Events: a screen per route, lesson_started/finished, stage_stuck, hint_step, song_run, toy_opened,
-  profile_kind, brief_opened, email_sent_result, ai_brief_result, error_shown, felt_off. Off after running: replay stopped and
-  opt-out, nothing flushed.
-- Build flag: the SDK dependency and src/posthog are compiled in only with POSTHOG_KEY (src/noposthog is a stub). The keyless
-  debug APK has no com/posthog class (dexdump over all 18 dex files: 0 of 22,464 classes); the merged manifest is the same with
-  or without the SDK (its AAR declares no provider, service or receiver).
-- "Email Roy a daily diary": only on a build with DIARY_TO, off by default. Once a day (20:30 to 21:30, else from 07:00 next
-  morning; never in the quiet hours or twice a day), plain text to DIARY_TO only through the brief's Brevo transport (needs
-  the email key too), by the email job's alarm. It has the device id, the version, screens with time on each, lessons and
-  stages with tries and let-gos, songs, toys, refusals and error lines, AI and email results and every "Something felt off"
-  note (a button in the corner and in Family while a switch is on). People are "kid p1", never a name; no address.
-- Phone-wide, never backed up: tester.xml and files/tester/diary.log. Privacy page "Testing" paragraph, the first and
-  Internet paragraphs, and docs/privacy-policy.md only on a build with a key or a diary address (PostHog, 30 days, kids
-  recorded, no sound); the onboarding line says it only while a switch is on.
-- Fixed on the way: EmailJob read no play in a process the alarm woke with no screen (Briefs.init was only in MainActivity).
-- Roy's setup: 1. posthog.com, sign up (free plan), create a project (US or EU cloud), Settings > Project > Project API key
-  (phc_...). In Settings > Session replay turn "Record user sessions" on; under Data retention keep 30 days. 2.
+## 2.6.0 songs by chords, placement and tester analytics (integrated 2026-10-21, branch `release-2.6`, versionCode 15; emulator-5558 Fold only, not on Roy's phone yet)
+Four branches merged: `popc` (the chord charts, docs/CONTENT.md), `popp` (the chord-mode screens and the band,
+ui/chords/INTEGRATION.md), `place` (the placement step, ui/family/INTEGRATION-PLACEMENT.md) and `posthog` (tester analytics,
+analytics/INTEGRATION.md). The merge compiled and its 1414 tests passed as merged; this step wired what the four left to the
+integrator, fixed what the walk found and released.
+- Songs by chords (Roy: "give these specific chords for these popular songs so they can learn them"): 107 popular songs as
+  chords only (engine/chords/PopSongs*.kt): key, tempo, section order and the chords of each bar, never a melody, a lyric or a
+  recording. The legal line, the lyric guard and how to add a song: docs/CONTENT.md, "Popular songs by chords". By the
+  numbers (a song counts under each of its styles): greatest hits 24, yacht rock 8, 80s 23, pop 40, rock 18, country 10, soul
+  and ballads 35, kids 13, holiday 5, worship 6; difficulty 34 at 1, 40 at 2, 11 at 3, 22 at 4; 6 CHECKED, 78 LIKELY, 23
+  SKETCH (every tile and page says "checked", "close enough" or "a sketch"); 31 four-chord songs.
+- Where it shows: Chords > Songs (style chips with their counts, "All 107"; Easiest first, Newest, Songs I can play, One new
+  chord away; lazy tiles of chords, difficulty bars and the confidence note); the song page (the chart by section, transpose
+  -6 to +6, tempo in steps of 4, seven patterns with a feel line, Hear the band lighting the chart bar by bar, Play along: the
+  player in Wait with the right hand, the app on the left hand, the Band toggle for drums and bass); "You can play N songs"
+  under the Chords tabs (known = Leitner box 3; a tap opens Songs I can play); the Songs tab card for grown-ups; "Songs that
+  use these chords" after a Chords > Daily session (the known chords plus the session's; "See all the songs you can play");
+  and for kids a "Songs by chords" tile on the kid's Songs (letters for a reader, animals for a pre-reader) that opens the
+  Kids-style list and the kid page (colour blocks, no numbers, a tap plays the chord).
+- One rule each (wired here): the four-chord badge is the content's `PopSongs.isFourChord` (major key, every chord its I, IV,
+  V or vi, colours allowed; popp's stricter copy was deleted), Easiest first is `PopSongs.beginnerOrder` (difficulty,
+  four-chord songs, newest, title), the chords a song needs and what known chords play are `PopSongs.chordsOf` and
+  `playableWith`, keys move with `PopSongs.transposed`; `PopPlay.toSong` is the one `toSong`. PopSamples.kt is gone.
+- Pop runs are kept like library songs (ui/PlayerScreen.kt `popRunEnd`): a Wait or Perform run that played something logs
+  the brief's SongRun under `pop-<id>` (stars from the Perform accuracy, or the wrong keys in Wait), keeps a best from the top
+  and a first completion (`best:pop-<id>`, `done:pop-<id>`), records the SongRun progress event (XP) and shows the recap;
+  Listen keeps nothing. No sticker, quest, trouble bars or auto speed (those belong to library songs). A kid's run to the end
+  shows the pup's card first. The brief's three title lookups answer `pop-<id>` with the song's title (My week says "Wagon
+  Wheel"), a brief action on a pop run opens its page, and opening a page is `FeatureUsed("popsongs")`.
+- Placement (Roy: "ask what their current piano level is, so we don't have to show them all the introductory stuff"):
+  grown-ups say Never, A little, Some or A lot (Basics, Beginner, Intermediate, Keys; Learn shows "You skipped these. Open
+  any time." over what was passed by); a parent answers for a kid (first time: the garden; has played a bit: the pond; has
+  had lessons: the workshop, with the hall's recital as a come-back stone). Skipped lessons are done for the path and never
+  for credit: no XP, stars, stickers, finales or brief events. "Let's hear you play" (find a C and C D E F G for A little,
+  plus Twinkle's phrase with the band for Some and A lot; never for Never) follows the onboarding's "You're all set" and,
+  when a parent tapped "Let them try the check", a kid's first open; it only ever makes the start gentler, shows no mark, and
+  counts as a first lesson once (the XP event, three stars, a sticker drop, sparkles at the next ledger sync; no brief
+  event). Family > the person > Piano level changes it later and re-plans in place. Added here: the check's id has a title
+  for the brief ("Let's hear you play", `Placement.CHECK_TITLE`), and only a check played through moves the level.
+- Tester analytics (Roy tests with friends and family; he gets their consent and removes it before any public release):
+  "Help Roy test", one phone-wide switch behind the parent gate (the kids' corner and Settings > Family), with an accent dot
+  on the kids' whistle while on; PostHog session replay (all text and pictures masked, no sound, kids recorded masked, as
+  "kid") and app events only on a build with POSTHOG_KEY; "Email Roy a daily diary" only on a build with DIARY_TO (hidden on
+  this PC); "Something felt off" (one line kept with the screen) while a switch is on. The keyless APK has no PostHog class:
+  dexdump over all 19 dex files of the 2.6.0 debug APK finds 0 `Lcom/posthog/` among 22,746 classes; `-Psharpears.posthog=true`
+  compiles the SDK in. EmailJob calls `Briefs.init` in both `run` and `plan` (the alarm can wake a process with no screen).
+  Details: analytics/INTEGRATION.md.
+- Roy's PostHog setup: 1. posthog.com, sign up (free plan), create a project (US or EU cloud), Settings > Project > Project
+  API key (phc_...); Settings > Session replay: "Record user sessions" on; Data retention 30 days. 2.
   `.\scripts\set-posthog-key.ps1` (the key at the hidden prompt; `-ApiHost https://eu.i.posthog.com` for EU; it also asks for
   the diary address, Roy's own). The diary needs the Brevo key too (`.\scripts\set-email-key.ps1`). 3. `.\gradlew.bat
   installDebug` to each test phone (never paste the key in chat). 4. On the phone: the kids' whistle (or Settings > Family) >
-  the gate > Help Roy test on; the dot shows. 5. Replays: PostHog > Session replay (a few minutes after a session, on
-  Wi-Fi or data); events in Activity; filter by `profile_kind`. 6. End of the beta: turn the switch off on each phone,
+  the gate > Help Roy test on; the dot shows. 5. Replays: PostHog > Session replay (a few minutes after a session, on Wi-Fi or
+  data); events in Activity; filter by `profile_kind`. 6. End of the beta: the switch off on each phone,
   `.\scripts\set-posthog-key.ps1 -Remove`, rebuild, and in PostHog Settings > Project > Danger zone, Delete project (that
-  deletes every recording and event); rotate nothing else.
-- Tests: 1319 JVM (1292 before, 27 new: TesterRulesTest 10, DiaryTest 5, TesterTest 7, TesterWiringTest 5, plus the backup
-  rule lines), green. Lint 0 errors (28 warnings as before).
-- Emulator walk (5558 Fold, keyless debug over 2.5's data): as Mia, the whistle, the gate, the corner's Testing rows (no diary
-  row: no DIARY_TO), Help Roy test on (log `tester: help Roy test on`), the whistle's dot, "Something felt off" kept with
-  `home:SONGS`, the dot still there after a reinstall and restart, a stone's lesson and back logged as screens with `away`;
-  as Roy, Settings > Family's Testing rows, the switch asking the gate and turning off. No posthog file in the app's storage,
-  no posthog line from the app in logcat, no device id made, crash buffer empty. Screenshots: app/build/screens/ph-*.png.
-- Open: nothing ran against PostHog or Brevo (no keys here): Roy checks a replay's masking on his first session (text and
-  pictures should be grey boxes). hint_step comes at a stage's end, not per hint. PostHog's own prefs file is named after the
-  key, so the backup rules cannot list it (it holds SDK ids only). The log copy reads the app's own logcat, best effort.
+  deletes every recording and event).
+- Manual checks Roy must run (phone on Wi-Fi, `adb logcat -s SharpEars:D`):
+  1. First replay masked: with the PostHog key in and Help Roy test on, play a lesson as a kid and a song as Roy; in PostHog >
+     Session replay every text and picture is a grey box, the corner, the brief and the names are masked whole, and there is
+     no sound. If anything shows, turn the switch off on every phone before anyone else plays.
+  2. Diary email: with DIARY_TO and the Brevo key in, Settings > Family > "Email Roy a daily diary" on, play, keep a
+     "Something felt off" note; the diary comes once a day between 20:30 and 21:30 (or the next morning from 07:00), plain
+     text, people as "kid p1", never a name; `Select-String "@"` over the log finds nothing from the app.
+  3. Band sound balance on the Fold: a pop song's page > Hear the band with "Piano with it" on and off, then Play along with
+     Band on, in Wait and in Perform: the drums and bass sit under the piano, on the speaker and on headphones (the band is
+     silent while the mic listens, unless headphones are on).
+  4. A pop song with the mic: Play along on the Yamaha (Wait, right hand, mic on): each chord heard as one group and the song
+     moving on; then a Perform run to the end: the recap's stars and `pop: run pop-<id> mode=PERFORM accuracy=...` in the log.
+  5. The earlier ones still stand: 2.4.0 "Turning AI briefs on" and 2.5.0's email checks.
+- Fixed at integration: the style chips had no counts; the tile and the page put a middle dot between artist and year (the
+  design rules forbid it) and their badge rows did not wrap on a narrow screen; nothing opened chord songs for kids or after a
+  chord session; a pop run kept nothing and showed no recap in Wait; "Let's hear you play" said "Lovely playing!" over
+  "Lovely playing." when it agreed (the title is now "Thanks for playing!"); a skipped or left check stored the level it was
+  opened with (only the debug route could tell); a kid's placement line read "The garden, The pond and The concert hall stay
+  open".
+- Tests: 1415 JVM (1414 merged; PopFindTest lost its own four-chord tests to the content's rule and gained chip counts and
+  the content's order, PopPlayTest gained run ids and the content's transposition, PopTitlesTest 3 new (a pop run and the
+  check titled in every lookup, a week of a pop song named and never its id), PlacementTest and TesterRulesTest new
+  assertions), green.
+- Lint: 0 errors, 28 warnings, 9 hints (as 2.5.0; popp's song page read the window height from the configuration, the one
+  new warning, fixed). `:app:compileDebugKotlin -Psharpears.posthog=true` compiles the PostHog door (quote the argument in
+  PowerShell 5.1: `"-Psharpears.posthog=true"`, or it splits at the dot). APK: app/build/outputs/apk/debug/app-debug.apk,
+  128,275,170 bytes (122.3 MiB), versionCode 15, 2.6.0.
+- Emulator walk (5558 Fold, the debug APK over 2.5's data, then `pm clear` for a first run; touch keys, no mic):
+  over 2.5's data as Roy, the Songs tab's "Songs by chords" card, Chords > Songs (All 107, the chips with counts, Kids 13,
+  each sort), Wagon Wheel (difficulty 1, four chords) transposed up 3 to C with the Whole pattern, Hear the band (`pop:
+  hearing wagon-wheel C WHOLE at 148 bpm`, `band: kick hat bass36` cues), Play along in Wait by touch through nine bars with
+  the Band toggle on (the band's cues in the player), then the last 14 bars after a seek to the recap (three stars, +50 XP,
+  `brief: owner {"e":"song","song":"pop-wagon-wheel",...,"stars":3}`, `pop: run pop-wagon-wheel mode=WAIT ... xp=50`), back
+  to the page in C and Whole; as Mia (pre-reader) the kid Songs tile with animals, the kid chord list, Row, Row, Row Your
+  Boat as animals; the corner's Testing rows (no diary row), Help Roy test on (`tester: help Roy test on`), the whistle's
+  dot, a "Something felt off" note (`tester: note on home:SONGS (33 chars)`), no PostHog file and no device id. Fresh data:
+  the onboarding's four levels, A little, touch keys; "You're all set" with "Let's hear you play"; the microphone refused;
+  find a C and C D E F G by touch: the first time one task was let go (the start went gentler, Basics; the reward: three
+  stars, the red tulip, `kid: placement-check 3 stars`, a StickerDrop with no lesson, no LessonDone), the second played
+  through (`began at A_LITTLE (said A_LITTLE, 2 of 2)`, no second reward); Learn opening at Beginner with Basics "Skipped" and
+  "You skipped these. Open any time."; Settings > Family's Piano level (the gate first), Lea added from Family (reader) and
+  set to "Has had lessons" there (the workshop next, the hall's recital open as the come-back stone), Sam added (reader, "Has
+  played a bit"): the pond next, the garden "passed by, open to play", the kid Songs tile with letters, the kid chord list,
+  Twinkle's page in letters; with `--es known C,F,G,Am,D,Em`: "You can play 12 songs", Songs I can play, One new chord away
+  ("needs G7"); a Major triads session in Chords > Daily to "Session done!" with "Songs that use these chords" (`pop: songs
+  for the session's chords: dont-you-forget-about-me, wonderful-tonight, three-little-birds`) and "See all the songs you can
+  play" opening Songs I can play; a second Wagon Wheel run, then You > My week: "most often Wagon Wheel ... at three stars";
+  dark mode for Chords > Songs, a page, the kid tile, the kid list and page, Learn's skipped band and the check's band task;
+  the cover screen (`emu fold`) with Kumbaya's page ("a sketch") in dark and light; Settings > Family's Testing rows on and
+  off. Logcat: no app exception, no ANR, crash buffer empty, no "sk-or-", "xkeysib", "phc_" or "Bearer", no "@" from the
+  app, no posthog line. Screenshots: app/build/screens/r26-*.png (not committed).
+- Debug: `--es screen popsongs [--es chip all|hits|yacht|80s|pop|rock|country|soul|kids|holiday] [--es sort
+  easiest|newest|can|one] [--es known C,F,G,Am]` (those chords known, box 3), `--es song <id> [--ei shift n] [--es pattern
+  WHOLE|...] [--ei bpm n] [--ez hear true] [--ez kid true [--ez pre true]]`, `--ez kid true` with no song (the kid list),
+  `--es view cards`; placement `--es screen placement --es said SOME [--ei task n] [--es inject synth:...]` (the level moves
+  only when the check is played through).
+- Open:
+  - The four-chord badge is the content's rule, so a two-chord (I V) or three-chord (I IV V) song wears "four chords" too
+    (The Wheels on the Bus, Ring of Fire). Roy decides: keep it, name it differently, or have the rule ask for all four.
+  - Nothing ran against PostHog or Brevo (no keys here): checks 1 and 2. The band and the pop songs were heard on the
+    emulator only: checks 3 and 4. 23 charts are sketches; Roy's ear is the check.
+  - A pop run drops no sticker and counts for no quest (the brief and XP count it). The kids' chord list is the Kids style
+    only (13 songs); holiday and worship songs a child knows are on the grown-ups' list.
+  - "You can play" counts a chord known at Leitner box 3 (`PopFind.KNOWN_BOX`); the app's own "mastered" is box 4.
+  - Placement is tuned on synthetic audio and touch keys; the band task's 60% is unproven in a real room. With the microphone
+    refused the check plays on the screen's keys (walked that way here).
+  - The new-kid flow's "Go" is ready before the level question is answered (it appears once "Can they read yet?" is), so a
+    parent who taps Go at once gets "first time"; Family > Piano level fixes it.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
