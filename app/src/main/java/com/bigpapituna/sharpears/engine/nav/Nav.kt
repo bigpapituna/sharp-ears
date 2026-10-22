@@ -18,6 +18,8 @@ object Names {
     const val SONGS = "Songs"
     const val SONGS_BY_CHORDS = "Songs by chords"
     const val PLAY_CORNER = "Play corner"
+    /** Today's Explore tile for the Chords section at the top of Learn. */
+    const val CHORDS = "Chords"
     const val LEARN_CHORDS = "Learn chords"
     const val GAMES = "Games"
     const val PROGRESSIONS = "Progressions"
@@ -67,6 +69,16 @@ object NavGraph {
         "Placement" to setOf("Lesson", tab(NavTab.SONGS), tab(NavTab.LEARN), KID_HOME),
         "Player" to emptySet(), "ChordGames" to emptySet(), "Theory" to emptySet(), "EarTraining" to emptySet(),
         "SightRead" to emptySet(), "Licences" to emptySet(), "Play" to emptySet(),
+    )
+
+    /**
+     * Today's Explore tiles (ui/TodayScreen.kt), each by its name and the place it opens: Songs the Songs tab, Chords the
+     * Learn tab (its Chords section is at the top), the Play corner a sheet of its three toys, each a `Play` screen. NavTest
+     * checks that every tile Today draws is here and that each place is one Today opens, so no tile is a label that goes
+     * nowhere.
+     */
+    val TODAY_TILES: Map<String, String> = mapOf(
+        Names.SONGS to tab(NavTab.SONGS), Names.CHORDS to tab(NavTab.LEARN), Names.PLAY_CORNER to "Play",
     )
 
     /** Every place [from] leads to, [from] included, never going through [avoid] (the launch, say). */

@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,10 +34,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.SongArt
 import com.bigpapituna.sharpears.engine.nav.Names
@@ -56,6 +60,8 @@ import com.bigpapituna.sharpears.engine.nav.TodayCard
 import com.bigpapituna.sharpears.engine.nav.TodayRow
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.play.Toy
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
 
 /** Today's goal and streak for the card and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. */
 data class GoalState(val line: String, val met: Boolean, val streak: Int, val atRisk: Boolean)
@@ -131,14 +137,19 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuietLabel("Explore")
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Each tile is a door (engine/nav NavGraph.TODAY_TILES, NavTest): never a label that goes nowhere.
                     ExploreTile(Names.SONGS, R.drawable.ic_library_music, Modifier.weight(1f), a.onSongs)
-                    ExploreTile("Chords", R.drawable.ic_piano, Modifier.weight(1f), a.onChords)
-                    ExploreTile(Names.PLAY_CORNER, R.drawable.ic_play_arrow, Modifier.weight(1f)) { playCorner = true }
+                    ExploreTile(Names.CHORDS, R.drawable.ic_piano, Modifier.weight(1f), a.onChords)
+                    ExploreTile(Names.PLAY_CORNER, R.drawable.ic_play_arrow, Modifier.weight(1f)) {
+                        Log.d(TAG, "today: play corner opened, was marked open: $playCorner")
+                        playCorner = true
+                    }
                 }
             }
         }
     }
-    if (playCorner) PlayCornerSheet(onToy = { t -> playCorner = false; a.onToy(t) }, onDismiss = { playCorner = false })
+    if (playCorner) PlayCornerSheet(onToy = { t -> Log.d(TAG, "today: play corner -> ${t.title}"); playCorner = false; a.onToy(t) },
+        onDismiss = { if (playCorner) Log.d(TAG, "today: play corner closed"); playCorner = false })
 }
 
 /** The logo on its own dark tile (as on the launcher, so the white sharp shows in light mode too), and the tab's name. */
@@ -290,7 +301,11 @@ private fun ExploreTile(title: String, icon: Int, modifier: Modifier, onClick: (
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Whatever hides the sheet (a swipe, Back, the scrim, or a fold or rotation that takes its window) closes it for the
+    // tile too, so the tile is never left marked open while nothing shows, which would make the next tap on it do nothing.
+    LaunchedEffect(state) { snapshotFlow { state.isVisible }.dropWhile { !it }.first { !it }; onDismiss() }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
