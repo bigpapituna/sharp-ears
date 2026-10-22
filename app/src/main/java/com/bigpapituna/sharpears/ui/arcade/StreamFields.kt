@@ -245,13 +245,13 @@ internal fun MoleField(play: ArcadePlay, modifier: Modifier, onKey: (Int) -> Uni
         }
         // Burrows along the keys' tops (black keys' a little higher), then the moles.
         fun hole(m: Int): Offset = g.rect(m).let { Offset(it.center.x, g.top - if (blackKey(m)) g.height * 0.17f else g.height * 0.04f) }
-        val holeW = g.ww * 0.42f
+        val holeW = g.ww * 0.48f
         for (m in low..high) if (m in play.round.keys) {
             val h = hole(m)
             drawOval(Color(0xFF5A3A24), Offset(h.x - holeW, h.y - holeW * 0.28f), Size(holeW * 2, holeW * 0.56f))
             drawOval(Color(0xFF2E1D12), Offset(h.x - holeW * 0.8f, h.y - holeW * 0.2f), Size(holeW * 1.6f, holeW * 0.4f))
         }
-        val maxRise = minOf(g.top * 0.62f, g.ww * 1.6f)
+        val maxRise = minOf(g.top * 0.62f, g.ww * 2f)
         fun mole(t: Target, k: Int, rise: Float, booped: Float?) {
             val h = hole(k)
             val w = holeW * 0.78f

@@ -90,12 +90,13 @@ internal fun GardenField(play: ArcadePlay, modifier: Modifier) {
             val y = if (row == 0) bedTop + size.height * 0.08f else bedTop - size.height * 0.02f
             return Offset(x, y) to scale
         }
-        val stemMax = size.height * 0.42f
+        val stemMax = size.height * 0.3f
         // The row of seeds waiting their turn: a little mound each.
         for (k in maxOf(doneLines, current + 1) until slots) {
             val (base, scale) = slot(k)
-            drawOval(Color(0xFF5E3C26), Offset(base.x - 22f * scale, base.y - 8f * scale), Size(44f * scale, 16f * scale))
-            drawOval(Color(0xFFC9A26B), Offset(base.x - 6f * scale, base.y - 12f * scale), Size(12f * scale, 8f * scale))
+            val u = scale * size.width / 360f
+            drawOval(Color(0xFF5E3C26), Offset(base.x - 22f * u, base.y - 8f * u), Size(44f * u, 16f * u))
+            drawOval(Color(0xFFC9A26B), Offset(base.x - 6f * u, base.y - 12f * u), Size(12f * u, 8f * u))
         }
         // Back row first, then the front.
         val count = maxOf(doneLines, current + 1)
@@ -107,13 +108,13 @@ internal fun GardenField(play: ArcadePlay, modifier: Modifier) {
             val grown = if (done) line.targets.size else if (k == r.line) r.doneInLine() else 0
             val bloomAt = play.events.lastOrNull { it.kind == FxKind.LINE && it.line == k }?.at
             val bloom = when { !done -> 0f; bloomAt == null -> 1f; else -> ((now - bloomAt) / 600f).coerceIn(0f, 1f) }
-            flower(base, stemMax * scale, line, grown, bloom, play, now + k * 300L, scale)
+            flower(base, stemMax * scale, line, grown, bloom, play, now + k * 300L, scale * size.width / 360f)
         }
         // A ladybird on the walk's flower after a slip, flying off again.
         play.events.lastOrNull { it.kind == FxKind.SLIP }?.let { e ->
             play.age(e.at, 1_400)?.let { p ->
                 val (base, scale) = slot(maxOf(r.line, 0))
-                val sit = Offset(base.x + 14f * scale, base.y - stemMax * scale * 0.35f)
+                val sit = Offset(base.x + 14f * scale * size.width / 360f, base.y - stemMax * scale * 0.35f)
                 val c = if (p < 0.7f) sit else sit + Offset((p - 0.7f) * size.width * 0.6f, -(p - 0.7f) * size.height * 0.8f)
                 ladybird(c, size.minDimension * 0.035f, if (p < 0.7f) 0f else 1f)
             }

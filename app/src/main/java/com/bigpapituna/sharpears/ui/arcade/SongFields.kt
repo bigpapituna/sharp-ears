@@ -205,7 +205,15 @@ private fun DrawScope.painting(picture: String) {
     when (picture) {
         "star" -> drawRect(Brush.verticalGradient(listOf(Color(0xFF1B2450), Color(0xFF3B3F86))))
         "lamb" -> { drawRect(Color(0xFFBFE6FA)); drawRect(Color(0xFF8CCB6E), Offset(0f, size.height * 0.62f), Size(size.width, size.height * 0.38f)) }
-        "buns" -> { drawRect(Color(0xFFFFE9C9)); drawOval(Color.White, Offset(size.width * 0.12f, size.height * 0.62f), Size(size.width * 0.76f, size.height * 0.3f)) }
+        "buns" -> {
+            // A blue gingham tablecloth and a plate.
+            drawRect(Color(0xFFDCEBF7))
+            val cell = size.width / 10
+            for (i in 0 until 10) drawRect(Color(0xFF6FA8DC).copy(alpha = 0.45f), Offset(i * cell + cell * 0.25f, 0f), Size(cell * 0.5f, size.height))
+            for (j in 0 until 8) drawRect(Color(0xFF6FA8DC).copy(alpha = 0.35f), Offset(0f, j * size.height / 8 + size.height / 32), Size(size.width, size.height / 16))
+            drawOval(Color.White, Offset(size.width * 0.1f, size.height * 0.2f), Size(size.width * 0.8f, size.height * 0.7f))
+            drawOval(Color(0xFFE8E2D8), Offset(size.width * 0.2f, size.height * 0.3f), Size(size.width * 0.6f, size.height * 0.5f), style = Stroke(4f))
+        }
         else -> drawRect(Color(0xFF9ED8F7))
     }
     if (picture == "sun") sunPicture() else songPicture(picture)

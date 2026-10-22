@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.data
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.arcade.ArcadeBook
 import com.bigpapituna.sharpears.engine.arcade.ArcadeGame
@@ -26,7 +27,7 @@ class ArcadeStore(context: Context, val profileId: String) {
 
     private fun save(s: ArcadeState) {
         state = s
-        prefs.edit().putString(KEY, s.encode()).apply()
+        prefs.edit { putString(KEY, s.encode()) }
         version.intValue++
     }
 
