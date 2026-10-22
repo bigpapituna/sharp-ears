@@ -119,6 +119,9 @@ class NavTest {
             assertTrue("MainActivity's Today actions: $call", call in activity)
         assertEquals(3, Toy.entries.size)
         assertTrue("PlayRow draws every toy", "Toy.entries.forEach" in File("src/main/java/com/bigpapituna/sharpears/ui/play/PlayRow.kt").readText())
+    }
+
+    /**
      * 2.8, the launch chooser: part of the grown-up home, not a Screen of its own (so the graph above is unchanged). A kid's home
      * comes first, so a kid never meets it; a grown-up who never chose a layout sees it in place of the tabs, so before Today,
      * on a launch, a profile switch or a return from the first lesson alike. What's new and the tour wait under the tabs.
