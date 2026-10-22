@@ -72,11 +72,16 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
                   /** This build can send the brief by email (a key and a sender in data/BriefEmail.kt). */
                   emailBrief: Boolean = com.bigpapituna.sharpears.data.BriefEmail.hasKey,
                   /** Where the email's pictures are hosted (EMAIL_IMAGE_BASE's host), or null when they travel inside the email. */
-                  pictureHost: String? = com.bigpapituna.sharpears.data.BriefEmail.pictureHost) = TextPage("Privacy", onBack) {
+                  pictureHost: String? = com.bigpapituna.sharpears.data.BriefEmail.pictureHost,
+                  /** A test build: PostHog's key or the diary's address is in it (analytics/Tester.kt). */
+                  testerDashboard: Boolean = com.bigpapituna.sharpears.analytics.Tester.hasKey,
+                  testerDiary: Boolean = com.bigpapituna.sharpears.analytics.Tester.diaryBuilt) = TextPage("Privacy", onBack) {
+    val tester = testerDashboard || testerDiary
     val except = listOfNotNull("the parent brief's numbers when the AI writes it (below)".takeIf { aiBrief },
         "the brief by email, if a grown-up turns it on (below)".takeIf { emailBrief },
+        "what Roy's testing sends, if he turns it on (below)".takeIf { tester },
         "the review reports below, which you switch on".takeIf { canRecord })
-    Para("Sharp Ears has no account, no ads and no analytics. " + if (except.isNotEmpty()) "Apart from ${except.joinToString(" and ")}, " +
+    Para("Sharp Ears has no account and no ads" + (if (testerDashboard) ". " else ", and no analytics. ") + if (except.isNotEmpty()) "Apart from ${except.joinToString(" and ")}, " +
         "it sends nothing about you or your playing anywhere." else "It does not send anything about you or your playing anywhere.")
     Heading("Microphone")
     Para("The microphone is used only to hear which piano notes you play. It listens only while a song, a lesson or Playground game, " +
@@ -101,6 +106,7 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
     Heading("Internet")
     val uses = listOfNotNull("to show tutorial videos", "to have the parent brief written by AI".takeIf { aiBrief },
         "to send the brief by email, when a grown-up turns that on".takeIf { emailBrief },
+        "to send Roy's test recordings or diary, when he turns them on".takeIf { tester },
         "to send review reports, when that is on".takeIf { canRecord })
     Para("The app itself uses the internet only " + uses.dropLast(1).joinToString(", ").let { if (it.isEmpty()) uses.last() else "$it and ${uses.last()}" } +
         ". When you open a video, YouTube's embedded player loads " +
@@ -140,6 +146,18 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
             "child's profile or when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
             "your mail app may fetch its font from Google" + (pictureHost?.let { " and the pup's pictures from $it (the same pictures for every family)" } ?: "") +
             ", as it does for any email.")
+    }
+    if (tester) {
+        Heading("Testing")
+        Para(listOfNotNull("This is a test build. Roy turns testing on himself, behind the parent gate, on a phone he hands to a tester " +
+            "he has asked (and, for a child, their parent).",
+            ("With Help Roy test on, the app records what happens on its screens and sends it, with app events such as a lesson started or " +
+                "a stage that was hard, to Roy's test dashboard at PostHog (posthog.com). Every text and picture on screen is hidden in the " +
+                "recording. No sound is ever recorded. Kid profiles are recorded too; the recording says only kid or grown-up, never a name. " +
+                "The phone goes by a random id made on it. PostHog keeps recordings for 30 days.").takeIf { testerDashboard },
+            ("With Email Roy a daily diary on, a plain email goes to Roy once a day through Brevo: which screens, lessons, tries and notes, " +
+                "with no names or addresses.").takeIf { testerDiary },
+            "Both are off until Roy turns them on, and they are removed before any public release.").joinToString(" "))
     }
     Heading("Speech and MIDI")
     Para("Spoken guidance uses a voice that runs entirely on the phone: lines recorded into the app, and the Kokoro voice model for the rest. " +
