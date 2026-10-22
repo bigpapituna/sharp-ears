@@ -21,6 +21,8 @@ enum class QuestKind {
     TROUBLE_BAR,
     /** Play the song [QuestTask.ref] to the end. */
     SONG,
+    /** 2.7: play a round of the arcade game [QuestTask.ref] to its end (engine/arcade ArcadeGame's id). */
+    PLAY_GAME,
 }
 
 /**
@@ -40,6 +42,8 @@ sealed interface QuestEvent {
     data class LessonDone(val lessonId: String) : QuestEvent
     /** The trouble-bar loop of a song was played (the session's Loop part ran). */
     data class LoopDone(val songId: String, val bar: Int) : QuestEvent
+    /** 2.7: a round of the arcade game [gameId] was played to its end. */
+    data class GameRound(val gameId: String) : QuestEvent
 }
 
 /**
@@ -69,6 +73,7 @@ data class QuestTask(
             QuestKind.LESSON -> if (e is QuestEvent.LessonDone && (ref == null || ref == e.lessonId)) bump() else this
             QuestKind.TROUBLE_BAR -> if (e is QuestEvent.LoopDone && e.songId == ref) bump() else this
             QuestKind.SONG -> if (e is QuestEvent.SongFinished && e.songId == ref) bump() else this
+            QuestKind.PLAY_GAME -> if (e is QuestEvent.GameRound && (ref == null || e.gameId == ref)) bump() else this
         }
     }
 
@@ -113,10 +118,13 @@ class Quest(val day: LocalDate, val kid: Boolean, tasks: List<QuestTask>) {
     companion object {
         const val SIZE = 3
 
-        /** The kids' three. */
-        fun kidTasks() = listOf(
+        /**
+         * The kids' three. 2.7: with a [game] (the arcade's pick for the day: its id and its task's words, engine/arcade
+         * ArcadeQuest) the middle one is that game instead of copying the pup.
+         */
+        fun kidTasks(game: Pair<String, String>? = null) = listOf(
             QuestTask(QuestKind.PLAY_SONGS, "Play two songs", 2),
-            QuestTask(QuestKind.COPY_PUP, "Copy the pup three times", 3),
+            game?.let { (id, title) -> QuestTask(QuestKind.PLAY_GAME, title, 1, id) } ?: QuestTask(QuestKind.COPY_PUP, "Copy the pup three times", 3),
             QuestTask(QuestKind.FIND_CS, "Find all the Cs", QuestTask.ALL_CS.size),
         )
 
@@ -140,11 +148,12 @@ class Quest(val day: LocalDate, val kid: Boolean, tasks: List<QuestTask>) {
             return (fromPlan + topUps).take(SIZE)
         }
 
-        fun forDay(day: LocalDate, kid: Boolean, plan: SessionPlan?): Quest = Quest(day, kid, if (kid) kidTasks() else adultTasks(plan))
+        fun forDay(day: LocalDate, kid: Boolean, plan: SessionPlan?, game: Pair<String, String>? = null): Quest =
+            Quest(day, kid, if (kid) kidTasks(game) else adultTasks(plan))
 
-        /** Today's quest: [stored] when it is today's and of the same kind (kid or grown-up), else a new one. */
-        fun today(stored: Quest?, day: LocalDate, kid: Boolean, plan: SessionPlan?): Quest =
-            stored?.takeIf { it.day == day && it.kid == kid } ?: forDay(day, kid, plan)
+        /** Today's quest: [stored] when it is today's and of the same kind (kid or grown-up), else a new one ([game]: a kid's game task). */
+        fun today(stored: Quest?, day: LocalDate, kid: Boolean, plan: SessionPlan?, game: Pair<String, String>? = null): Quest =
+            stored?.takeIf { it.day == day && it.kid == kid } ?: forDay(day, kid, plan, game)
 
         /** Reads [encode]'s text; null for anything it cannot read (a new quest is made instead). */
         fun decode(text: String?): Quest? = text?.let {
