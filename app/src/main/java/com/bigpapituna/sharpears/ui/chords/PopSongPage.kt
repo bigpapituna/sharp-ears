@@ -56,7 +56,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -237,7 +238,9 @@ fun PopSongPage(
 
     sheet?.let { ch ->
         ModalBottomSheet(onDismissRequest = { sheet = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Box(Modifier.height((LocalConfiguration.current.screenHeightDp * 0.82f).dp)) { Dictionary(sampler, sound, initial = ch) }
+            // Most of the window's height (the window, not the configuration: right on the Fold's two screens and in split screen).
+            val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+            Box(Modifier.height(windowHeight * 0.82f)) { Dictionary(sampler, sound, initial = ch) }
         }
     }
 }
