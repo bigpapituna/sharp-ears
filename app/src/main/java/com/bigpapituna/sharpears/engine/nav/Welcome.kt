@@ -29,6 +29,8 @@ object Welcome {
         ),
         "2.8.0" to listOf(
             "Three layouts: Simple shows the first steps, Advanced lessons, songs and practice, Full everything. Change it on You or in Settings.",
+            "One email place: your address and each child's daily or weekly brief live in Settings, under Briefs and email.",
+            "The games roll three new keys each round once a game's first round is done.",
         ),
     )
 
