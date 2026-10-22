@@ -1028,7 +1028,11 @@ docs/PLAN-2.8.md section 1. Roy: "the address is for the parent, not the child. 
   Lint 0 errors.
 - Emulator (5558 Fold, over Roy, Lea and Sam): a 2.7 email.xml with Sam confirmed (daily) became the family's address on the
   first start (`email: one address for the family now (moved from a child)`), Lea switched off, Sam's Daily on, the Simple
-  Settings showing the section. Screenshots: app/build/screens/email1-*.png (not committed).
+  Settings showing the section; Lea's two switches on (email.xml: BOTH, no address in her record); her Preview with "Send me
+  this email now" refused kindly on this keyless build (`email: WEEKLY ... for p1 not sent: NO_KEY`); the gate shut: the
+  section's "Open email settings" asks it; Family > Lea without "Email the brief"; the parent brief's Email opening the same
+  page. Logcat: no crash, no "@" in the app's lines. Screenshots: app/build/screens/email1-*.png (not committed).
+  Another agent was driving 5558 at the same time (installs at 15:43 and 15:53); a walk there may meet the other branch's APK.
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
