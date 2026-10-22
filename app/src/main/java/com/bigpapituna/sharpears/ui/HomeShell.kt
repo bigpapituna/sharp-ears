@@ -25,13 +25,18 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.engine.nav.NavTab
 import com.bigpapituna.sharpears.ui.motion.ScreenMotion
 
-enum class HomeTab(val label: String, val icon: Int) {
-    SONGS("Songs", R.drawable.ic_library_music),
-    LEARN("Learn", R.drawable.ic_school),
-    PRACTICE("Practice", R.drawable.ic_practice),
-    YOU("You", R.drawable.ic_person),
+/** The grown-ups' five tabs (2.7, engine/nav/Nav.kt): Today, Songs, Learn, Practice, You, each with its icon. */
+enum class HomeTab(val nav: NavTab, val icon: Int) {
+    TODAY(NavTab.TODAY, R.drawable.ic_today),
+    SONGS(NavTab.SONGS, R.drawable.ic_library_music),
+    LEARN(NavTab.LEARN, R.drawable.ic_school),
+    PRACTICE(NavTab.PRACTICE, R.drawable.ic_practice),
+    YOU(NavTab.YOU, R.drawable.ic_person);
+
+    val label: String get() = nav.label
 }
 
 /**

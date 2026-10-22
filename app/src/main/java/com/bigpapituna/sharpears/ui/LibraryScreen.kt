@@ -56,25 +56,10 @@ data class LibraryEntry(val meta: SongMeta, val available: Boolean, val progress
                         /** The other arrangement (easy or full) when the piece has one. */
                         val pair: SongMeta? = null)
 
-/** Today's goal and streak for the header and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. */
-data class GoalState(val line: String, val met: Boolean, val streak: Int, val atRisk: Boolean)
-
-/** What the pup says when he is tapped on the home screen: one at random, never the same twice in a row. */
-private val PUP_TAPS = listOf(
-    "Woof! You've got this.", "Every minute at the keys counts.", "Slow and steady makes it stick.", "Mistakes mean you're learning.",
-    "Ready when you are.", "Your fingers remember more than you think.", "One more song? I'll listen.", "Small steps, big music.",
-)
-
-/** The "Practice today" panel: the plan's length and parts, or today's summary once it is done. */
-data class TodayPanel(val about: String, val parts: List<String>, val summary: String?)
-
 class LibraryActions(
     val onOpen: (SongMeta) -> Unit,
-    /** Starts "Practice today". */
-    val onToday: () -> Unit = {},
     /** Pick a MIDI file; [into] is the locked entry it unlocks, or null for a new song. */
     val onImport: (into: SongMeta?) -> Unit,
-    val onMic: () -> Unit,
     /** An imported song's menu: a new title (its scores stay), or its file removed from this phone. */
     val onRename: (SongMeta, String) -> Unit = { _, _ -> },
     val onDelete: (SongMeta) -> Unit = {},
@@ -94,30 +79,18 @@ class PopSection(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong
                  val onOpen: (com.bigpapituna.sharpears.engine.chords.PopSong, com.bigpapituna.sharpears.ui.chords.PopStart) -> Unit)
 
 /**
- * Songs: a "continue" panel (the one raised surface), then plain rows grouped by difficulty.
- * [continueWith] is the song last played, or null on a fresh install (the panel then suggests a first song).
+ * The Songs tab (2.7): everything playable in one place. The Play corner at the top (just for fun), then one switch between
+ * the library (Start here on a fresh install, plain rows grouped by difficulty, your imported songs with rename and delete)
+ * and songs by chords ([pop]). [played] says whether any song was opened yet: until then the library starts with an easy
+ * first song. Today is the home since 2.7; its Continue and plan used to sit here.
  */
 @Composable
-fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micLabel: String, a: LibraryActions, practice: String? = null,
-                  today: TodayPanel? = null, goal: GoalState? = null,
-                  /** The family wall (ui/family/FamilyWall.kt) under the pup; null on a phone with one profile. */
-                  family: (@Composable () -> Unit)? = null,
-                  /** Pup's quest (ui/play/QuestCard), under "Practice today". */
-                  quest: (@Composable () -> Unit)? = null,
-                  /** The play corner (ui/play/PlayRow): high up for a kid ([kid], the Jam is the app for a four-year-old), under the quest otherwise. */
-                  play: (@Composable () -> Unit)? = null, kid: Boolean = false,
-                  /** Songs by chords (ui/chords), the tab's second section; null for a kid or while there are no pop songs. */
+fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryActions,
+                  /** The Play corner (ui/play/PlayRow): the Jam, Pup says and Clap along. */
+                  play: (@Composable () -> Unit)? = null,
+                  /** Songs by chords (ui/chords), the tab's second section; null while there are no pop songs. */
                   pop: PopSection? = null, section: SongsSection = SongsSection.LIBRARY, onSection: (SongsSection) -> Unit = {}) {
-    val first = continueWith ?: entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
-    val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
-    val pose = when {
-        today?.summary != null -> Pose.RESTING
-        goal?.met == true -> Pose.GREAT_JOB
-        (goal?.streak ?: 0) >= 3 || goal == null && practice?.contains("in a row") == true -> Pose.STREAK
-        dressed -> Pose.WEAR_BASE                    // in his outfit (2.1): the base pose is the one he wears it in
-        else -> Pose.WELCOME
-    }
-    var tapLine by remember { mutableStateOf<String?>(null) }
+    val first = if (played) null else entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     // Tile art and lengths, read off the main thread and filled in as they arrive.
     val arts = rememberSongArts(remember(entries) { entries.map { it.meta } })
     val popState = pop?.let { com.bigpapituna.sharpears.ui.chords.rememberPopBrowseState(it.start) }
@@ -128,31 +101,11 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
         contentPadding = PaddingValues(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        item {
-            Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
-                Header(micLabel, a.onMic, practice, goal?.line)
-                // The pup hosts the home screen: what he says depends on the day so far; a tap gets a word of encouragement,
-                // and left alone for half a minute he dozes off.
-                PupSays(pose, tapLine ?: remember(today?.summary, practice, goal) { greeting(today, practice, goal, fresh = continueWith == null) },
-                    Modifier.padding(bottom = 14.dp), size = 104.dp,
-                    onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000)
-            }
+        item(key = "head") {
+            Text(com.bigpapituna.sharpears.engine.nav.Names.SONGS, style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp).semantics { heading() })
         }
-        family?.let { wall -> item(key = "family") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp)) { wall() } } }
-        val playItem: (() -> Unit)? = play?.let { p -> {
-            item(key = "play") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)) { p() } }
-        } }
-        if (kid) playItem?.invoke()
-        // "Practice today" is the one raised panel; the quest sits under it, Continue under that as a plain row.
-        if (today != null) {
-            item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { TodayPanelView(today, a.onToday) } }
-            quest?.let { q -> item(key = "quest") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp)) { q() } } }
-            first?.let { e -> item { ContinueRow(e, fresh = continueWith == null, a, arts[e.meta.id]) } }
-        } else {
-            quest?.let { q -> item(key = "quest") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) { q() } } }
-            first?.let { e -> item { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) { ContinuePanel(e, fresh = continueWith == null, a, arts[e.meta.id]) } } }
-        }
-        if (!kid) playItem?.invoke()
+        play?.let { p -> item(key = "play") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { p() } } }
         // The two sections, one switch: the library, or songs by chords.
         if (pop != null) item(key = "sections") {
             com.bigpapituna.sharpears.ui.practice.SlidingSegments(SongsSection.entries.map { it.label }, section.ordinal, { onSection(SongsSection.entries[it]) },
@@ -162,6 +115,8 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
             popBrowseItems(popModel, popState, pop.known, onOpen = { s -> pop.onOpen(s, popState.now) }, title = false)
             return@LazyColumn
         }
+        // Nothing played yet: an easy first song first.
+        first?.let { e -> item(key = "start") { StartHereRow(e, a, arts[e.meta.id]) } }
         GROUPS.forEach { (key, label) ->
             val group = entries.filter { !it.meta.user && it.meta.difficulty == key }
             if (group.isEmpty()) return@forEach
@@ -186,106 +141,9 @@ fun LibraryScreen(entries: List<LibraryEntry>, continueWith: LibraryEntry?, micL
     }
 }
 
+/** "Start here" before any song was played: an easy first song's tile, why it is a good start, and a round play button. */
 @Composable
-private fun Header(micLabel: String, onMic: () -> Unit, practice: String?, goal: String?) {
-    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        // The logo always sits on its own dark tile, as on the launcher, so the white sharp shows in light mode too.
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Stage), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.size(40.dp))
-        }
-        Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Sharp Ears", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-            // Today against the daily goal, then practice this week (no week line until there is some).
-            goal?.let { Text(it, style = Numeric.merge(MaterialTheme.typography.bodySmall), color = MaterialTheme.colorScheme.primary) }
-            practice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-        TextButton(onClick = onMic) {
-            Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.size(6.dp))
-            Text(micLabel)
-        }
-    }
-}
-
-@Composable
-private fun ContinuePanel(e: LibraryEntry, fresh: Boolean, a: LibraryActions, art: SongArt?) = Panel {
-        val p = e.progress
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text(e.meta.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                SongFacts(e.meta.difficulty, art?.durationMs)
-            }
-            SongTile(art, locked = !e.available, size = 84.dp)
-        }
-        Text(
-            when {
-                fresh -> "An easy first song: melody in the right hand, one bass note in the left."
-                // An imported song has no composer: "Imported", as its row in the list says, never a line starting ". ".
-                p.bestAccuracy >= 0 -> "${e.meta.composer.ifEmpty { "Imported" }}. Best run ${p.bestAccuracy}%."
-                p.lastPositionMs > 0 && !p.completed -> "${e.meta.composer.ifEmpty { "Imported" }}. Paused at ${formatTime(p.lastPositionMs.toDouble())}."
-                else -> e.meta.composer.ifEmpty { "Imported" }
-            },
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.size(8.dp))
-        ChunkyButton(onClick = { a.onOpen(e.meta) }) {
-            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.size(6.dp))
-            Text(if (!fresh && p.lastPositionMs > 0 && !p.completed) "Resume" else "Play")
-        }
-}
-
-@Composable
-private fun TodayPanelView(t: TodayPanel, onStart: () -> Unit) = Panel {
-        Text("Practice today", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        if (t.summary != null) {
-            Text("Done for today", style = MaterialTheme.typography.headlineMedium)
-            Text(t.summary.removePrefix("Done today: ").replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onStart, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Practice again") }
-        } else {
-            Text(t.about.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineMedium)
-            // One line per part, in the order they run.
-            if (t.parts.isEmpty()) PupSays(Pose.WELCOME, "Nothing is due. Pick any song below.", Modifier.padding(vertical = 4.dp), size = 56.dp,
-                style = MaterialTheme.typography.bodyLarge)
-            t.parts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Spacer(Modifier.size(8.dp))
-            ChunkyButton(onClick = onStart) {
-                Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.size(6.dp))
-                Text("Start")
-            }
-        }
-}
-
-/** The home screen's one raised panel. */
-@Composable
-private fun Panel(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
-    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
-
-/** What the pup says on the home screen: today done, a first visit, the streak, or the time of day. */
-private fun greeting(today: TodayPanel?, practice: String?, goal: GoalState?, fresh: Boolean): String {
-    val streak = practice?.let { Regex("(\\d+) days in a row").find(it)?.groupValues?.get(1) }
-    val hour = java.time.LocalTime.now().hour
-    return when {
-        today?.summary != null -> "That's today done. Rest those hands, see you tomorrow."
-        fresh -> "Hi, I'm your coach. Let's start with an easy song."
-        goal?.met == true -> "That's today's goal. Rest those hands."
-        goal != null && goal.atRisk -> "Your ${goal.streak} day streak is waiting. ${goal.line.replaceFirstChar { it.uppercase() }}."
-        streak != null -> "$streak days in a row. Let's keep it going."
-        hour < 12 -> "Good morning. A few minutes at the keys?"
-        hour < 18 -> "Good afternoon. Ready when you are."
-        else -> "Good evening. A short session before the day ends?"
-    }
-}
-
-/** Continue as a plain row under the panel: the song's tile, what was played last and where it stopped, and a round play button. */
-@Composable
-private fun ContinueRow(e: LibraryEntry, fresh: Boolean, a: LibraryActions, art: SongArt?) {
-    val p = e.progress
-    val resume = !fresh && p.lastPositionMs > 0 && !p.completed
+private fun StartHereRow(e: LibraryEntry, a: LibraryActions, art: SongArt?) {
     Row(
         Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).heightIn(min = 72.dp)
             .pressScale().clip(RoundedCornerShape(16.dp)).clickable { a.onOpen(e.meta) }.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -293,21 +151,13 @@ private fun ContinueRow(e: LibraryEntry, fresh: Boolean, a: LibraryActions, art:
     ) {
         SongTile(art, locked = !e.available, size = 60.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(if (fresh) "Start here" else "Continue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Start here", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text(e.meta.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                when {
-                    fresh -> "An easy first song, melody and bass."
-                    resume -> "Paused at ${formatTime(p.lastPositionMs.toDouble())}"
-                    p.bestAccuracy >= 0 -> "Best run ${p.bestAccuracy}%"
-                    else -> e.meta.composer.ifEmpty { "Imported" }    // an imported song has none: the line was blank
-                },
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            Text("An easy first song, melody and bass.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = if (resume) "Resume" else "Play",
-                tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(26.dp))
+            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = "Play", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(26.dp))
         }
     }
 }

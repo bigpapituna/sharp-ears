@@ -35,16 +35,17 @@ enum class Toy(val title: String, val line: String, val pose: Pose) {
 }
 
 /**
- * The play corner on the home screen: the Jam, Pup says and Clap along as three tiles, each the pup doing it. A kid
- * gets bigger pups and no words under them (the pictures say it); a grown-up a line each.
+ * The Play corner: the Jam, Pup says and Clap along as three tiles, each the pup doing it. Since 2.7 a grown-up finds it at
+ * the top of the Songs tab and in Today's Explore (it was on the home). A kid gets bigger pups and no words under them (the
+ * pictures say it); a grown-up a line each. [titled] false leaves the title to a sheet that has its own.
  */
 @Composable
-fun PlayRow(onToy: (Toy) -> Unit, modifier: Modifier = Modifier) {
+fun PlayRow(onToy: (Toy) -> Unit, modifier: Modifier = Modifier, titled: Boolean = true) {
     val kid = isKid()
     val c = MaterialTheme.colorScheme
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("Play", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        if (titled) Row(verticalAlignment = Alignment.Bottom) {
+            Text(com.bigpapituna.sharpears.engine.nav.Names.PLAY_CORNER, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text("  just for fun", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
         }
         // One height for the three, whatever wraps.

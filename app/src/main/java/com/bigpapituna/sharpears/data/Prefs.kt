@@ -164,6 +164,19 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getString("lastSong", null)
         set(v) = edit { putString("lastSong", v) }
 
+    /**
+     * What was played last, song or lesson (2.7, Today's Continue tile): "song:<id>", "pop:<id>" (a song by chords) or
+     * "lesson:<id>" (engine/nav/Today.kt, ContinueWith). Null before 2.7: the tile then reads [lastSongId].
+     */
+    var lastPlayed: String?
+        get() = p.getString("lastPlayed", null)
+        set(v) = edit { if (v == null) remove("lastPlayed") else putString("lastPlayed", v) }
+
+    /** Today's "Set up the microphone" banner was put away by hand (2.7); it also goes for good once the mic is allowed. */
+    var micBannerClosed: Boolean
+        get() = p.getBoolean("micBannerClosed", false)
+        set(v) = edit { putBoolean("micBannerClosed", v) }
+
     /** Tutorial alignment: video second at which the song's first note sounds, per song and video. */
     fun anchor(songId: String, videoId: String): Float? = p.getFloat("anchor:$songId:$videoId", -1f).takeIf { it >= 0 }
     fun saveAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor:$songId:$videoId", sec) }
@@ -218,7 +231,7 @@ class Prefs(context: Context, val profileId: String) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it.startsWith("practice:") || it.startsWith("sight:") ||
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it == "lastPlayed" || it.startsWith("practice:") || it.startsWith("sight:") ||
             it.startsWith("daily:") }      // today's "Done for today: ... 11 min." went on showing the minutes just cleared
         edit { keys.forEach(::remove) }
     }

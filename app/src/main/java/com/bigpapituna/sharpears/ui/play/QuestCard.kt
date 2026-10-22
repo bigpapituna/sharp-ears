@@ -21,7 +21,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,16 +53,30 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import java.time.LocalDate
 
 /**
- * Pup's quest on the home screen: today's three tasks, each with its own star. [plan] is today's "Practice today"
- * plan (grown-ups' tasks come from it; kids' do not need it). Tapping a task calls [onTask] so the integrator can open
- * the place it is done (see ui/play/INTEGRATION.md). The quest is made the first time the card shows on a day.
+ * Pup's quest inside the Today card (2.7, a grown-up's home; it was a card of its own): one small row, the three stars and
+ * how the day's quest is going. A tap opens the three tasks under it, each going where it is done ([onTask]).
  */
 @Composable
-fun QuestCard(plan: SessionPlan?, onTask: (QuestTask) -> Unit, modifier: Modifier = Modifier) {
+fun QuestStars(plan: SessionPlan?, onTask: (QuestTask) -> Unit, modifier: Modifier = Modifier) {
     val profile = LocalProfile.current
     val context = LocalContext.current
     val quest = remember(profile.id, profile.isKid, plan, LocalDate.now()) { PlayStore(context, profile.id).quest(profile.isKid, plan) }
-    QuestCardContent(quest, profile.isKid, onTask, modifier)
+    var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val c = MaterialTheme.colorScheme
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = if (open) "Hide the quest's tasks" else "Show the quest's tasks") { open = !open }
+            .semantics(mergeDescendants = true) { contentDescription = "Pup's quest, " + questLine(quest, profile.isKid) },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { quest.tasks.forEach { QuestStar(it.complete, side = 22.dp) } }
+            Text("Pup's quest", style = MaterialTheme.typography.labelLarge)
+            Text(questLine(quest, profile.isKid), style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(if (open) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
+                contentDescription = null, tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        if (open) quest.tasks.forEach { t -> TaskRow(t, profile.isKid) { onTask(t) } }
+    }
 }
 
 @Composable
@@ -115,12 +131,12 @@ private fun TaskRow(t: QuestTask, kid: Boolean, onClick: () -> Unit) {
 
 /** A task's star: gold when earned (it pops in once), a pale outline until then. */
 @Composable
-private fun QuestStar(earned: Boolean) {
+private fun QuestStar(earned: Boolean, side: androidx.compose.ui.unit.Dp = 30.dp) {
     val still = reducedMotion()
     val pop = remember { Animatable(1f) }
     LaunchedEffect(earned) { if (earned && !still) { pop.snapTo(0.6f); pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f)) } }
     val outline = MaterialTheme.colorScheme.outlineVariant
-    Canvas(Modifier.size(30.dp).scale(pop.value)) {
+    Canvas(Modifier.size(side).scale(pop.value)) {
         val pts = ConcertCardLayout.starPoints(CardBox(0f, 0f, size.width, size.height))
         val path = Path().apply { pts.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x, y) else lineTo(x, y) }; close() }
         if (earned) drawPath(path, PupGold) else drawPath(path, outline, style = Stroke(2.dp.toPx()))
