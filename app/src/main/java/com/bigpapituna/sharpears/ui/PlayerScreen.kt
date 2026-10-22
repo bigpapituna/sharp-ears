@@ -189,9 +189,11 @@ fun PlayerScreen(
     letGo: Boolean = false,
     /** The run's recap was closed (Practice today goes on to its next part then). */
     onRecapClosed: () -> Unit = {},
+    /** A popular song's band, drums and bass (ui/chords/PopSongsScreen): plays while the Band toggle is on, in step with the transport. */
+    band: com.bigpapituna.sharpears.engine.chords.BandBed? = null,
 ) {
     PlayerStage(PlayerArgs(original, meta, sampler, midi, mic, voice, prefs, ready, startMs, debugDump, start, onBack, onFinished, embedded,
-        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed))
+        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band))
 }
 
 /**
@@ -203,6 +205,7 @@ private class PlayerArgs(
     val ready: Boolean, val startMs: Double, val debugDump: Boolean, val start: PlayerStart, val onBack: () -> Unit,
     val onFinished: (Report) -> Unit, val embedded: Embedded?, val modifier: Modifier, val chordTrack: com.bigpapituna.sharpears.engine.ChordTrack?,
     val onTimeUp: () -> Unit, val anyOfLessons: Set<String>, val onWrongKey: (WrongKey) -> Unit, val letGo: Boolean, val onRecapClosed: () -> Unit,
+    val band: com.bigpapituna.sharpears.engine.chords.BandBed?,
 )
 
 /** The player itself: [PlayerScreen]'s body, reading its arguments through `with(args)` exactly as it read the parameters. */
@@ -281,9 +284,9 @@ private fun PlayerStage(args: PlayerArgs) {
     val fingers = remember(song) { com.bigpapituna.sharpears.engine.Fingering.of(song) }
 
     // Metronome (every song) and backing (progressions: the app plays the left-hand root, the right hand is yours).
-    DisposableEffect(Unit) { onDispose { if (clicks.isInitialized()) clicks.value.release() } }
+    DisposableEffect(Unit) { onDispose { if (clicks.isInitialized()) clicks.value.release(); rider?.release() } }
     val metro = remember(song) { com.bigpapituna.sharpears.engine.Metronome(song.bpm, song.timeSignature) }
-    val isProgression = song.id.startsWith("prog-")
+    val isProgression = song.id.startsWith("prog-") || song.id.startsWith("pop-")
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
@@ -435,7 +438,7 @@ private fun PlayerStage(args: PlayerArgs) {
         voice.speakOverMic(NoiseWatch.line(kid))
         Briefs.log { BriefEvent.NoisyRoom(it, "player") }
     }
-    fun pause() { stallEnd("paused"); hintsEnd(); apply(transport.pause()); playing = false; savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
+    fun pause() { stallEnd("paused"); hintsEnd(); apply(transport.pause()); playing = false; rider?.stop(); savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
         // A fresh run starts early so its first notes are seen falling: Perform counts in two bars (clicks and
@@ -848,6 +851,9 @@ private fun PlayerStage(args: PlayerArgs) {
                     else -> before
                 }
                 if (clickTo > before && soundAllowed()) metro.clicks(before, clickTo).forEach { clicks.value.play(it) }
+                // A pop song's band (drums and bass) rides on the Backing toggle, in step with the transport.
+                if (backingOn && band != null && transport.positionMs > before && soundAllowed())
+                    (rider ?: com.bigpapituna.sharpears.ui.chords.BandRider(context, sampler, band).also { rider = it }).pass(before, transport.positionMs)
                 if (transport.positionMs < before) Log.d(TAG, "loop wrap ${before.toLong()} -> ${transport.positionMs.toLong()} ms")
                 if (transport.passes != passes) { passes = transport.passes; transport.lastPass?.let(::passEnded) }
                 last = now
@@ -876,6 +882,7 @@ private fun PlayerStage(args: PlayerArgs) {
             }
         }
         playing = false
+        rider?.stop()
         hintsEnd()
         flushPractice()
         Log.d(TAG, "transport stopped at ${transport.positionMs.toLong()} ms")
@@ -920,6 +927,7 @@ private fun PlayerStage(args: PlayerArgs) {
             chords = if (chords != null) chordsOn else null,
             transpose = transpose,
             backing = if (isProgression) backingOn else null,
+            backingLabel = if (band != null) "Band" else "Backing",
             status = when {
                 mode != Mode.PERFORM -> ""
                 barPosition < transport.anchorMs -> if (playing) "Get ready" else ""
@@ -1277,6 +1285,8 @@ private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android
     var autoPercent by mutableIntStateOf(autoPercent0)
     var rampPercent by mutableIntStateOf(0)
     var backingOn by mutableStateOf(false)
+    /** The pop band's player, made at the first beat it plays (ui/chords/BandRider). */
+    var rider: com.bigpapituna.sharpears.ui.chords.BandRider? = null
     val practiceMs = doubleArrayOf(0.0)
     // Stuck moments: wait mode on the same notes for 5 s or more with the mic on is kept (clip and report) for review.
     val stallWatch = com.bigpapituna.sharpears.engine.StallWatch()

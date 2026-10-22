@@ -108,7 +108,7 @@ import kotlinx.coroutines.launch
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6
 
-enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS }
+enum class ChordsTab { PLAY, LESSONS, DICTIONARY, PRACTICE, PROGRESSIONS, SONGS }
 
 @Composable
 fun ChordsScreen(
@@ -116,8 +116,15 @@ fun ChordsScreen(
     lessons: LessonStore, micDefault: Boolean,
     startTab: ChordsTab = ChordsTab.PLAY, inject: String? = null, gameStart: GameStart = GameStart(),
     onPlayProgression: (Progression, Int) -> Unit,
+    /** Songs by chords (ui/chords): the list shown in the Songs tab, and the song a tap opens. */
+    popSongs: List<com.bigpapituna.sharpears.engine.chords.PopSong> = emptyList(),
+    popStart: com.bigpapituna.sharpears.ui.chords.PopStart = com.bigpapituna.sharpears.ui.chords.PopStart(),
+    onOpenPopSong: (com.bigpapituna.sharpears.engine.chords.PopSong) -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(startTab) }
+    // The chords learned so far (Leitner box 3 or more) decide which songs "you can play".
+    val known = remember(lessons.version.intValue) { com.bigpapituna.sharpears.engine.chords.PopFind.known(lessons.mastery()) }
+    val playable = remember(popSongs, known) { com.bigpapituna.sharpears.engine.chords.PopFind.playableCount(popSongs, known) }
     Column {
         Text("Chords", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp).semantics { heading() })
@@ -128,13 +135,18 @@ fun ChordsScreen(
             Tab(tab == ChordsTab.DICTIONARY, { tab = ChordsTab.DICTIONARY }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Dictionary") })
             Tab(tab == ChordsTab.PRACTICE, { tab = ChordsTab.PRACTICE }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Practice") })
             Tab(tab == ChordsTab.PROGRESSIONS, { tab = ChordsTab.PROGRESSIONS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Progressions") })
+            if (popSongs.isNotEmpty()) Tab(tab == ChordsTab.SONGS, { tab = ChordsTab.SONGS }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Songs") })
         }
+        // The count of songs the learned chords play, on every tab but the songs' own (which says it itself).
+        if (popSongs.isNotEmpty() && playable > 0 && tab != ChordsTab.SONGS) com.bigpapituna.sharpears.ui.chords.PlayableLine(playable,
+            Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)) { tab = ChordsTab.SONGS }
         when (tab) {
             ChordsTab.PLAY -> ChordGamesScreen(sampler, midi, mic, voice, prefs, micDefault, gameStart.copy(inject = inject ?: gameStart.inject))
             ChordsTab.LESSONS -> Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound })
             ChordsTab.DICTIONARY -> Dictionary(sampler, sound = { prefs.sound })
             ChordsTab.PRACTICE -> Practice(sampler, midi, mic, inject, sound = { prefs.sound })
             ChordsTab.PROGRESSIONS -> Progressions(sampler, onPlayProgression, sound = { prefs.sound })
+            ChordsTab.SONGS -> com.bigpapituna.sharpears.ui.chords.PopBrowse(popSongs, known, onOpenPopSong, Modifier.fillMaxSize(), start = popStart)
         }
     }
 }
@@ -162,9 +174,9 @@ private fun ordinalWord(i: Int) = listOf("Root position", "First inversion", "Se
  * segmented control. Never a wrapping wall of chips.
  */
 @Composable
-private fun Dictionary(sampler: Sampler, sound: () -> Boolean) {
-    var root by remember { mutableIntStateOf(0) }
-    var type by remember { mutableStateOf(ChordType.MAJOR) }
+internal fun Dictionary(sampler: Sampler, sound: () -> Boolean, initial: Chord = Chord(0, ChordType.MAJOR)) {
+    var root by remember { mutableIntStateOf(initial.root) }
+    var type by remember { mutableStateOf(initial.type) }
     var inversion by remember { mutableIntStateOf(0) }
     val chord = Chord(root, type)
     if (inversion >= chord.inversionCount) inversion = 0
