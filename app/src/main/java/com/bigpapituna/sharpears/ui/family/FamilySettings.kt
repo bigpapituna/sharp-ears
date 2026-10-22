@@ -57,7 +57,9 @@ fun kindLabel(p: Profile) = when {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentGate.current) {
+fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentGate.current,
+                   /** The AI brief switches and Testing at the end (the kids' corner's Family); Settings draws them in groups of their own (2.7). */
+                   extras: Boolean = true) {
     val roster by profiles.rosterFlow.collectAsState()
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<Profile?>(null) }
@@ -116,9 +118,9 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
         Spacer(Modifier.size(8.dp)); Text("Add someone")
     } else Text("Eight people is the most one phone holds.", style = MaterialTheme.typography.bodySmall, color = dim)
     // Who writes the parent brief: the AI or the phone, and whether on mobile data (behind the gate, like the rest of Family).
-    com.bigpapituna.sharpears.ui.brief.BriefAiSettings(gate)
+    if (extras) com.bigpapituna.sharpears.ui.brief.BriefAiSettings(gate)
     // Testing (analytics/Tester.kt): "Help Roy test" and the diary, each change behind the gate.
-    com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 16.dp), guard = { gate.guard(it) })
+    if (extras) com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 16.dp), guard = { gate.guard(it) })
 
     renaming?.let { p ->
         var name by remember(p.id) { mutableStateOf(p.name) }

@@ -1114,7 +1114,7 @@ class MainActivity : ComponentActivity() {
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
                                 onBack = { screen = s.back },
                                 onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
-                                family = { FamilySettings(profiles) }, showReminder = current.isOwner)
+                                family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic)
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }

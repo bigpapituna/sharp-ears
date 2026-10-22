@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -38,5 +39,26 @@ class SettingsWiringTest {
         val mic = src("ui/MicSetupScreen.kt")
         assertTrue("mutableStateOf(mic.paintsWrongKeys)" in mic && "if (it) mic.wrongPaintOff = false" in mic)
         assertTrue("listOf(it.id, it.kind, it.reader, it.level)" in src("MainActivity.kt"))      // 2.6: a new piano level re-plans in place
+    }
+
+    /**
+     * 2.7: Settings under six headers in this order, Testing last, and no switch lost or renamed on the way: each still writes
+     * its own preference and tells the brief its own key (Briefs.setting), and Show wrong keys in Playing is Microphone
+     * setup's switch (the same MicInput.wrongFlash and the same way back from the noisy-room offer).
+     */
+    @Test fun settingsAreGroupedAndKeepEverySwitch() {
+        val s = File(root, "ui/SettingsScreen.kt").readText()
+        val order = listOf("Family", "Playing", "Briefs and email", "Microphone", "About", "Testing").map { s.indexOf("Section(\"$it\")") }
+        assertTrue("every group is there: $order", order.all { it >= 0 })
+        assertEquals(order.sorted(), order)
+        for (key in listOf("keyLabels", "noteNames", "fingerNumbers", "feedbackLight", "beatLines", "ghostHand", "sound", "haptics", "voice", "naturalVoice", "reminderOn", "wrongFlash"))
+            assertTrue("Settings lost the $key switch", "Briefs.setting(\"$key\"" in s)
+        for (pref in listOf("prefs.keyLabels = k", "prefs.noteNames = it", "prefs.fingerNumbers = it", "prefs.feedbackLight = it", "prefs.beatLines = it",
+            "prefs.ghostHand = it", "prefs.sound = it", "prefs.haptics = it", "prefs.naturalVoice = it", "prefs.reminderOn = on", "it.copy(colourNotes = on)"))
+            assertTrue("Settings no longer writes $pref", pref in s)
+        assertTrue("mutableStateOf(mic.paintsWrongKeys)" in s && "mic.wrongFlash = it; if (it) mic.wrongPaintOff = false" in s)
+        // The family's own switches (AI briefs, Testing) moved to their groups; the kids' corner's Family keeps them.
+        assertTrue("FamilySettings(profiles, extras = false)" in File(root, "MainActivity.kt").readText())
+        assertTrue("com.bigpapituna.sharpears.ui.brief.BriefAiSettings()" in s)
     }
 }

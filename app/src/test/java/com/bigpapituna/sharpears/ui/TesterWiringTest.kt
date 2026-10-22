@@ -49,6 +49,8 @@ class TesterWiringTest {
         assertTrue(corner.contains("dot = com.bigpapituna.sharpears.analytics.Tester.switchOn.value"))
         assertTrue("the corner is masked whole", Regex("""verticalScroll\([^)]*\)\)\.testerMask\(\)""").containsMatchIn(corner))
         assertTrue(src("ui/family/FamilySettings.kt").contains("TesterSettings(Modifier.padding(top = 16.dp), guard = { gate.guard(it) })"))
+        // 2.7: Settings draws Testing as its last group, still behind the gate (the kids' corner keeps it under Family).
+        assertTrue(src("ui/SettingsScreen.kt").contains("TesterSettings(titled = false, guard = { gate.guard(it) })"))
         val rows = src("analytics/TesterSettings.kt")
         assertTrue(rows.contains("SwitchRow(\"Help Roy test\", HELP_ROY_TEST_LINE"))
         assertTrue(rows.contains("SwitchRow(\"Email Roy a daily diary\""))

@@ -35,7 +35,9 @@ const val HELP_ROY_TEST_LINE = "Sends screen recordings and app events to Roy's 
  * Masked in the replays as a whole.
  */
 @Composable
-fun TesterSettings(modifier: Modifier = Modifier, guard: (() -> Unit) -> Unit = { it() }) {
+fun TesterSettings(modifier: Modifier = Modifier, guard: (() -> Unit) -> Unit = { it() },
+                   /** False under Settings' own Testing header (2.7). */
+                   titled: Boolean = true) {
     val context = LocalContext.current.applicationContext
     val row = Tester.rowShown(context)
     val diaryRow = Tester.diaryBuilt
@@ -45,7 +47,7 @@ fun TesterSettings(modifier: Modifier = Modifier, guard: (() -> Unit) -> Unit = 
     var noting by rememberSaveable { mutableStateOf(false) }
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier.fillMaxWidth().testerMask(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("Testing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        if (titled) Text("Testing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         if (row) {
             SwitchRow("Help Roy test", HELP_ROY_TEST_LINE, checked = on, enabled = true) { v -> guard { Tester.setOn(context, v) } }
             if (!Tester.hasKey) Text("This build has no test dashboard key, so nothing is sent.", style = MaterialTheme.typography.bodySmall, color = dim)
