@@ -58,6 +58,11 @@ enum class FactKind {
     STICKERS,
     /** [Fact.value] Pup's quest stars. */
     QUEST_STARS,
+    /**
+     * 2.7: [Fact.value] arcade game rounds played, [Fact.of] the best stars of the best game; [Fact.songs] carries the games'
+     * ids (engine/arcade ArcadeGame), the best first (most stars, then most rounds).
+     */
+    GAMES,
     /** [Fact.value] stuck moments where the app played the key (the third hint), [Fact.of] stuck moments with any hint. */
     HINTS,
     /** [Fact.value] notes that came due and were never played (let go, missed in Perform), [Fact.of] notes that came due. */
@@ -290,6 +295,9 @@ data class SkillSeries(val kind: SkillKind, val points: List<Double?>)
 
 data class ToyStat(val toy: ToyKind, val opens: Int, val minutes: Int)
 
+/** 2.7: an arcade game's rounds in the range and its best stars ([game] engine/arcade ArcadeGame's id). */
+data class GameStat(val game: String, val rounds: Int, val bestStars: Int)
+
 data class PartStat(val part: DayPart, val minutes: Int, val sessions: Int)
 
 /** Hint escalation in the range: stuck moments that ended at each step, and octave hints. */
@@ -365,6 +373,8 @@ data class Stats(
     val clap: ClapStat? = null,
     /** Ear and chord game rounds by game, most played first. */
     val ear: List<EarStat> = emptyList(),
+    /** 2.7: the arcade's games played, the best first. */
+    val games: List<GameStat> = emptyList(),
     /** Practice minutes in each of the four weeks ending with the range, oldest first. */
     val weeks: List<Int> = emptyList(),
     /** The mean session's minutes on screen, in the range and in the periods before (null without sessions). */
@@ -485,6 +495,7 @@ internal object FindingsCodec {
         "hintsBefore" to s.hintsBefore?.let(::hints),
         "clap" to s.clap?.let { linkedMapOf("onBeat" to it.onBeat, "beats" to it.beats, "steps" to it.steps) },
         "ear" to s.ear.map { linkedMapOf("game" to it.game, "rounds" to it.rounds, "correct" to it.correct) },
+        "games" to s.games.map { linkedMapOf("game" to it.game, "rounds" to it.rounds, "bestStars" to it.bestStars) },
         "weeks" to s.weeks,
         "sessionMinutes" to s.sessionMinutes, "sessionMinutesBefore" to s.sessionMinutesBefore,
         "mix" to linkedMapOf("lessons" to s.mix.lessons, "songs" to s.mix.songs, "toys" to s.mix.toys),
@@ -559,6 +570,7 @@ internal object FindingsCodec {
         hintsBefore = (m["hintsBefore"] as? Map<*, *>)?.let(::readHints),
         clap = (m["clap"] as? Map<*, *>)?.let { e -> ClapStat(int(e["onBeat"]), int(e["beats"]), int(e["steps"])) },
         ear = list(m["ear"]).mapNotNull { e -> (e["game"] as? String)?.let { EarStat(it, int(e["rounds"]), int(e["correct"])) } },
+        games = list(m["games"]).mapNotNull { e -> (e["game"] as? String)?.let { GameStat(it, int(e["rounds"]), int(e["bestStars"])) } },
         weeks = (m["weeks"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toInt() },
         sessionMinutes = intOrNull(m["sessionMinutes"]), sessionMinutesBefore = intOrNull(m["sessionMinutesBefore"]),
         mix = (m["mix"] as? Map<*, *>)?.let { e -> PlayMix(int(e["lessons"]), int(e["songs"]), int(e["toys"])) } ?: PlayMix(),

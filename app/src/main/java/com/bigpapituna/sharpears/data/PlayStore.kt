@@ -24,7 +24,8 @@ class PlayStore(context: Context, val profileId: String) {
         override fun put(key: String, value: String) { prefs.edit().putString(key, value).apply() }
     })
 
-    fun quest(kid: Boolean, plan: SessionPlan?, day: LocalDate = LocalDate.now()): Quest = book.quest(day, kid, plan)
+    /** Today's quest; [game] (2.7) is the arcade's pick for a kid's game task, made the first time the day's quest is. */
+    fun quest(kid: Boolean, plan: SessionPlan?, day: LocalDate = LocalDate.now(), game: Pair<String, String>? = null): Quest = book.quest(day, kid, plan, game)
 
     fun recordQuest(event: QuestEvent, kid: Boolean, day: LocalDate = LocalDate.now()): List<QuestTask> =
         book.recordQuest(event, day, kid).also { done ->

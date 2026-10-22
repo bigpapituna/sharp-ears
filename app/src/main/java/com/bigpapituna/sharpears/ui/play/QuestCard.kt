@@ -170,4 +170,6 @@ val QuestTask.opens: String get() = when (kind) {
     QuestKind.FIND_CS -> "jam"
     QuestKind.DUE_CHORDS -> "chords"
     QuestKind.LESSON -> "learn"
+    // 2.7: the arcade; the game is the task's ref.
+    QuestKind.PLAY_GAME -> "games"
 }

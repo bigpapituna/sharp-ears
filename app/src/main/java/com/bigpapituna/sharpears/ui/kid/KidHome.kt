@@ -135,6 +135,8 @@ fun KidHome(
     decorateWith: String? = null, onDecorateStarted: () -> Unit = {},
     /** Once after 2.5's update: the stickers the app had stuck are in the tray, and the pup says so. */
     homesLine: Boolean = false, onHomesSaid: () -> Unit = {},
+    /** 2.7: the Play sheet's Games tile opens the arcade (ui/arcade); null: no tile. */
+    onGames: (() -> Unit)? = null,
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
@@ -256,7 +258,8 @@ fun KidHome(
             modifier = Modifier.align(Alignment.BottomCenter))
         DragGhost(decorate, tray, placed = { k -> com.bigpapituna.sharpears.engine.world.Decal.byKey(k) }, origin = origin)
     }
-    if (playOpen) KidPlaySheet(onToy = { t -> playOpen = false; onToy(t) }, onDismiss = { playOpen = false })
+    if (playOpen) KidPlaySheet(onToy = { t -> playOpen = false; onToy(t) }, onDismiss = { playOpen = false },
+        onGames = onGames?.let { open -> { playOpen = false; open() } })
     if (questOpen) QuestSheet(quest, onTask = { t -> questOpen = false; onQuestTask(t) }, onDismiss = { questOpen = false })
     grownUps?.let { GrownUpsSheet(it, onDismiss = onGrownUpsClosed) }
 }

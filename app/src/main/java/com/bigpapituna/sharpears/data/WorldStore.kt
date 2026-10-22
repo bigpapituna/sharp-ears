@@ -95,6 +95,19 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
         return o.reward
     }
 
+    /**
+     * 2.7: an arcade round ended: the ledger counts it like a song to the end, and [sticker] (the game's own, on its first
+     * three stars) goes into the tray. Items the ledger opens wait in fresh for the next finish screen.
+     */
+    fun gameRound(gameId: String, sticker: String?): Reward {
+        sync()
+        val o = World.gameRound(state, sticker)
+        set(o.state)
+        log("world: arcade $gameId round, ${o.state.ledger.songs} songs and rounds, ${o.state.ledger.sparkles} sparkles" +
+            (o.reward.level?.let { ", sticker ${it.lessonId}" } ?: ""))
+        return o.reward
+    }
+
     /** The brief's event log: each sticker dropped, with its rarity and whether it was new. */
     private fun brief(r: Reward) = r.drops.forEach { d ->
         Briefs.logFor(profileId) { com.bigpapituna.sharpears.engine.brief.BriefEvent.StickerDrop(it,

@@ -14,10 +14,10 @@ interface PlayStorage {
  * tested on the JVM; data/PlayStore.kt opens it on the profile's "play" file.
  */
 class PlayBook(private val storage: PlayStorage) {
-    /** Today's quest, made (and saved) when there is none for [day] yet. */
-    fun quest(day: LocalDate, kid: Boolean, plan: SessionPlan?): Quest {
+    /** Today's quest, made (and saved) when there is none for [day] yet; a kid's may ask for [game] (2.7, the arcade's pick). */
+    fun quest(day: LocalDate, kid: Boolean, plan: SessionPlan?, game: Pair<String, String>? = null): Quest {
         val stored = Quest.decode(storage.get(KEY_QUEST))
-        val q = Quest.today(stored, day, kid, plan)
+        val q = Quest.today(stored, day, kid, plan, game)
         if (q !== stored) storage.put(KEY_QUEST, q.encode())
         return q
     }

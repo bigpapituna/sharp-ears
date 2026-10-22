@@ -70,9 +70,10 @@ while the session is still open, add `Briefs.sessionSoFar(profileId)` to the eve
 | HANDS | left hand's hit rate | right hand's | | "Left hand 61, right hand 96." |
 | EAR_ROUNDS | ear and chord game rounds right | rounds | | "5 of 6 by ear." |
 | CLAP | mean percent of drum beats with a clap | drum steps | | "Clapped on most beats." |
-| TOY_MINUTES | minutes in Jam, Pup says, Clap along | minutes on screen | | "14 minutes of jamming." |
+| TOY_MINUTES | minutes in Jam, Pup says, Clap along, the arcade | minutes on screen | | "14 minutes of jamming." |
 | STICKERS | stickers dropped | new to the album | | "Three stickers, all new." |
 | QUEST_STARS | Pup's quest stars | | | |
+| GAMES | arcade game rounds (2.7) | the best game's best stars | songs: the games' ids, best first | "Played Frog hop to three stars this week." |
 | HINTS | stuck moments where the app played the key | stuck moments with any hint | | |
 | SKIPPED_NOTES | notes that came due and were never played (let go, missed in Perform), three or more | notes that came due | | "Four of 412 notes went by unplayed." |
 | HESITATION | mean ms from a note coming due to its key being played (wait mode), ten notes or more | notes timed | | "About 1.1 seconds to find each key." |
@@ -216,6 +217,7 @@ defaults, so findings stored before them read back with nothing in them.
 - `clap`: `ClapStat(onBeat, beats, steps)` from the drum steps (game CLAP: a step's notes are the beats with a clap, its
   rounds the beats), null with none. Clap along keeps no score by design.
 - `ear`: `EarStat(game, rounds, correct)` per ear or chord game, most played first.
+- `games` (2.7): `GameStat(game, rounds, bestStars)` per arcade game (BriefEvent.GameRound), the best first.
 - `weeks`: practice minutes in each of the four weeks ending with the range, oldest first.
 - `sessionMinutes`, `sessionMinutesBefore`: the mean session's minutes on screen in the range and in the periods before.
 - `mix`: `PlayMix(lessons, songs, toys)`, minutes on screen in lesson steps, songs (Listen included) and the toys.

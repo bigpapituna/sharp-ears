@@ -977,6 +977,27 @@ home (ui/kid) is untouched and ui/kid/INTEGRATION.md did not change (the kid Son
   - Simple's Progressions keeps the five key pills (C, G, F, D, A); D and A use chords outside the six.
   - Continue for a lesson reopens the last lesson opened, done or not.
   - The double open on a debug cold start with extras (seen before 2.7) is unchanged.
+## 2.7 the kid arcade (2026-10-22, branch `arcade`, emulator-5554 only; version not bumped, the integrator does)
+Roy: "games where they play keys and pop balloons, or play keys that make things grow or build; not only lessons but games
+that help them remember what key is where, work their dexterity, and potentially learn songs." Nine games behind a Games
+tile on the kid's Play sheet; ui/arcade/INTEGRATION.md has the files, the round's end, the entries and what to check
+against the adult navigation branch.
+- Rules (engine/arcade, JVM): two shapes of round. Streams (Balloon pop, Feed the pup, Boop the moles): targets on a clock
+  that go by on their own; two gone by in a row light the next keys. Calls (Grow the garden, Build the tower, Frog hop,
+  Fireworks, Song painter, Rainbow bridge): each line shown by the pup first, then heard note by note; a slip or a quiet
+  beat is a stuck beat (lit, then the pup plays it, then let go). Rounds 60 to 90 s; stars from `ArcadeStars` (streams 75%
+  and 45% of targets; the tower the clouds; calls 85% and 55% of notes played by the kid plus the lines asked); levels 0 to
+  4 (a song a level for the song games) move up on three stars and down under a third played; keys white (the moles add
+  black keys at level 3), C3 to C6, at most 12 a round, strict.
+- Unlocks: Balloon pop, Grow the garden and Feed the pup at once, then one more every 40 ledger sparkles after the hub's
+  first open (`ArcadeUnlocks`). A round counts like a song in the sparkles ledger (no drop); its time is practice; the
+  game's sticker (9 new, LevelStickers page "arcade", placeholders from gen_stickers.py) on its first three stars.
+- Quest: every other day one open game replaces "Copy the pup three times" (QuestKind.PLAY_GAME). Brief: BriefEvent.GameRound,
+  Stats.games, FactKind.GAMES ("Played Frog hop to three stars this week."), ToyKind.ARCADE; Prompts.VERSION 3.
+- Voice: 49 new kid lines at 0.85 (3710 in the catalog), none deleted.
+- Debug: `--es screen arcade [--es game <id> [--ei level n] [--el seed n] [--es inject synth:...] [--ez bot true] [--ei stars 1|2|3]]`
+  (bot: the screen plays the right keys as touches).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

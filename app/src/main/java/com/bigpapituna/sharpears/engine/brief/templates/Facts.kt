@@ -228,6 +228,12 @@ internal object FactBank {
             l("Pup's quest gave {stars} {span}."),
             l("{Stars} ticked off Pup's quest {span}."),
         )
+        bank(FactKind.GAMES, null,
+            l("Played {game} to {beststars} {span}."),
+            l("{Rounds} in the arcade {span}, the best at {beststars}."),
+            l("The arcade games {span}: {rounds}, the best at {beststars}."),
+            l("{Rounds} of arcade games {span}."),
+        )
         bank(FactKind.HINTS, null,
             l("Of {stuck} moments that needed a hint {span}, {play} ended with the app playing the key."),
             l("Hints {span}: {stuck} stuck moments, {play} of them needing the app to play the key."),
@@ -256,7 +262,7 @@ internal object FactBank {
     }
 }
 
-private fun toyName(t: ToyKind) = when (t) { ToyKind.JAM -> "Jam"; ToyKind.PUP_SAYS -> "Pup says"; ToyKind.CLAP_ALONG -> "Clap along" }
+private fun toyName(t: ToyKind) = when (t) { ToyKind.JAM -> "Jam"; ToyKind.PUP_SAYS -> "Pup says"; ToyKind.CLAP_ALONG -> "Clap along"; ToyKind.ARCADE -> "the games" }
 
 /** The tokens a fact's lines may use. */
 internal fun factVars(c: Ctx, f: Fact): Map<String, String?> {
@@ -295,6 +301,8 @@ internal fun factVars(c: Ctx, f: Fact): Map<String, String?> {
         FactKind.STICKERS -> mapOf("stickers" to count(v, "sticker"), "newn" to of?.takeIf { it > 0 }?.let(::words),
             "newst" to of?.takeIf { it > 0 }?.let { count(it, "new sticker") })
         FactKind.QUEST_STARS -> mapOf("stars" to count(v, "quest star"))
+        FactKind.GAMES -> mapOf("rounds" to count(v, "game round"), "beststars" to of?.let { count(it.coerceIn(1, 3), "star") },
+            "game" to f.songs.firstOrNull()?.let { id -> com.bigpapituna.sharpears.engine.arcade.ArcadeGame.byId(id)?.title ?: c.quoted(id) })
         FactKind.HINTS -> mapOf("stuck" to of?.let(::words), "stucktimes" to of?.let(::timesWord), "play" to words(v))
         FactKind.SKIPPED_NOTES -> mapOf("skipped" to count(v, "note"), "skippedn" to words(v),
             "due" to of?.let { count(it, "note") }, "duen" to of?.let(::words))

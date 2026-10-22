@@ -89,4 +89,14 @@ internal val LEVEL_STICKER_RES: Map<String, Int> = mapOf(
     "fingers-left" to R.drawable.sticker_lv_fingers_left,
     "beat" to R.drawable.sticker_lv_beat,
     "white-keys" to R.drawable.sticker_lv_white_keys,
+    // 2.7: the arcade's games.
+    "arcade-balloons" to R.drawable.sticker_lv_arcade_balloons,
+    "arcade-garden" to R.drawable.sticker_lv_arcade_garden,
+    "arcade-feed" to R.drawable.sticker_lv_arcade_feed,
+    "arcade-tower" to R.drawable.sticker_lv_arcade_tower,
+    "arcade-moles" to R.drawable.sticker_lv_arcade_moles,
+    "arcade-frogs" to R.drawable.sticker_lv_arcade_frogs,
+    "arcade-fireworks" to R.drawable.sticker_lv_arcade_fireworks,
+    "arcade-painter" to R.drawable.sticker_lv_arcade_painter,
+    "arcade-bridge" to R.drawable.sticker_lv_arcade_bridge,
 )

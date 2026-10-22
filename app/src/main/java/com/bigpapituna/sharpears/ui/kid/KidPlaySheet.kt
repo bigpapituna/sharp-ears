@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -32,10 +33,11 @@ import com.bigpapituna.sharpears.ui.play.Toy
 /**
  * The kid home's Play button (2.2): a sheet with the three toys as big tiles, each the pup doing it (dancing for the
  * Jam, pointing for Pup says, drumming for Clap along), one word under him. No score anywhere; a tap opens the toy.
+ * 2.7: [onGames] adds a wide Games tile under them, three of the arcade's pictures (ui/arcade).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KidPlaySheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
+fun KidPlaySheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit, onGames: (() -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surfaceContainerLow) {
@@ -52,6 +54,13 @@ fun KidPlaySheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
                         Text(t.title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, maxLines = 1)
                     }
                 }
+            }
+            if (onGames != null) Row(Modifier.fillMaxWidth().height(132.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh)
+                .clickable(role = Role.Button, onClickLabel = "Open the games", onClick = onGames).padding(12.dp)
+                .semantics(mergeDescendants = true) { },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.bigpapituna.sharpears.ui.arcade.GamesPicture(Modifier.weight(1f).fillMaxHeight())
+                Text("Games", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, maxLines = 1)
             }
         }
     }

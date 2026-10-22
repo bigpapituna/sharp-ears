@@ -37,6 +37,11 @@ data class LevelSticker(val lessonId: String, val page: String, override val nam
 object LevelStickers {
     /** The page id Basics' stickers are filed under (the big kids' road). */
     const val ROAD = "road"
+    /** 2.7: the arcade's games, a sticker each on its first three-star round (engine/arcade); filed as "arcade-<game id>". */
+    const val ARCADE = "arcade"
+
+    /** The arcade sticker's id for a game (engine/arcade ArcadeGame.id). */
+    fun arcade(gameId: String) = "arcade-$gameId"
 
     private fun page(id: String, vararg s: Triple<String, String, String>) = s.map { (lesson, name, line) -> LevelSticker(lesson, id, name, line) }
     private fun t(lesson: String, name: String, line: String) = Triple(lesson, name, line)
@@ -131,6 +136,16 @@ object LevelStickers {
         t("fingers-left", "Mittens", "Left hand, right hand."),
         t("beat", "Baton", "Keep the beat!"),
         t("white-keys", "Alphabet train", "A, B, C, D, E, F, G!"),
+    ) + page(ARCADE,
+        t("arcade-balloons", "Balloon pop", "Pop, bang, pop!"),
+        t("arcade-garden", "Watering can", "Grow, flowers, grow!"),
+        t("arcade-feed", "Doggy bowl", "Yum, yum, yum!"),
+        t("arcade-tower", "Toy blocks", "Up to the clouds!"),
+        t("arcade-moles", "Little mole", "Boop!"),
+        t("arcade-frogs", "Leaping frog", "Hop, hop, hop!"),
+        t("arcade-fireworks", "Sky rocket", "Whoosh, bang!"),
+        t("arcade-painter", "Paint palette", "A picture with a song!"),
+        t("arcade-bridge", "Rainbow", "Over the rainbow bridge!"),
     )
 
     private val byLesson = ALL.associateBy { it.lessonId }

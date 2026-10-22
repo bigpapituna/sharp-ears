@@ -111,6 +111,12 @@ internal object KidBank {
             l("Next time, let's clap the beat with the drum!"),
             l("Clap, clap, clap! Next time, let's clap along!"),
         ),
+        ToyKind.ARCADE to listOf(
+            l("Next time, let's play a game together!"),
+            l("Let's pop some balloons next time!"),
+            l("Next time, let's play in the arcade!"),
+            l("Pop, hop, boop! Next time, let's play a game!"),
+        ),
     )
 
     fun sizes(): Map<String, Int> = praise.entries.associate { "kid praise ${it.key}" to it.value.size } +
@@ -190,6 +196,9 @@ internal object KidBank {
         f(FactKind.QUEST_STARS,
             "You earned {stars} on my quest!", "My quest gave you {stars}! Hooray!",
             "Quest stars for you! {Stars}!", "You are a quest star helper!")
+        f(FactKind.GAMES,
+            "You played {game} with me, and you were so quick!", "We played games together {span}!",
+            "Pop, hop, boop! What fun games we played!", "You played the arcade games like a star!")
         f(FactKind.TOY_MINUTES,
             "We had fun in the play corner {span}!", "You jammed and played games with me!",
             "What a fun time we had in the toys!", "Playing in the toys is music too!")

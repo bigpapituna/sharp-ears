@@ -43,6 +43,7 @@ internal fun factClause(c: Ctx, f: Fact): String? {
         f.kind == FactKind.TOY_MINUTES -> listOf(l("spent {toymin} in the toys {span}"))
         f.kind == FactKind.STICKERS -> listOf(l("collected {stickers} {span}"))
         f.kind == FactKind.QUEST_STARS -> listOf(l("earned {stars} on Pup's quest"))
+        f.kind == FactKind.GAMES -> listOf(l("played {game} to {beststars}"), l("played {rounds} in the arcade"))
         f.kind == FactKind.NEAR_MISSES || f.kind == FactKind.HINTS -> return null
         else -> return null
     }
