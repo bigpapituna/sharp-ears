@@ -14,6 +14,12 @@ val secrets = Properties().apply {
 }
 fun secret(name: String, default: String = "") = (secrets.getProperty(name) ?: default).replace("\\", "\\\\").replace("\"", "\\\"")
 
+// Tester analytics (CLAUDE.md "Tester analytics"): the PostHog SDK and the code that starts it are compiled in only when
+// secrets.properties has a POSTHOG_KEY. Without one the build takes src/noposthog (a stub that does nothing) and has no
+// PostHog class at all. `-Psharpears.posthog=true` compiles the SDK in without a key, to check that code builds; it still
+// never starts without a key (analytics/Tester.kt).
+val withPostHog = secret("POSTHOG_KEY").isNotBlank() || providers.gradleProperty("sharpears.posthog").orNull == "true"
+
 android {
     namespace = "com.bigpapituna.sharpears"
     compileSdk = 37
@@ -38,6 +44,12 @@ android {
         buildConfigField("String", "EMAIL_BASE_URL", "\"${secret("EMAIL_BASE_URL", "https://api.brevo.com/v3")}\"")
         // Where the email's pup pictures are hosted (https, the files of app/src/main/assets/email). Blank: they go inside the email.
         buildConfigField("String", "EMAIL_IMAGE_BASE", "\"${secret("EMAIL_IMAGE_BASE")}\"")
+        // Tester analytics: PostHog's project API key and host, and the address the tester diary goes to (Roy's own).
+        // Empty by default: no SDK, no dashboard, no diary switch.
+        buildConfigField("String", "POSTHOG_KEY", "\"${secret("POSTHOG_KEY")}\"")
+        buildConfigField("String", "POSTHOG_HOST", "\"${secret("POSTHOG_HOST", "https://us.i.posthog.com")}\"")
+        buildConfigField("String", "DIARY_TO", "\"${secret("DIARY_TO")}\"")
+        buildConfigField("boolean", "POSTHOG_SDK", "$withPostHog")
     }
 
     buildTypes {
@@ -50,6 +62,9 @@ android {
     }
 
     buildFeatures { compose = true; buildConfig = true }
+
+    // The tester SDK's door (analytics/TesterSdk.kt): the real one with the SDK, the stub without it.
+    sourceSets.getByName("main").kotlin.srcDir(if (withPostHog) "src/posthog/java" else "src/noposthog/java")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -65,6 +80,7 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.window)           // Fold tabletop posture (DESIGN 2.2)
     implementation(libs.youtube.player)   // official IFrame embed for tutorials (PLAN 6.3)
+    if (withPostHog) implementation(libs.posthog.android)   // tester analytics, only on a build with POSTHOG_KEY (above)
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))   // on-device Kokoro speech (Apache 2.0), github.com/k2-fsa/sherpa-onnx
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
