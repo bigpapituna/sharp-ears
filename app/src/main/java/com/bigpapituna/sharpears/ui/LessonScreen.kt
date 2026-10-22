@@ -214,7 +214,7 @@ fun LessonScreen(
             finished = true
             tookSecs = (com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - openedAt) / 1000
             lessonStars = com.bigpapituna.sharpears.engine.kid.LessonStars.ofLesson(stepStars.toList())
-            val firstFinish = !deps.prefs.lessonDone(lesson.id)
+            val firstFinish = !deps.prefs.lessonPlayed(lesson.id)
             reward = onDone(lessonStars)
             Briefs.log { BriefEvent.LessonDone(it, lesson.id, lessonStars, tookSecs * 1000, firstFinish) }
             // A grown-up's "one more" (bedtime on) is spent with this lesson: the next one sleeps again.

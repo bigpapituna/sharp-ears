@@ -110,11 +110,40 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getBoolean("haptics", true)
         set(v) = edit { putBoolean("haptics", v) }
 
-    /** Learn course: lessons finished (exercise played through, or marked done). */
+    /**
+     * Learn course: lessons finished (exercise played through, or marked done) or skipped by placement (2.6). The path
+     * (next lesson, the map's walk) reads this; anything that credits the learner (stars, XP, stickers, finales, units
+     * complete) reads [lessonPlayed] instead.
+     */
     fun lessonDone(id: String) = p.getBoolean("lesson:$id", false)
-    fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true) }
+    /** Finished for real: done and not a placement skip. */
+    fun lessonPlayed(id: String) = lessonDone(id) && !p.getBoolean("skip:$id", false)
+    /** Marked "done, skipped" by placement and not played since: not attempted, no stars. */
+    fun lessonSkipped(id: String) = lessonDone(id) && p.getBoolean("skip:$id", false)
+    /** Every lesson placement skipped and nobody has played since. */
+    fun skippedLessons(): Set<String> = p.all.filter { (k, v) -> k.startsWith("skip:") && v == true }.keys.map { it.removePrefix("skip:") }
+        .filter { p.getBoolean("lesson:$it", false) }.toSet()
+    /** A real finish: it clears a placement skip on the lesson (it has been played now). */
+    fun markLessonDone(id: String) = edit { putBoolean("lesson:$id", true); remove("skip:$id") }
     /** The lesson as never finished: the kid home's debug seed (2.2) and the parent brief's fresh start (2.4). */
-    fun forgetLessonDone(id: String) = edit { remove("lesson:$id") }
+    fun forgetLessonDone(id: String) = edit { remove("lesson:$id"); remove("skip:$id") }
+
+    /**
+     * Applies a placement plan (2.6, engine/family/Placement.kt): its lessons that are neither played nor skipped yet are
+     * marked "done, skipped", and lessons skipped before that the plan no longer skips are opened again. Played lessons are
+     * never touched. Returns the engine's [com.bigpapituna.sharpears.engine.family.Placement.Reconcile].
+     */
+    fun applyPlacement(plan: com.bigpapituna.sharpears.engine.family.PlacementPlan): com.bigpapituna.sharpears.engine.family.Placement.Reconcile {
+        val r = com.bigpapituna.sharpears.engine.family.Placement.reconcile(plan, ::lessonDone, skippedLessons())
+        if (r.changes) {
+            edit {
+                r.skip.forEach { putBoolean("lesson:$it", true); putBoolean("skip:$it", true) }
+                r.reopen.forEach { remove("lesson:$it"); remove("skip:$it") }
+            }
+            Log.d(TAG, "placement: ${plan.level} for ${plan.kind}: ${r.skip.size} lessons skipped, ${r.reopen.size} opened again")
+        }
+        return r
+    }
 
     /** Chord games: best score (out of 10) per game and level, or -1 before the first full round. */
     fun gameBest(game: String, level: Int) = p.getInt("game:$game:$level", -1)

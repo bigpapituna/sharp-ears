@@ -99,7 +99,8 @@ object BriefEmail {
         val path = if (!profile.isKid) null else runCatching {
             val prefs = Prefs(app, profile.id)
             val kid = KidStore(app, profile.id)
-            val model = KidMap.build(CoursePath(profile.firstUnitId, bigKid = profile.reader), prefs::lessonDone, kid::stars, kid.finales(), pace = kid.pace())
+            val model = KidMap.build(CoursePath(profile.firstUnitId, bigKid = profile.reader, startAt = { com.bigpapituna.sharpears.engine.family.Placement.startLessonId(profile) }),
+                prefs::lessonDone, kid::stars, kid.finales(), pace = kid.pace(), skipped = prefs::lessonSkipped)
             val page = model.pages.getOrNull(model.nextPage) ?: return@runCatching null
             PathProgress(page.page.id, page.stones.count { it.state == com.bigpapituna.sharpears.engine.kid.StoneState.DONE }, page.stones.size,
                 model.pages.getOrNull(model.nextPage + 1)?.page?.id)

@@ -11,7 +11,7 @@ import com.bigpapituna.sharpears.engine.world.Place
 enum class StoneState { DONE, NEXT, OPEN, LATER }
 
 /** One lesson's stone on the kid's map: its state and its best stars (0 before the first finish). */
-data class Stone(val lessonId: String, val title: String, val state: StoneState, val stars: Int)
+data class Stone(val lessonId: String, val title: String, val state: StoneState, val stars: Int, val skipped: Boolean = false)
 
 /** A Playground page on the map: its scene's place and a stone per lesson, in order. */
 data class MapPage(val page: PlaygroundPage, val place: Place, val stones: List<Stone>) {
@@ -72,7 +72,9 @@ object KidMap {
      * focus the pages after the focus page and the road are not drawn.
      */
     fun build(path: CoursePath, done: (String) -> Boolean, stars: (String) -> Int, finales: Set<String>,
-              pages: List<PlaygroundPage> = PLAYGROUND_PAGES, pace: Pace = Pace.NONE): KidMapModel {
+              pages: List<PlaygroundPage> = PLAYGROUND_PAGES, pace: Pace = Pace.NONE,
+              /** Lessons placement skipped (2.6): done for the walk, but shown as stones passed by: open, no stars, never a walked page. */
+              skipped: (String) -> Boolean = { false }): KidMapModel {
         val next = next(path, done, finales, pages, pace, stars)
         val walk = walk(path, done, finales, pages, pace.early)
         val nextAt = next?.let { path.indexOf(it.id) } ?: -1
@@ -83,12 +85,14 @@ object KidMap {
             val at = path.indexOf(l.id)
             val state = when {
                 l.id == next?.id && (l.id == pace.pin || end != null) -> StoneState.NEXT      // pinned or focused: the pup stands here even when walked
+                skipped(l.id) -> StoneState.OPEN
                 done(l.id) -> StoneState.DONE
                 l.id == next?.id -> StoneState.NEXT
                 next == null || at < nextAt || at <= walkAt -> StoneState.OPEN
                 else -> StoneState.LATER
             }
-            return Stone(l.id, l.title, state, if (done(l.id)) stars(l.id).coerceIn(0, 3) else 0)
+            val passedBy = skipped(l.id)
+            return Stone(l.id, l.title, state, if (done(l.id) && !passedBy) stars(l.id).coerceIn(0, 3) else 0, passedBy)
         }
         val shown = if (end == null) pages else pages.take(pages.indexOfFirst { it.id == pace.focus } + 1)
         val mapPages = shown.map { page -> MapPage(page, KidPages.worldPlace(page), page.lessonIds.mapNotNull { id -> path.lesson(id)?.let(::stone) }) }
