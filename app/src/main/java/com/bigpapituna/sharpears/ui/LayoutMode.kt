@@ -29,6 +29,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.nav.Layout
@@ -95,15 +96,17 @@ fun LayoutPill(modifier: Modifier = Modifier) {
  * in Learn, Practice and Songs by chords).
  */
 @Composable
-fun LayoutMore(place: Simple.Place, shown: Boolean, onShow: () -> Unit, modifier: Modifier = Modifier, label: String = Simple.SHOW_MORE) {
+fun LayoutMore(place: Simple.Place, shown: Boolean, onShow: () -> Unit, modifier: Modifier = Modifier, label: String = Simple.SHOW_MORE,
+               /** The side margin: a page's own, or none inside a column that has one already (Settings). */
+               edge: Dp = 20.dp) {
     val m = LocalLayout.current
     if (!Simple.cuts(place, m.layout)) return
-    Column(modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = edge, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (!shown) TextButton(onClick = onShow) { Text(label) }
         else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(Simple.SWITCH_QUESTION, style = MaterialTheme.typography.titleSmall)
             Text(Simple.SWITCH_LINE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LayoutPicker(Modifier.fillMaxWidth().padding(top = 4.dp))
+            LayoutPicker(Modifier.padding(top = 4.dp).widthIn(max = 420.dp).fillMaxWidth())
         }
     }
 }

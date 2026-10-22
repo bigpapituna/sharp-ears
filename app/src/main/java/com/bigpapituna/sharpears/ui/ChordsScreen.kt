@@ -153,7 +153,7 @@ fun LearnChordsScreen(
             BackHandler { drill = false }                 // Back leaves the practice, not Learn chords
             Practice(sampler, midi, mic, inject, sound = { prefs.sound }, only = only)
         } else Lessons(lessons, sampler, midi, mic, micDefault, inject, onPlayProgression, sound = { prefs.sound }, layout = shown,
-            footer = { LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN_CHORDS, more, { more = true }) },
+            footer = { LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN_CHORDS, more, { more = true }, edge = 4.dp) },   // in line with the packs
             songsAfter = if (popSongs.isEmpty()) null else SessionSongs(popSongs, onOpenPopSong, onShowPlayable),
             header = {
                 // The count of songs the learned chords play; a tap shows them in the Songs tab.

@@ -247,7 +247,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 com.bigpapituna.sharpears.analytics.TesterSettings(titled = false, guard = { gate.guard(it) })
             }
             // A layout that cuts Settings: the rest, once, and the three layouts to pick from.
-            LayoutMore(Simple.Place.SETTINGS, showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS)
+            LayoutMore(Simple.Place.SETTINGS, showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS, edge = 0.dp)
         }
     }
     if (pickTime) {
