@@ -162,6 +162,8 @@ private fun settingLine(key: String, value: String): String {
         "hintSeconds" -> "The hint speed was changed."
         "kind" -> "The player type was changed."
         "keyLabels" -> "The key labels were changed."
+        // 2.8: Simple, Advanced or Full (engine/nav/Layout.kt).
+        "layout" -> com.bigpapituna.sharpears.engine.nav.Layout.parse(value)?.let { "The layout was set to ${it.title}." } ?: "The layout was changed."
         else -> "A setting was changed."
     }
 }

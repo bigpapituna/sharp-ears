@@ -103,10 +103,11 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val v = prefs.version.intValue
     var confirmReset by remember { mutableStateOf(false) }
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
-    // Simple mode (2.7, engine/nav/Simple.kt): the essentials only, until "Show all settings".
-    val simple = LocalSimple.current
+    // The layouts (2.8, engine/nav/Simple.kt): Simple shows the essentials, Advanced adds keys, falling notes, wrong keys and
+    // briefs, Full everything; the rest waits behind "Show all settings".
+    val layout = LocalLayout.current
     var showAll by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    fun shows(part: Simple.SettingsPart) = Simple.settingsShows(part, simple.on && !showAll)
+    fun shows(part: Simple.SettingsPart) = Simple.settingsShows(part, Simple.shown(layout.layout, showAll))
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -137,8 +138,12 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             Section("Playing")
             val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
             val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
-            // Simple mode (2.7): a grown-up's own switch (kept per profile); a kid never has it.
-            if (!me.isKid && shows(Simple.SettingsPart.SIMPLE)) Toggle(Simple.SETTING_TITLE, Simple.SETTING_LINE, simple.on) { simple.set(it) }
+            // The layout (2.8; 2.7's Simple mode switch): a grown-up's own three-way choice (kept per profile); a kid never has it.
+            if (!me.isKid && shows(Simple.SettingsPart.LAYOUT)) {
+                Text(Simple.SETTING_TITLE, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                Text(Simple.SETTING_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
+                LayoutPicker(Modifier.padding(top = 4.dp, bottom = 4.dp).widthIn(max = 420.dp).fillMaxWidth())
+            }
             if (shows(Simple.SettingsPart.KEYS)) {
             Sub("Keys")
             Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -241,8 +246,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
                 com.bigpapituna.sharpears.analytics.TesterSettings(titled = false, guard = { gate.guard(it) })
             }
-            // Simple mode: the rest, once, and the offer to switch to Advanced.
-            SimpleMore(showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS)
+            // A layout that cuts Settings: the rest, once, and the three layouts to pick from.
+            LayoutMore(Simple.Place.SETTINGS, showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS, edge = 0.dp)
         }
     }
     if (pickTime) {

@@ -119,6 +119,19 @@ class NavTest {
             assertTrue("MainActivity's Today actions: $call", call in activity)
         assertEquals(3, Toy.entries.size)
         assertTrue("PlayRow draws every toy", "Toy.entries.forEach" in File("src/main/java/com/bigpapituna/sharpears/ui/play/PlayRow.kt").readText())
+     * 2.8, the launch chooser: part of the grown-up home, not a Screen of its own (so the graph above is unchanged). A kid's home
+     * comes first, so a kid never meets it; a grown-up who never chose a layout sees it in place of the tabs, so before Today,
+     * on a launch, a profile switch or a return from the first lesson alike. What's new and the tour wait under the tabs.
+     */
+    @Test fun theLayoutChooserComesBeforeTodayForAGrownUpWhoNeverChose() {
+        val kidHome = activity.indexOf("is Screen.Home -> if (current.isKid) {")
+        val chooser = activity.indexOf("} else if (com.bigpapituna.sharpears.engine.nav.Simple.asks(current.isKid, chosenLayout)) {")
+        val tabs = activity.indexOf("HomeShell(s.tab,")
+        val welcome = activity.indexOf("Welcome.next(current.isKid")
+        assertTrue("$kidHome $chooser $tabs $welcome", kidHome in 1 until chooser && chooser < tabs && tabs < welcome)
+        val here = activity.substring(chooser, tabs)
+        assertTrue("LayoutChooser(" in here && "layoutMode.set(l)" in here)
+        assertTrue("LayoutChooser" !in screens)
     }
 
     /** The debug routes keep working (CLAUDE.md lists them), with the three 2.7 adds. */

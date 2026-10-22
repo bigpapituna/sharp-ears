@@ -143,7 +143,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         }
     }
     val list = rememberLazyListState()
-    val simple = LocalSimple.current
+    val layout = LocalLayout.current.layout
     var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // The rows before the path: the heading, the Chords section (2.7, it stays at the top while the path scrolls under it)
     // and the side rows.
@@ -195,15 +195,15 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
                 // Beside the course: practice that is never "done" (new music, new rounds each time). Not before a kid
                 // can read: the cards are words, and the pup's world below is the whole path for them.
-                // Simple mode (2.7) keeps the path and the chords; these wait behind its "Show more".
-                if ((!kid || reader) && com.bigpapituna.sharpears.engine.nav.Simple.learnSideRows(simple.on && !more)) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Simple (2.7; a layout since 2.8) keeps the path and the chords; these wait behind its "Show more" (Advanced has them).
+                if ((!kid || reader) && com.bigpapituna.sharpears.engine.nav.Simple.learnSideRows(com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, more))) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     theory?.invoke(Modifier.pressScale())
                     SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
                         earStreak.takeIf { it > 0 }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
                     SideRow("Sight-read", sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
                         null, R.drawable.ic_play_arrow, onSightRead)
                 }
-                if (!kid) SimpleMore(more, { more = true })
+                if (!kid) LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true })
             }
         }
         items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"

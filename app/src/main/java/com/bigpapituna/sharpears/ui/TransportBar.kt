@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.engine.nav.Layout
 import com.bigpapituna.sharpears.engine.nav.Simple
 import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.Practice
@@ -90,10 +91,11 @@ data class BarState(
     /** A kid plays (audit 2026-10-20): no times, loop, speed, chord names, metronome, flag or transpose. */
     val kid: Boolean = false,
     /**
-     * Simple mode (2.7, engine/nav/Simple.kt): the loop, speed, transpose, metronome, chord names and duet wait in one More
-     * sheet; Listen, Wait and Perform, the hands, play, the timeline and the microphone stay on the bar.
+     * The layout (2.8, engine/nav/Simple.kt): in Simple the loop, speed, transpose, metronome, chord names and duet wait in one
+     * More sheet (Listen, Wait and Perform, the hands, play, the timeline and the microphone stay on the bar); Advanced brings
+     * the loop and speed back to the bar; Full has the whole bar with its three-dot overflow.
      */
-    val simple: Boolean = false,
+    val layout: Layout = Layout.FULL,
 )
 
 class BarActions(
@@ -180,7 +182,7 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
             }
             Text(formatTime(s.durationMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
             Spacer(Modifier.width(4.dp))
-            fun shows(c: Simple.PlayerControl) = Simple.inBar(c, s.simple)
+            fun shows(c: Simple.PlayerControl) = Simple.inBar(c, s.layout)
             if (shows(Simple.PlayerControl.LOOP)) LoopButton(s, a.onLoop)
             if (shows(Simple.PlayerControl.SPEED)) SpeedButton(s, a)
             if (shows(Simple.PlayerControl.DUET)) s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
@@ -205,7 +207,7 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                     Icon(painterResource(R.drawable.ic_flag), contentDescription = "That wasn't right: flag the last 30 seconds for review", tint = dim)
                 }
             }
-            if (s.simple) MoreSheetButton(s, a) else MoreMenu(s, a)
+            if (Simple.cuts(Simple.Place.PLAYER, s.layout)) MoreSheetButton(s, a) else MoreMenu(s, a)
         }
     }
 }
@@ -234,15 +236,17 @@ private fun SpeedButton(s: BarState, a: BarActions) {
 }
 
 /**
- * Simple mode's one "More" (2.7): a pill at the end of the bar that opens a sheet with the loop, the speed, the duet, the chord
- * names, the metronome and the transpose, the same controls as on the full bar. It wears the accent while any is in use.
+ * The one "More" of a layout that cuts the bar (2.7's Simple mode; Advanced since 2.8): a pill at the end of the bar that opens
+ * a sheet with what the bar leaves out (Simple: the loop, the speed, the duet, the chord names, the metronome and the
+ * transpose; Advanced: all but the loop and speed), the same controls as on the full bar. It wears the accent while any is in use.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun MoreSheetButton(s: BarState, a: BarActions) {
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val busy = s.loopStart != null || s.speed != 1.0 || s.ramp != null || s.auto != null || s.metronome || s.chords == true ||
-        !s.duet.isNullOrEmpty() || s.transpose != 0
+    fun inSheet(c: Simple.PlayerControl) = !Simple.inBar(c, s.layout)
+    val busy = inSheet(Simple.PlayerControl.LOOP) && s.loopStart != null || inSheet(Simple.PlayerControl.SPEED) && (s.speed != 1.0 || s.ramp != null || s.auto != null) ||
+        s.metronome || s.chords == true || !s.duet.isNullOrEmpty() || s.transpose != 0
     Toggle("More", busy) { open = true }
     if (open) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { open = false },
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -251,8 +255,8 @@ private fun MoreSheetButton(s: BarState, a: BarActions) {
             Text("More", style = MaterialTheme.typography.titleLarge)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                 itemVerticalAlignment = Alignment.CenterVertically) {
-                LoopButton(s, a.onLoop)
-                SpeedButton(s, a)
+                if (inSheet(Simple.PlayerControl.LOOP)) LoopButton(s, a.onLoop)
+                if (inSheet(Simple.PlayerControl.SPEED)) SpeedButton(s, a)
                 s.duet?.let { Toggle(it.ifEmpty { "Duet" }, it.isNotEmpty(), a.onDuet) }
                 s.chords?.let { Toggle("Chords", it, a.onChords) }
                 Toggle("Metronome", s.metronome, a.onMetronome)

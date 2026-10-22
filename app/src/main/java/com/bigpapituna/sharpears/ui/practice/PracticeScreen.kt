@@ -139,14 +139,14 @@ fun PracticeScreen(
         onTab(t)
     }
     val still = reducedMotion()
-    // Simple mode (2.7, engine/nav/Simple.kt): C, G and F major and one warm-up; arpeggios, the other scales and the Tools
-    // wait behind "Show more". The last tool used still opens in Advanced.
-    val simpleMode = com.bigpapituna.sharpears.ui.LocalSimple.current
+    // The layouts (2.8, engine/nav/Simple.kt): Simple has C, G and F major and one warm-up; arpeggios, the other scales and
+    // the Tools wait behind "Show more". Advanced and Full show it all; the last tool used still opens there.
     var more by rememberSaveable { mutableStateOf(false) }
-    val simple = simpleMode.on && !more
-    val sections = PracticeSection.entries.filter { it != PracticeSection.TOOLS || Simple.practiceShows(Simple.PracticePart.TOOLS, simple) }
+    val shown = Simple.shown(com.bigpapituna.sharpears.ui.LocalLayout.current.layout, more)
+    val simple = Simple.cuts(Simple.Place.PRACTICE, shown)
+    val sections = PracticeSection.entries.filter { it != PracticeSection.TOOLS || Simple.practiceShows(Simple.PracticePart.TOOLS, shown) }
     val shownTab = if (simple && (tab.section == PracticeSection.TOOLS || tab == PracticeTab.ARPEGGIOS)) PracticeTab.SCALES else tab
-    val foot: @Composable () -> Unit = { com.bigpapituna.sharpears.ui.SimpleMore(more, { more = true }) }
+    val foot: @Composable () -> Unit = { com.bigpapituna.sharpears.ui.LayoutMore(Simple.Place.PRACTICE, more, { more = true }) }
     Column(modifier) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
@@ -206,7 +206,7 @@ private val HANDS = listOf(Practice.LEFT, Practice.RIGHT, Practice.BOTH)
 private fun PatternScreen(
     arps: Boolean, onMode: (Boolean) -> Unit, sampler: Sampler, store: PracticeStore,
     onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit, sound: () -> Boolean,
-    /** Simple mode (2.7): C, G and F major only, no arpeggios or other scales (the stored choices wait for Advanced). */
+    /** The Simple layout (2.7, 2.8): C, G and F major only, no arpeggios or other scales (the stored choices wait for Advanced). */
     simple: Boolean = false, foot: @Composable () -> Unit = {},
 ) {
     val p = if (arps) "arp" else "scale"

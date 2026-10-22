@@ -88,7 +88,7 @@ private val LEVELS = listOf("Easy", "Medium", "Hard")
 
 @Composable
 internal fun WarmupsScreen(store: PracticeStore, onOpen: (Exercise, String) -> Unit, onEvent: (PracticeEvent) -> Unit,
-                           /** Simple mode (2.7): one warm-up (engine/nav/Simple.kt), no routine to build. */
+                           /** The Simple layout (2.7, 2.8): one warm-up (engine/nav/Simple.kt), no routine to build. */
                            simple: Boolean = false, foot: @Composable () -> Unit = {}) {
     var minutes by remember { mutableIntStateOf(store.int("warmup.minutes", 10).let { if (it in listOf(5, 10, 15)) it else 10 }) }
     var level by remember { mutableIntStateOf(store.int("warmup.level", 1).coerceIn(1, 3)) }

@@ -125,10 +125,13 @@ fun labelBarsAligned(song: Song): List<Chord?> {
     }
 }
 
+/** A song pack's id is this plus the song's id (the layouts keep song packs whole in Advanced, engine/nav/Simple.kt). */
+const val SONG_PACK_PREFIX = "song-"
+
 /** "Chords of <song>": the distinct chords of its bars in order of first appearance (level 6). [bars]: labelBarsAligned output. */
 fun songPack(song: Song, max: Int = 12, bars: List<Chord?> = labelBarsAligned(song)): LessonPack {
     val chords = bars.filterNotNull().distinct().take(max)
-    return LessonPack("song-${song.id}", "Chords of ${song.title}", 6, emptyList(), chords.map { LessonItem.ChordItem(it) })
+    return LessonPack(SONG_PACK_PREFIX + song.id, "Chords of ${song.title}", 6, emptyList(), chords.map { LessonItem.ChordItem(it) })
 }
 
 /**

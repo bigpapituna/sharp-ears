@@ -941,7 +941,7 @@ private fun PlayerStage(args: PlayerArgs) {
                 else -> transport.score?.let { "Streak ${it.streakNow}" } ?: ""
             },
             kid = kid,
-            simple = !kid && LocalSimple.current.on,     // Simple mode (2.7): the extras go into one More sheet
+            layout = if (kid) com.bigpapituna.sharpears.engine.nav.Layout.FULL else LocalLayout.current.layout,     // the layout (2.8): the extras in one More sheet
             duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
                 ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(

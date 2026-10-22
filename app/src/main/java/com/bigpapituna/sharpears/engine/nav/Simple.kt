@@ -6,35 +6,58 @@ import com.bigpapituna.sharpears.engine.GameKind
 import com.bigpapituna.sharpears.engine.LessonItem
 import com.bigpapituna.sharpears.engine.LessonPack
 import com.bigpapituna.sharpears.engine.Progression
+import com.bigpapituna.sharpears.engine.SONG_PACK_PREFIX
 import com.bigpapituna.sharpears.engine.chords.PopSong
 import com.bigpapituna.sharpears.engine.chords.PopSongs
 import com.bigpapituna.sharpears.engine.family.Level
 
 /**
- * Simple mode (2.7, Roy): one switch per grown-up that keeps each place to its first steps; Advanced is the full app. On by
- * default for someone who said they play Never or A little, off for Some and A lot; a kid never sees it (the kid home is the
- * simple one). It only filters what is shown: progress, stars and mastery are the same data either way. Each place keeps a
- * quiet "Show more" at its bottom that shows the full place once and offers to switch to Advanced.
+ * The three layouts' rules (2.8; Simple mode in 2.7): what each place shows in [Layout.SIMPLE], [Layout.ADVANCED] and
+ * [Layout.FULL]. Simple keeps each place to its first steps (exactly 2.7's Simple). Advanced is Simple plus Learn in full (the
+ * course path with Theory, Ear training and Sight-read), Practice in full, every song by chords, the song packs whole, the loop
+ * and speed on the player's bar, and Settings' keys, falling notes, wrong keys and briefs; the chord extras (every chord, game,
+ * progression and pattern) wait for Full. Full is the whole app (2.7's Advanced). A kid is never asked and never cut (the kid
+ * home is the simple one). It only filters what is shown: progress, stars and mastery are the same data in every layout. A
+ * place a layout cuts ends on a quiet "Show more" that shows it in full once and offers the three layouts.
  *
- * The rules per place live here as pure functions (SimpleTest); the screens ask them.
+ * Pure functions (LayoutTest); the screens ask them.
  */
 object Simple {
-    // ---- the switch ----
+    // ---- choosing ----
 
-    /** Simple by default for a beginner: placement said Never or A little. */
-    fun defaultOn(level: Level): Boolean = level == Level.NEVER || level == Level.A_LITTLE
+    /** Until someone chooses: Simple for a beginner (placement said Never or A little), Full for the rest (2.7's default). */
+    fun default(level: Level): Layout = if (level == Level.NEVER || level == Level.A_LITTLE) Layout.SIMPLE else Layout.FULL
 
-    /** Whether Simple is on: a kid never; else what the person chose, or the default from their level until they choose. */
-    fun isOn(kid: Boolean, chosen: Boolean?, level: Level): Boolean = !kid && (chosen ?: defaultOn(level))
+    /** The layout a person sees: a kid's is Full (nothing cut); a grown-up's is their choice, or the default from their level. */
+    fun layoutOf(kid: Boolean, chosen: Layout?, level: Level): Layout = if (kid) Layout.FULL else chosen ?: default(level)
 
-    const val NAME = "Simple"
+    /** The launch asks a grown-up who never chose (2.7's switch counts as a choice, see Prefs.layout); a kid never. */
+    fun asks(kid: Boolean, chosen: Layout?): Boolean = !kid && chosen == null
+
+    /** What a place shows: its "Show more" tapped, everything for this visit; else the person's layout. */
+    fun shown(layout: Layout, more: Boolean): Layout = if (more) Layout.FULL else layout
+
+    // ---- the places ----
+
+    /** The places a layout cuts, each with its "Show more" (the player's is its More sheet, a song page's is the list's). */
+    enum class Place { LEARN, LEARN_CHORDS, GAMES, PROGRESSIONS, SONGS_BY_CHORDS, SONG_PATTERNS, PRACTICE, PLAYER, SETTINGS }
+
+    /** What Advanced still cuts: the chord extras, the player's extras and two settings groups (Progress, About). */
+    val ADVANCED_CUTS: Set<Place> = setOf(Place.LEARN_CHORDS, Place.GAMES, Place.PROGRESSIONS, Place.SONG_PATTERNS, Place.PLAYER, Place.SETTINGS)
+
+    /** Whether [layout] shows less than everything in [place]: Simple cuts every place, Advanced some, Full none. */
+    fun cuts(place: Place, layout: Layout): Boolean = when (layout) {
+        Layout.SIMPLE -> true
+        Layout.ADVANCED -> place in ADVANCED_CUTS
+        Layout.FULL -> false
+    }
+
     const val SHOW_MORE = "Show more"
     const val SHOW_ALL_SETTINGS = "Show all settings"
-    const val SWITCH_QUESTION = "Switch to Advanced?"
-    const val SWITCH_LINE = "Advanced shows everything in every place. Simple mode can come back any time, on Today, You or in Settings."
-    const val SWITCH = "Switch"
-    const val SETTING_TITLE = "Simple mode"
-    const val SETTING_LINE = "Each place shows its first steps only: six chords, the first games, three scales. Off, the whole app."
+    const val SWITCH_QUESTION = "Keep more on screen?"
+    const val SWITCH_LINE = "Pick how much every place shows. Change it any time on You or in Settings."
+    const val SETTING_TITLE = "Layout"
+    const val SETTING_LINE = "How much each place shows. Simple: the first steps. Advanced: lessons, songs and practice. Full: everything."
 
     // ---- Learn chords ----
 
@@ -42,11 +65,16 @@ object Simple {
     val CHORDS: List<Chord> = listOf(Chord(0, ChordType.MAJOR), Chord(5, ChordType.MAJOR), Chord(7, ChordType.MAJOR),
         Chord(9, ChordType.MINOR), Chord(2, ChordType.MINOR), Chord(4, ChordType.MINOR))
 
+    /** The chords the dictionary and free practice offer: the six until Full, then every chord (null). */
+    fun chords(layout: Layout): List<Chord>? = if (layout == Layout.FULL) null else CHORDS
+
     /**
-     * The packs that use the beginner chords, each cut to those chords (Major triads to C, F and G; a song's pack to the six
-     * it has); packs left with none (sevenths, the progressions) go. The daily review draws from these while Simple is on.
+     * The packs. Simple cuts each to the beginner chords (Major triads to C, F and G; a song's pack to the six it has); packs
+     * left with none (sevenths, the progressions) go. Advanced does the same but keeps the song packs ("Chords of <song>")
+     * whole: a song's own chords, Roy's 2.7 open question. Full keeps all. The daily review draws from these.
      */
-    fun packs(all: List<LessonPack>): List<LessonPack> = all.mapNotNull { p ->
+    fun packs(all: List<LessonPack>, layout: Layout): List<LessonPack> = if (layout == Layout.FULL) all else all.mapNotNull { p ->
+        if (layout == Layout.ADVANCED && p.id.startsWith(SONG_PACK_PREFIX)) return@mapNotNull p
         val items = p.items.filter { it is LessonItem.ChordItem && it.chord in CHORDS }
         if (items.isEmpty()) null else p.copy(items = items)
     }
@@ -55,39 +83,59 @@ object Simple {
 
     val GAMES: List<GameKind> = listOf(GameKind.BUILD, GameKind.HEAR)
 
-    fun games(all: List<GameKind>): List<GameKind> = all.filter { it in GAMES }
+    /** Advanced's games: the three chord games (Build it, Hear it, Major or minor); Intervals and Play it back wait for Full. */
+    val ADVANCED_GAMES: List<GameKind> = GAMES + GameKind.MAJOR_MINOR
 
-    /** The pop progressions: the ones of plain major and minor chords (no sevenths), so I V vi IV and I vi IV V. */
-    fun progressions(all: List<Progression>): List<Progression> =
-        all.filter { p -> p.degrees.all { it.type == ChordType.MAJOR || it.type == ChordType.MINOR } }
+    fun games(all: List<GameKind>, layout: Layout): List<GameKind> = when (layout) {
+        Layout.SIMPLE -> all.filter { it in GAMES }
+        Layout.ADVANCED -> all.filter { it in ADVANCED_GAMES }
+        Layout.FULL -> all
+    }
+
+    /** The pop progressions until Full: the ones of plain major and minor chords (no sevenths), so I V vi IV and I vi IV V. */
+    fun progressions(all: List<Progression>, layout: Layout): List<Progression> = if (layout == Layout.FULL) all
+        else all.filter { p -> p.degrees.all { it.type == ChordType.MAJOR || it.type == ChordType.MINOR } }
 
     // ---- Songs by chords ----
 
-    /** Four-chord songs and the easiest ones (difficulty 1). */
-    fun popSongs(all: List<PopSong>): List<PopSong> = all.filter { PopSongs.isFourChord(it) || it.difficulty == 1 }
+    /** Simple: four-chord songs and the easiest ones (difficulty 1). Advanced and Full: every song. */
+    fun popSongs(all: List<PopSong>, layout: Layout): List<PopSong> =
+        if (layout == Layout.SIMPLE) all.filter { PopSongs.isFourChord(it) || it.difficulty == 1 } else all
 
-    /** The patterns a song page offers: one chord a bar, or two. */
+    /** The patterns a song page offers in Simple: one chord a bar, or two. */
     val PATTERNS: List<PopSong.Pattern> = listOf(PopSong.Pattern.WHOLE, PopSong.Pattern.HALVES)
 
-    fun patterns(all: List<PopSong.Pattern>): List<PopSong.Pattern> = all.filter { it in PATTERNS }
+    /** Advanced adds the plain ones (four a bar, broken); the ballad, shuffle and rock feels wait for Full. */
+    val ADVANCED_PATTERNS: List<PopSong.Pattern> = PATTERNS + listOf(PopSong.Pattern.QUARTERS, PopSong.Pattern.BROKEN)
+
+    fun patterns(all: List<PopSong.Pattern>, layout: Layout): List<PopSong.Pattern> = when (layout) {
+        Layout.SIMPLE -> all.filter { it in PATTERNS }
+        Layout.ADVANCED -> all.filter { it in ADVANCED_PATTERNS }
+        Layout.FULL -> all
+    }
+
+    /** The pattern a song page opens on: the one asked for, or Halves when the layout does not offer it. */
+    fun openingPattern(p: PopSong.Pattern, layout: Layout): PopSong.Pattern =
+        if (p in patterns(PopSong.Pattern.entries, layout)) p else PopSong.Pattern.HALVES
 
     // ---- Practice ----
 
-    /** C, G and F major (roots as semitones above C), in that order. */
+    /** C, G and F major (roots as semitones above C), in that order: Simple's scales. */
     val SCALE_ROOTS: List<Int> = listOf(0, 7, 5)
 
-    /** Practice's sections: Scales and Warm-ups; Tools (the metronome and the tuner) wait in Advanced. */
+    /** Practice's sections: Simple has Scales and Warm-ups; arpeggios, the other scales and Tools wait for Advanced. */
     enum class PracticePart { SCALES, ARPEGGIOS, SCALE_TYPES, WARMUPS, ROUTINE, TOOLS }
 
-    fun practiceShows(part: PracticePart, simple: Boolean): Boolean = !simple || part == PracticePart.SCALES || part == PracticePart.WARMUPS
+    fun practiceShows(part: PracticePart, layout: Layout): Boolean =
+        layout != Layout.SIMPLE || part == PracticePart.SCALES || part == PracticePart.WARMUPS
 
-    /** One warm-up: the first of the catalogue (five fingers, in C). */
+    /** Simple's one warm-up: the first of the catalogue (five fingers, in C). */
     fun <T> warmups(all: List<T>): List<T> = all.take(1)
 
     // ---- Learn ----
 
-    /** Learn's rows beside the course: Theory, Ear training and Sight-read wait in Advanced; the path and the chords stay. */
-    fun learnSideRows(simple: Boolean): Boolean = !simple
+    /** Learn's rows beside the course (Theory, Ear training, Sight-read): from Advanced on; Simple keeps the path and the chords. */
+    fun learnSideRows(layout: Layout): Boolean = layout != Layout.SIMPLE
 
     // ---- the player ----
 
@@ -98,18 +146,33 @@ object Simple {
     val PLAYER_MORE: Set<PlayerControl> = setOf(PlayerControl.LOOP, PlayerControl.SPEED, PlayerControl.TRANSPOSE,
         PlayerControl.METRONOME, PlayerControl.CHORDS, PlayerControl.DUET)
 
-    fun inBar(c: PlayerControl, simple: Boolean): Boolean = !simple || c !in PLAYER_MORE
+    /** Advanced brings the loop and the speed back to the bar (practice tools); the rest stay in More. */
+    val ADVANCED_MORE: Set<PlayerControl> = PLAYER_MORE - setOf(PlayerControl.LOOP, PlayerControl.SPEED)
+
+    fun inBar(c: PlayerControl, layout: Layout): Boolean = when (layout) {
+        Layout.SIMPLE -> c !in PLAYER_MORE
+        Layout.ADVANCED -> c !in ADVANCED_MORE
+        Layout.FULL -> true
+    }
 
     // ---- Settings ----
 
-    enum class SettingsPart { FAMILY, PROGRESS, SIMPLE, KEYS, FALLING_NOTES, WRONG_KEYS, SOUND, VOICE, REMINDER, BRIEFS, MICROPHONE, ABOUT, TESTING }
+    enum class SettingsPart { FAMILY, PROGRESS, LAYOUT, KEYS, FALLING_NOTES, WRONG_KEYS, SOUND, VOICE, REMINDER, BRIEFS, MICROPHONE, ABOUT, TESTING }
 
     /**
-     * The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the switch itself), plus
+     * The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the layout itself), plus
      * Testing while the tester build exists (Roy, 2026-10-22: "add help Roy test in simple mode as well").
      */
-    val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.SIMPLE, SettingsPart.SOUND, SettingsPart.VOICE,
+    val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE,
         SettingsPart.REMINDER, SettingsPart.MICROPHONE, SettingsPart.TESTING)
 
-    fun settingsShows(part: SettingsPart, simple: Boolean): Boolean = !simple || part in SETTINGS_ESSENTIALS
+    /** Advanced adds how playing looks (keys, falling notes, wrong keys) and the briefs; Progress and About wait for Full. */
+    val SETTINGS_ADVANCED: Set<SettingsPart> = SETTINGS_ESSENTIALS + setOf(SettingsPart.KEYS, SettingsPart.FALLING_NOTES,
+        SettingsPart.WRONG_KEYS, SettingsPart.BRIEFS)
+
+    fun settingsShows(part: SettingsPart, layout: Layout): Boolean = when (layout) {
+        Layout.SIMPLE -> part in SETTINGS_ESSENTIALS
+        Layout.ADVANCED -> part in SETTINGS_ADVANCED
+        Layout.FULL -> true
+    }
 }
