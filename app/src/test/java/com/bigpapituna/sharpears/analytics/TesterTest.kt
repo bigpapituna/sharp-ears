@@ -108,6 +108,17 @@ class TesterTest {
         assertTrue("the log is the tester's own folder", File(File(tmp.root, Tester.DIR), "diary.log").exists())
     }
 
+    /** Turned on on a screen already showing (the corner over the kid home): that screen and who plays start the log. */
+    @Test fun turningItOnLogsTheScreenOnShow() {
+        Tester.profile(isKid = true, profileId = "p3")
+        Tester.screen("home:SONGS")
+        Tester.setOn(phone, true)
+        Tester.note("stuck")
+        val log = Tester.read(Long.MIN_VALUE, Long.MAX_VALUE).map { it as BriefEvent.Unknown }
+        assertEquals(listOf(TesterLog.KIND, TesterLog.SCREEN, TesterLog.NOTE), log.map { it.name })
+        assertEquals("home:SONGS", log[1].fields["s"])
+    }
+
     @Test fun theDiaryAloneRecordsOnlyOnABuildWithItsAddress() {
         Tester.setDiary(phone, true)
         Tester.screen("home:LEARN")

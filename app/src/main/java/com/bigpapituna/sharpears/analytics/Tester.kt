@@ -33,6 +33,7 @@ import java.util.UUID
  * diary's profile id), notes and log lines lose addresses and the family's names. Log lines here say "tester: ..." and carry
  * no key, id or text.
  */
+@android.annotation.SuppressLint("StaticFieldLeak")      // holds the application context only ([app])
 object Tester {
     /** The switches, the device id and the diary's marks: tester.xml, phone-wide, never backed up (res/xml/backup_rules.xml). */
     const val FILE = "tester"
@@ -58,6 +59,8 @@ object Tester {
     /** Where the "tester: ..." lines go (logcat; JVM tests pass their own). */
     @Volatile var logcat: (String) -> Unit = { Log.d(TAG, it) }
 
+    /** The application context only (never an activity): it lives as long as the process anyway. */
+    @android.annotation.SuppressLint("StaticFieldLeak")
     @Volatile private var app: Context? = null
     @Volatile private var logFile: EventLog? = null
     private val tally = TesterTally()
@@ -113,15 +116,26 @@ object Tester {
 
     fun setOn(context: Context, on: Boolean) {
         val a = context.applicationContext
+        val was = recording
         prefs(a).edit { putBoolean(ON, on) }
         switchOn.value = on
         logcat("tester: help Roy test ${if (on) "on" else "off"}")
         if (on) { if (TesterSdk.running) TesterSdk.resume() else startIfAllowed(a) } else TesterSdk.pause()
+        startedRecording(was)
+    }
+
+    /** Recording just began: the log gets who is playing and the screen on show, so the diary's first minutes count. */
+    private fun startedRecording(was: Boolean) {
+        if (was || !recording) return
+        kind?.let { (k, id) -> write(TesterLog.kind(now(), k, id)) }
+        screen?.takeIf { route != null }?.let { write(TesterLog.screen(now(), it)) }
     }
 
     fun setDiary(context: Context, on: Boolean) {
+        val was = recording
         prefs(context).edit { putBoolean(DIARY, on) }
         diaryOn.value = on
+        startedRecording(was)
         logcat("tester: diary ${if (on) "on" else "off"}")
     }
 
