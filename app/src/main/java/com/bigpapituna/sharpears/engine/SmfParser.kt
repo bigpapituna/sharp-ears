@@ -28,8 +28,30 @@ class SmfData(
  * Minimal Standard MIDI File reader: formats 0 and 1, PPQ timing, running status,
  * note on/off (velocity 0 = off), tempo map, time signature, key signature (flats or not), track names, markers.
  * Everything else is skipped.
+ *
+ * Any bytes a learner picks come through here (2.8.3, security review finding 4), so what it returns is bounded whatever
+ * the file says: at most [MAX_BYTES] in, [MAX_TRACKS] tracks read, a time signature music has (else 4/4), tempos held
+ * to [MIN_BPM]..[MAX_BPM], a song of at most [MAX_SONG_MS] and [MAX_NOTES] notes. Anything it cannot read is a
+ * [MidiFormatException], never another exception.
  */
 object SmfParser {
+    /** The biggest file read: far above any song (the bundled ones are under 13 KB). My songs and the older import refuse more. */
+    const val MAX_BYTES = 512 * 1024
+    /** A song stops at 20 minutes: notes starting later go, and a note still sounding ends there. */
+    const val MAX_SONG_MS = 20 * 60_000L
+    /** At most this many notes, the earliest (Clair de Lune, the longest bundled song, has 1,468). */
+    const val MAX_NOTES = 20_000
+    /** At most this many tracks are read; a file that says it has more keeps its first ones. */
+    const val MAX_TRACKS = 128
+    /** At most this many markers (the player's sections). */
+    const val MAX_MARKERS = 256
+    /** Track names and markers keep at most this many characters. */
+    const val MAX_TEXT = 128
+    /** Tempos are held to this range, in quarter notes a minute. */
+    const val MIN_BPM = 20
+    const val MAX_BPM = 300
+    private const val SLOWEST_US = 60_000_000 / MIN_BPM
+    private const val FASTEST_US = 60_000_000 / MAX_BPM
 
     fun parse(bytes: ByteArray, id: String, title: String, rule: HandRule = HandRule.Auto): Song {
         val data = read(bytes)
@@ -60,6 +82,7 @@ object SmfParser {
 
     /** The file's notes, tempo map, signatures, track names and markers, with nothing decided yet ([parse] decides the hands). */
     fun read(bytes: ByteArray): SmfData {
+        if (bytes.size > MAX_BYTES) throw MidiFormatException("bigger than any song (${bytes.size} bytes)")
         val r = Reader(bytes)
         if (r.ascii(4) != "MThd") throw MidiFormatException("not a MIDI file")
         val headerLen = r.u32()
@@ -79,7 +102,8 @@ object SmfParser {
         var timeSig = 4 to 4
         var flats: Boolean? = null
         var track = 0
-        while (track < trackCount && r.remaining() >= 8) {
+        val reading = minOf(trackCount, MAX_TRACKS)
+        while (track < reading && r.remaining() >= 8) {
             val type = r.ascii(4)
             val len = r.u32()
             if (len < 0 || len > r.remaining()) throw MidiFormatException("track $track truncated")   // < 0: a length past 2 GB
@@ -90,14 +114,24 @@ object SmfParser {
             r.pos = end
             track++
         }
-        if (track < trackCount) throw MidiFormatException("expected $trackCount tracks, found $track")
+        if (track < reading) throw MidiFormatException("expected $trackCount tracks, found $track")
 
         // Later events at the same tick win, so a tempo at tick 0 replaces the 120 bpm default.
         val tempoMap = tempos.groupBy { it.first }.map { it.value.last() }.sortedBy { it.first }
-        return SmfData(division, tempoMap, timeSig, flats, notes, names, markers.sortedBy { it.first })
+        // The caps: the song ends at MAX_SONG_MS (a huge delta time made a song of years) and keeps its earliest
+        // MAX_NOTES notes, in the order the file gave them.
+        val endTick = TempoClock(tempoMap, division).tick(MAX_SONG_MS.toDouble())
+        var kept: List<SmfNote> = notes.filter { it.startTick < endTick }
+        if (kept.size > MAX_NOTES) kept = kept.withIndex().sortedWith(compareBy({ it.value.startTick }, { it.index }))
+            .take(MAX_NOTES).sortedBy { it.index }.map { it.value }
+        kept = kept.map { if (it.endTick > endTick) it.copy(endTick = endTick) else it }
+        val marks = markers.filter { it.first < endTick }.sortedBy { it.first }.take(MAX_MARKERS)
+        return SmfData(division, tempoMap, timeSig, flats, kept, names, marks)
     }
 
     private fun split(key: Int) = if (key >= MIDDLE_C) Hand.RIGHT else Hand.LEFT
+
+    private fun text(data: ByteArray) = String(data, 0, minOf(data.size, MAX_TEXT), Charsets.ISO_8859_1)
 
     private fun readTrack(
         r: Reader, end: Int, track: Int, notes: MutableList<SmfNote>,
@@ -122,15 +156,21 @@ object SmfParser {
                 status == 0xFF -> {
                     val type = r.u8(); val len = r.vlq().toInt(); val data = r.bytes(len)
                     when (type) {
+                        // A zero tempo would make every later note time 0; any other is held to MIN_BPM..MAX_BPM.
                         0x51 -> if (len == 3) {
                             val us = data.fold(0) { acc, byte -> (acc shl 8) or (byte.toInt() and 0xFF) }
-                            if (us > 0) tempos += tick to us                // a zero tempo would make every later note time 0
+                            if (us > 0) tempos += tick to us.coerceIn(FASTEST_US, SLOWEST_US)
                         }
-                        0x58 -> if (len >= 2) onTimeSig(data[0].toInt() to (1 shl data[1].toInt()))
+                        // A time signature music has: 1 to 32 beats of a whole note down to a 32nd (an exponent byte of
+                        // 31 made a denominator of Int.MIN_VALUE). Anything else is left out, so 4/4 stays.
+                        0x58 -> if (len >= 2) {
+                            val beats = data[0].toInt() and 0xFF; val exponent = data[1].toInt() and 0xFF
+                            if (beats in 1..32 && exponent in 0..5) onTimeSig(beats to (1 shl exponent))
+                        }
                         // Key signature: sf is a signed count of sharps (positive) or flats (negative).
                         0x59 -> if (len >= 1) onFlats(data[0] < 0)
-                        0x06 -> markers += tick to String(data, Charsets.ISO_8859_1)
-                        0x03 -> onName(String(data, Charsets.ISO_8859_1))
+                        0x06 -> markers += tick to text(data)
+                        0x03 -> onName(text(data))
                     }
                     running = 0
                 }
@@ -156,15 +196,33 @@ object SmfParser {
         // ponytail: notes never switched off are dropped; a file that relies on end-of-track to close notes loses them
     }
 
-    /** Converts ticks to milliseconds through the tempo map. */
+    /**
+     * Converts ticks to milliseconds through the tempo map (sorted by tick, starting at tick 0) and back. In Double: a
+     * tick count times microseconds per quarter passed Long's range after about 5e11 ticks and wrapped to negative times.
+     * The tempo in force is found by binary search, so a file of thousands of tempo changes costs no more per note.
+     */
     internal class TempoClock(private val tempos: List<Pair<Long, Int>>, private val ppq: Int) {
         private val startMs = DoubleArray(tempos.size).also {
-            for (i in 1 until tempos.size)
-                it[i] = it[i - 1] + (tempos[i].first - tempos[i - 1].first) * tempos[i - 1].second / 1000.0 / ppq
+            for (i in 1 until tempos.size) it[i] = it[i - 1] + span(tempos[i].first - tempos[i - 1].first, tempos[i - 1].second)
         }
+        private fun span(ticks: Long, us: Int) = ticks.toDouble() * us / 1000.0 / ppq
+
+        /** The last index whose [key] is at or before [x] (0 when [x] is before them all). */
+        private inline fun last(x: Double, key: (Int) -> Double): Int {
+            var lo = 0; var hi = tempos.size
+            while (lo < hi) { val mid = (lo + hi) ushr 1; if (key(mid) <= x) lo = mid + 1 else hi = mid }
+            return (lo - 1).coerceAtLeast(0)
+        }
+
         fun ms(tick: Long): Long {
-            val i = tempos.indexOfLast { it.first <= tick }.coerceAtLeast(0)
-            return Math.round(startMs[i] + (tick - tempos[i].first) * tempos[i].second / 1000.0 / ppq)
+            val i = last(tick.toDouble()) { tempos[it].first.toDouble() }
+            return Math.round(startMs[i] + span(tick - tempos[i].first, tempos[i].second))
+        }
+
+        /** The tick [ms] milliseconds in: where a song of that length ends. */
+        fun tick(ms: Double): Long {
+            val i = last(ms) { startMs[it] }
+            return tempos[i].first + ((ms - startMs[i]) * 1000.0 * ppq / tempos[i].second).toLong()
         }
     }
 

@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.engine
 
+import kotlin.math.floor
+
 /**
  * Chord lessons (DESIGN 4): packs of items, Leitner mastery per item, a daily due queue, unlocks by prerequisite,
  * and packs derived from songs by labeling each bar's chord.
@@ -80,6 +82,15 @@ class Curriculum(val packs: List<LessonPack>) {
 /** The chord shapes the labeler knows (DESIGN 4.3). */
 private val LABEL_TYPES = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7, ChordType.DIM)
 
+/** Every chord the labeler tries, in its order (type, then root), with its pitch classes. */
+private val TEMPLATES = LABEL_TYPES.flatMap { type -> (0..11).map { root -> Chord(root, type) to BooleanArray(12).also { pcs -> type.intervals.forEach { pcs[(root + it) % 12] = true } } } }
+
+/** Bars labelled at most: over 20 minutes of 2/4 at 200 bpm. A longer song's last bars keep the chord before them. */
+const val MAX_LABEL_BARS = 4_000
+
+/** A bar shorter than this (a damaged file's time signature) is no bar: such a song gets no labels. */
+const val MIN_LABEL_BAR_MS = 10.0
+
 /**
  * The chord of one bar: duration-weighted pitch-class histogram matched against chord templates. Notes in the
  * chord score their weight, notes outside cost half theirs, and a seventh chord pays for its fourth note.
@@ -89,16 +100,20 @@ fun labelBar(notes: List<Note>): Chord? {
     if (notes.isEmpty()) return null
     val w = DoubleArray(12)
     notes.forEach { w[it.midi % 12] += it.durationMs.toDouble() }
+    return labelWeights(w, notes.minBy { it.midi }.midi, notes.sumOf { it.durationMs })
+}
+
+/** [labelBar] from a bar's sounding time per pitch class [w] (changed here), its lowest key and its notes' total time. */
+private fun labelWeights(w: DoubleArray, lowest: Int, total: Long): Chord? {
     // The lowest sounding note hints at the root: give it a little more weight.
-    w[notes.minBy { it.midi }.midi % 12] += notes.sumOf { it.durationMs } * 0.1
+    w[lowest % 12] += total * 0.1
     var best: Chord? = null
     var bestScore = Double.NEGATIVE_INFINITY
     // A four-note chord must earn its extra note: a stray passing tone or a sliver of the next bar is not a seventh.
     val extraNoteCost = w.sum() * 0.08
-    for (type in LABEL_TYPES) for (root in 0..11) {
-        val pcs = type.intervals.map { (root + it) % 12 }.toSet()
-        val score = (0..11).sumOf { if (it in pcs) w[it] else -w[it] / 2 } - (type.intervals.size - 3) * extraNoteCost
-        if (score > bestScore + 1e-9) { bestScore = score; best = Chord(root, type) }
+    for ((chord, pcs) in TEMPLATES) {
+        val score = (0..11).sumOf { if (pcs[it]) w[it] else -w[it] / 2 } - (chord.type.intervals.size - 3) * extraNoteCost
+        if (score > bestScore + 1e-9) { bestScore = score; best = chord }
     }
     return best
 }
@@ -109,20 +124,66 @@ fun barMs(song: Song) = song.timeSignature.first * (4.0 / song.timeSignature.sec
 /** Each bar's chord, in order (bars without notes are left out). */
 fun labelBars(song: Song): List<Chord> = labelBarsAligned(song).filterNotNull()
 
-/** Each bar's chord by bar index: null for a bar without notes. Bars come from [barMs] (first tempo only). */
+/**
+ * Each bar's chord by bar index: null for a bar without notes. Bars come from [barMs] (first tempo only), at most
+ * [MAX_LABEL_BARS] of them.
+ *
+ * Each note is clipped to the bars it sounds in, so a held note counts only for the time it sounds there; slivers
+ * (under 5% of the bar, e.g. rounding at the bar line) are dropped, since one could pose as the bass note. The work is
+ * bounded by the notes and the bars, never their product (2.8.3): a note adds its first and last bar once and the bars
+ * it holds through as one run, which a sweep over the bars carries. The result is the same as clipping every note to
+ * every bar (LessonsTest checks the bundled songs against that).
+ */
 fun labelBarsAligned(song: Song): List<Chord?> {
     val barMs = barMs(song)
-    if (barMs <= 0 || song.notes.isEmpty()) return emptyList()
-    val bars = (song.durationMs / barMs).toInt() + 1
-    return (0 until bars).map { b ->
-        val from = b * barMs; val to = from + barMs
-        // Clip each note to the bar so a held note counts only for the time it sounds there.
-        // Slivers (under 5% of the bar, e.g. rounding at the bar line) are dropped: one could pose as the bass note.
-        labelBar(song.notes.filter { it.startMs < to && it.startMs + it.durationMs > from }.map { n ->
-            val s = maxOf(n.startMs.toDouble(), from); val e = minOf((n.startMs + n.durationMs).toDouble(), to)
-            n.copy(durationMs = (e - s).toLong())
-        }.filter { it.durationMs >= barMs * 0.05 })
+    if (song.notes.isEmpty() || !(barMs >= MIN_LABEL_BAR_MS) || barMs.isInfinite()) return emptyList()
+    val bars = minOf(song.durationMs / barMs, MAX_LABEL_BARS - 1.0).toInt() + 1
+    if (bars <= 0) return emptyList()
+    fun from(b: Int) = b * barMs
+    // The bars a note starts or ends in: its clipped time there, per bar and pitch class, the lowest key, the total.
+    val edgeW = DoubleArray(bars * 12)
+    val edgeLow = IntArray(bars) { Int.MAX_VALUE }
+    val edgeTotal = LongArray(bars)
+    val runs = ArrayList<IntArray>()                      // [first bar, last bar, key]: the bars a note sounds through
+    for (n in song.notes) {
+        val s = n.startMs.toDouble(); val e = (n.startMs + n.durationMs).toDouble()
+        var b = (floor(s / barMs) - 1).coerceIn(0.0, bars.toDouble()).toInt()
+        val last = (floor(e / barMs) + 1).coerceIn(-1.0, bars - 1.0).toInt()
+        while (b <= last) {
+            val f = from(b); val t = f + barMs
+            if (s <= f && e >= t) {
+                var z = last
+                while (z > b && from(z) + barMs > e) z--
+                runs += intArrayOf(b, z, n.midi)
+                b = z + 1
+                continue
+            }
+            if (s < t && e > f) {
+                val d = (minOf(e, t) - maxOf(s, f)).toLong()
+                if (d >= barMs * 0.05) { edgeW[b * 12 + n.midi % 12] += d.toDouble(); edgeLow[b] = minOf(edgeLow[b], n.midi); edgeTotal[b] += d }
+            }
+            b++
+        }
     }
+    val byStart = runs.sortedBy { it[0] }; val byEnd = runs.sortedBy { it[1] }
+    val held = IntArray(12); val heldKeys = java.util.TreeMap<Int, Int>(); var heldCount = 0
+    var i = 0; var j = 0
+    val out = ArrayList<Chord?>(bars)
+    for (b in 0 until bars) {
+        while (i < byStart.size && byStart[i][0] <= b) { val k = byStart[i++][2]; held[k % 12]++; heldKeys.merge(k, 1) { a, c -> a + c }; heldCount++ }
+        while (j < byEnd.size && byEnd[j][1] < b) {
+            val k = byEnd[j++][2]; held[k % 12]--; heldCount--
+            val left = heldKeys.getValue(k) - 1
+            if (left == 0) heldKeys.remove(k) else heldKeys[k] = left
+        }
+        val f = from(b); val whole = (f + barMs - f).toLong()        // what clipping leaves of a note held through the bar
+        val through = heldCount > 0 && whole >= barMs * 0.05
+        val lowest = minOf(edgeLow[b], if (through) heldKeys.firstKey() else Int.MAX_VALUE)
+        out += if (lowest == Int.MAX_VALUE) null else labelWeights(
+            DoubleArray(12) { edgeW[b * 12 + it] + if (through) held[it].toDouble() * whole else 0.0 },
+            lowest, edgeTotal[b] + if (through) heldCount * whole else 0L)
+    }
+    return out
 }
 
 /** A song pack's id is this plus the song's id (the layouts keep song packs whole in Advanced, engine/nav/Simple.kt). */

@@ -114,6 +114,20 @@ class MySongsTest {
         assertEquals(built.bpm, easy.bpm, 0.001)
     }
 
+    /**
+     * Security review finding 4 (2.8.3): the parser stops a file at 20 minutes of its own tempo, but My songs slows a fast
+     * file to 100 bpm. A 300 bpm file of 19 minutes would last 57; the easy song stops at 20 minutes too.
+     */
+    @Test fun aLongFastFileStopsAtTwentyMinutes() {
+        val quarters = (0 until 5_700).map { N(60 + it % 5 * 2, it * 480, 400) }
+        val bytes = smf(T("Fast", quarters, bpm = 300, sig = 4 to 4))
+        val song = MySongs.song(bytes, "t", "t", bothHands = false)
+        assertEquals(100.0, song.bpm, 0.0)
+        assertEquals(2_000, song.notes.size)                       // 20 minutes of quarters at 600 ms
+        assertTrue(song.durationMs <= SmfParser.MAX_SONG_MS)
+        assertEquals(2_000, MySongs.scan(bytes, null).melodyNotes)
+    }
+
     // ---- refused files ----
 
     @Test fun filesThatAreNoSongAreRefusedWithAKindLine() {

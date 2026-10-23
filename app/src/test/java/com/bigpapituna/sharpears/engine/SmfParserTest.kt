@@ -84,6 +84,97 @@ class SmfParserTest {
         assertTrue(song.durationMs in 120_000..300_000)
     }
 
+    // ---- security review finding 4 (2.8.3): what a damaged or hostile file says is held to what music has ----
+
+    /** One C4 quarter at 480 ticks a quarter, after the conductor's [events]. */
+    private fun withConductor(vararg events: Int) = smf(track(*events), track(0, 0x90, 60, 100, 480, 60, 0))
+
+    @Test fun anOddTimeSignatureIsLeftOutSoFourFourStays() {
+        fun sig(beats: Int, exponent: Int) = SmfParser.parse(withConductor(0, 0xFF, 0x58, 4, beats, exponent, 24, 8), "t", "t").timeSignature
+        assertEquals(4 to 4, sig(3, 31))          // 1 shl 31 was Int.MIN_VALUE: the metronome's loop never ended
+        assertEquals(4 to 4, sig(3, 20))          // a denominator of a million: millions of bars a minute
+        assertEquals(4 to 4, sig(3, 6))           // a 64th note beat
+        assertEquals(4 to 4, sig(0, 2))
+        assertEquals(4 to 4, sig(200, 2))         // read as a signed byte, -56 beats
+        assertEquals(4 to 4, sig(33, 2))
+        assertEquals(7 to 8, sig(7, 3))
+        assertEquals(1 to 32, sig(1, 5))
+        assertEquals(32 to 1, sig(32, 0))
+        // A good signature is not undone by a bad one after it.
+        assertEquals(3 to 4, SmfParser.parse(withConductor(0, 0xFF, 0x58, 4, 3, 2, 24, 8, 0, 0xFF, 0x58, 4, 3, 31, 24, 8), "t", "t").timeSignature)
+    }
+
+    @Test fun aZeroTempoIsLeftOutAndTemposAreHeldBetween20And300Bpm() {
+        fun song(a: Int, b: Int, c: Int) = SmfParser.parse(withConductor(0, 0xFF, 0x51, 3, a, b, c), "t", "t")
+        val zero = song(0, 0, 0)
+        assertEquals(120.0, zero.bpm, 1e-9)                         // the default stays
+        assertEquals(500L, zero.notes.single().durationMs)
+        assertEquals(20.0, song(0xFF, 0xFF, 0xFF).bpm, 1e-9)        // 3.6 bpm
+        assertEquals(3000L, song(0xFF, 0xFF, 0xFF).notes.single().durationMs)
+        assertEquals(300.0, song(0, 0, 1).bpm, 1e-9)                // one microsecond a quarter
+        assertEquals(200L, song(0, 0, 1).notes.single().durationMs)
+    }
+
+    @Test fun aHugeDeltaTimeEndsTheSongAtTwentyMinutes() {
+        val max = 0x0FFFFFFF                      // the longest delta a file can hold: over 6 days at 120 bpm and 480 ticks
+        val bytes = smf(track(
+            0, 0x90, 60, 100, 480, 60, 0,         // C4, the first half second
+            0, 62, 100,                           // D4 from 500 ms, held across the gap
+            max, 64, 100, max, 64, 0,             // E4, days in: gone
+            max, 62, 0,
+            max, 0xFF, 0x06, 1, 'Z'.code,         // a marker after the end: gone
+        ))
+        val started = System.nanoTime()
+        val song = SmfParser.parse(bytes, "t", "t")
+        assertEquals(listOf(60, 62), song.notes.map { it.midi })
+        assertEquals(SmfParser.MAX_SONG_MS, song.durationMs)
+        assertEquals(SmfParser.MAX_SONG_MS - 500, song.notes.last().durationMs)
+        assertTrue(song.sections.isEmpty())
+        assertEquals(SmfParser.MAX_SONG_MS / 2_000 + 1, labelBarsAligned(song).size.toLong())   // 601 bars of 2 s, not millions
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 2_000)
+    }
+
+    @Test fun aGiantNoteCountKeepsTheEarliestNotes() {
+        // 25,000 notes 24 ticks (25 ms) apart: the first 20,000 stay, in time order.
+        val events = mutableListOf(0, 0x90, 60, 100)
+        for (i in 0 until 25_000) { events += listOf(24, 60 + i % 12, 0); if (i < 24_999) events += listOf(0, 60 + (i + 1) % 12, 100) }
+        val song = SmfParser.parse(smf(track(*events.toIntArray())), "t", "t")
+        assertEquals(SmfParser.MAX_NOTES, song.notes.size)
+        assertEquals((SmfParser.MAX_NOTES - 1) * 25L, song.notes.last().startMs)
+    }
+
+    @Test fun thousandsOfTempoChangesCostLittle() {
+        // 40,000 tempo changes against 20,000 notes: the tempo in force was a linear search per note (800 million steps).
+        val tempos = (0 until 40_000).flatMap { i -> listOf(12, 0xFF, 0x51, 3, 0x07, if (i % 2 == 0) 0xA1 else 0x00, 0x20) }
+        val notes = mutableListOf(0, 0x90, 60, 100)
+        for (i in 0 until 20_000) { notes += listOf(24, 60, 0); if (i < 19_999) notes += listOf(0, 60, 100) }
+        val bytes = smf(track(*tempos.toIntArray()), track(*notes.toIntArray()))
+        assertTrue(bytes.size <= SmfParser.MAX_BYTES)
+        val started = System.nanoTime()
+        val song = SmfParser.parse(bytes, "t", "t")
+        val ms = (System.nanoTime() - started) / 1_000_000
+        assertEquals(20_000, song.notes.size)
+        assertTrue(song.notes.zipWithNext().all { (a, b) -> a.startMs < b.startMs })
+        assertTrue("parsed in $ms ms", ms < 2_000)
+    }
+
+    /** The tempo clock works in Double: a tick count times microseconds per quarter wrapped Long past about 5e11 ticks. */
+    @Test fun theTempoClockNeverWrapsAndRunsBothWays() {
+        val slow = SmfParser.TempoClock(listOf(0L to 3_000_000), 1)
+        assertEquals(1.2e16, slow.ms(4_000_000_000_000L).toDouble(), 1e6)      // 4e12 ticks x 3e6 us passes Long's range
+        val map = SmfParser.TempoClock(listOf(0L to 500_000, 1_920L to 1_000_000, 2_400L to 250_000), 480)
+        val ticks = listOf(0L, 960L, 1_920L, 2_400L, 2_640L, 2_880L)
+        assertEquals(listOf(0L, 1_000L, 2_000L, 3_000L, 3_125L, 3_250L), ticks.map(map::ms))
+        for (t in ticks) assertEquals(t, map.tick(map.ms(t).toDouble()))
+    }
+
+    @Test fun atMost128TracksAreReadAndNoFileOver512Kb() {
+        val tracks = Array(130) { i -> track(0, 0x90, 30 + i % 60, 100, 480, 30 + i % 60, 0) }
+        val data = SmfParser.read(smf(*tracks))
+        assertEquals((0 until SmfParser.MAX_TRACKS).toList(), data.notes.map { it.track }.distinct().sorted())
+        assertThrows(MidiFormatException::class.java) { SmfParser.read(fixture + ByteArray(SmfParser.MAX_BYTES)) }
+    }
+
     private fun smf(vararg tracks: ByteArray) = ByteArrayOutputStream().apply {
         write("MThd".toByteArray()); u32(6); u16(1); u16(tracks.size); u16(480)
         tracks.forEach { write(it) }

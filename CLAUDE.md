@@ -1116,6 +1116,37 @@ and the app makes it a lesson-grade song.
   A restore from a backup made before 2.8.1 clears the list (restore replaces every shared file); its files stay as
   orphans. The tile art cache keeps the first art when a song is added again with other hands.
 
+## 2.8.3 MIDI hardening (2026-10-22, branch `midi-hardening`, versionCode 22; JVM only, no UI change)
+Security review finding 4 (docs/SECURITY-REVIEW-2026-10-22.md, untracked): a malformed MIDI file could hang or crash the
+player and burn CPU at every launch. Every bound below holds whatever the bytes say.
+- engine/SmfParser.kt: files over `MAX_BYTES` (512 KB) refused; at most `MAX_TRACKS` (128) tracks read; a time signature
+  only when 1..32 beats over a power of two 1..32, else it is left out (4/4 stays); tempos held to `MIN_BPM`..`MAX_BPM`
+  (20..300), a zero tempo still ignored; the song ends at `MAX_SONG_MS` (20 minutes: later notes and markers go, held
+  notes end there) and keeps its earliest `MAX_NOTES` (20,000) notes in file order; at most `MAX_MARKERS` (256) markers,
+  names and markers cut to 128 characters. TempoClock works in Double (the Long product wrapped) with a binary search
+  (a linear search per note was quadratic in tempo changes), and has the inverse `tick(ms)` for the length cap.
+- engine/MySongs.kt: `MAX_BYTES` is the parser's; the easy song also stops at 20 minutes at its slowed tempo
+  (`easyLines`), so a fast file slowed to 100 bpm cannot triple in length; the scan counts the capped tune.
+- engine/Metronome.kt: bounded by itself: tempo held to 20..300 (NaN as 120), a time signature music does not have counts
+  as 4/4, so a beat is 25 ms to 12 s; one call clicks at most `MAX_CLICKS` (64), a longer span clicks nothing; times past
+  `MAX_TIME_MS` click nothing. Fix found by the new test: a frame starting a hair after a beat clicked it twice (the
+  start's tolerance was in beats, the end's in ms); both ends now use `from - 1e-9 <= beat < to - 1e-9`.
+- engine/Lessons.kt `labelBarsAligned`: at most `MAX_LABEL_BARS` (4,000) bars, none when a bar is under 10 ms or not
+  finite; a sweep (each note adds its edge bars once and the bars it holds through as one run) replaced the per-bar filter
+  of every note (bars times notes). Same output: LessonsTest checks every bundled song, every progression in every key and
+  60 random songs against the old code. A 20-minute 1/32 song of 20,000 notes at 300 bpm labels in a few ms.
+- data/SongRepository.kt: the older import (Alicia's unlock) reads at most 512 KB like My songs and refuses more with
+  My songs' line; `load` refuses a stored file over 512 KB unread; a backup's base64 copy over 512 KB is not written back.
+- MainActivity: the launch pass logs `song pack <id> skipped: ...` per bad song and `song packs: N songs read and
+  labelled in T ms`; Today's plan leaves out a Continue song that does not load (it opened unguarded in the session part).
+- Tests: MidiFuzzTest (200 seeded inputs: noise, random events, damaged songs, songs with a hostile track; plus cuts of every
+  bundled song, through SmfParser, MySongs, the labeler and the metronome: refused the designed way or bounded, each
+  under 5 s, in practice 80 ms at most), SmfParserTest (odd time signature, zero and extreme tempos, huge delta, giant note
+  count, 40,000 tempo changes, the clock both ways, 128 tracks, 512 KB), MetronomeTest, LessonsTest, MySongsTest (a 300 bpm
+  file stops at 20 minutes), LibraryContentTest (512 KB).
+- Verify: 1553 JVM tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree);
+  lint 0 errors, 29 warnings, none in the changed files; assembleDebug versionCode 22, 2.8.3. No emulator walk (no UI change).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

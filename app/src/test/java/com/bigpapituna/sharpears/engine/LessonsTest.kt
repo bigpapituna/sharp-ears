@@ -109,6 +109,88 @@ class LessonsTest {
         assertTrue(ChordTrack(listOf(null, null), 1000.0).isEmpty)
     }
 
+    /**
+     * Security review finding 4 (2.8.3): the labeler is bounded by the song's caps, not by what a file says. A 20-minute
+     * song of 20,000 notes in 1/32 at 300 bpm (48,000 bars of 25 ms, labelled up to MAX_LABEL_BARS), half of them held to
+     * the end, labels in well under a second; the per-bar filter it replaced took bars times notes, minutes at launch.
+     * Its metronome clicks one beat every 25 ms, never a burst.
+     */
+    @Test fun aTwentyMinuteSongLabelsInWellUnderASecond() {
+        val rnd = java.util.Random(4)
+        val gap = SmfParser.MAX_SONG_MS / SmfParser.MAX_NOTES
+        val notes = List(SmfParser.MAX_NOTES) { i ->
+            val start = i * gap
+            Note(36 + rnd.nextInt(60), start, if (i % 2 == 0) SmfParser.MAX_SONG_MS - start else 40L, if (i % 2 == 0) Hand.LEFT else Hand.RIGHT, 80)
+        }
+        val song = Song("long", "long", 300.0, 1 to 32, notes, groupOnsets(notes), emptyList(), SmfParser.MAX_SONG_MS)
+        val started = System.nanoTime()
+        val bars = labelBarsAligned(song)
+        val ms = (System.nanoTime() - started) / 1_000_000
+        println("20 minutes, ${notes.size} notes, ${bars.size} bars labelled in $ms ms")
+        assertEquals(MAX_LABEL_BARS, bars.size)
+        assertTrue(bars.all { it != null })
+        assertTrue("labelled in $ms ms", ms < 500)
+        val m = Metronome(song.bpm, song.timeSignature)
+        assertEquals(25.0, m.beatMs, 1e-9)
+        var clicks = 0; var t = 0.0
+        while (t < SmfParser.MAX_SONG_MS) {
+            val next = minOf(t + 16.7, SmfParser.MAX_SONG_MS.toDouble())
+            clicks += m.clicks(t, next).also { assertTrue(it.size <= 1) }.size
+            t = next
+        }
+        assertEquals("one click a beat, none twice", (SmfParser.MAX_SONG_MS / 25).toInt(), clicks)
+    }
+
+    /** A bar of no length, of no tempo or of a damaged time signature labels nothing instead of dividing by it. */
+    @Test fun aSongWithNoRealBarIsNotLabelled() {
+        val notes = parseLine("C4+E4+G4:4", Hand.RIGHT, 500.0)
+        fun song(bpm: Double, sig: Pair<Int, Int>) = Song("s", "s", bpm, sig, notes, groupOnsets(notes), emptyList(), 2_000)
+        for (s in listOf(song(120.0, 4 to 0), song(120.0, 0 to 4), song(120.0, -3 to 4), song(0.0, 4 to 4), song(Double.NaN, 4 to 4),
+                         song(120.0, 1 to Int.MIN_VALUE), song(120.0, 1 to 1_048_576), song(1e12, 4 to 4)))
+            assertEquals("${s.bpm} ${s.timeSignature}", emptyList<Chord?>(), labelBarsAligned(s))
+        assertEquals(listOf("C"), labelBars(song(120.0, 4 to 4)).map { it.name })
+    }
+
+    /**
+     * The sweep gives what clipping every note to every bar gave (the 2.8.2 code, kept here as the reference): every
+     * bundled song, every progression in every key, and seeded random songs with held notes and odd meters.
+     */
+    @Test fun theSweepLabelsAsEveryBarFilteredOnItsOwnDid() {
+        val songs = java.io.File("src/main/assets/songs").listFiles { f -> f.extension == "mid" }!!.sortedBy { it.name }
+            .map { SmfParser.parse(it.readBytes(), it.nameWithoutExtension, "x") }.toMutableList()
+        for (p in PROGRESSIONS) for (key in 0..11) songs += progressionSong(p, key)
+        val rnd = java.util.Random(11)
+        repeat(60) { n ->
+            val sig = listOf(4 to 4, 3 to 4, 6 to 8, 2 to 2, 5 to 4, 7 to 8, 1 to 32, 12 to 16)[n % 8]
+            val bpm = 40.0 + rnd.nextInt(160) + rnd.nextDouble()
+            val barMs = sig.first * (4.0 / sig.second) * 60_000 / bpm
+            val notes = List(1 + rnd.nextInt(300)) {
+                val start = if (rnd.nextInt(6) == 0) (rnd.nextInt(40) * barMs).toLong() else rnd.nextInt(120_000).toLong()
+                val length = when (rnd.nextInt(5)) { 0 -> (barMs * (1 + rnd.nextInt(12))).toLong(); 1 -> 1L + rnd.nextInt(30); else -> 1L + rnd.nextInt(3_000) }
+                Note(21 + rnd.nextInt(88), start, length, Hand.RIGHT, 80)
+            }.sortedBy { it.startMs }
+            songs += Song("r$n", "r", bpm, sig, notes, groupOnsets(notes), emptyList(), notes.maxOf { it.startMs + it.durationMs })
+        }
+        for (s in songs) {
+            assertEquals(s.id, perBar(s), labelBarsAligned(s))
+            assertEquals(s.id, perBar(s.transposed(5)), labelBarsAligned(s.transposed(5)))
+        }
+    }
+
+    /** labelBarsAligned as it was through 2.8.2: every bar filters every note. */
+    private fun perBar(song: Song): List<Chord?> {
+        val barMs = barMs(song)
+        if (barMs <= 0 || song.notes.isEmpty()) return emptyList()
+        val bars = (song.durationMs / barMs).toInt() + 1
+        return (0 until bars).map { b ->
+            val from = b * barMs; val to = from + barMs
+            labelBar(song.notes.filter { it.startMs < to && it.startMs + it.durationMs > from }.map { n ->
+                val s = maxOf(n.startMs.toDouble(), from); val e = minOf((n.startMs + n.durationMs).toDouble(), to)
+                n.copy(durationMs = (e - s).toLong())
+            }.filter { it.durationMs >= barMs * 0.05 })
+        }
+    }
+
     @Test fun alignedBarsKeepEmptyBarsInPlace() {
         val notes = parseLine("C4+E4+G4:4 r:4 F4+A4+C5:4", Hand.RIGHT, 500.0)
         val song = Song("s", "s", 120.0, 4 to 4, notes, groupOnsets(notes), emptyList(), 6000)

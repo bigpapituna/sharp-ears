@@ -21,13 +21,14 @@ import kotlin.math.roundToLong
  *    [LEFT_RANGE]), and a note still outside folds in by octaves.
  * 5. The left hand: the lowest other line, clearly under the tune, kept only when the learner picks Both hands.
  * 6. Time: an intro with no tune is cut to the bar the tune starts in; one steady tempo, the file's main one, slowed to
- *    [MAX_BPM] when faster (the built-in first songs' tempo, and the player still opens it in Wait mode).
+ *    [MAX_BPM] when faster (the built-in first songs' tempo, and the player still opens it in Wait mode). The song stops
+ *    at [SmfParser.MAX_SONG_MS] at that tempo (2.8.3).
  *
  * Pure (MySongsTest builds its own two-track file; no real song's notes are in the repo).
  */
 object MySongs {
     /** Far above any song a learner brings; the bytes also travel in the progress export (data/SongRepository.kt). */
-    const val MAX_BYTES = 512 * 1024
+    const val MAX_BYTES = SmfParser.MAX_BYTES
     /** The built-in first songs' tempo (Twinkle, Ode to Joy, Mary had a little lamb at 100): a faster file is slowed to it. */
     const val MAX_BPM = 100.0
     /** G3 to C6: where the built-in songs' right hands play (their means 60 to 71). */
@@ -71,7 +72,7 @@ object MySongs {
     /** Reads [bytes] for the title dialog; throws [Refused] with the kind line when it is no song. */
     fun scan(bytes: ByteArray, fileName: String?): Scan {
         val data = read(bytes)
-        val lines = lines(data)
+        val lines = easyLines(data).first
         if (lines.melody.isEmpty()) throw Refused(Problem.NO_NOTES)
         // The first track's name is the song's name when that track is the conductor (no notes) or the only one.
         val sequence = data.trackNames[0]?.takeIf { data.notes.none { it.track == 0 } || data.notes.all { it.track == 0 } }
@@ -82,10 +83,9 @@ object MySongs {
     fun song(bytes: ByteArray, id: String, title: String, bothHands: Boolean): Song = song(read(bytes), id, title, bothHands)
 
     internal fun song(data: SmfData, id: String, title: String, bothHands: Boolean): Song {
-        val lines = lines(data)
+        val (lines, bpm) = easyLines(data)
         if (lines.melody.isEmpty()) throw Refused(Problem.NO_NOTES)
         val left = if (bothHands) lines.left else emptyList()
-        val bpm = minOf(mainBpm(data, data.notes.minOf { it.startTick }, data.notes.maxOf { it.endTick }), MAX_BPM)
         val msPerStep = 60_000.0 / bpm / 4
         fun ms(step: Long) = ((step - lines.cut) * msPerStep).roundToLong()
         val notes = (lines.melody.map { it to Hand.RIGHT } + left.map { it to Hand.LEFT }).map { (n, hand) ->
@@ -104,6 +104,19 @@ object MySongs {
     }
 
     // ---- the lines ----
+
+    /**
+     * The lines and the one tempo they play at, cut at [SmfParser.MAX_SONG_MS]: the parser's cap is in the file's own
+     * tempos, and slowing a fast file to [MAX_BPM] makes it longer.
+     */
+    private fun easyLines(data: SmfData): Pair<Lines, Double> {
+        val lines = lines(data)
+        if (lines.melody.isEmpty()) return lines to MAX_BPM
+        val bpm = minOf(mainBpm(data, data.notes.minOf { it.startTick }, data.notes.maxOf { it.endTick }), MAX_BPM)
+        val end = lines.cut + (SmfParser.MAX_SONG_MS / (60_000.0 / bpm / 4)).toLong()      // the 16th the song stops at
+        fun cap(line: List<Step>) = line.filter { it.start < end }.map { if (it.end > end) it.copy(end = end) else it }
+        return Lines(cap(lines.melody), cap(lines.left), lines.cut) to bpm
+    }
 
     /** A track's notes on one channel: what the file plays as one line, with its outline (top note of each onset). */
     private class Candidate(val track: Int, val channel: Int, val notes: List<SmfNote>, val outline: List<SmfNote>) {

@@ -74,6 +74,8 @@ class LibraryContentTest {
             catch (e: ImportException) { assertTrue(e.message!!.startsWith("This is not a MIDI file")) }
         }
         try { SongRepository.validate("hello".toByteArray(), meta); fail("text accepted") } catch (_: ImportException) {}
+        // 2.8.3: no file over 512 KB is read, as My songs (SongRepository.import reads at most that much).
+        try { SongRepository.validate(good + ByteArray(SmfParser.MAX_BYTES), meta); fail("a file over 512 KB accepted") } catch (_: ImportException) {}
     }
 
     /**

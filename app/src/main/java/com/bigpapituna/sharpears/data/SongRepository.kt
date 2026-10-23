@@ -70,11 +70,27 @@ class SongRepository(private val context: Context) {
     fun available(meta: SongMeta) = !(meta.user || meta.mine) || File(context.filesDir, meta.file).exists()
 
     fun load(meta: SongMeta): Song {
-        if (meta.mine) return MySongs.song(File(context.filesDir, meta.file).readBytes(), meta.id, meta.title, meta.bothHands)
-        val bytes = if (meta.user) File(context.filesDir, meta.file).readBytes()
+        if (meta.mine) return MySongs.song(songBytes(File(context.filesDir, meta.file)), meta.id, meta.title, meta.bothHands)
+        val bytes = if (meta.user) songBytes(File(context.filesDir, meta.file))
                     else context.assets.open("songs/${meta.file}").use { it.readBytes() }
         return SmfParser.parse(bytes, meta.id, meta.title, meta.hands)
     }
+
+    /** A stored song file's bytes. One bigger than any song (an older import, a file back from a backup) is refused unread. */
+    private fun songBytes(f: File): ByteArray {
+        if (f.length() > SmfParser.MAX_BYTES) throw MySongs.Refused(MySongs.Problem.TOO_BIG)
+        return f.readBytes()
+    }
+
+    /** A picked file's bytes, at most [SmfParser.MAX_BYTES] and a little more (to tell a bigger file); null when it cannot be opened. */
+    private fun readAtMost(uri: Uri): ByteArray? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { s ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(16 * 1024)
+            while (out.size() <= SmfParser.MAX_BYTES) { val n = s.read(buf); if (n < 0) break; out.write(buf, 0, n) }
+            out.toByteArray()
+        }
+    }.getOrNull()
 
     // ---- My songs (2.8.1) ----
 
@@ -87,8 +103,13 @@ class SongRepository(private val context: Context) {
             val f = File(context.filesDir, m.file)
             if (f.exists()) continue
             val data = p.getString(KEY_BYTES + m.id, null) ?: continue
-            runCatching { mineDir.mkdirs(); f.writeBytes(java.util.Base64.getDecoder().decode(data)) }
+            runCatching {
+                val bytes = java.util.Base64.getDecoder().decode(data)
+                check(bytes.size <= MySongs.MAX_BYTES) { "${bytes.size} bytes, bigger than any song" }
+                mineDir.mkdirs(); f.writeBytes(bytes)
+            }
                 .onSuccess { android.util.Log.d(com.bigpapituna.sharpears.TAG, "my songs: ${m.id} file written back from the list") }
+                .onFailure { android.util.Log.d(com.bigpapituna.sharpears.TAG, "my songs: ${m.id} not written back ($it)") }
         }
         return list
     }
@@ -98,14 +119,7 @@ class SongRepository(private val context: Context) {
      * never keeping the URI. Throws [MySongs.Refused] with the kind line. Returns the bytes and the file's name.
      */
     fun readPicked(uri: Uri): Pair<ByteArray, String?> {
-        val bytes = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { s ->
-                val out = java.io.ByteArrayOutputStream()
-                val buf = ByteArray(16 * 1024)
-                while (out.size() <= MySongs.MAX_BYTES) { val n = s.read(buf); if (n < 0) break; out.write(buf, 0, n) }
-                out.toByteArray()
-            }
-        }.getOrNull() ?: throw MySongs.Refused(MySongs.Problem.UNREADABLE)
+        val bytes = readAtMost(uri) ?: throw MySongs.Refused(MySongs.Problem.UNREADABLE)
         if (bytes.size > MySongs.MAX_BYTES) throw MySongs.Refused(MySongs.Problem.TOO_BIG)
         return bytes to runCatching { displayName(uri) }.getOrNull()
     }
@@ -128,11 +142,11 @@ class SongRepository(private val context: Context) {
     /**
      * Copies a picked MIDI file into files/user/ after checking that it parses. [into] is the index entry it
      * fills (Alicia); without one, a new entry is made from the file name with automatic hands (two tracks
-     * split by track, one track split at middle C).
+     * split by track, one track split at middle C). Like My songs, a file over [SmfParser.MAX_BYTES] is refused unread.
      */
     fun import(uri: Uri, into: SongMeta? = null): SongMeta {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw ImportException("Could not open the file.")
+        val bytes = readAtMost(uri) ?: throw ImportException("Could not open the file.")
+        if (bytes.size > SmfParser.MAX_BYTES) throw ImportException(MySongs.Problem.TOO_BIG.line)
         val name = displayName(uri)?.substringBeforeLast('.') ?: "Imported song"
         val meta = into ?: SongMeta(
             id = userSongId(name),

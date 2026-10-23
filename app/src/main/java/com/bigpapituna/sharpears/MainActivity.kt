@@ -828,15 +828,18 @@ class MainActivity : ComponentActivity() {
 
                     // Each library song yields a "Chords of <song>" lesson pack (DESIGN 4.3), labeled off the main thread.
                     // The same bar labels drive the chord names on the falling notes (ChordTrack per song id).
+                    // A song that does not load (a damaged file) is skipped and logged; the parser and the labeler are
+                    // bounded (2.8.3), so no file can hold up the rest at launch.
                     LaunchedEffect(libraryVersion) {
                         val labeled = withContext(Dispatchers.Default) {
+                            val t0 = System.currentTimeMillis()
                             songs.filter(repo::available).mapNotNull { m ->
                                 runCatching {
                                     val song = repo.load(m)
                                     val bars = labelBarsAligned(song)
                                     Triple(m.id, songPack(song, bars = bars), ChordTrack(bars, barMs(song)))
-                                }.onFailure { Log.d(TAG, "song pack ${m.id}: $it") }.getOrNull()
-                            }
+                                }.onFailure { Log.d(TAG, "song pack ${m.id} skipped: $it") }.getOrNull()
+                            }.also { Log.d(TAG, "song packs: ${it.size} songs read and labelled in ${System.currentTimeMillis() - t0} ms") }
                         }
                         lessons.songPacks.value = labeled.map { it.second }.filter { it.items.isNotEmpty() }
                         lessons.songChords.value = labeled.filter { !it.third.isEmpty }.associate { it.first to it.third }
@@ -916,8 +919,10 @@ class MainActivity : ComponentActivity() {
                         val next = if (asleep) null else nextLesson()
                         // A kid's session is short (KIDS-PLAN 3.9): the next game or lesson and a whole song, no chord
                         // review and no bar on a loop.
+                        // A song that does not load (a damaged file) is left out, so the session never opens it.
                         val song = continueMeta()?.let { m ->
-                            val minutes = runCatching { repo.load(m).durationMs / 60_000.0 }.getOrDefault(3.0)
+                            val minutes = runCatching { repo.load(m).durationMs / 60_000.0 }
+                                .onFailure { Log.d(TAG, "today: ${m.id} left out ($it)") }.getOrNull() ?: return@let null
                             SessionSong(m.id, m.title, minutes, if (profile.isKid) null else prefs.troubleBars(m.id).firstOrNull())
                         }
                         val chords = if (profile.isKid) emptyList() else queue.filterIsInstance<LessonItem.ChordItem>().map { it.id }
