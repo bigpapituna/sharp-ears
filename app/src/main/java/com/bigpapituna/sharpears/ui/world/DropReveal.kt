@@ -218,7 +218,7 @@ fun DropRevealOverlay(reward: Reward, onDone: () -> Unit, primary: String = "Int
         if (revealed && reward.best?.rarity == Rarity.SHINY) Confetti(reward, Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 104.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Pup(Pose.STICKER, controller = pup, size = 128.dp)
+            Pup(Pose.STICKER, controller = pup, size = 128.dp, clips = true)
             if (reward.drops.isNotEmpty()) DropReveal(reward, pup = pup, cardWidth = if (reward.drops.size > 1) 132.dp else 168.dp) { revealed = true }
             if (revealed) RewardExtras(reward, songTitle = songTitle)
         }

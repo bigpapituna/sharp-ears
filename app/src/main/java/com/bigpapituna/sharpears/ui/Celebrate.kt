@@ -125,6 +125,11 @@ fun Celebration(
     newBest: Boolean = false, xpGained: Int? = null, xpBar: XpBar? = null,
     reward: (@Composable () -> Unit)? = null,
     oneMore: (@Composable () -> Unit)? = null,
+    /**
+     * 2.10: a clip he plays once as he lands, staying on its last frame (PupClips.CELEBRATE after a lesson and on "Done for
+     * today"); null, or without the clip or with animations off: the rig's jump for joy, then the cheer.
+     */
+    clip: String? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
     // The buttons fade in where the keys were: a tap meant for the keys does nothing (SettleTaps).
@@ -143,13 +148,18 @@ fun Celebration(
     val xp = remember { anim() }        // "+120 XP" and its bar
     val burst = remember { anim() }     // the new-best stars flying out
     val puff = remember { Animatable(0f) }   // dust where he lands (none when still)
-    // 2.10: he lands in a jump for joy, then cheers on the beat until Continue.
+    // 2.10: he lands in a jump for joy, then cheers on the beat until Continue; with a clip, he lands into it (laughing,
+    // arms up, clapping) and stays on its last frame. Neither holds up the buttons.
     val pup = rememberPupController(idle = false)
     LaunchedEffect(Unit) {
+        if (clip != null) pup.prepare(clip)
         snapshotFlow { rise.value }.first { it >= 0.97f }
-        pup.play(PupMood.HAPPY)
-        delay(PupMotion.HAPPY_MS.toLong())
-        pup.mood = PupMood.CHEER
+        if (clip != null) pup.playClip(clip, fallback = PupMood.HAPPY, hold = true, then = PupMood.CHEER)
+        else {
+            pup.play(PupMood.HAPPY)
+            delay(PupMotion.HAPPY_MS.toLong())
+            pup.mood = PupMood.CHEER
+        }
     }
     LaunchedEffect(Unit) {
         sampler?.let { launch { fanfare(it) } }
@@ -174,7 +184,7 @@ fun Celebration(
     val px = with(LocalDensity.current) { 320.dp.toPx() }
     val head: @Composable ColumnScope.(pupSize: androidx.compose.ui.unit.Dp) -> Unit = { pupSize ->
         Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
-            Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, modifier = Modifier.graphicsLayer {
+            Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, clips = clip != null, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
                 val s = 0.4f + 0.6f * rise.value
                 scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)

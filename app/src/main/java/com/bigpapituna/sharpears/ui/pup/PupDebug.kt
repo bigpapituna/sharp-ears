@@ -42,9 +42,10 @@ import kotlinx.coroutines.delay
 /**
  * Debug only (2.10): `--es screen pup` puts the rig on its own for QA, every mood on a button. Options, for screen
  * recordings: `--es pose <name>` (default welcome), `--es mood <name>` (held, or a beat played on launch), `--ei every <ms>`
- * (play that beat again every so often), `--ei size <dp>` (default 220), `--ei bpm <n>`, `--es clip jump|dance|wave|hop`
- * (the clip slot instead of the rig), `--es theme light|dark`, `--ef slow n` (everything n times slower, for a recording),
- * `--es act blink|flick` (one every `every` ms, 2 s by default).
+ * (play that beat again every so often), `--ei size <dp>` (default 220), `--ei bpm <n>`,
+ * `--es clip jump|dance|wave|sleep|celebrate` (the clip slot instead of the rig; celebrate plays once and holds, as after a
+ * lesson; tap its chip again to replay), `--es theme light|dark`, `--ef slow n` (everything n times slower, for a
+ * recording), `--es act blink|flick` (one every `every` ms, 2 s by default).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -58,6 +59,7 @@ fun PupDebug(intent: Intent, onClose: () -> Unit) {
     var size by remember { mutableIntStateOf(intent.getIntExtra("size", 220)) }
     var bpm by remember { mutableIntStateOf(intent.getIntExtra("bpm", PupMotion.CHEER_BPM)) }
     var clip by remember { mutableStateOf(intent.getStringExtra("clip")) }
+    var replays by remember { mutableIntStateOf(0) }
     var notes by remember { mutableIntStateOf(0) }
     val every = intent.getIntExtra("every", 0)
     remember { PupClock.slow = intent.getFloatExtra("slow", 1f).coerceIn(1f, 20f); 0 }
@@ -86,7 +88,7 @@ fun PupDebug(intent: Intent, onClose: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Box(Modifier.fillMaxWidth().height((size * 1.45f).dp), contentAlignment = Alignment.BottomCenter) {
                 val c = clip
-                if (c != null) PupClip(c, size = size.dp, fallback = pose)
+                if (c != null) androidx.compose.runtime.key(c, replays) { PupClip(c, size = size.dp, fallback = pose, once = c == PupClips.CELEBRATE) }
                 else Pup(pose, held ?: pose.mood, size = size.dp, controller = pup, onTap = {}, idle = false)
             }
             Text("Beats", style = MaterialTheme.typography.labelLarge)
@@ -109,8 +111,7 @@ fun PupDebug(intent: Intent, onClose: () -> Unit) {
             Text("Clips", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(clip == null, onClick = { clip = null }, label = { Text("the rig") })
-                for (c in listOf(PupClips.JUMP, PupClips.DANCE, PupClips.WAVE, PupClips.HOP))
-                    FilterChip(clip == c, onClick = { clip = c }, label = { Text(c) })
+                for (c in PupClips.ALL) FilterChip(clip == c, onClick = { if (clip == c) replays++ else clip = c }, label = { Text(c) })
             }
             Text("Size", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -94,9 +94,9 @@ internal fun ArcadeFinish(game: ArcadeGame, result: RoundResult, end: RoundEnd?,
                     else drawPath(star(c, size.width * 0.46f), Ink.copy(alpha = 0.35f), style = Stroke(3.dp.toPx()))
                 }
             }
-            // Three stars: a jump for joy (2.10), then he holds his crown; two, a dance on the beat.
+            // Three stars: a jump for joy (2.10: the jump clip where the app has it), then he holds his crown; two, a dance.
             val pose = when (stars) { 3 -> Pose.CROWN; 2 -> Pose.DANCING; else -> Pose.GREAT_JOB }
-            Pup(pose, if (stars == 3) PupMood.HAPPY else pose.mood, size = 132.dp, idle = false)
+            Pup(pose, if (stars == 3) PupMood.HAPPY else pose.mood, size = 132.dp, idle = false, clips = stars == 3)
             Text(ArcadeLines.finish(stars), style = MaterialTheme.typography.titleLarge, color = Ink, textAlign = TextAlign.Center)
             if (sticker != null) {
                 StickerImage(sticker, Modifier.size(128.dp).graphicsLayer { rotationY = 180f * (1f - stickerIn.value); alpha = stickerIn.value })

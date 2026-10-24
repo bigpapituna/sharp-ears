@@ -128,6 +128,20 @@ class PupMotionTest {
         assertTrue(m.FLICK_DEG == 3f && m.SQUINT_Y == 0.92f && m.HEAD_SHARE == 0.45f)
     }
 
+    /** The layered poses: the eyes shut and open again, the tail wags three times, no part turns past what the cut fills. */
+    @Test fun theLayeredPartsBlinkWagAndStayInsideTheirLimits() {
+        assertEquals(1f, m.eyesBlink(0f), 0f)
+        assertEquals(m.EYES_SHUT, (0..m.BLINK_EYES_MS).minOf { m.eyesBlink(it.toFloat()) }, 1e-4f)
+        assertEquals(1f, m.eyesBlink(m.BLINK_EYES_MS.toFloat()), 0f)
+        assertTrue(m.BLINK_EYES_MS < 1500 && m.EYES_SHUT in 0.05f..0.3f)
+        val wag = (0..m.WAG_MS).map { m.tailWag(it.toFloat()) }
+        assertEquals(m.WAG_CYCLES, (1 until wag.size - 1).count { i -> wag[i] > 0f && wag[i + 1] <= 0f })
+        assertTrue(wag.all { kotlin.math.abs(it) <= m.TAIL_WAG_DEG + 1e-4f })
+        for (deg in listOf(m.EAR_FLICK_DEG, m.TAIL_FLICK_DEG, m.TAIL_WAG_DEG, m.TILT_DEG, m.LISTEN_DEG)) assertTrue("$deg", deg <= m.PART_MAX_DEG)
+        assertEquals(1f, (0..m.FLICK_MS).maxOf { m.flickShare(it.toFloat()) }, 0.01f)
+        assertTrue(m.WAG_BODY_SHARE in 0f..1f)
+    }
+
     @Test fun beatsHaveAnOrderAndHeldMoodsDoNotPlay() {
         assertTrue(m.priority(PupMood.HAPPY) > m.priority(PupMood.TILT))
         assertTrue(m.priority(PupMood.TILT) > m.priority(PupMood.WAG))

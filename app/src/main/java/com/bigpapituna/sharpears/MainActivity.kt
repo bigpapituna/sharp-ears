@@ -662,7 +662,7 @@ class MainActivity : ComponentActivity() {
         //   --es screen skin --es view lane|wrong|recap|goodbye|asleep|paws|bite ...   (the kid skin's demo, ui/skin/SkinDemo.kt)
         //   --es screen motion [--es demo celebrate|cheer|pup|keys]   (the motion demo over home)
         //   --es screen pup [--es pose <name>] [--es mood happy|cheer|tilt|wag|point|listen|sleep] [--ei every <ms>] [--ei size <dp>]
-        //       [--ei bpm n] [--es clip jump|dance|wave|hop] [--es theme light|dark]   (2.10: the pup's rig, every mood on a button)
+        //       [--ei bpm n] [--es clip jump|dance|wave|sleep|celebrate] [--es theme light|dark]   (2.10: the pup's rig, every mood on a button)
         //   --es lesson playground-<n> [--ei step n] [--es inject synth:...|claps:400,1150|dyn:60/-20,60/-8@1600~1500]
         //   2.2, the kid home (open as a kid with --es profile <id>):
         //   --es screen kidsongs | kidstickers [--es page album|dress|records|paws] | finale [--es page garden]
@@ -1858,7 +1858,7 @@ class MainActivity : ComponentActivity() {
                             com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(current.name), emptyList(),
                             primary = "Continue", onPrimary = { dailyDone = null },
                             pose = com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound },
-                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
+                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE)
                         else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
                             // The minutes the session added, whole as the goal line counts them; under one, no chip (not "0 min").
@@ -1868,7 +1868,7 @@ class MainActivity : ComponentActivity() {
                             primary = "Continue", onPrimary = { dailyDone = null },
                             pose = if (streak >= 2) com.bigpapituna.sharpears.ui.pup.Pose.STREAK else com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP,
                             sampler = sampler.takeIf { prefs.sound },
-                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
+                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE)
                     } }
                     // Debug: --es screen motion [--es demo celebrate|cheer|pup|keys] (Team E's effects, ui/motion/MotionDemo.kt).
                     var motionDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "motion") }

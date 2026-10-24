@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -72,7 +74,9 @@ import com.bigpapituna.sharpears.ui.world.LocalPupOutfit
 import com.bigpapituna.sharpears.ui.world.Wear
 import com.bigpapituna.sharpears.ui.world.drawOutfit
 import com.bigpapituna.sharpears.ui.world.drawOutfitBehind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -83,8 +87,9 @@ import kotlin.math.sin
  * The pup (2.10, the living pup): the one composable every screen draws him with, on the forty stills, standing in a soft
  * gold glow over his shadow. Every number is in engine/pup/PupMotion.kt.
  *
- * - Idle: he breathes (a sine, 3.2 s), blinks every 3 to 6 s (a squint of the head, or a cross-fade to a closed-eyes twin
- *   where a pose has one), and now and then flicks an ear or his tail.
+ * - Idle: he breathes (a sine, 3.2 s), blinks every 3 to 6 s, and now and then flicks an ear or his tail. The nine poses
+ *   cut into layers (PupLayers.kt) blink with their eyes, flick a real ear or the tail, wag the tail and tilt or lean the
+ *   head; the other thirty squint the head's top and turn a soft-masked corner, and tilt and lean as a whole.
  * - [mood]: a held one (CHEER on the beat of [bpm], POINT, LISTEN, SLEEP, IDLE) or a beat played once when it changes to
  *   it (HAPPY, TILT, WAG). A [controller] plays beats on cue (`play`), holds a mood over this one, and runs his brain:
  *   idle acts after ten seconds without input, a nap after a minute, reactions (engine/world/PupBrain.kt).
@@ -96,10 +101,14 @@ import kotlin.math.sin
  *   his shadow how far ([lift], 0..1) and can press him down ([squash], 0..1); each change of [poke] is "I heard you": an
  *   ear flick and a little dip.
  * - With the phone's animations off he holds still: a pose change is the plain fade and a beat one fade of his glow.
+ * - [clips]: his HAPPY plays the jump clip (assets/pup/jump.webp) where the app has it, and the controller's playClip
+ *   plays any clip in his place, fading in over him and back (or, held, staying on its last frame); without the clip (or
+ *   with animations off, or dressed up, which the clips are not) the rig plays the beat instead.
  *
  * Everything moving is read in graphicsLayer and draw blocks from remembered Animatables, so a pup never recomposes the
  * screen around him, and he never takes a touch unless [onTap] is set. Decorative: the words beside him say what he means.
  */
+@Suppress("ModifierParameter")      // the brief's shape: Pup(pose, mood, modifier); mood is the call sites' second word
 @Composable
 fun Pup(
     pose: Pose,
@@ -128,6 +137,7 @@ fun Pup(
     squash: (() -> Float)? = null,
     poke: Int = 0,
     colorFilter: ColorFilter? = null,
+    clips: Boolean = false,
 ) {
     val still = reducedMotion()
     val alive = live && !still && size.isSpecified && size >= PupMotion.MIN_LIVE_DP.dp
@@ -139,7 +149,7 @@ fun Pup(
     LaunchedEffect(held) { ctl.holdFor(held) }
 
     // ---- The pictures: the one shown and the one fading out under it --------------------------------------------------
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     var current by remember { mutableStateOf(shown) }
     var previous by remember { mutableStateOf<Pose?>(null) }
     val fade = remember { Animatable(1f) }
@@ -157,6 +167,14 @@ fun Pup(
     val prevArt = remember(previous) { previous?.let { PupArt.bitmap(res, it.res) } }
     val twin = current.blinkTwin
     val twinArt = remember(twin) { twin?.let { PupArt.bitmap(res, it.res) } }
+    // The pose's layers, when it has them, decoded off the main thread (he is drawn whole until they are in).
+    val rigState = produceState<RigArt?>(null, current, alive) {
+        value = if (alive && current in PUP_LAYERS) withContext(Dispatchers.Default) { loadRig(res, current) } else null
+    }
+    val dressed = current == Pose.WEAR_BASE && !outfit.isEmpty
+    // His head turns on its own (a tilt, a listening lean) where the cut allows it and no hat sits on it.
+    val headTurns = rigState.value.let { it != null && !dressed && it.rig.headMax >= PupMotion.TILT_DEG }
+    val headLeans = rigState.value.let { it != null && !dressed && it.rig.headMax >= PupMotion.LISTEN_DEG }
 
     // ---- Motion state, read only while drawing --------------------------------------------------------------------------
     val enter = remember { Animatable(if (alive) PupMotion.ENTER_FROM else 1f) }
@@ -166,6 +184,19 @@ fun Pup(
     val beatT = remember { Animatable(0f) }                     // ms into the beat playing
     val beatMood = remember { mutableStateOf(PupMood.IDLE) }
     val tiltSide = remember { mutableFloatStateOf(1f) }
+    val tiltHead = remember { mutableStateOf(false) }          // this tilt turns the head layer, not the whole pup
+    val wagTail = remember { mutableStateOf(false) }           // this wag swings the tail layer
+    val headTurnsNow by rememberUpdatedState(headTurns)
+    val flickPart = remember { mutableIntStateOf(0) }          // 0 the left ear, 1 the right ear, 2 the tail (layered poses)
+    val clipNow = remember { mutableStateOf<ShownClip?>(null) }
+    val clipFade = remember { Animatable(0f) }
+    val context = LocalContext.current
+    val clipsOk by rememberUpdatedState(clips && alive && !dressed)
+    // The jump (and any clip the screen will ask for, PupController.prepare) decoded ahead, so it starts at once (decoding
+    // one on cue took half a second on the emulator). Each is decoded again after it played, for next time.
+    val ready = remember { HashMap<String, android.graphics.drawable.AnimatedImageDrawable>() }
+    suspend fun decodeAhead(name: String) { if (name !in ready) withContext(Dispatchers.IO) { PupClips.load(context, name) }?.let { ready[name] = it } }
+    if (clips && alive) LaunchedEffect(ctl.ahead.size) { for (n in listOf(PupClips.JUMP) + ctl.ahead.toList()) decodeAhead(n) }
     val calm = remember { Animatable(0f) }                      // the glow's fade for a beat with animations off
     val blinkT = remember { Animatable(0f) }                    // ms into a blink
     val flickT = remember { Animatable(0f) }                    // ms into a flick
@@ -176,12 +207,10 @@ fun Pup(
     var taps by remember { mutableIntStateOf(0) }
     val cheerAmt by animateFloatAsState(if (held == PupMood.CHEER && alive) 1f else 0f, tween(PupMotion.HELD_MS), label = "cheer")
     val sleepAmt by animateFloatAsState(if (held == PupMood.SLEEP) 1f else 0f, tween(PupMotion.HELD_MS), label = "sleep")
-    val lean by animateFloatAsState(when {
-        !alive -> 0f
-        held == PupMood.LISTEN -> ctl.lean.coerceIn(-1f, 1f) * PupMotion.LISTEN_DEG
-        held == PupMood.POINT -> ctl.pointAt.coerceIn(-1f, 1f) * PupMotion.POINT_LEAN_DEG
-        else -> 0f
-    }, tween(PupMotion.LISTEN_MS, easing = FastOutSlowInEasing), label = "lean")
+    val listen = if (alive && held == PupMood.LISTEN) ctl.lean.coerceIn(-1f, 1f) * PupMotion.LISTEN_DEG else 0f
+    val point = if (alive && held == PupMood.POINT) ctl.pointAt.coerceIn(-1f, 1f) * PupMotion.POINT_LEAN_DEG else 0f
+    val lean by animateFloatAsState((if (headLeans) 0f else listen) + point, tween(PupMotion.LISTEN_MS, easing = FastOutSlowInEasing), label = "lean")
+    val headLean by animateFloatAsState(if (headLeans) listen else 0f, tween(PupMotion.LISTEN_MS, easing = FastOutSlowInEasing), label = "headLean")
     val slide by animateFloatAsState(if (held == PupMood.POINT && alive) ctl.pointAt.coerceIn(-1f, 1f) * PupMotion.POINT_MAX else 0f,
         tween(PupMotion.POINT_MS, easing = FastOutSlowInEasing), label = "slide")
     val bpmNow by rememberUpdatedState(PupMotion.cheerBpm(ctl.bpm))
@@ -219,7 +248,16 @@ fun Pup(
             playing = cue.mood
             job = launch {
                 if (still || !live) { calm.snapTo(1f); calm.animateTo(0f, tween(PupMotion.CALM_MS)); return@launch }
+                // His jump as the clip, where this pup plays clips and the app has it.
+                if (cue.mood == PupMood.HAPPY && clipsOk) {
+                    if (playClip(context, PupClips.JUMP, 1, clipNow, clipFade, ready.remove(PupClips.JUMP))) {
+                        decodeAhead(PupClips.JUMP)
+                        return@launch
+                    }
+                }
                 if (cue.mood == PupMood.TILT) tiltSide.floatValue = -tiltSide.floatValue
+                tiltHead.value = headTurnsNow
+                wagTail.value = rigState.value != null
                 beatMood.value = cue.mood
                 val ms = PupMotion.beatMs(cue.mood)
                 beatT.snapTo(0f)
@@ -229,13 +267,27 @@ fun Pup(
         }
     }
     LaunchedEffect(mood) { if (mood.beat) ctl.play(mood) }
+    // A clip asked for by name: played in his place (a held one stays on its last frame), or its fallback beat where there
+    // is none, then the mood it hands over to.
+    LaunchedEffect(ctl, still) {
+        snapshotFlow { ctl.clipCue }.collect { cue ->
+            if (cue == null || cue.seq <= ctl.clipsTaken) return@collect
+            ctl.clipsTaken = cue.seq
+            if (!still && clipsOk && playClip(context, cue.name, cue.loops, clipNow, clipFade, ready.remove(cue.name), cue.hold)) {
+                if (!cue.hold && cue.name in ctl.ahead) decodeAhead(cue.name)
+                return@collect
+            }
+            ctl.play(cue.fallback)
+            cue.then?.let { m -> launch { delay(PupMotion.beatMs(cue.fallback).toLong()); ctl.mood = m } }
+        }
+    }
 
     // Blinks: a squint (or the twin's fade) every 3 to 6 s while his eyes are open.
     if (alive && current.eyesOpen && held != PupMood.SLEEP) LaunchedEffect(current) {
         val r = java.util.Random()
         while (true) {
             delay(PupMotion.blinkGap(r.nextDouble(), sleepy.value > 0.5f))
-            val ms = if (twin != null) PupMotion.BLINK_FADE_MS * 2 + PupMotion.BLINK_SHUT_MS else PupMotion.SQUINT_MS
+            val ms = blinkMs(rigState.value, twin)
             blinkT.snapTo(0f)
             blinkT.animateTo(ms.toFloat(), tween(slowed(ms), easing = LinearEasing))
             blinkT.snapTo(0f)
@@ -244,6 +296,7 @@ fun Pup(
     // An ear or tail flick every 8 to 15 s (not asleep), and an ear flick for every sound a stage heard.
     suspend fun flickNow(ear: Boolean) {
         flickEar.value = ear
+        flickPart.intValue = if (!ear) 2 else if (flickPart.intValue == 0) 1 else 0
         flickT.snapTo(0f)
         flickT.animateTo(PupMotion.FLICK_MS.toFloat(), tween(slowed(PupMotion.FLICK_MS), easing = LinearEasing))
         flickT.snapTo(0f)
@@ -255,19 +308,19 @@ fun Pup(
     }
     if (alive) LaunchedEffect(ctl.blinks) {
         if (ctl.blinks == 0) return@LaunchedEffect
-        val ms = if (twin != null) PupMotion.BLINK_FADE_MS * 2 + PupMotion.BLINK_SHUT_MS else PupMotion.SQUINT_MS
+        val ms = blinkMs(rigState.value, twin)
         blinkT.snapTo(0f); blinkT.animateTo(ms.toFloat(), tween(slowed(ms), easing = LinearEasing)); blinkT.snapTo(0f)
     }
     if (alive) LaunchedEffect(ctl.flicks) { if (ctl.flicks != 0) flickNow(ctl.flicks % 2 == 1) }
     if (alive) LaunchedEffect(poke) {
         if (poke == 0) return@LaunchedEffect
-        launch { land.snapTo(PupMotion.HEARD_DIP); land.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 500f)) }
+        launch { land.snapTo(PupMotion.HEARD_DIP); land.animateTo(0f, spring(dampingRatio = PupMotion.HEARD_DAMPING, stiffness = PupMotion.HEARD_STIFFNESS)) }
         flickNow(true)
     }
     if (alive && sleepyAfterMs != null) LaunchedEffect(pose, taps, sleepyAfterMs) {
-        sleepy.animateTo(0f, tween(400))
+        sleepy.animateTo(0f, tween(PupMotion.WAKE_MS))
         delay(sleepyAfterMs)
-        sleepy.animateTo(1f, tween(2500))
+        sleepy.animateTo(1f, tween(PupMotion.DROWSE_MS))
     }
     // Juice: every note played, a hop to its pitch and a landing squash.
     if (alive && bounce != BounceSize.NONE) LaunchedEffect(bounce) {
@@ -281,7 +334,7 @@ fun Pup(
                 jump.animateTo(h, tween(if (big) PupMotion.JUICE_BIG_UP_MS else PupMotion.JUICE_UP_MS, easing = FastOutSlowInEasing))
                 jump.animateTo(0f, tween(if (big) PupMotion.JUICE_BIG_DOWN_MS else PupMotion.JUICE_DOWN_MS, easing = FastOutLinearInEasing))
                 land.snapTo(sq)
-                land.animateTo(0f, spring(dampingRatio = 0.4f, stiffness = 700f))
+                land.animateTo(0f, spring(dampingRatio = PupMotion.JUICE_LAND_DAMPING, stiffness = PupMotion.JUICE_LAND_STIFFNESS))
             }
         }
     }
@@ -323,24 +376,48 @@ fun Pup(
             scaleY = PupMotion.clamp(b.scaleY * (1f + (c.scaleY - 1f) * k) * (1f + br) * (1f - q) * (1f - 0.08f * sq) * pop)
             translationY = -px * liftNow(b, c)
             translationX = this.size.width * slide
-            rotationZ = (if (beatMood.value == PupMood.TILT) 0f else b.rotation) + c.rotation * k + lean
+            val beatTurn = when (beatMood.value) {
+                PupMood.TILT -> 0f                                        // the inner layer (or the head) tilts
+                PupMood.WAG -> if (wagTail.value) b.rotation * PupMotion.WAG_BODY_SHARE else b.rotation
+                else -> b.rotation
+            }
+            rotationZ = beatTurn + c.rotation * k + lean
         }) {
             // The head tilt turns round a point low in the picture, so his head swings and his feet stay put.
             Box(Modifier.fillMaxSize().graphicsLayer {
                 transformOrigin = TransformOrigin(0.5f, PupMotion.TILT_PIVOT_Y)
-                rotationZ = if (beatMood.value == PupMood.TILT) beatFrame().rotation else 0f
+                rotationZ = if (beatMood.value == PupMood.TILT && !tiltHead.value) beatFrame().rotation else 0f
             }) {
-                Spacer(Modifier.fillMaxSize().drawBehind {
+                Spacer(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clipFade.value }.drawBehind {
                     val f = fade.value
                     val prev = previous
                     val pa = prevArt
+                    // The layered pose, turned for this frame: the eyes' blink, an ear or the tail flicking, the tail's wag,
+                    // the head's tilt and listening lean.
+                    val ra = rigState.value?.takeIf { it.rig === PUP_LAYERS[current] }
+                    val rp = ra?.let {
+                        val fs = PupMotion.flickShare(flickT.value)
+                        RigPose(
+                            head = (if (beatMood.value == PupMood.TILT && tiltHead.value) beatFrame().rotation else 0f) + headLean,
+                            leftEar = if (flickPart.intValue == 0) -PupMotion.EAR_FLICK_DEG * fs else 0f,
+                            rightEar = if (flickPart.intValue == 1) PupMotion.EAR_FLICK_DEG * fs else 0f,
+                            tail = (if (flickPart.intValue == 2) PupMotion.TAIL_FLICK_DEG * fs else 0f) +
+                                (if (beatMood.value == PupMood.WAG && wagTail.value) PupMotion.tailWag(beatT.value) else 0f),
+                            eyes = if (it.rig.hasEyes) PupMotion.eyesBlink(blinkT.value) else 1f,
+                        )
+                    }
+                    val drawCurrent: DrawScope.() -> Unit = {
+                        if (ra != null && rp != null) drawPose(current, ra.rig.w, ra.rig.h, outfit) { r -> drawRig(ra, r, rp, colorFilter) }
+                        else drawPose(current, curArt, outfit, colorFilter)
+                    }
                     val art: DrawScope.() -> Unit = {
-                        if (prev == null || pa == null || f >= 1f) drawPose(current, curArt, outfit, colorFilter)
-                        else crossFade({ drawPose(prev, pa, outfit, colorFilter) }, { drawPose(current, curArt, outfit, colorFilter) }, f)
-                        if (twinArt != null && twin != null) PupMotion.blinkTwin(blinkT.value).takeIf { it > 0f }?.let { a ->
+                        if (prev == null || pa == null || f >= 1f) drawCurrent()
+                        else crossFade({ drawPose(prev, pa, outfit, colorFilter) }, drawCurrent, f)
+                        if (ra == null && twinArt != null && twin != null) PupMotion.blinkTwin(blinkT.value).takeIf { it > 0f }?.let { a ->
                             layer(alpha = a) { drawPose(twin, twinArt, outfit, colorFilter) }
                         }
                     }
+                    if (ra != null) { art(); return@drawBehind }       // the layers blink and flick themselves
                     val box = PupArt.fit(curArt.width, curArt.height, this.size)
                     val squint = if (twinArt == null) PupMotion.squint(blinkT.value) else 0f
                     val flick = PupMotion.flick(flickT.value)
@@ -352,6 +429,7 @@ fun Pup(
                 })
             }
         }
+        clipNow.value?.let { c -> if (size.isSpecified) ClipView(c.drawable, size, Modifier.graphicsLayer { alpha = clipFade.value }, c.scale) }
         if (current == Pose.SLEEPING && alive && zs) SleepZs(cycle = { (breath.doubleValue % 1.0).toFloat() }, color = zColor, modifier = Modifier.fillMaxSize())
     }
 }
@@ -379,11 +457,25 @@ internal fun DrawScope.pupGround(dark: Boolean, lift: Float = 0f, glow: Float = 
         topLeft = Offset((size.width - w) / 2 + size.width * shift, size.height * 0.93f), size = Size(w, size.height * 0.07f))
 }
 
+/** A blink's length: the eyes layer's, a closed-eyes twin's cross-fade, or the squint. */
+private fun blinkMs(rig: RigArt?, twin: Pose?) = when {
+    rig != null && rig.rig.hasEyes -> PupMotion.BLINK_EYES_MS
+    twin != null -> PupMotion.BLINK_FADE_MS * 2 + PupMotion.BLINK_SHUT_MS
+    else -> PupMotion.SQUINT_MS
+}
+
 /** A cue older than this when the pup first sees it (he was not on screen) is let go. */
 private const val STALE_MS = 1_000L
 
 /** One pose's picture, fitted feet down, with the outfit over the base pose (and under it: a cape, wings). */
-private fun DrawScope.drawPose(pose: Pose, img: ImageBitmap, outfit: Outfit, colorFilter: ColorFilter?) {
+private fun DrawScope.drawPose(pose: Pose, img: ImageBitmap, outfit: Outfit, colorFilter: ColorFilter?) =
+    drawPose(pose, img.width, img.height, outfit) { r ->
+        drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), IntOffset(r.left.toInt(), r.top.toInt()),
+            IntSize(r.width.toInt(), r.height.toInt()), colorFilter = colorFilter)
+    }
+
+/** A [w] x [h] picture drawn by [picture] into its fitted box, feet down, with the outfit over the base pose. */
+private fun DrawScope.drawPose(pose: Pose, w: Int, h: Int, outfit: Outfit, picture: DrawScope.(Rect) -> Unit) {
     val dressed = pose == Pose.WEAR_BASE && !outfit.isEmpty
     // A hat or a halo reaches above the base picture. Where the box has no room over his head (a tight tile, a 44 dp pup in
     // a row) he and his outfit shrink together, feet down, so nothing pokes out of it.
@@ -394,9 +486,7 @@ private fun DrawScope.drawPose(pose: Pose, img: ImageBitmap, outfit: Outfit, col
         fun DrawScope.inBase(block: DrawScope.() -> Unit) =
             translate((size.width - Wear.BASE_W * k) / 2f, size.height - Wear.BASE_H * k) { scale(k, k, Offset.Zero) { block() } }
         if (dressed && Wear.behind(outfit).isNotEmpty()) inBase { drawOutfitBehind(outfit) }
-        val r = PupArt.fit(img.width, img.height, size)
-        drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), IntOffset(r.left.toInt(), r.top.toInt()),
-            IntSize(r.width.toInt(), r.height.toInt()), colorFilter = colorFilter)
+        picture(PupArt.fit(w, h, size))
         if (dressed) inBase { drawOutfit(outfit) }
     }
 }

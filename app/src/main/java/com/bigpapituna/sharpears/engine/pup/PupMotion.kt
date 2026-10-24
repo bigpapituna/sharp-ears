@@ -161,8 +161,36 @@ object PupMotion {
     const val JUICE_DOWN_MS = 160
     const val JUICE_BIG_UP_MS = 120
     const val JUICE_BIG_DOWN_MS = 220
-    /** "I heard you" on a stage: a little dip (and an ear flick) for every sound. */
+    /** The landing squash after a note's hop rings out on this spring. */
+    const val JUICE_LAND_DAMPING = 0.4f
+    const val JUICE_LAND_STIFFNESS = 700f
+    /** "I heard you" on a stage: a little dip (and an ear flick) for every sound, springing back. */
     const val HEARD_DIP = 0.06f
+    const val HEARD_DAMPING = 0.45f
+    const val HEARD_STIFFNESS = 500f
+    /** Drowsy (Today): waking takes [WAKE_MS], dozing off [DROWSE_MS]. */
+    const val WAKE_MS = 400
+    const val DROWSE_MS = 2500
+    /** A surprise waiting on the kid home: he waves at it (the wave clip, 3.7 s), then again this long after. */
+    const val SURPRISE_WAVE_EVERY_MS = 9_000L
+    /** A stage's or a lesson's pup slides at most this share of his reach toward a key (he never wanders over his words). */
+    const val NEAR_POINT = 0.5f
+
+    // ---- The layered poses (nine stills cut into body, head, ears, tail and eyes) --------------------------------------------
+    /** The blink with an eyes layer: the eyes squeezed to [EYES_SHUT] of their height about their middle, and open again. */
+    const val EYES_SHUT = 0.1f
+    const val BLINK_CLOSE_MS = 60
+    const val BLINK_HOLD_MS = 30
+    const val BLINK_OPEN_MS = 60
+    const val BLINK_EYES_MS = BLINK_CLOSE_MS + BLINK_HOLD_MS + BLINK_OPEN_MS
+    /** The flick with ear and tail layers: one ear (or the tail) turns round its own base, on the flick's curve. */
+    const val EAR_FLICK_DEG = 10f
+    const val TAIL_FLICK_DEG = 12f
+    /** The wag with a tail layer: the tail swings, the body wobbles half as much as without one. */
+    const val TAIL_WAG_DEG = 16f
+    const val WAG_BODY_SHARE = 0.5f
+    /** No part turns further than this (the cut's fills under each part reach about this far). */
+    const val PART_MAX_DEG = 20f
 
     // ---- Limits ------------------------------------------------------------------------------------------------------------
     /** Nothing ever scales him beyond these, whatever plays at once. */
@@ -178,6 +206,7 @@ object PupMotion {
         Timing("swap fade", SWAP_MS), Timing("swap pop", SWAP_POP_MS), Timing("calm", CALM_MS),
         Timing("held", HELD_MS), Timing("point", POINT_MS), Timing("listen", LISTEN_MS),
         Timing("juice", JUICE_UP_MS + JUICE_DOWN_MS), Timing("big juice", JUICE_BIG_UP_MS + JUICE_BIG_DOWN_MS),
+        Timing("blink eyes", BLINK_EYES_MS),
     )
 
     /** Every scale the table names (the curves stay within them). */
@@ -314,6 +343,23 @@ object PupMotion {
             FLICK_DEG * (1f - u) * (1f - u) * cos(2 * PI * u).toFloat()
         }
     }
+
+    /** The eyes layer's height during a blink, [t] ms in: 1 open, [EYES_SHUT] shut. */
+    fun eyesBlink(t: Float): Float = when {
+        t <= 0f || t >= BLINK_EYES_MS -> 1f
+        t < BLINK_CLOSE_MS -> 1f - (1f - EYES_SHUT) * easeOut(t / BLINK_CLOSE_MS)
+        t < BLINK_CLOSE_MS + BLINK_HOLD_MS -> EYES_SHUT
+        else -> EYES_SHUT + (1f - EYES_SHUT) * easeInOut((t - BLINK_CLOSE_MS - BLINK_HOLD_MS) / BLINK_OPEN_MS)
+    }
+
+    /** The tail during a wag, [t] ms in, degrees: three swings with the body's wobble, a little smaller each time. */
+    fun tailWag(t: Float): Float {
+        if (t <= 0f || t >= WAG_MS) return 0f
+        return TAIL_WAG_DEG * sin(2 * PI * t / WAG_CYCLE_MS).toFloat() * (1f - 0.4f * t / WAG_MS)
+    }
+
+    /** The flick's curve as a share of its turn (1 out, a little past 0 on the way back). */
+    fun flickShare(t: Float): Float = flick(t) / FLICK_DEG
 
     /** The pop of a new pose, [t] ms in. */
     fun swapPop(t: Float): Float = if (t <= 0f || t >= SWAP_POP_MS) 1f else 1f + (SWAP_POP - 1f) * sin(PI * t / SWAP_POP_MS).toFloat()

@@ -12,7 +12,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.bigpapituna.sharpears.R
@@ -119,11 +119,12 @@ internal val AVATAR_ART = intArrayOf(
 
 /**
  * The decoded pictures, shared by every pup in the process: a pose decoded once is drawn by all the pups that show it, and a
- * pose swapped back and forth (the Jam, the arcade) is not decoded again. About 1.7 MB a picture; 16 MB keeps the ones in use.
+ * pose swapped back and forth (the Jam, the arcade) is not decoded again. About 1.7 MB a picture, about 2 MB a layered pose's
+ * parts; 24 MB keeps the ones in use. Thread-safe: the layers are decoded off the main thread.
  * Mipmapped, so a 576 px picture drawn at 48 dp stays smooth while he breathes.
  */
 internal object PupArt {
-    private val cache = object : LruCache<Int, ImageBitmap>(16 * 1024 * 1024) {
+    private val cache = object : LruCache<Int, ImageBitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: Int, value: ImageBitmap) = value.width * value.height * 4
     }
 
@@ -145,14 +146,14 @@ internal object PupArt {
 /** The picture of [pose] for a game field that draws the pup itself (a sprite crossing a bridge, a dress-up tile). */
 @Composable
 fun rememberPupBitmap(pose: Pose): ImageBitmap {
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     return remember(pose) { PupArt.bitmap(res, pose.res) }
 }
 
 /** A profile's face (ui/family/Avatar.kt draws the disc round it): the avatar's picture, fitted, feet down. Still. */
 @Composable
 fun PupAvatarArt(avatar: Int, modifier: Modifier = Modifier) {
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     val art = remember(avatar) { PupArt.bitmap(res, AVATAR_ART[avatar.coerceIn(0, AVATAR_ART.size - 1)]) }
     Canvas(modifier) {
         val r = PupArt.fit(art.width, art.height, size)

@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +85,10 @@ import kotlin.math.sin
 import com.bigpapituna.sharpears.engine.pup.PupMood
 import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.pup.Pose
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.animation.Crossfade
+import com.bigpapituna.sharpears.ui.pup.PupClips
+import com.bigpapituna.sharpears.ui.pup.PupClip
 
 /**
  * The session goodbye for a kid (docs/KIDS-PLAN.md section 3, item 9; rules in engine/skin/Bedtime): the pup yawns
@@ -161,7 +166,8 @@ fun Goodbye(
 
 /**
  * The goodnight pup (pup_goodnight.webp) in a moonlit glow with stars twinkling around him: he rises in, stretches
- * through one big yawn, then breathes slowly while little z's float up. [breathe] is a 0..1 loop, null when still.
+ * through one big yawn, then (2.10) curls up asleep, the sleep clip breathing quietly (the rig's slow SLEEP without it),
+ * while little z's float up. [breathe] is a 0..1 loop, null when still.
  */
 @Composable
 private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn: Animatable<Float, *>, breathe: (() -> Float)?) {
@@ -184,8 +190,13 @@ private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn
                 drawLine(star, p.copy(y = p.y - s * 2.4f), p.copy(y = p.y + s * 2.4f), strokeWidth = s * 0.45f, alpha = 0.3f * tw)
             }
         }, contentAlignment = Alignment.Center) {
-        // 2.10: the rig's SLEEP breathes for him (slow and deep); the rise and the one big yawn stay this screen's.
-        Pup(Pose.GOODNIGHT, PupMood.SLEEP, size = size, ground = false, idle = false, bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE,
+        // 2.10: after the yawn he curls up asleep: the sleep clip, faded in over the yawning pup.
+        val dozing by remember { derivedStateOf { !still && yawn.value >= 1f } }
+        Crossfade(dozing, animationSpec = tween(com.bigpapituna.sharpears.engine.pup.PupMotion.SWAP_MS), label = "dozing") { asleepNow ->
+        if (asleepNow) PupClip(PupClips.SLEEP, size = size, fallback = Pose.GOODNIGHT, then = PupMood.SLEEP, jump = false, ground = false,
+            scale = PupClips.SLEEP_SCALE)
+        // The rise and the one big yawn are this screen's; the rig's SLEEP breathes for him meanwhile.
+        else Pup(Pose.GOODNIGHT, PupMood.SLEEP, size = size, ground = false, idle = false, bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE,
             modifier = Modifier.graphicsLayer {
                 transformOrigin = TransformOrigin(0.5f, 1f)
                 val k = rise.value
@@ -197,6 +208,7 @@ private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn
                 scaleX = 1f - 0.03f * stretch
                 rotationZ = -4f * stretch
             })
+        }
         // Floating z's while he sleeps (a still "z z" with animations off). One "z" is measured once and scaled.
         val z = remember(zInk) { zText.measure("z", androidx.compose.ui.text.TextStyle(color = zInk, fontSize = 36.sp, fontFamily = Nunito)) }
         Canvas(Modifier.size(size * 1.25f)) {

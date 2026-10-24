@@ -62,7 +62,7 @@ class WelcomeTest {
         assertTrue(lines.any { "tomorrow" in it && "surprise" in it })
     }
 
-    /** 2.10.0, the living pup: three lines at most, about the pup coming alive (his jump, his tilt, the kids' wag). */
+    /** 2.10.0, the living pup: three lines at most, about the pup coming alive (his jump, his tilt, the kids' wag, the clips). */
     @Test fun whatsNewIn2100IsTheLivingPup() {
         val lines = Welcome.whatsNew("2.10.0")
         assertTrue(lines.size in 1..Welcome.MAX_LINES)
@@ -70,6 +70,8 @@ class WelcomeTest {
         assertTrue(lines[0].startsWith("The pup comes alive"))
         assertTrue(lines.any { "jumps for joy" in it } && lines.any { "tilts his head" in it })
         assertTrue(lines.any { "wag" in it })
+        assertTrue(lines.any { "cheers after each lesson" in it && "wave hello" in it && "dance at the finale" in it })
+        assertEquals(3, lines.size)
     }
 
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {

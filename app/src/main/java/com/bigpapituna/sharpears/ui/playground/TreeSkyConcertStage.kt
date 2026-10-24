@@ -129,8 +129,8 @@ internal fun TreeSkyConcertStage(song: ConcertSong, place: Place, step: Step, le
                 Box(Modifier.fillMaxSize().background(Color(0x66110F0D)))
                 ShootingStars(Modifier.fillMaxSize(), still, gold = tree)
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-                    // The bow (2.10): the pup's wave clip when the app has it, else his jump, then a cheer.
-                    PupClip(PupClips.WAVE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
+                    // The bow (2.10): the pup's dance clip when the app has it, else his jump, then a cheer.
+                    PupClip(PupClips.DANCE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
                 }
                 Confetti(r, Modifier.fillMaxSize())

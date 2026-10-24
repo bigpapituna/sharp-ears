@@ -98,6 +98,7 @@ import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import kotlinx.coroutines.delay
 import com.bigpapituna.sharpears.engine.pup.PupMotion
 import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.PupClips
 
 /** What the grown-ups' corner offers once the parent gate is passed. */
 class GrownUpCorner(val profiles: List<Profile>, val currentId: String, val onSettings: () -> Unit, val onMicSetup: () -> Unit,
@@ -148,6 +149,8 @@ fun KidHome(
     // The pup's line: "Let's go!", the road line once, "This one first!" for a moment after a tap on a stone ahead.
     var nudge by remember { mutableStateOf<String?>(null) }
     var road by remember { mutableStateOf(roadLine) }
+    // 2.10: the day's first hello on the map: the pup waves (the wave clip) as he says it.
+    var greet by remember { mutableStateOf(0) }
     var homes by remember { mutableStateOf(homesLine && !roadLine) }
     val line = when {
         nudge != null -> nudge!!
@@ -180,7 +183,7 @@ fun KidHome(
     LaunchedEffect(nudge) { if (nudge != null) { delay(2600); nudge = null } }
     LaunchedEffect(Unit) {
         val key = name + com.bigpapituna.sharpears.data.AppClock.today()
-        if (!roadLine && !homes && greeted.add(key)) { delay(900); sayNow(if (asleep) KidLines.ASLEEP else line) }
+        if (!roadLine && !homes && greeted.add(key)) { delay(900); sayNow(if (asleep) KidLines.ASLEEP else line); if (!asleep) greet++ }
     }
     var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val list = rememberLazyListState()
@@ -232,7 +235,7 @@ fun KidHome(
                                 PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !homes && !decorate.active,
                                     forward = (at / com.bigpapituna.sharpears.engine.world.Trail.PER_ROW) % 2 == 0, gate = i == model.pages.lastIndex, hop = decorate.landed,
                                     onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true },
-                                    giftReady = gift != null && !decorate.active)
+                                    giftReady = gift != null && !decorate.active, greet = greet)
                             }
                             if (i == model.pages.lastIndex) {
                                 val g = com.bigpapituna.sharpears.ui.world.WorldAnchors.gate(page.place, page.stones.size)
@@ -249,7 +252,7 @@ fun KidHome(
                             val (x, y) = roadSpot(i, maxWidth)
                             PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !decorate.active, forward = roadForward(i, maxWidth), hop = decorate.landed,
                                 onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true },
-                                giftReady = gift != null && !decorate.active)
+                                giftReady = gift != null && !decorate.active, greet = greet)
                         }
                     }
                 }
@@ -297,8 +300,10 @@ private fun Hello(name: String, avatar: Int) {
 @Composable
 internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line: String, asleep: Boolean, found: Int, pointable: Boolean,
                                              forward: Boolean, onGo: () -> Unit, onSignpost: () -> Unit, gate: Boolean = false, hop: Int = 0,
-                                             /** 2.9's surprise is ready over the buttons: he jumps for joy, twice, then again now and then. */
-                                             giftReady: Boolean = false) {
+                                             /** 2.9's surprise is ready over the buttons: he waves at it (the wave clip), and again now and then. */
+                                             giftReady: Boolean = false,
+                                             /** Bumped by the day's first hello: he waves (the wave clip). */
+                                             greet: Int = 0) {
     val w = maxWidth
     val p = sizes.pup
     val reach = sizes.next * 0.55f
@@ -308,9 +313,10 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     // At bedtime he yawns on his stone first, then curls up to sleep.
     var yawned by remember { mutableStateOf(false) }
     LaunchedEffect(asleep) { yawned = false; if (asleep) { delay(2800); yawned = true } }
-    LaunchedEffect(pointable, found) {
+    // (Not while a surprise waits: he waves at it then, and a point would cut his wave short.)
+    LaunchedEffect(pointable, found, giftReady) {
         pointing = false
-        if (!pointable || found >= 3) return@LaunchedEffect
+        if (!pointable || found >= 3 || giftReady) return@LaunchedEffect
         while (true) { delay(7000); pointing = true; delay(3400); pointing = false }
     }
     val shown = if (pointing) KidLines.signpostShort(found) else line
@@ -323,14 +329,17 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     val pup = rememberPupController(idle = !pointing && !asleep)
     // A sticker stuck on the map (decorate mode): he dances.
     LaunchedEffect(hop) { if (hop > 0) pup.react(com.bigpapituna.sharpears.engine.world.PupReaction.DANCE) }
-    // 2.10: a surprise waiting to be opened: a wave of jumps for joy (two in a row), then one every so often while it waits.
+    // 2.10: the day's hello and a surprise waiting to be opened: he waves (the wave clip, decoded ahead; a wag, or a jump for
+    // the surprise, where there is no clip), and while the surprise waits, again every so often.
     val pupNow by rememberUpdatedState(pup)       // a new controller when he starts or stops pointing
+    LaunchedEffect(pup) { pup.prepare(PupClips.WAVE) }
+    LaunchedEffect(greet) { if (greet > 0 && !giftReady) pupNow.playClip(PupClips.WAVE, fallback = PupMood.WAG) }
     LaunchedEffect(giftReady, asleep) {
         if (!giftReady || asleep) return@LaunchedEffect
         delay(700)
         while (true) {
-            repeat(2) { pupNow.play(PupMood.HAPPY); delay(PupMotion.HAPPY_MS + 120L) }
-            delay(GIFT_JUMPS_EVERY_MS)
+            pupNow.playClip(PupClips.WAVE, fallback = PupMood.HAPPY)
+            delay(PupMotion.SURPRISE_WAVE_EVERY_MS)
         }
     }
     // A little behind the stone's middle, so the stone shows in front of his feet.
@@ -339,7 +348,7 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
         .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClickLabel = "Play the next game", onClick = onGo)
         .semantics { contentDescription = if (asleep) "The pup, asleep" else "The pup" }   // TalkBack read a nameless button
         .graphicsLayer { if (mirror) scaleX = -1f }) {
-        Pup(pose, size = p, controller = pup, idle = !pointing && !asleep, bounce = BounceSize.SMALL)
+        Pup(pose, size = p, controller = pup, idle = !pointing && !asleep, bounce = BounceSize.SMALL, clips = true)
     }
     // The signpost stands behind him; where the scene ends there (or the gate stands), low in front, under his bubble.
     val behind = if (right) x - p * 0.68f else x + p * 0.68f
@@ -352,9 +361,6 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
             .widthIn(max = minOf(room, 360.dp)))
     if (!fits) Signpost(found, onSignpost, Modifier.pinAt(if (right) x + reach + p * 0.35f else x - reach - p * 0.35f, y + sizes.stone, ay = 1f), width = p * 0.5f)
 }
-
-/** How often he jumps again for a surprise still waiting (ms). */
-private const val GIFT_JUMPS_EVERY_MS = 9_000L
 
 /** The pup's speech bubble on the map: big words on gold, its tail toward him; tapping it starts the game. */
 @Composable

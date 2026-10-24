@@ -146,7 +146,7 @@ internal fun StagePup(pose: Pose, modifier: Modifier = Modifier, size: Dp = 120.
     var centre by remember { mutableFloatStateOf(Float.NaN) }
     val sizePx = with(androidx.compose.ui.platform.LocalDensity.current) { size.toPx() }
     val target = if (pose == Pose.POINTING) point?.let { fx?.keyX?.invoke(it) } else null
-    val toward = if (target == null || centre.isNaN()) 0f else ((target - centre) / (sizePx * PupMotion.POINT_MAX)).coerceIn(-1f, 1f) * 0.5f
+    val toward = if (target == null || centre.isNaN()) 0f else ((target - centre) / (sizePx * PupMotion.POINT_MAX)).coerceIn(-1f, 1f) * PupMotion.NEAR_POINT
     val mirror = pose == Pose.POINTING && toward > 0.02f
     LaunchedEffect(toward, mirror) { pup.pointAt = if (mirror) -toward else toward }
     val mood = when (pose) {

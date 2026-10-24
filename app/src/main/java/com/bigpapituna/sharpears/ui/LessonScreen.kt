@@ -343,7 +343,7 @@ fun LessonScreen(
                 val asks = when { step.game == com.bigpapituna.sharpears.engine.playground.Game.CLAP -> Pose.CLAPPING
                     step.kind == StepKind.LISTEN -> Pose.GET_READY; else -> Pose.PRACTICING }
                 val shown = reaction ?: asks
-                LaunchedEffect(pup) { pup.pointAt = 0.5f }
+                LaunchedEffect(pup) { pup.pointAt = com.bigpapituna.sharpears.engine.pup.PupMotion.NEAR_POINT }
                 PupSays(shown, step.text,
                     Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
                     controller = pup, mood = when {
@@ -468,6 +468,7 @@ fun LessonScreen(
             onPrimary = cardStep.then(kidPrimary) { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
+            clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
         ) else Celebration(
             "Lesson complete!", lesson.summary,
             listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(java.util.Locale.ROOT, tookSecs / 60, tookSecs % 60), "Time"),
@@ -479,6 +480,7 @@ fun LessonScreen(
             xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
             xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
             reward = dropSlot, oneMore = oneMore,
+            clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
         )
         if (kid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })
     }

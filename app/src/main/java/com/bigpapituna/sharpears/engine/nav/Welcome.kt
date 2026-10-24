@@ -43,6 +43,7 @@ object Welcome {
         "2.10.0" to listOf(
             "The pup comes alive: he breathes, blinks, jumps for joy when you finish well and tilts his head at a wrong note.",
             "Kids see him wag at every right note, point at the keys in a lesson and bob along in Clap along.",
+            "He cheers after each lesson, and kids see him wave hello, dance at the finale and curl up at bedtime.",
         ),
     )
 

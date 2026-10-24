@@ -169,8 +169,8 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
             Box(Modifier.fillMaxSize().background(Color(0xCC110F0D)), contentAlignment = Alignment.Center) {
                 Fireworks(Modifier.fillMaxSize())
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // The bow (2.10): the pup's wave clip when the app has it, else his jump, then a cheer.
-                    PupClip(PupClips.WAVE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
+                    // The bow (2.10): the pup's dance clip when the app has it, else his jump, then a cheer.
+                    PupClip(PupClips.DANCE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
                     if (plan.place != Place.GARDEN) Audience(plan.place, Modifier.padding(top = 10.dp), size = 44.dp, cheer = true, max = 7)
                 }

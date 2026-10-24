@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,6 +27,13 @@ import kotlinx.coroutines.flow.collectLatest
 
 /** A beat asked for: which one, a count so the same beat twice in a row plays twice, and when (System.nanoTime ms). */
 internal data class BeatCue(val mood: PupMood, val seq: Int, val atMs: Long)
+
+/**
+ * A clip asked for (PupClips): its name, how many times through ([hold]: once, staying on its last frame), the beat played
+ * where there is no clip and the mood held after it ([then]), and a count.
+ */
+internal data class ClipCue(val name: String, val loops: Int, val fallback: PupMood, val seq: Int, val hold: Boolean = false,
+                            val then: PupMood? = null)
 
 /**
  * One pup on screen, as a screen drives him (2.10). Make one with [rememberPupController] and pass it to [Pup]:
@@ -47,6 +55,11 @@ class PupController internal constructor(seed: Long, idle: Boolean, private val 
         private set
     /** The last cue a [Pup] took (one pup plays each cue once, and a pup coming on screen does not replay an old one). */
     internal var consumed = 0
+    internal var clipCue by mutableStateOf<ClipCue?>(null)
+        private set
+    internal var clipsTaken = 0
+    /** Clips to decode before they are asked for ([prepare]), so they start at once. */
+    internal val ahead = mutableStateListOf<String>()
 
     /** What his brain shows now (the clock loop in [rememberPupController] keeps it current). */
     val look: PupLook get() = lookState.value
@@ -80,6 +93,19 @@ class PupController internal constructor(seed: Long, idle: Boolean, private val 
         cue = BeatCue(beat, (cue?.seq ?: 0) + 1, System.nanoTime() / 1_000_000)
         Log.d(TAG, "pup $name: $beat")
     }
+
+    /**
+     * A clip in his place ([PupClips]: jump, dance, wave, sleep, celebrate), [loops] times through, then back to the rig;
+     * [hold]: once, then he stays on its last frame. Played by a [Pup] with `clips` on; where he has them off, the app has not
+     * got the clip, animations are off or he is dressed up, he plays [fallback] instead and then holds [then].
+     */
+    fun playClip(name: String, loops: Int = 1, fallback: PupMood = PupMood.HAPPY, hold: Boolean = false, then: PupMood? = null) {
+        clipCue = ClipCue(name, loops.coerceAtLeast(1), fallback, (clipCue?.seq ?: 0) + 1, hold, then)
+        Log.d(TAG, "pup ${this.name}: clip $name x$loops" + if (hold) ", held" else "")
+    }
+
+    /** Decodes [name] ahead (a [Pup] with `clips` on), so a [playClip] of it starts at once. */
+    fun prepare(name: String) { if (name !in ahead) ahead += name }
 
     /** A moment: shows the reaction's pose for its time (and plays its beat), then back. Wakes him if he slept. */
     fun react(r: PupReaction) {

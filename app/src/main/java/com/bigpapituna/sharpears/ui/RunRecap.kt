@@ -190,7 +190,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     // Held in the run's pose (as on a lesson's celebration): left alone he dozed off on the recap.
-                    Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, modifier = Modifier.graphicsLayer {
+                    Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, clips = kid, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
                         val s = 0.5f + 0.5f * m.rise.value; scaleX = s; scaleY = s; alpha = m.rise.value.coerceIn(0f, 1f)
                         transformOrigin = TransformOrigin(0.5f, 1f)

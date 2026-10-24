@@ -209,6 +209,8 @@ fun GiftOpening(opened: GiftOpened, reader: Boolean, say: (String) -> Unit, onCl
                     if (shown) {
                         Text(Surprise.line(opened.kind), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+                        // 2.10: the pup jumps for joy (the jump clip where the app has it); an outfit has its own pup putting it on.
+                        if (opened.kind != GiftKind.OUTFIT) Pup(Pose.GREAT_JOB, PupMood.HAPPY, size = 120.dp, idle = false, clips = true)
                         when (opened.kind) {
                             GiftKind.STICKER -> com.bigpapituna.sharpears.ui.world.DropReveal(opened.reward, cardWidth = 140.dp)
                             GiftKind.OUTFIT -> com.bigpapituna.sharpears.ui.world.RewardExtras(opened.reward, say = say)
