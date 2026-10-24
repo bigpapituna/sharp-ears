@@ -49,6 +49,11 @@ object MySongs {
     /** Why a file is refused, each with the kind line the learner sees. */
     enum class Problem(val line: String) {
         NOT_MIDI("This file is not a MIDI song. Pick a file that ends in .mid."),
+        /**
+         * Named .mid (or starting as one) but not readable to the end (2.8.4, QA D10): a damaged or cut-short file was told
+         * to pick a file that ends in .mid, which it does.
+         */
+        DAMAGED("It may be cut short or not a MIDI song."),
         NO_NOTES("This MIDI file has no notes to play. Try another one."),
         DRUMS_ONLY("This MIDI file only has drums. Pick one with a tune."),
         TOO_BIG("This file is too big to be a song. Pick a MIDI file under 512 KB."),
@@ -71,7 +76,7 @@ object MySongs {
 
     /** Reads [bytes] for the title dialog; throws [Refused] with the kind line when it is no song. */
     fun scan(bytes: ByteArray, fileName: String?): Scan {
-        val data = read(bytes)
+        val data = read(bytes, fileName)
         val lines = easyLines(data).first
         if (lines.melody.isEmpty()) throw Refused(Problem.NO_NOTES)
         // The first track's name is the song's name when that track is the conductor (no notes) or the only one.
@@ -95,13 +100,26 @@ object MySongs {
             notes.maxOf { it.startMs + it.durationMs }, preferFlats = data.flats ?: flatKey(notes))
     }
 
-    private fun read(bytes: ByteArray): SmfData {
+    private fun read(bytes: ByteArray, fileName: String? = null): SmfData {
         if (bytes.size > MAX_BYTES) throw Refused(Problem.TOO_BIG)
-        val data = try { SmfParser.read(bytes) } catch (e: Exception) { throw Refused(Problem.NOT_MIDI) }
+        val data = try { SmfParser.read(bytes) } catch (e: Exception) { throw Refused(unreadable(bytes, fileName)) }
         if (data.notes.isEmpty()) throw Refused(Problem.NO_NOTES)
         if (data.notes.all { it.channel == DRUMS }) throw Refused(Problem.DRUMS_ONLY)
         return data
     }
+
+    /**
+     * Why a file the parser could not read is refused: a file named like a MIDI song (.mid, .midi, .kar) or starting with
+     * a MIDI header is [Problem.DAMAGED] (cut short, or not a song after all); anything else gets the extension line.
+     */
+    internal fun unreadable(bytes: ByteArray, fileName: String?): Problem {
+        val named = fileName?.trim()?.lowercase().orEmpty()
+        val midiName = MIDI_EXTENSIONS.any { named.endsWith(it) }
+        val header = bytes.size >= 4 && String(bytes, 0, 4, Charsets.ISO_8859_1) == "MThd"
+        return if (midiName || header) Problem.DAMAGED else Problem.NOT_MIDI
+    }
+
+    private val MIDI_EXTENSIONS = listOf(".mid", ".midi", ".kar")
 
     // ---- the lines ----
 

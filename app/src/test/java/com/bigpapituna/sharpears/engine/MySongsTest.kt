@@ -131,9 +131,16 @@ class MySongsTest {
     // ---- refused files ----
 
     @Test fun filesThatAreNoSongAreRefusedWithAKindLine() {
-        fun refused(bytes: ByteArray): Problem = try { MySongs.scan(bytes, "x.mid"); fail("accepted"); error("") } catch (e: MySongs.Refused) { e.problem }
-        assertEquals(Problem.NOT_MIDI, refused("hello, this is text".toByteArray()))
-        assertEquals(Problem.NOT_MIDI, refused(file().copyOf(40)))
+        fun refused(bytes: ByteArray, name: String? = "x.mid"): Problem =
+            try { MySongs.scan(bytes, name); fail("accepted"); error("") } catch (e: MySongs.Refused) { e.problem }
+        // 2.8.4, QA D10: a file named .mid that does not read is damaged or cut short, not "a file that ends in .mid".
+        assertEquals(Problem.DAMAGED, refused("hello, this is text".toByteArray()))
+        assertEquals(Problem.DAMAGED, refused(file().copyOf(40)))
+        assertEquals(Problem.DAMAGED, refused(file().copyOf(300), "Song.MIDI"))
+        assertEquals("a MIDI header with no name", Problem.DAMAGED, refused(file().copyOf(10), null))
+        assertEquals(Problem.NOT_MIDI, refused("hello, this is text".toByteArray(), "notes.txt"))
+        assertEquals(Problem.NOT_MIDI, refused("hello, this is text".toByteArray(), null))
+        assertEquals("It may be cut short or not a MIDI song.", Problem.DAMAGED.line)
         assertEquals(Problem.NO_NOTES, refused(smf(T("Empty", bpm = 120))))
         assertEquals(Problem.DRUMS_ONLY, refused(smf(T("Beat", drums))))
         assertEquals(Problem.TOO_BIG, refused(file() + ByteArray(MySongs.MAX_BYTES)))
