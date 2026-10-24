@@ -1147,6 +1147,60 @@ player and burn CPU at every launch. Every bound below holds whatever the bytes 
 - Verify: 1553 JVM tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree);
   lint 0 errors, 29 warnings, none in the changed files; assembleDebug versionCode 22, 2.8.3. No emulator walk (no UI change).
 
+## 2.8.4 grown-up QA fixes (2026-10-23, branch `qa-grownup`, versionCode 23; emulator-5558 Fold_QA_GU only)
+The grown-up side of docs/QA-2.8.3-grownup.md (untracked): 14 ranked defects and the copy nits. The kid side is branch qa-kid.
+- D1 (ui/PlayerScreen.kt `LandscapeLock`): on the Fold's inner screen Android 16 overrides orientation requests, and the
+  player's reset to UNSPECIFIED was dropped there (the window manager compared it with the overridden value, already
+  UNSPECIFIED), so the stored SENSOR_LANDSCAPE outlived the player and the cover opened sideways after a fold. The release
+  sets USER then UNSPECIFIED; players are counted; MainActivity.onConfigurationChanged releases it on every display change
+  (smallest width) while no player holds it. Log `orientation: released (...)`.
+- D2 (engine/brief/ai): week 4,000 tokens, answer 1,200; `AiRequest.retryTokens`: a reply with finish "length" (empty or cut
+  mid-way) is `AiCallException.Kind.CUT_SHORT` and is asked once more with twice the cap (day, week, answer; at most two
+  attempts a call, `AiRequest.attempts`; BriefLimits.answerMs 26 s). Then the templates write it, marked "Written on the
+  phone". The reply's usage block is logged (`finish: length, N tokens, M thinking`).
+- D3 (engine/brief/ExportLayout.kt): `ExportBlock.Text.first` marks a paragraph's first wrapped line; the PNG and PDF draw a
+  bullet's dot there only.
+- D4 (AiReplies): every whole number in an AI fact must be in the findings' encoding or 0..7 (`AiReplies.SMALL`, day counts);
+  a fact that fails gives way to the template writer's fact at its place (`AiWriter.phoneFacts`, wired in data/BriefAi.kt),
+  or is dropped. Logged as `fact N: a number not in the findings (57), the phone's fact stands in`.
+- D5 (MainActivity, engine/DailySession.kt): a grown-up's Practice today ends on "Done for today!" and the summary only when
+  `SessionPlan.through(done, skipped)`: every part played or passed over with the interstitial's Skip (a chord part with
+  none answered counts as skipped). Left part way (Back in a part, End for today, Back on the line), Today keeps the plan and
+  Start (`daily: ended part way, ...`). Minutes are the practice the session added (`Screen.Daily.practiceAt`), whole as the
+  goal line counts them; the player writes its seconds before Back, the chord part before it ends. A kid's session ends as
+  before. Under a minute: no minutes in the summary, no Practice chip.
+- D6 (engine/nav/Simple.kt): Simple's Songs by chords keeps difficulty 1 or 2 in C, G or F major or A, E or D minor
+  (`Simple.easyKey`): 35 of 107.
+- D7 (engine/ReminderPlan.skip, reminder/Reminder.kt): no reminder once today's goal is met or today's plan is done.
+- D8: rename dialogs and the My songs title dialog start with the caret after the text (`ui/MySongDialog.kt caretAtEnd`).
+- D9: the lesson part's arrow and Back go back to that part's line, held (no countdown: `Screen.Daily.held`,
+  `Interstitial(countdown = false)`), labelled "Back to your plan"; a finished lesson goes on.
+- D10 (engine/MySongs.kt): a file named .mid, .midi or .kar, or starting "MThd", that does not read is `Problem.DAMAGED`
+  ("It may be cut short or not a MIDI song."); other files keep the extension line.
+- D11: the outfit reveal and the recap's drop scroll themselves into view for kids only; a grown-up's recap stays on its
+  stars, accuracy and XP.
+- D12 (ui/family/ProfilePicker.kt): with the keyboard up and a name typed, "Who is this for?" and its answers scroll into view.
+- D13 (ui/brief/BriefEntries.kt `OneBriefAtATime`): one brief dialog at a time; the newest takes the slot (watched with
+  snapshotFlow from after it took it) and an older one closes itself.
+- D14: Settings' scroll and "Show all settings" are kept in MainActivity (`openSettings` resets them) and outlive Privacy,
+  Licences and Mic setup.
+- Nits done (numbers as in the report): 1, 2, 3, 4, 6 (Practice in the centred 720 dp column), 7, 8, 9, 11, 12, 13, 15, 16,
+  17, 18, 19, 20, 22, 23. Left for a design decision: 5 (three celebrations after the check), 6's "Scales" tab over the
+  Scales | Arpeggios toggle and the pills running off the edge, 7's twelve-arc ring in Simple, 8's Show more above the path,
+  10 (song packs' chords come from labelling both hands, with sevenths), 13's title truncation, 14 (the finger number over
+  the key label), 21 (the brief's pinned header), 24 (the cover's lane height).
+- Tests: 1568 JVM, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree). New:
+  OpenRouterTransportTest (cut short, retry, one more try in all), WriterChainTest (cut short falls to the phone, caps),
+  AiRepliesTest (numbers), ExportLayoutTest (bullets), DailySessionTest (through, minutes), ReminderPlanTest (skip),
+  LayoutTest (Simple's songs), MySongsTest (DAMAGED), QaWiringTest (D1, D8, D11 to D14 from the sources). Lint 0 errors,
+  29 warnings (as 2.8.3), none new.
+- Emulator (5558 Fold_QA_GU, over the QA's data, touch): a song on the inner screen, Back, fold: the cover in portrait
+  (requestedOrientation UNSPECIFIED after Back); Practice today: the lesson's arrow back to its held line, a run left in the
+  song part ended part way with no celebration, a run through (chord, Skip, Skip) ended "Done for today!" with "1 chord."
+  beside "5 of 10 min today"; My songs rename typed after the title; Settings back from Privacy at About with Show all kept;
+  the new-person form with the keyboard up showing "Who is this for?"; My week then the brief door: one brief, one Back.
+  Screenshots: app/build/screens/d*.png and nit*.png (not committed).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
