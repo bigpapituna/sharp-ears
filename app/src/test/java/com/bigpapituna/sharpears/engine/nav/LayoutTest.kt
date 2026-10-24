@@ -143,11 +143,17 @@ class LayoutTest {
 
     // ---- Songs by chords ----
 
-    @Test fun songsByChordsKeepFourChordAndEasiestSongsInSimpleOnly() {
+    /** 2.8.4, QA D6: Simple listed 44 songs, Perfect in A flat and The Scientist (difficulty 4) among them. */
+    @Test fun songsByChordsKeepTheEasySongsInEasyKeysInSimpleOnly() {
         val kept = Simple.popSongs(POP_SONGS, s)
-        assertTrue(kept.isNotEmpty() && kept.size < POP_SONGS.size)
-        assertTrue(kept.all { PopSongs.isFourChord(it) || it.difficulty == 1 })
-        assertTrue(POP_SONGS.filter { it !in kept }.none { PopSongs.isFourChord(it) || it.difficulty == 1 })
+        println("Simple songs by chords: ${kept.size} of ${POP_SONGS.size}: " + kept.joinToString { "${it.title} (${it.key}${if (it.minor) "m" else ""}, ${it.difficulty})" })
+        assertTrue(kept.size >= 8 && kept.size < POP_SONGS.size)
+        assertTrue(kept.all { it.difficulty <= 2 && Simple.easyKey(it) })
+        assertTrue(POP_SONGS.filter { it !in kept }.none { it.difficulty <= 2 && Simple.easyKey(it) })
+        for (id in listOf("perfect", "the-scientist", "someone-you-loved")) assertTrue(id, kept.none { it.id == id })
+        // The keys: C, G and F major; A, E and D minor. A flat, D flat and the rest wait for Advanced.
+        val keys = kept.map { if (it.minor) "${it.key}m" else "${it.key}" }.toSet()
+        assertTrue(keys.toString(), keys.all { it in setOf("0", "7", "5", "9m", "4m", "2m") })
         assertEquals(POP_SONGS, Simple.popSongs(POP_SONGS, a))
         assertEquals(POP_SONGS, Simple.popSongs(POP_SONGS, f))
     }

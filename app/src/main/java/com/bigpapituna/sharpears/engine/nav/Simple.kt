@@ -98,9 +98,22 @@ object Simple {
 
     // ---- Songs by chords ----
 
-    /** Simple: four-chord songs and the easiest ones (difficulty 1). Advanced and Full: every song. */
+    /**
+     * Simple's keys (2.8.4, QA D6): C, G and F major, A, E and D minor. At most one sharp or flat, and the keys the six
+     * chords live in (Simple Practice's scales are C, G and F).
+     */
+    val EASY_MAJOR_KEYS: Set<Int> = setOf(0, 7, 5)
+    val EASY_MINOR_KEYS: Set<Int> = setOf(9, 4, 2)
+
+    fun easyKey(song: PopSong): Boolean = Math.floorMod(song.key, 12) in (if (song.minor) EASY_MINOR_KEYS else EASY_MAJOR_KEYS)
+
+    /**
+     * Simple: the first steps, the easy songs (difficulty 1 or 2) in an easy key ([easyKey]). 2.7 kept every four-chord song
+     * whatever its difficulty or key, so Simple listed Perfect in A flat and The Scientist (difficulty 4). Advanced and Full:
+     * every song.
+     */
     fun popSongs(all: List<PopSong>, layout: Layout): List<PopSong> =
-        if (layout == Layout.SIMPLE) all.filter { PopSongs.isFourChord(it) || it.difficulty == 1 } else all
+        if (layout == Layout.SIMPLE) all.filter { it.difficulty <= 2 && easyKey(it) } else all
 
     // ---- My songs ----
 
