@@ -149,10 +149,13 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                 Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (s.subtitle.isNotEmpty()) Text(s.subtitle, style = MaterialTheme.typography.bodySmall, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            // A duet plays both hands, one person each: the chooser is locked, so it shows as off rather than ignoring taps.
-            Segments(listOf("Both" to Practice.BOTH, "L" to Practice.LEFT, "R" to Practice.RIGHT), s.practice, a.onPractice,
-                spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"), enabled = s.duet.isNullOrEmpty())
-            Segments(listOf("Listen" to Mode.LISTEN, "Wait" to Mode.WAIT, "Perform" to Mode.PERFORM), s.mode, a.onMode)
+            // A kid who cannot read yet gets no words to mis-tap (QA 2.8.3: Perform set the song moving): play and pause only.
+            if (!(s.kid && !com.bigpapituna.sharpears.ui.family.reader())) {
+                // A duet plays both hands, one person each: the chooser is locked, so it shows as off rather than ignoring taps.
+                Segments(listOf("Both" to Practice.BOTH, "L" to Practice.LEFT, "R" to Practice.RIGHT), s.practice, a.onPractice,
+                    spoken = mapOf("L" to "Left hand only", "R" to "Right hand only", "Both" to "Both hands"), enabled = s.duet.isNullOrEmpty())
+                Segments(listOf("Listen" to Mode.LISTEN, "Wait" to Mode.WAIT, "Perform" to Mode.PERFORM), s.mode, a.onMode)
+            }
             FilledIconButton(onClick = a.onPlayPause, enabled = s.ready, modifier = Modifier.size(48.dp)) {
                 Icon(painterResource(if (s.playing) R.drawable.ic_pause else R.drawable.ic_play_arrow),
                     contentDescription = if (!s.ready) "Loading sounds" else if (s.playing) "Pause" else "Play")

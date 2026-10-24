@@ -27,6 +27,14 @@ class StageTimeTest {
         }
     }
 
+    /** QA 2.8.3: taps meant for the keys as a check ended pressed the finish button that came up where the keys were. */
+    @Test fun aButtonThatJustCameUpIgnoresTaps() {
+        assertFalse(SettleTaps.settled(shownAtMs = 1_000, nowMs = 1_000))
+        assertFalse(SettleTaps.settled(1_000, 1_000 + SettleTaps.MS - 1))
+        assertTrue(SettleTaps.settled(1_000, 1_000 + SettleTaps.MS))
+        assertTrue("short enough not to feel stuck", SettleTaps.MS in 500..1_200)
+    }
+
     @Test fun theStagesThatRunThePlayerAreLeftToIt() {
         assertFalse(StageTime.counts(null))
         assertFalse(StageTime.counts(Game.CONCERT))

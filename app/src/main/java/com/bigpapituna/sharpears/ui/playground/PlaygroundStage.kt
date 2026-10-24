@@ -24,6 +24,12 @@ import com.bigpapituna.sharpears.ui.Stage
 fun hasPlaygroundStage(step: Step): Boolean = step.game != null && step.exercise != null
 
 /**
+ * What a stage keeps across the lesson's "Try again" (each try makes the stage anew): the concert's song, so a kid who
+ * played nothing does not pick it again every try (QA 2.8.3). LessonScreen provides one per lesson it shows.
+ */
+val LocalStageMemo = androidx.compose.runtime.staticCompositionLocalOf<MutableMap<String, Any>?> { null }
+
+/**
  * The stage for a Playground game step, in the lesson's one raised dark panel. It runs the step (its own microphone,
  * input and sound) and calls [onEnded] once with the run's report, as the embedded player's onFinished does, so
  * LessonScreen's exerciseEnded(step, report) grades and moves on unchanged. [inject] is the debug microphone

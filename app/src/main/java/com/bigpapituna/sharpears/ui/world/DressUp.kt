@@ -232,10 +232,8 @@ fun NextOutfitMeter(next: NextOutfit?, reader: Boolean, modifier: Modifier = Mod
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             WearIcon(item, Modifier.size(52.dp), locked = true)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Next outfit", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    Text(next.words, style = MaterialTheme.typography.labelLarge, color = c.primary)
-                }
+                // The bar says how close; the words were a small repeat of the tab's ring (QA 2.8.3). TalkBack still reads them.
+                Text("Next outfit", style = MaterialTheme.typography.titleSmall)
                 Box(Modifier.fillMaxWidth().height(12.dp).clip(CircleShape).background(c.surfaceContainerHighest)) {
                     Box(Modifier.fillMaxWidth(next.share.coerceIn(0.04f, 1f)).height(12.dp).clip(CircleShape)
                         .background(Brush.horizontalGradient(listOf(PupGold, c.primary))))

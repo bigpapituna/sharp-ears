@@ -16,3 +16,14 @@ object StageTime {
     /** How often a stage writes the time so far (the goal is checked when a step or a lesson ends), as the player does. */
     const val FLUSH_MS = 15_000L
 }
+
+/**
+ * A button that comes up where a kid was tapping keys (a step's cheer bar, a finish) ignores taps for [MS] after it shows.
+ * QA 2.8.3: taps meant for the keys at the end of "Let's hear you play" pressed "To the map", and the next one My stickers.
+ */
+object SettleTaps {
+    const val MS = 900L
+
+    /** True once a button shown at [shownAtMs] may take a tap at [nowMs] (a monotonic clock). */
+    fun settled(shownAtMs: Long, nowMs: Long): Boolean = nowMs - shownAtMs >= MS
+}

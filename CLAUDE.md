@@ -1147,6 +1147,36 @@ player and burn CPU at every launch. Every bound below holds whatever the bytes 
 - Verify: 1553 JVM tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree);
   lint 0 errors, 29 warnings, none in the changed files; assembleDebug versionCode 22, 2.8.3. No emulator walk (no UI change).
 
+## 2.8.3 QA, kid side (2026-10-23, branch `qa-kid`; version not bumped, qa-grownup's branch bumps to 2.8.4)
+docs/QA-2.8.3-kid.md (untracked): two hours of kid play on a wiped Fold emulator found 6 defects worth fixing, 7 lesser
+ones and 12 polish nits. Fixed here, in severity order:
+- Show Mum (defect 1): the hold alone still opens the session note (reading is the point), but every action in a brief
+  asks the real gate itself: `guardBrief` (ui/brief/BriefPage.kt; a child's brief always unless the gate is open, a grown-up's
+  own week while a kid plays) wraps Refresh, Send (the pill and the export's Send), Ask (typed, starters, the microphone),
+  the cards, Undo, Email and the weekly time. Sheets step aside while the gate shows (their window covers it). Closing Show
+  Mum shuts the gate. BriefWiringTest reads every button of the brief's three files.
+- The launch picker (defect 2): with a kid in the family a grown-up's tile and Add someone ask the gate
+  (`ParentGateRules.pickerAsks`); a kid's own tile never does. The gate now waits after three wrong sums in a row: 30 s,
+  60 s, 120 s, doubling, at most ten minutes ("Try again in N seconds.", counting down, the pad off), forgotten on a pass or
+  a day after the last wait (`ParentGateRules.Lockout`, kept in its own prefs file "gate", never in a backup).
+- A kid's song recap (defect 3): the recap Dialog hosts its own ParentGateHost, and a gate left asked goes with the recap.
+- Playground stages (defect 4): a key touched during the pup's demo counts once the demo has played it
+  (`StageRounds.earlyTouchMayCount` / `takesEarly`, `found(early = true)`); anything else in a demo is no try, so an early
+  touch can never let a round go. The mic stays deaf through a demo as before.
+- Find all the Cs (defect 5): on a touch keyboard every C it has is all there are (`QuestEvent.NotePlayed(touchKeys)`: the
+  Jam's C4 and C5); Cs found on a stage and Cs played right in the player (Where C lives' every C, a song) count for kids.
+- Pup says (defect 7) opens on `PlayLines.LISTEN_FIRST`, the recorded "Listen first, then copy me."
+- Weekly brief (defect 10): no alarm while the phone refuses notifications (`WeeklyPlan.notifies`); the setting reads
+  "Off, notifications are off on this phone" with Open notification settings; the alarm comes back when they are allowed.
+- Lesser: a recreate on an arcade finish reopens the games (defect 8); finish and cheer-bar buttons ignore taps in their
+  first 900 ms (`SettleTaps`, defect 9); a concert retry keeps its song (`LocalStageMemo`, defect 11); arcade practice
+  counts only while keys come (`ArcadeTime`, 8 s a key) and a round with no key played earns no sparkles, quest star or
+  brief line (defect 12). Nits: the sticker tray only under the album, no hand or mode words on a pre-reader's song bar, an
+  arrow on a kid's Next, "Again: <song>" on the recap's replay peek, the outfit bar's repeated words gone, a letter hunt
+  glowing in the key's colour, "Hi, Mia!" clear of the map's top fade.
+- Not done: defect 6 (the AI's "finish: length") is qa-grownup's; defect 13 (My stickers silent) needs new recordings
+  (about 100 wardrobe lines; scripts/render_voice.py with Kokoro); nits 4 and 5 (map layout), 8 and 12 (by design).
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

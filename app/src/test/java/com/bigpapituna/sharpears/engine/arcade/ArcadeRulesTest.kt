@@ -412,6 +412,29 @@ class ArcadeRulesTest {
         }
     }
 
+    /**
+     * QA 2.8.3: a round left on screen with nothing played counted 70 s of practice (the daily goal, the wardrobe), a round
+     * and its sparkles. Only stretches while keys come are practice, and a round with no key played earns no credit.
+     */
+    @Test fun aRoundLeftAloneIsNoPracticeAndNoRoundPlayed() {
+        val (silent, _) = play(ArcadePlans.round(ArcadeGame.TOWER, 1, 7), Kid.SILENT)
+        assertFalse("nothing played", silent.played)
+        assertEquals("it still ends kindly", 1, silent.stars)
+        val (quick, _) = play(ArcadePlans.round(ArcadeGame.TOWER, 1, 7), Kid.QUICK)
+        assertTrue(quick.played)
+        assertTrue("a slip is a key played", RoundResult(ArcadeGame.BALLOONS, 0, 10, 0, 10, 1, 0, 0, 3, 60_000).played)
+        // Practice: each key holds GRACE_MS after it, overlaps once, and only inside the span asked about.
+        val g = ArcadeTime.GRACE_MS
+        assertEquals(0L, ArcadeTime.coveredMs(0, 70_000, emptyList()))
+        assertEquals(g, ArcadeTime.coveredMs(0, 70_000, listOf(10_000L)))
+        assertEquals("two keys a second apart", g + 1_000, ArcadeTime.coveredMs(0, 70_000, listOf(11_000L, 10_000L)))
+        assertEquals("two far apart", 2 * g, ArcadeTime.coveredMs(0, 70_000, listOf(10_000L, 40_000L)))
+        assertEquals("a key before the span reaches into it", g - 3_000, ArcadeTime.coveredMs(13_000, 70_000, listOf(10_000L)))
+        assertEquals("cut at the span's end", 2_000L, ArcadeTime.coveredMs(0, 12_000, listOf(10_000L)))
+        // Keys every two seconds for a minute: the whole minute.
+        assertEquals(60_000L, ArcadeTime.coveredMs(0, 60_000, (0 until 60_000 step 2_000).map { it.toLong() }))
+    }
+
     @Test fun aSongRoundTakesAboutAMinuteAtAKidsPace() {
         for (g in listOf(ArcadeGame.FIREWORKS, ArcadeGame.PAINTER)) for (level in 0..g.maxLevel) {
             val (res, ms) = play(ArcadePlans.round(g, level, 1), Kid.QUICK, reactMs = 900)

@@ -326,6 +326,8 @@ class MainActivity : ComponentActivity() {
     private var launches = 0
     /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
     private var shownRoute: String? = null
+    /** The arcade round (its seed) that has ended: a recreate on its finish reopens the games, not a new round (QA 2.8.3). */
+    private var arcadeEnded: Long? = null
     private var restoreRoute: String? = null
     /** The open profile's preferences and kid memory, so a parent brief action's change shows at once ([briefNav] changed). */
     private var openPrefs: Prefs? = null
@@ -782,7 +784,11 @@ class MainActivity : ComponentActivity() {
         val opened = if (fromLaunch) ++launches else launches
         setContent { androidx.compose.runtime.key(profile.id, opened) {
             var screen by remember { mutableStateOf(requested ?: reopened ?: opening) }
-            androidx.compose.runtime.SideEffect { shownRoute = routeOf(screen); com.bigpapituna.sharpears.analytics.Tester.screen(shownRoute!!) }
+            androidx.compose.runtime.SideEffect {
+                val shown = screen
+                shownRoute = if (shown is Screen.ArcadeRound && shown.seed == arcadeEnded) routeOf(shown.back) else routeOf(shown)
+                com.bigpapituna.sharpears.analytics.Tester.screen(shownRoute!!)
+            }
             // A parent brief action's screen for the person open now ([briefNav]: Replay, Practise together).
             val asked = navRequest.value
             LaunchedEffect(asked) { if (asked != null) { voice.stop(); screen = asked; navRequest.value = null } }
@@ -1284,10 +1290,16 @@ class MainActivity : ComponentActivity() {
                                 com.bigpapituna.sharpears.ui.arcade.ArcadeGameScreen(s.game, level, s.seed, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
                                     sticker = com.bigpapituna.sharpears.engine.world.LevelStickers.byLesson(stickerId),
                                     onRoundEnd = { r ->
+                                        // Its stars are kept now: a recreate on the finish screen goes back to the games.
+                                        arcadeEnded = s.seed; shownRoute = routeOf(s.back)
                                         val end = arcadeStore.record(r)
-                                        world.gameRound(r.game.id, stickerId.takeIf { end.firstThree })
-                                        Briefs.log { BriefEvent.GameRound(it, r.game.id, end.stars, r.keys, r.level, r.durationMs) }
-                                        quest(QuestEvent.GameRound(r.game.id))
+                                        // A round left alone (no key played) ends kindly but is no round played: no sparkles,
+                                        // quest star or brief line for it (QA 2.8.3).
+                                        if (r.played) {
+                                            world.gameRound(r.game.id, stickerId.takeIf { end.firstThree })
+                                            Briefs.log { BriefEvent.GameRound(it, r.game.id, end.stars, r.keys, r.level, r.durationMs) }
+                                            quest(QuestEvent.GameRound(r.game.id))
+                                        } else Log.d(TAG, "arcade: ${r.game.id} round left alone, not counted")
                                         end
                                     },
                                     onAgain = { voice.stop(); screen = Screen.ArcadeRound(s.game, s.back) },
