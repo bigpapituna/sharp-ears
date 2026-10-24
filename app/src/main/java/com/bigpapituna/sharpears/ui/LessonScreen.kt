@@ -169,7 +169,7 @@ fun LessonScreen(
     // Bedtime (kids only): the goodbye once today's goal is reached; a lesson opened after it finds the pup asleep.
     val bedtime = rememberBedtimeStore()
     val gate = LocalParentGate.current
-    val today = remember { java.time.LocalDate.now() }
+    val today = remember { com.bigpapituna.sharpears.data.AppClock.today() }
     var asleep by remember { mutableStateOf(kid && progress != null &&
         !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) }
     var goodnight by remember { mutableStateOf(false) }
@@ -421,8 +421,17 @@ fun LessonScreen(
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
     // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
-    val dropSlot: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
+    val drop: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
         say = { line -> deps.voice.speak(line) }) } }
+    // 2.9: once today's goal is met, Tomorrow's surprise under a kid's drop (the last thing they get), or tomorrow's next
+    // thing over a grown-up's (it is where they go next, so it stays in view above the reveals).
+    val dropSlot: @Composable () -> Unit = {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!kid) com.bigpapituna.sharpears.ui.TomorrowSlot()
+            drop?.invoke()
+            if (kid) com.bigpapituna.sharpears.ui.TomorrowSlot()
+        }
+    }
     val nextDrop = remember(reward, next) {
         val n = next
         if (reward == null || n == null) null

@@ -127,6 +127,8 @@ class BriefEnv(
                     override fun get(profile: Profile) = BriefStore(app, profile.id).weeklyOrDefault(profile.isKid)
                     override fun set(profile: Profile, slot: WeeklySlot) { BriefStore(app, profile.id).weekly = slot; BriefReminder.schedule(app, profile) }
                 },
+                // 2.9: the app's clock (data/AppClock.kt; the phone's, unless a debug walk moved today), as the events are stamped.
+                now = com.bigpapituna.sharpears.data.AppClock::millis,
             )
         }
     }

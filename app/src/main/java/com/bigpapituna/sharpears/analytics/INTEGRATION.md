@@ -67,6 +67,11 @@ debug APK's dex has no `com/posthog` class; checked with dexdump). The SDK's AAR
 `ai_brief_result`, `error_shown`, `felt_off`, plus the SDK's own application lifecycle events. Properties are ids, the app's
 own words and numbers; a sanitizer drops any value shaped like an email address.
 
+2.9, retention (`Tester.retention`, names in engine/tester/Retention.kt): `comeback_shown`, `comeback_played`, `rest_day_used`,
+`surprise_wrapped`, `surprise_opened`, each with `profile_kind` (kid or adult) only. To judge them: comeback_played over
+comeback_shown, the share of returns that play; rest_day_used per active profile per week; surprise_opened over surprise_wrapped
+(a kid who came back the next day or later), and the days-back numbers the weekly brief now carries.
+
 ## Not done / for the integrator
 
 - Nothing ran against PostHog or Brevo (no keys on this PC). Roy's check is in CLAUDE.md.

@@ -144,6 +144,8 @@ data class PlayerStart(
     val duet: Duet? = null,
     /** Open with the duet picker showing (2.4, the parent brief's "Practise together" from a grown-up's own week). */
     val pickDuet: Boolean = false,
+    /** 2.9: open at this speed (the comeback's slower replay, engine/Comeback.GROWN_UP_SPEED); null: full speed. */
+    val speed: Double? = null,
 )
 
 /**
@@ -336,8 +338,8 @@ private fun PlayerStage(args: PlayerArgs) {
         val secs = (practiceMs[0] / 1000).toInt()
         if (secs <= 0) return
         practiceMs[0] -= secs * 1000.0
-        prefs.addPractice(java.time.LocalDate.now(), secs)
-        progress?.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))      // after Prefs: the goal reads both
+        prefs.addPractice(com.bigpapituna.sharpears.data.AppClock.today(), secs)
+        progress?.record(ProgressEvent.Practice(com.bigpapituna.sharpears.data.AppClock.now(), secs))      // after Prefs: the goal reads both
         Log.d(TAG, "practice +$secs s")
     }
     DisposableEffect(Unit) { onDispose { flushPractice() } }
@@ -617,7 +619,7 @@ private fun PlayerStage(args: PlayerArgs) {
             val rep = transport.report()
             val acc = rep.recap?.accuracy ?: AutoSpeed.waitAccuracy(rep.groups, rep.wrongKeys)
             val before = prefs.autoSpeed(meta.id)
-            val after = AutoSpeed.afterRun(before, effective, acc, java.time.LocalDate.now())
+            val after = AutoSpeed.afterRun(before, effective, acc, com.bigpapituna.sharpears.data.AppClock.today())
             prefs.saveAutoSpeed(meta.id, after)
             Log.d(TAG, "auto speed ${song.id}: managed $effective% (song ${transport.runSongMs.toLong()} ms in ${transport.runRealMs.toLong()} ms), " +
                 "accuracy $acc% -> ${after.percent}% (was ${before?.percent})")
@@ -1290,7 +1292,7 @@ private fun PlayerStage(args: PlayerArgs) {
 private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android.content.Context) {
     var position by mutableDoubleStateOf(0.0)
     var playing by mutableStateOf(false)
-    var speed by mutableDoubleStateOf(1.0)
+    var speed by mutableDoubleStateOf(start.speed ?: 1.0)
     var mode by mutableStateOf(start.mode)
     // A duet plays both hands, one person each; the hand chooser is locked meanwhile.
     var duet by mutableStateOf(start.duet)

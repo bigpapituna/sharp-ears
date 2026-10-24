@@ -549,10 +549,12 @@ object Insights {
 
     private fun stats(w: Window, before: List<Window>, all: List<BriefEvent>, sessions: List<Session>, endMs: Long, zone: ZoneId): Stats {
         val end = day(endMs, zone)
-        // 2.9 habits: every day the log saw practice (as daysPractised counts it), the rest days the streak kept, the days
-        // back this month and the longest gap in the strip.
+        // 2.9 habits: every day the log saw practice (as daysPractised counts it) for the days back this month and the longest
+        // gap; the strip's rest days from the days its paws fill (practice minutes), so a rest paw always sits between two
+        // filled ones.
         val practised = Window(Long.MIN_VALUE, endMs + 1, all, sessions, zone).daysPractised
-        val rest = com.bigpapituna.sharpears.engine.PracticeStats.restDays(practised, end)
+        val minuteDays = sessions.filter { it.practiceSec > 0 && it.start <= endMs }.map { day(it.start, zone) }.toSet()
+        val rest = com.bigpapituna.sharpears.engine.PracticeStats.restDays(minuteDays, end)
         val days = (6 downTo 0).map { k ->
             val d = end.minusDays(k.toLong())
             val dw = Window(startOf(d, zone), startOf(d.plusDays(1), zone), all, sessions, zone)

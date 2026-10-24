@@ -94,6 +94,7 @@ object SpokenCatalog {
         addAll(com.bigpapituna.sharpears.engine.play.JamWords.spoken())
         addAll(com.bigpapituna.sharpears.engine.kid.KidLines.fixed())         // 2.2: the kid home and the finale
         addAll(com.bigpapituna.sharpears.engine.arcade.ArcadeLines.spoken())   // 2.7: the kid arcade's games
+        addAll(RetentionLines.fixed())                                        // 2.9: the comeback card and Tomorrow's surprise
         // 2.2.1: the treat jar the kid home taps, and the noisy-room offer in a kid's words.
         addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
         add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)

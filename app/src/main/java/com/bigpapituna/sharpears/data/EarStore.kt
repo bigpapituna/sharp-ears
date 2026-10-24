@@ -60,6 +60,6 @@ class EarStore(context: Context, profileId: String) : EarProgress {
     }
 
     companion object {
-        fun today(): Long = LocalDate.now().toEpochDay()
+        fun today(): Long = AppClock.today().toEpochDay()
     }
 }

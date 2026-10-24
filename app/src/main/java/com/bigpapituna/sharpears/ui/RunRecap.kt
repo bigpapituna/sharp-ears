@@ -212,7 +212,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) (if (short) 56.dp else 72.dp) else 48.dp,
                     sampler = sampler, startDelayMs = if (still) 0L else 420L)
             }
-            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); drop() } } else { {
+            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); drop(); TomorrowSlot(Modifier.slideIn(m.rest, 2)) } } else { {
                 if (!short) starRow()
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.slideIn(m.rest, 0)) {
@@ -225,6 +225,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     }
                 }
                 if (e.xpGained != null) XpLine(e.xpGained, e.xpBar, m.xp, Modifier.slideIn(m.rest, stats.size + 1))
+                // 2.9: once today's goal is met, tomorrow's next thing (over the drop, so it stays in view).
+                TomorrowSlot(Modifier.slideIn(m.rest, stats.size + 1))
                 drop()
                 // The quieter way on: a hard bar on a loop.
                 TroubleSpots.line(e.spots)?.let { loops ->

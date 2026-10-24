@@ -137,6 +137,8 @@ fun KidHome(
     homesLine: Boolean = false, onHomesSaid: () -> Unit = {},
     /** 2.7: the Play sheet's Games tile opens the arcade (ui/arcade); null: no tile. */
     onGames: (() -> Unit)? = null,
+    /** 2.9: Tomorrow's surprise, ready to open (ui/Retention.kt ReadyGift), floating over the buttons; null: none waiting. */
+    gift: (@Composable () -> Unit)? = null,
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
@@ -175,7 +177,7 @@ fun KidHome(
     }
     LaunchedEffect(nudge) { if (nudge != null) { delay(2600); nudge = null } }
     LaunchedEffect(Unit) {
-        val key = name + java.time.LocalDate.now()
+        val key = name + com.bigpapituna.sharpears.data.AppClock.today()
         if (!roadLine && !homes && greeted.add(key)) { delay(900); sayNow(if (asleep) KidLines.ASLEEP else line) }
     }
     var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
@@ -257,6 +259,10 @@ fun KidHome(
         if (decorate.active && decorActions != null) DecorTray(tray, decorate, decorActions, onDone = { decorate.stop() }, modifier = Modifier.align(Alignment.BottomCenter))
         else KidButtons(onPlay = { playOpen = true }, onSongs = onSongs, onStickers = onStickers, height = bottomBar,
             modifier = Modifier.align(Alignment.BottomCenter))
+        // 2.9: a surprise ready to open floats just over the buttons, wherever the map has scrolled to.
+        if (!decorate.active) gift?.let { g ->
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = bottomBar + 8.dp)) { g() }
+        }
         DragGhost(decorate, tray, placed = { k -> com.bigpapituna.sharpears.engine.world.Decal.byKey(k) }, origin = origin)
     }
     if (playOpen) KidPlaySheet(onToy = { t -> playOpen = false; onToy(t) }, onDismiss = { playOpen = false },

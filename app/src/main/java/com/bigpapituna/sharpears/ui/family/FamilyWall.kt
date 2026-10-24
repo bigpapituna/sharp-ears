@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.ui.family
 
+import com.bigpapituna.sharpears.ui.drawRestPaw
+
 import com.bigpapituna.sharpears.analytics.testerMask
 import android.content.Context
 import androidx.compose.foundation.Canvas
@@ -60,7 +62,7 @@ data class FamilyWallEntry(val profile: Profile, val week: List<PawDay>, val sti
  * turned into paws. [latestSticker] maps a profile id to its newest sticker drawable. Reads preferences: call it off the
  * draw path (remember it keyed on a version).
  */
-fun familyWallEntries(context: Context, roster: Roster, today: LocalDate = LocalDate.now(),
+fun familyWallEntries(context: Context, roster: Roster, today: LocalDate = com.bigpapituna.sharpears.data.AppClock.today(),
                       latestSticker: (profileId: String) -> Int? = { null }): List<FamilyWallEntry> =
     roster.profiles.map { p ->
         val log = ProgressStore(context, Prefs(context, p.id)).practiceLog()
@@ -150,7 +152,7 @@ private fun StickerSlot(res: Int?, modifier: Modifier = Modifier) {
 fun Paw(day: PawDay, size: Dp, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
     val colour = when { day.practised -> c.primary; day.future -> c.outlineVariant; else -> c.outline }
-    Canvas(modifier.size(size)) { drawPaw(colour, filled = day.practised) }
+    Canvas(modifier.size(size)) { if (day.rest) drawRestPaw(c.primary) else drawPaw(colour, filled = day.practised) }
 }
 
 /** A paw: a round pad and four toes, drawn to fill the canvas. */

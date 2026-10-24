@@ -60,7 +60,7 @@ import java.time.LocalDate
 fun QuestStars(plan: SessionPlan?, onTask: (QuestTask) -> Unit, modifier: Modifier = Modifier) {
     val profile = LocalProfile.current
     val context = LocalContext.current
-    val quest = remember(profile.id, profile.isKid, plan, LocalDate.now()) { PlayStore(context, profile.id).quest(profile.isKid, plan) }
+    val quest = remember(profile.id, profile.isKid, plan, com.bigpapituna.sharpears.data.AppClock.today()) { PlayStore(context, profile.id).quest(profile.isKid, plan) }
     var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val c = MaterialTheme.colorScheme
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {

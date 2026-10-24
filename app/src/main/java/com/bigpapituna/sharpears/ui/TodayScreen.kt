@@ -63,8 +63,11 @@ import com.bigpapituna.sharpears.ui.play.Toy
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 
-/** Today's goal and streak for the card and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. */
-data class GoalState(val line: String, val met: Boolean, val streak: Int, val atRisk: Boolean)
+/**
+ * Today's goal and streak for the card and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. 2.9:
+ * [rest] rest days inside the streak, and [restYesterday] when yesterday is the run's rest day while today is open.
+ */
+data class GoalState(val line: String, val met: Boolean, val streak: Int, val atRisk: Boolean, val rest: Int = 0, val restYesterday: Boolean = false)
 
 /** What Today's Continue tile shows (engine/nav ContinueWith, resolved by the caller). */
 sealed interface ContinueTile {
@@ -101,7 +104,9 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 /** Pup's quest as stars (ui/play QuestStars), inside the card. */
                 quest: (@Composable () -> Unit)? = null,
                 /** Debug (--ez emptyToday true): the card with nothing due, for screenshots. */
-                emptyPlan: Boolean = false) {
+                emptyPlan: Boolean = false,
+                /** 2.9: back after three days or more: "Welcome back" and three easy minutes, over the plan (once per return). */
+                welcomeBack: (@Composable () -> Unit)? = null) {
     val shown = if (emptyPlan && card.state == TodayCard.State.PLAN) card.copy(state = TodayCard.State.NOTHING_DUE, rows = emptyList()) else card
     var tapLine by remember { mutableStateOf<String?>(null) }
     var playCorner by remember { mutableStateOf(false) }
@@ -122,9 +127,10 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             // for half a minute he dozes off.
             Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pup(pose, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000)
-                Text(tapLine ?: remember(shown.state, goal) { greeting(shown.state, goal, fresh) }, style = MaterialTheme.typography.bodyLarge,
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null) { greeting(shown.state, goal, fresh, back = welcomeBack != null) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
+            welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
             TodayCardView(shown, goal, a, quest)
             when (cont) {
@@ -162,7 +168,7 @@ private fun Header() {
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
             Text(Names.TODAY, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-            Text(remember { java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.getDefault())) },
+            Text(remember { com.bigpapituna.sharpears.data.AppClock.today().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.getDefault())) },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // The layout (2.8, engine/nav/Layout.kt), one tap from the home.
@@ -319,12 +325,18 @@ private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/** What the pup says on Today: today done, a first visit, the goal or the streak, or the time of day. */
-internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour): String = when {
+/**
+ * What the pup says on Today: today done, a first visit, the goal or the streak, or the time of day. 2.9: back after days
+ * away ([back]) is a welcome, never a word about the streak; a rest day is said plainly.
+ */
+internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
+    back -> "Welcome back. Good to see you."
     fresh -> "Hi, I'm your coach. Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."
+    goal != null && goal.atRisk && goal.restYesterday -> "Yesterday was a rest day. Ready when you are."
     goal != null && goal.atRisk -> "Your ${goal.streak} day streak is waiting. ${goal.line.replaceFirstChar { it.uppercase() }}."
+    goal != null && goal.streak >= 2 && goal.rest > 0 -> "${com.bigpapituna.sharpears.engine.PracticeStats.streakWords(goal.streak, goal.rest)}. Let's keep it going."
     goal != null && goal.streak >= 2 -> "${goal.streak} days in a row. Let's keep it going."
     hour < 12 -> "Good morning. A few minutes at the keys?"
     hour < 18 -> "Good afternoon. Ready when you are."

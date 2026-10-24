@@ -71,7 +71,7 @@ object Surprise {
     }
 
     const val WRAPPED_TITLE = "Something for tomorrow"
-    const val WRAPPED_LINE = "A surprise from the pup. It opens tomorrow."
+    const val WRAPPED_LINE = "Wrapped by the pup, just for you."
     const val READY_TITLE = "Your surprise is ready!"
     const val READY_LINE = "Tap the present to open it."
 }

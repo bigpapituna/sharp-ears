@@ -167,7 +167,15 @@ class BriefExport(private val context: Context) {
                 c.drawCircle(cx, y + 44f, 44f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ink.GOLD_SOFT })
                 c.drawCircle(cx, y + 44f, 44f, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = Ink.GOLD })
             }
-            paw(c, cx, y + 44f, 56f, if (practised) Ink.ACCENT else Ink.LINE, practised)
+            paw(c, cx, y + 44f, 56f, if (practised || d.rest) Ink.ACCENT else Ink.LINE, practised)
+            // 2.9: a rest day, one missed day the streak kept: the outline paw with a small crescent moon.
+            if (d.rest && !practised) {
+                val moon = android.graphics.Path().apply {
+                    addCircle(cx + 26f, y + 14f, 9f, android.graphics.Path.Direction.CW)
+                    op(android.graphics.Path().apply { addCircle(cx + 30f, y + 11f, 7.5f, android.graphics.Path.Direction.CW) }, android.graphics.Path.Op.DIFFERENCE)
+                }
+                c.drawPath(moon, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ink.ACCENT })
+            }
             c.drawText("${d.practiceMinutes}", cx, y + 118f, num)
             val track = RectF(cx - 24f, y + 134f, cx + 24f, y + 142f)
             c.drawRoundRect(track, 4f, 4f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ink.TRACK })

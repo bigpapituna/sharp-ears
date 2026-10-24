@@ -192,6 +192,15 @@ object Tester {
     /** One of the app's own events ([name] and ids or numbers only). */
     fun event(name: String, props: Map<String, Any> = emptyMap()) = capture(TesterEvent(name, props))
 
+    /**
+     * 2.9, the retention events (engine/tester/Retention.kt): comeback_shown, comeback_played, rest_day_used, surprise_wrapped,
+     * surprise_opened, each with the profile's kind ("kid" or "adult") and nothing else.
+     */
+    fun retention(name: String, kid: Boolean) {
+        capture(com.bigpapituna.sharpears.engine.tester.Retention.event(name, kid))
+        logcat("retention: $name (${TesterRules.profileKind(kid)})")
+    }
+
     /** An error was put on screen at [where] (a short place name of the app's own, never the message). */
     fun error(where: String) {
         write(TesterLog.error(now(), where))

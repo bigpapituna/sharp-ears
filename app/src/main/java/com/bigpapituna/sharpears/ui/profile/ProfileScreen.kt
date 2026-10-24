@@ -73,6 +73,7 @@ import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.Pup
 import com.bigpapituna.sharpears.ui.PupSays
+import com.bigpapituna.sharpears.ui.drawRestPaw
 import java.text.NumberFormat
 import java.time.LocalDate
 
@@ -88,6 +89,8 @@ private class ProfileData(val store: ProgressStore, val prefs: Prefs, val today:
     val practicedDays = log.filterValues { it > 0 }.keys
     /** Minutes this week, Monday to today, beside the week's dots (2.7: the home's "This week" line moved here). */
     val weekMinutes = com.bigpapituna.sharpears.engine.PracticeStats.minutesSince(log, WeeklyGoal.weekStart(today), today)
+    /** 2.9: days with practice this calendar month, up to today ("Days played this month: 12"). */
+    val monthDays = practicedDays.count { it.year == today.year && it.month == today.month && !it.isAfter(today) }
 }
 
 private fun count(n: Int): String = NumberFormat.getIntegerInstance().format(n)
@@ -107,7 +110,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
                   brief: (@Composable () -> Unit)? = null,
                   /** The family wall (ui/family/FamilyWall.kt), at the top since 2.7 (it was on the home); null with one profile. */
                   family: (@Composable () -> Unit)? = null) {
-    val today = remember { LocalDate.now() }
+    val today = remember { com.bigpapituna.sharpears.data.AppClock.today() }
     val v = store.version.intValue + prefs.version.intValue
     val data = remember(v) { ProfileData(store, prefs, today) }
     var editGoal by remember { mutableStateOf(false) }
@@ -125,7 +128,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
             family?.let { wall -> item(key = "family") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp)) { wall() } } }
             item(key = "top") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { Hero(data) } }
         }
-        item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }) } }
+        item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }, kid = kid) } }
         if (!kid) brief?.let { b -> item(key = "brief") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { b() } } }
         if (!kid) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
         item(key = "stats") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { StatsRow(data.snap) } }
@@ -217,7 +220,7 @@ private fun Hero(d: ProfileData) {
 
 /** Today's goal ring, the streak with its freezes, and this week's days: the one raised surface of this section. */
 @Composable
-private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit) {
+private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit, kid: Boolean = false) {
     val c = MaterialTheme.colorScheme
     val goal = d.store.goalMinutes
     val minutes = d.secondsToday / 60
@@ -250,18 +253,35 @@ private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit) {
                     Text("day streak", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp))
                 }
-                Text(
-                    when {
-                        d.streak.streak == 0 -> "Practise today to start one."
-                        d.streak.atRisk -> "Practise today to keep it."
-                        else -> "Kept for today."
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant,
-                )
+                Text(streakNote(d.streak, d.today), style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
             }
             Freezes(d.streak.freezes)
         }
         WeekDots(d)
+        // 2.9: a rest day in the week is said in words under the strip, and the month's days played (grown-ups; a kid's You
+        // has the paws).
+        val restThisWeek = d.streak.restDays.any { !it.isBefore(WeeklyGoal.weekStart(d.today)) && !it.isAfter(d.today) }
+        if (restThisWeek || !kid) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (restThisWeek) {
+                androidx.compose.foundation.Canvas(Modifier.size(18.dp)) { drawRestPaw(c.primary) }
+                Text("Rest day, your streak stays", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.weight(1f))
+            } else Spacer(Modifier.weight(1f))
+            if (!kid) Text("Days played this month: ${d.monthDays}", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * The line under the streak (2.9): the rest days said plainly ("6 days, with one rest day."), never a scolding. Yesterday
+ * as the run's rest day while today is open reads "Yesterday was a rest day."
+ */
+internal fun streakNote(s: com.bigpapituna.sharpears.engine.progress.StreakResult, today: LocalDate): String {
+    val rest = if (s.streak > 0 && s.restInStreak > 0) com.bigpapituna.sharpears.engine.PracticeStats.streakWords(s.streak, s.restInStreak) + ". " else ""
+    return rest + when {
+        s.streak == 0 -> "Practise today to start one."
+        s.atRisk && today.minusDays(1) in s.restDays -> "Yesterday was a rest day. Play today to keep it going."
+        s.atRisk -> "Play today to keep it going."
+        else -> "Kept for today."
     }
 }
 
@@ -297,16 +317,19 @@ private fun WeekDots(d: ProfileData) {
                 val day = start.plusDays(i.toLong())
                 val did = day in d.practicedDays
                 val future = day.isAfter(d.today)
+                val rest = !did && day in d.streak.restDays
                 // One node per day ("Tuesday, practised"): TalkBack read only the letters, never which days were done.
                 Column(Modifier.clearAndSetSemantics {
                     contentDescription = day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()) +
-                        when { did -> ", practised"; future -> ""; else -> ", not practised" }
+                        when { did -> ", practised"; future -> ""; rest -> ", ${com.bigpapituna.sharpears.ui.REST_DAY.lowercase()}"; else -> ", not practised" }
                 }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(Modifier.size(26.dp).clip(CircleShape)
                         .background(if (did) c.primary else c.surfaceContainerHighest)
                         .then(if (day == d.today && !did) Modifier.border(2.dp, c.primary, CircleShape) else Modifier),
                         contentAlignment = Alignment.Center) {
                         if (did) Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.onPrimary, modifier = Modifier.size(16.dp))
+                        // 2.9: the rest day, a sleeping paw (one missed day the streak kept).
+                        else if (rest) androidx.compose.foundation.Canvas(Modifier.size(20.dp)) { drawRestPaw(c.primary) }
                     }
                     Text("MTWTFSS"[i].toString(), style = MaterialTheme.typography.labelSmall,
                         color = if (future) c.onSurfaceVariant.copy(alpha = 0.5f) else c.onSurfaceVariant)

@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.engine
 
 import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import com.bigpapituna.sharpears.engine.brief.Hands
 import com.bigpapituna.sharpears.engine.brief.RunMode
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -52,7 +53,8 @@ object Comeback {
 
     /** What a grown-up replays. */
     sealed interface Piece {
-        data class Song(val id: String) : Piece
+        /** A song, in the [hands] its clean run was played with (the easier way back). */
+        data class Song(val id: String, val hands: Hands = Hands.BOTH) : Piece
         data class Lesson(val id: String) : Piece
     }
 
@@ -64,7 +66,7 @@ object Comeback {
     fun grownUpPiece(events: List<BriefEvent>, song: (String) -> Boolean, lesson: (String) -> Boolean): Piece? {
         val pieces = events.sortedBy { it.at }.mapNotNull { e ->
             when (e) {
-                is BriefEvent.SongRun -> if (e.mode != RunMode.LISTEN && song(e.songId)) Triple(e.at, e.stars >= 3, Piece.Song(e.songId)) else null
+                is BriefEvent.SongRun -> if (e.mode != RunMode.LISTEN && song(e.songId)) Triple(e.at, e.stars >= 3, Piece.Song(e.songId, e.hands)) else null
                 is BriefEvent.LessonDone -> if (lesson(e.lessonId)) Triple(e.at, e.stars >= 3, Piece.Lesson(e.lessonId)) else null
                 else -> null
             }
@@ -76,14 +78,14 @@ object Comeback {
     fun daysWords(n: Int): String = when (n) {
         1 -> "one day"
         in 2..10 -> listOf("two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")[n - 2] + " days"
-        else -> "$n days"
+        else -> plural(n, "day")
     }
 
     /** The grown-up's card (Today): its line for the piece, plain and short. */
     fun grownUpLine(title: String?, lesson: Boolean): String = when {
         title == null -> "Three easy minutes to warm up. Pick a song you know."
-        lesson -> "Three easy minutes to warm up: $title, once more."
-        else -> "Three easy minutes to warm up: $title, a little slower, the notes wait for you."
+        lesson -> "Three easy minutes to warm up. Play “$title” once more."
+        else -> "Three easy minutes to warm up. Play “$title” a little slower, and the notes wait for you."
     }
 
     /** The kid's card: what the pup says (said aloud, no numbers). */

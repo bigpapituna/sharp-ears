@@ -99,7 +99,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         return merged
     }
 
-    fun secondsToday(today: LocalDate = LocalDate.now()): Int = practiceLog()[today] ?: 0
+    fun secondsToday(today: LocalDate = AppClock.today()): Int = practiceLog()[today] ?: 0
 
     /** Every second of practice this store has counted (the brief's sessions take the difference across a session). */
     val practiceSecondsTotal: Long get() = p.getLong("totalSeconds", 0)
@@ -108,14 +108,14 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
     fun clearPracticeLog() = edit { p.all.keys.filter { it.startsWith("day:") }.forEach(::remove) }
 
     /** "3 of 10 min today", for the home greeting. */
-    fun goalLine(today: LocalDate = LocalDate.now()): String = DailyGoal.line(secondsToday(today), goalMinutes)
+    fun goalLine(today: LocalDate = AppClock.today()): String = DailyGoal.line(secondsToday(today), goalMinutes)
 
-    fun streak(today: LocalDate = LocalDate.now()): StreakResult =
+    fun streak(today: LocalDate = AppClock.today()): StreakResult =
         Streaks.compute(practiceLog().filterValues { it > 0 }.keys, today)
 
     // ---- the snapshot ----
 
-    fun snapshot(today: LocalDate = LocalDate.now()): Snapshot {
+    fun snapshot(today: LocalDate = AppClock.today()): Snapshot {
         val log = practiceLog()
         val days = log.filterValues { it > 0 }.keys
         val streak = Streaks.compute(days, today)
@@ -263,7 +263,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         val up = Progression.levelUp(before, gain)
         val fresh = Achievements.newlyUnlocked(snapshot(), unlocked.keys)
         if (fresh.isNotEmpty()) {
-            val today = LocalDate.now()
+            val today = AppClock.today()
             edit { fresh.forEach { putString("ach:${it.id}", today.toString()) } }
             fresh.forEach { unlocked[it.id] = today }
             toasts.addAll(fresh)
@@ -301,7 +301,7 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         }
         xpState.intValue = xpBefore + gain
         // Achievements already earned are marked quietly.
-        val today = LocalDate.now()
+        val today = AppClock.today()
         val fresh = Achievements.newlyUnlocked(snapshot(), unlocked.keys)
         edit { fresh.forEach { putString("ach:${it.id}", today.toString()) } }
         fresh.forEach { unlocked[it.id] = today }

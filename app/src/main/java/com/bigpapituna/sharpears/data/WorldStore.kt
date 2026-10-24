@@ -58,7 +58,7 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     var ledgerSource: (() -> LedgerInput)? = null
 
     /** The ledger synced from [ledgerSource]: minutes, days, three-star lessons, finales. Items it opens wait in fresh. */
-    fun sync(today: LocalDate = LocalDate.now()) {
+    fun sync(today: LocalDate = AppClock.today()) {
         val input = ledgerSource?.invoke() ?: return
         val before = state
         val s = World.syncLedger(before, input.practice, input.threeStars, input.walked, today)
@@ -87,7 +87,7 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     /** A song played to its end; [accuracy] for a Perform run (0..100), null for Wait or Listen. */
     fun songComplete(songId: String, accuracy: Int?): Reward {
         sync()
-        val o = World.songComplete(state, songId, accuracy)
+        val o = World.songComplete(state, songId, accuracy, AppClock.today())
         set(o.state)
         brief(o.reward)
         log("world: song $songId ${accuracy?.let { "$it%" } ?: "played through"} -> " + describe(o.reward) +
@@ -101,11 +101,34 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
      */
     fun gameRound(gameId: String, sticker: String?): Reward {
         sync()
-        val o = World.gameRound(state, sticker)
+        val o = World.gameRound(state, sticker, AppClock.today())
         set(o.state)
         log("world: arcade $gameId round, ${o.state.ledger.songs} songs and rounds, ${o.state.ledger.sparkles} sparkles" +
             (o.reward.level?.let { ", sticker ${it.lessonId}" } ?: ""))
         return o.reward
+    }
+
+    /**
+     * 2.9, Tomorrow's surprise: wraps today's gift when the day's goal is [goalMet] and none is waiting (engine/world
+     * Surprise). True when it was wrapped just now (the finish screen's first sight of it).
+     */
+    fun wrapGift(goalMet: Boolean, today: LocalDate = AppClock.today()): Boolean {
+        val s = World.wrapGift(state, today, goalMet)
+        if (s == state) return false
+        set(s)
+        log("surprise: wrapped on $today")
+        return true
+    }
+
+    /** 2.9: the waiting gift opened on the kid home (null when it is not ready yet); its reward to show. */
+    fun openGift(today: LocalDate = AppClock.today()): com.bigpapituna.sharpears.engine.world.GiftOpened? {
+        sync(today)
+        val o = World.openGift(state, today) ?: return null
+        set(o.state)
+        brief(o.reward)
+        log("surprise: opened on $today, ${o.kind.name.lowercase()}" + (if (o.reward.drops.isEmpty()) "" else " -> " + describe(o.reward)) +
+            (if (o.reward.unlocked.isEmpty()) "" else ", wear ${o.reward.unlocked.joinToString { it.id }}") + ", ${o.state.ledger.sparkles} sparkles")
+        return o
     }
 
     /** The brief's event log: each sticker dropped, with its rarity and whether it was new. */
@@ -238,7 +261,7 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
         }
 
         /** Who wears the crown of the day among [profileIds]: the longest Pup says pattern today (ties: whoever got there first). */
-        fun crownOfTheDay(context: Context, profileIds: List<String>, today: LocalDate = LocalDate.now()): String? =
+        fun crownOfTheDay(context: Context, profileIds: List<String>, today: LocalDate = AppClock.today()): String? =
             Crown.of(profileIds.mapNotNull { id ->
                 val prefs = context.getSharedPreferences(ProgressFiles.fileFor(FILE, id), Context.MODE_PRIVATE)
                 val best = WorldState.decode(prefs.getString(KEY, null), 0L).pupSays[today] ?: return@mapNotNull null

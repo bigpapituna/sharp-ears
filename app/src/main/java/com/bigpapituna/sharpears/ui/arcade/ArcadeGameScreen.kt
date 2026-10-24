@@ -411,8 +411,8 @@ private fun ArcadePractice(deps: LessonDeps, game: ArcadeGame, keys: MutableList
         val secs = (ms / 1000).toInt()
         from[1] = ms % 1000
         if (secs <= 0) return
-        deps.prefs.addPractice(java.time.LocalDate.now(), secs)
-        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
+        deps.prefs.addPractice(com.bigpapituna.sharpears.data.AppClock.today(), secs)
+        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(com.bigpapituna.sharpears.data.AppClock.now(), secs))
         Log.d(TAG, "arcade: practice +$secs s (${game.id})")
     }
     if (onScreen()) {

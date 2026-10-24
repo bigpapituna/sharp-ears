@@ -1230,6 +1230,74 @@ ones and 12 polish nits. Fixed here, in severity order:
 - Not done: defect 6 (the AI's "finish: length") is qa-grownup's; defect 13 (My stickers silent) needs new recordings
   (about 100 wardrobe lines; scripts/render_voice.py with Kokoro); nits 4 and 5 (map layout), 8 and 12 (by design).
 
+## 2.9 retention (2026-10-24, branch `retention`, versionCode 24, 2.9.0; emulator-5558 Fold_QA_GU only)
+Roy: "make the app better and more engaging and keep user retention". Three mechanics the app lacked, and the numbers to judge
+them. Kid-safe throughout: no guilt, no pressure, no countdown a child can see.
+- Rest day (engine/PracticeStats.restDays, streakRun, streakWords): a single missed day between two practice days keeps the
+  streak, automatically, at most once in any seven days (a rolling window, given oldest first); yesterday reads as a rest day
+  while today is still open. A rest day holds the streak and never adds a day. Streaks.compute spends a rest day before any
+  of 2.0's earned freezes (they stay, for a second gap in the week or a gap of two days); StreakResult.restDays and
+  restInStreak. Shown plainly: You's streak line "3 days, with one rest day. Kept for today." and a sleeping paw (a paw with a
+  crescent moon, ui/Retention.kt drawRestPaw) with "Rest day, your streak stays" under the week's dots; PawWeek's strips (the
+  kid paw calendar, the goodbye, the family wall); the brief's seven-day strip (DayStat.rest, from the days its paws fill, and
+  the PNG and PDF export); Today's greeting ("Yesterday was a rest day. Ready when you are.", "6 days, with one rest day. Let's
+  keep it going.").
+- Comeback (engine/Comeback.kt): back after three or more full days without practice, nothing played yet today, once per
+  return (PlayStore.comebackGreeted, the return's last-played day). A kid: a card over the map, the pup dancing, "You're back!
+  Yay! Let's play one you know." and Play: one stone they know (of the last twelve walked, the most stars, the earlier on a
+  tie). A grown-up: "Welcome back" on Today (the greeting says it too, never a word about the streak) with Start: the last
+  clean song (three stars, not Listen) from the brief's log at 0.75x in wait mode, in the hands of that run, for three minutes
+  (PlayerStart.speed, timeLimitMs), or the last clean lesson again; nothing new. Logged as BriefEvent.Comeback ("comeback",
+  the days away) and praised by the brief (PraiseKind.CAME_BACK: "Back at the piano after four days away.").
+- Tomorrow's surprise (engine/world/Surprise.kt, World.wrapGift and openGift, WorldState.gift): on a kid's finish screen once the
+  day's goal is met (a lesson's celebration, a song's recap, an arcade round, Done for today), a wrapped present, "Something
+  for tomorrow" (the pup: "Something for tomorrow! A surprise from me."). One a day, never two waiting, and it opens only on a
+  later calendar day: on the kid home it floats over the buttons, "Your surprise is ready!", and a tap opens it (the lid flies
+  off, sparkles): a sticker 45 (a drop, DropSource.GIFT), 25 sparkles 40 (Ledger.bonus; the next outfit's ring shows how
+  close), something to wear 15 (a practice-track set the kid has not got, "Keep it on?"), rolled from the world's seed and the
+  wrap day; an outfit with nothing left becomes sparkles. The owner's reminder says "Your surprise is ready." on such a day,
+  even after the owner's goal (ReminderPlan.text and skip, surpriseReady). Grown-ups get no gift: their finish screen's line
+  names tomorrow's next thing from the plan (engine/Tomorrow.kt: the Continue song's hands tip, "Tomorrow: the left hand of
+  Twinkle", then the next lesson, then the song again), above the drop so it stays in view. One slot for all of it:
+  ui/Retention.kt `TomorrowSlot` under `LocalRetention` (MainActivity).
+- Measurement: `Tester.retention` (analytics/Tester.kt, names in engine/tester/Retention.kt) sends `comeback_shown`,
+  `comeback_played`, `rest_day_used` (once per rest day, when the day after it was played), `surprise_wrapped` and
+  `surprise_opened`, each with `profile_kind` kid or adult only; logcat `retention: <event> (<kind>)`. Findings.Stats gain
+  `daysBackThisMonth` and `longestGap` (Insights `Habits.of`: days before the first event, and today while unplayed, are no
+  gap); the week's template habits section opens on "The piano came out on three of the last seven days, the longest gap three
+  days. Played on six days this month." (SectionBank.BACK; it stands in for the days-practised fact). The AI prompt names both
+  fields, the rest day and CAME_BACK (Prompts.VERSION 4, snapshots re-pinned). You (grown-ups): "Days played this month: N"
+  under the week's dots. analytics/INTEGRATION.md says how to read the events.
+- Debug clock (data/AppClock.kt): `--es today 2026-10-28` (debug builds only, also through onNewIntent) moves the app's today
+  for the life of the process: the practice log, streaks, Today, the kid home, the gift, the comeback and the brief's events
+  and window (Briefs.clock, BriefEnv.now) all read it. The emulator's clock cannot be set (`adb shell date` refuses without
+  root on the Play image). File-name stamps and alarms keep the real clock. Walk recipe: force-stop, then `am start ...
+  --es profile <id> --es today <day> [--ei practice <min>]` per day; `--es lesson first-song --ei step 3` (two taps on Next)
+  finishes a grown-up lesson, `--es lesson playground-11 --ei step 2` a kid's, `--es screen arcade --es game balloons --ez bot
+  true` plays a round by itself (press Home before the next day, so the session ends with its practice for the brief).
+- Voice: 7 new kid lines (engine/RetentionLines.kt) recorded at 0.85 (3717 files).
+- What's new 2.9.0: three lines (rest days, the comeback, tomorrow and the kids' surprise).
+- Tests: RestDayTest (one gap kept, the window, two gaps, a gap of two days, today open, the strip, the week line),
+  ComebackTest (the three-day rule, once per return, the stone and the piece), SurpriseTest (once a day, never two waiting,
+  the next day only, the table's weights, each prize, the outfit fallback, saving), TomorrowTest (the line, the events' props),
+  RetentionBriefTest (the event on the wire, the praise, the habits numbers and line, the strip's rest day), RetentionWiringTest
+  (every finish screen, the homes, the strips, the reminder, the debug clock), ReminderPlanTest and WelcomeTest additions;
+  GoalsTest and PracticeStatsTest moved to the rest-day rule. 1621 JVM tests, all green but
+  PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 29 warnings (as 2.8.4).
+- Emulator walk (5558, Roy and Mila p1, faked days): Roy back on 27 Oct after the 23rd (Welcome back, Twinkle at 0.75x in
+  wait), the 27th and 28th played, the 29th missed, the 30th opened ("Yesterday was a rest day"), then played (You: "3 days,
+  with one rest day", the moon paw, "Days played this month: 4"; `rest_day_used`); Mila seeded on the 25th and back on the
+  29th (the card, "High and low"), the goal and an arcade round (the gift wrapped), the 30th (ready over the buttons; opened:
+  25 sparkles opened the sunglasses), a lesson to the goal (wrapped on its celebration), the 31st (opened: sparkles and the
+  party hat); Roy's lesson finish after the goal ("Tomorrow: the left hand of Twinkle, Twinkle, Little Star"); Roy's week of 11
+  to 17 Nov (the strip's Monday rest paw, the habits line). Screenshots: app/build/screens/ret-*.png (not committed).
+- Decisions: rest days come before the earned freezes and both stay; the window is any seven days, not the calendar week (the
+  stricter reading); the kid's stone is the best of the recent twelve; the grown-up's piece replays the clean run's hands; the
+  gift's contents are rolled when it opens (so an outfit is one still missing); the reminder (one a phone, the owner's) says
+  the surprise when any kid has one ready; event props say `adult` for a grown-up, as the dashboard's profile_kind does.
+- Not proven: nothing on a real phone or with a child; the reminder's surprise line by tests only (no alarm fired on the
+  walk); dark mode of the new cards was not walked.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

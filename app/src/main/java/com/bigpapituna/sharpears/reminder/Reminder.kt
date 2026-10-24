@@ -61,8 +61,13 @@ object Reminder {
         val prefs = ownerPrefs(context)
         // Nothing to nudge once today's goal is met or today's plan is done (the owner's own; QA D7).
         val progress = runCatching { com.bigpapituna.sharpears.data.ProgressStore(context, prefs) }.getOrNull()
-        val today = java.time.LocalDate.now()
-        if (progress != null && ReminderPlan.skip(progress.secondsToday(today), progress.goalMinutes, prefs.dailySummary(today) != null)) {
+        val today = com.bigpapituna.sharpears.data.AppClock.today()
+        // 2.9: a kid's surprise ready to open (Tomorrow's surprise) is what the reminder says, whatever the owner's day.
+        val surprise = runCatching {
+            com.bigpapituna.sharpears.data.Profiles(context).all.filter { it.isKid }
+                .any { com.bigpapituna.sharpears.engine.world.Surprise.ready(com.bigpapituna.sharpears.data.WorldStore(context, it.id).state.gift, today) }
+        }.getOrDefault(false)
+        if (progress != null && ReminderPlan.skip(progress.secondsToday(today), progress.goalMinutes, prefs.dailySummary(today) != null, surprise)) {
             Log.d(TAG, "reminder: not posted, today's goal is met or the plan is done"); return
         }
         val lessons = LessonStore(context, Profile.OWNER_ID)
@@ -70,7 +75,7 @@ object Reminder {
             lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).count { it is LessonItem.ChordItem }
         }.getOrDefault(0)
         val song = prefs.lastSongId?.let { id -> runCatching { SongRepository(context).all().firstOrNull { it.id == id }?.title }.getOrNull() }
-        val text = ReminderPlan.text(due, song)
+        val text = ReminderPlan.text(due, song, surprise)
         if (!canNotify(context)) { Log.d(TAG, "reminder: no notification permission; would say \"$text\""); return }
         val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE)

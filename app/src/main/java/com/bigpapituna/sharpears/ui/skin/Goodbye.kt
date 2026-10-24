@@ -1,5 +1,7 @@
 package com.bigpapituna.sharpears.ui.skin
 
+import com.bigpapituna.sharpears.ui.drawRestPaw
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -97,7 +99,7 @@ fun Goodbye(
     onJam: (() -> Unit)? = null,
     onOneMore: (() -> Unit)? = null,
     say: (String) -> Unit = {},
-    seed: Int = LocalDate.now().dayOfYear,
+    seed: Int = com.bigpapituna.sharpears.data.AppClock.today().dayOfYear,
     /** A lesson opened after today's goodbye: the pup is asleep already ("New lessons tomorrow!"). */
     asleep: Boolean = false,
 ) {
@@ -217,13 +219,16 @@ private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn
  * stamp (scale down from big, as if pressed on); days still to come are faint, a missed day a plain outline.
  */
 @Composable
-fun PawWeekRow(week: List<PawDay>, size: Dp, modifier: Modifier = Modifier, stamp: Boolean = false, today: LocalDate = LocalDate.now()) {
+fun PawWeekRow(week: List<PawDay>, size: Dp, modifier: Modifier = Modifier, stamp: Boolean = false, today: LocalDate = com.bigpapituna.sharpears.data.AppClock.today()) {
     val c = MaterialTheme.colorScheme
     val still = reducedMotion()
     val press = remember { Animatable(if (still || !stamp) 1f else 0f) }
     LaunchedEffect(Unit) { if (!still && stamp) { kotlinx.coroutines.delay(900); press.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f)) } }
     val days = week.count { it.practised }
-    Row(modifier.semantics(mergeDescendants = true) { contentDescription = "Paw prints this week: $days of 7 days" },
+    val rests = week.count { it.rest }
+    Row(modifier.semantics(mergeDescendants = true) {
+        contentDescription = "Paw prints this week: $days of 7 days" + if (rests > 0) ", and a rest day" else ""
+    },
         horizontalArrangement = Arrangement.spacedBy(size * 0.22f)) {
         week.forEach { d ->
             val isToday = d.date == today
@@ -235,7 +240,8 @@ fun PawWeekRow(week: List<PawDay>, size: Dp, modifier: Modifier = Modifier, stam
                     }
                 }) {
                     val colour = when { d.practised -> c.primary; d.future -> c.outlineVariant; else -> c.outline }
-                    drawPaw(colour, filled = d.practised)
+                    // 2.9: a missed day the streak kept sleeps under a little moon (a rest day, never a gap).
+                    if (d.rest) drawRestPaw(c.primary) else drawPaw(colour, filled = d.practised)
                 }
                 Spacer(Modifier.size(3.dp))
                 Box(Modifier.size(size * 0.62f).clip(CircleShape).then(if (isToday) Modifier.border(1.5.dp, c.primary, CircleShape) else Modifier),
@@ -254,7 +260,7 @@ fun PawWeekRow(week: List<PawDay>, size: Dp, modifier: Modifier = Modifier, stam
  * [LocalProgress] when [week] is not given.
  */
 @Composable
-fun PawCalendarCard(kid: Boolean, modifier: Modifier = Modifier, week: List<PawDay>? = null, today: LocalDate = LocalDate.now()) {
+fun PawCalendarCard(kid: Boolean, modifier: Modifier = Modifier, week: List<PawDay>? = null, today: LocalDate = com.bigpapituna.sharpears.data.AppClock.today()) {
     val progress = LocalProgress.current
     val days = week ?: remember(progress, today) { PawWeek.of(progress?.practiceLog() ?: emptyMap(), today) }
     val c = MaterialTheme.colorScheme

@@ -88,8 +88,8 @@ private fun CountsAsPractice(step: Step, deps: LessonDeps) {
         val secs = ((System.currentTimeMillis() - from[0]) / 1000).toInt()
         if (secs <= 0) return
         from[0] += secs * 1000L
-        deps.prefs.addPractice(java.time.LocalDate.now(), secs)
-        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))   // after Prefs: the goal reads both
+        deps.prefs.addPractice(com.bigpapituna.sharpears.data.AppClock.today(), secs)
+        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(com.bigpapituna.sharpears.data.AppClock.now(), secs))   // after Prefs: the goal reads both
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "playground: practice +$secs s (${step.game})")
     }
     if (com.bigpapituna.sharpears.ui.onScreen()) {

@@ -57,9 +57,9 @@ object PracticeStats {
 
     /** "6 days in a row", or "6 days, with one rest day" (2.9: the line says the rest day plainly). */
     fun streakWords(days: Int, rest: Int): String = when (rest) {
-        0 -> "$days days in a row"
-        1 -> "$days days, with one rest day"
-        else -> "$days days, with ${small(rest)} rest days"
+        0 -> plural(days, "day") + " in a row"
+        1 -> plural(days, "day") + ", with one rest day"
+        else -> plural(days, "day") + ", with " + small(rest) + " rest days"
     }
 
     private fun small(n: Int) = listOf("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten").getOrElse(n) { n.toString() }

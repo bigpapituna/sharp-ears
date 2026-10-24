@@ -65,12 +65,12 @@ class ComebackTest {
         val lessons = setOf("fingers-right", "c-position")
         fun pick(vararg e: BriefEvent) = Comeback.grownUpPiece(e.toList(), { it in known }, { it in lessons })
         // The latest clean one wins over a later rough run.
-        assertEquals(Comeback.Piece.Song("twinkle"), pick(song(1, "ode", 2), song(2, "twinkle", 3), song(3, "minuet", 1)))
+        assertEquals(Comeback.Piece.Song("twinkle", Hands.RIGHT), pick(song(1, "ode", 2), song(2, "twinkle", 3), song(3, "minuet", 1)))
         assertEquals(Comeback.Piece.Lesson("c-position"), pick(song(1, "twinkle", 3), lesson(2, "c-position", 3), song(3, "ode", 2)))
         // Listen runs and songs that no longer exist are not replayed.
-        assertEquals(Comeback.Piece.Song("ode"), pick(song(1, "ode", 3), song(2, "twinkle", 3, RunMode.LISTEN), song(3, "gone", 3)))
+        assertEquals(Comeback.Piece.Song("ode", Hands.RIGHT), pick(song(1, "ode", 3), song(2, "twinkle", 3, RunMode.LISTEN), song(3, "gone", 3)))
         // Nothing clean: the latest played.
-        assertEquals(Comeback.Piece.Song("minuet"), pick(song(1, "ode", 1), song(2, "minuet", 2)))
+        assertEquals(Comeback.Piece.Song("minuet", Hands.RIGHT), pick(song(1, "ode", 1), song(2, "minuet", 2)))
         assertNull(pick())
         // The card's words: three easy minutes, nothing new.
         assertTrue(Comeback.grownUpLine("Twinkle", lesson = false).startsWith("Three easy minutes"))

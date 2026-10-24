@@ -98,6 +98,8 @@ internal fun ArcadeFinish(game: ArcadeGame, result: RoundResult, end: RoundEnd?,
                 StickerImage(sticker, Modifier.size(128.dp).graphicsLayer { rotationY = 180f * (1f - stickerIn.value); alpha = stickerIn.value })
                 Text(ArcadeLines.STICKER, style = MaterialTheme.typography.titleMedium, color = PupGold, textAlign = TextAlign.Center)
             } else if (end?.paintedNew == true) Text(ArcadeLines.PAINTED, style = MaterialTheme.typography.titleMedium, color = PupGold, textAlign = TextAlign.Center)
+            // 2.9: once today's goal is met, Tomorrow's surprise.
+            com.bigpapituna.sharpears.ui.TomorrowSlot(onDark = true)
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BigPill("Again!", R.drawable.ic_repeat, primary = true, onClick = onAgain, modifier = Modifier.weight(1f))
                 BigPill("Games", R.drawable.ic_arrow_back, primary = false, onClick = onGames, modifier = Modifier.weight(1f))
