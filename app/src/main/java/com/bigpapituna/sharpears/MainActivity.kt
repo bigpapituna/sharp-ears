@@ -1737,8 +1737,9 @@ class MainActivity : ComponentActivity() {
                             pose = com.bigpapituna.sharpears.ui.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound })
                         else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
-                            listOf(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
-                                com.bigpapituna.sharpears.ui.Stat("$min min", "Practice"),
+                            // The minutes the session added, whole as the goal line counts them; under one, no chip (not "0 min").
+                            listOfNotNull(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
+                                com.bigpapituna.sharpears.ui.Stat("$min min", "Practice").takeIf { min > 0 },
                                 com.bigpapituna.sharpears.ui.Stat("$streak", if (streak == 1) "Day" else "Days in a row")),
                             primary = "Continue", onPrimary = { dailyDone = null },
                             pose = if (streak >= 2) com.bigpapituna.sharpears.ui.Pose.STREAK else com.bigpapituna.sharpears.ui.Pose.LEVEL_UP,

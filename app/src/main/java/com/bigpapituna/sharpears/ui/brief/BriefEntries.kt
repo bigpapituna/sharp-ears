@@ -92,12 +92,14 @@ internal fun OneBriefAtATime(onClose: () -> Unit) {
         BriefSlot.owner.value = me
         onDispose { if (BriefSlot.owner.value === me) BriefSlot.owner.value = null }
     }
-    val owner = BriefSlot.owner.value
     val close = androidx.compose.runtime.rememberUpdatedState(onClose)
-    androidx.compose.runtime.LaunchedEffect(owner) {
-        if (owner != null && owner !== me) {
-            android.util.Log.d(com.bigpapituna.sharpears.TAG, "brief: a newer brief opened over this one; closing it")
-            close.value()
+    // Watched from after this brief took the slot (the value read while it was first composed is still the older one's).
+    androidx.compose.runtime.LaunchedEffect(me) {
+        androidx.compose.runtime.snapshotFlow { BriefSlot.owner.value }.collect { owner ->
+            if (owner != null && owner !== me) {
+                android.util.Log.d(com.bigpapituna.sharpears.TAG, "brief: a newer brief opened over this one; closing it")
+                close.value()
+            }
         }
     }
 }
