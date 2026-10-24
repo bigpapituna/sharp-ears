@@ -22,7 +22,9 @@ class PracticeStatsTest {
     @Test fun streakStillCountsBeforeTodaysPractice() {
         val s = days(1L to 300, 2L to 300)
         assertEquals(2, PracticeStats.streak(s, today))
-        assertEquals(0, PracticeStats.streak(days(2L to 300), today))
+        // 2.9: practised two days ago, yesterday missed, today still open: yesterday reads as the rest day for now.
+        assertEquals(1, PracticeStats.streak(days(2L to 300), today))
+        assertEquals(0, PracticeStats.streak(days(3L to 300), today))      // two days missed: no rest day
     }
 
     @Test fun omittedWhenZeroAndNoStreakForOneDay() {

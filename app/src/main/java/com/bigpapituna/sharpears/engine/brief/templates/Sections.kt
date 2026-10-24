@@ -55,6 +55,17 @@ internal object SectionBank {
         l("There is little to count {span}: a short visit, no practice minutes yet."),
         l("{Span} was too light to report in numbers."),
     )
+    /** 2.9: the week's habits in one line, from the findings' daysPractised, longestGap and daysBackThisMonth. */
+    val BACK = listOf(
+        l("Back on {back} of the last seven days, the longest gap {gap}."),
+        l("{Back} of the last seven days had practice, the longest gap {gap}."),
+        l("The piano came out on {back} of the last seven days, the longest gap {gap}."),
+    )
+    val BACK_NO_GAP = listOf(
+        l("Back on {back} of the last seven days, with no gap at all."),
+        l("{Back} of the last seven days had practice, not one missed."),
+        l("The piano came out on {back} of the last seven days, no day skipped."),
+    )
     val NOTHING = listOf(
         l("Nothing to report {span}: the piano stayed closed."),
         l("The piano was quiet {span}, so there is nothing to report."),
@@ -85,8 +96,19 @@ private fun habits(c: Ctx, shown: Set<FactKind>, shownTrends: Set<TrendKind>): S
         used += t.kind
         if (t.good == false) line + " " + c.phrase("wobble habit", TrendBank.WOBBLE_HABIT.map { l(it) }, c.common())!! else line
     }
+    // 2.9: "Back on five of the last seven days, the longest gap two days." One line in the week's habits; it stands in for
+    // the days-practised fact.
+    val back = f.stats.totals.daysPractised
+    val backLine = if (c.period == Period.WEEK && back > 0) {
+        val gap = f.stats.longestGap
+        val vars = c.common() + mapOf("back" to words(back), "gap" to count(gap.toLong(), "day"))
+        val month = f.stats.daysBackThisMonth.takeIf { it > 0 }?.let { " Played on " + count(it.toLong(), "day") + " this month." }.orEmpty()
+        c.phrase("section back", if (gap == 0) SectionBank.BACK_NO_GAP else SectionBank.BACK, vars)?.let { it + month }
+    } else null
+    backLine?.let(out::add)
     for (kind in HABIT_FACTS) {
         if (kind in shown) continue
+        if (kind == FactKind.DAYS_PRACTISED && backLine != null) continue
         val fact = f.facts.firstOrNull { it.kind == kind } ?: continue
         val matching = TREND_OF[kind]?.let { k -> moved.firstOrNull { it.kind == k && it.kind !in used } }
         (matching?.let(::trend) ?: factLine(c, fact, 1))?.let(out::add)

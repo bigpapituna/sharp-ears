@@ -41,6 +41,8 @@ data class WorldState(
     val earned: List<String> = emptyList(),
     val placements: Placements = Placements(),
     val homesLine: Boolean = false,
+    /** 2.9: Tomorrow's surprise (engine/world/Surprise.kt). */
+    val gift: Gift = Gift(),
 ) {
     val album: Album get() = Album.of(history.owned)
     val unique: Int get() = history.unique
@@ -80,6 +82,7 @@ data class WorldState(
             "songDay" to ledger.songDay?.toString(),
             "songsThatDay" to ledger.songsThatDay,
             "floor" to ledger.floor?.toString(),
+            "bonus" to ledger.bonus,
         ),
         "wardrobe" to WearItem.entries.filter { it in wardrobe }.map { it.id },
         "fresh" to fresh.map { it.id },
@@ -88,6 +91,7 @@ data class WorldState(
         "earned" to earned,
         "placed" to placements.at.toSortedMap(),
         "homesLine" to homesLine,
+        "gift" to linkedMapOf("on" to gift.wrappedOn?.toString(), "opened" to gift.opened),
     ))
 
     companion object {
@@ -123,6 +127,7 @@ data class WorldState(
                 songDay = date(l["songDay"]),
                 songsThatDay = int("songsThatDay", l).coerceAtLeast(0),
                 floor = date(l["floor"]),
+                bonus = int("bonus", l).coerceAtLeast(0),
             )
             val levels = strings("levels").filter { LevelStickers.byLesson(it) != null }.toSet()
             val keys = owned.keys + levels.map { LevelSticker.PREFIX + it }
@@ -151,6 +156,7 @@ data class WorldState(
                 earned = earned,
                 placements = placements,
                 homesLine = if (old) owned.isNotEmpty() else m["homesLine"] == true,
+                gift = (m["gift"] as? Map<*, *>)?.let { g -> date(g["on"])?.let { Gift(it, g["opened"] != false) } } ?: Gift(),
             )
         }
     }
@@ -190,6 +196,9 @@ data class NextDrop(val sticker: Sticker, val rareDue: Boolean, val eggHatches: 
 
 /** A state and what getting there gave. */
 data class Outcome(val state: WorldState, val reward: Reward)
+
+/** 2.9: a surprise opened: what [kind] it held, the world after, and the [reward] to show (a drop, or things to wear). */
+data class GiftOpened(val kind: GiftKind, val state: WorldState, val reward: Reward)
 
 /** The world's rules: events in, a new state (and a reward) out. Pure; data/WorldStore.kt keeps the state. */
 object World {
@@ -271,6 +280,36 @@ object World {
         st = st.copy(wardrobe = st.wardrobe + due, fresh = st.fresh + due.filter { it !in st.fresh },
             practiceDay = if (practice) today else st.practiceDay)
         return st
+    }
+
+    /**
+     * 2.9, Tomorrow's surprise: wrapped on [today] when the day's goal is [goalMet] and the rules allow it (Surprise.canWrap);
+     * otherwise the world as it was.
+     */
+    fun wrapGift(s: WorldState, today: LocalDate, goalMet: Boolean): WorldState =
+        Surprise.wrap(s.gift, today, goalMet).let { g -> if (g == s.gift) s else s.copy(gift = g) }
+
+    /**
+     * 2.9: the waiting gift opened on [today] (null when it is not ready: Surprise.ready). Inside, as Surprise.roll says: a
+     * sticker for the album (a drop, the album's current place), a look from the practice track the kid has not got (opened
+     * at once and announced in the reward, as a finish screen's "Keep it on?"), or [Surprise.SPARKLES] sparkles for the
+     * ledger (whatever they open is announced too).
+     */
+    fun openGift(s: WorldState, today: LocalDate): GiftOpened? {
+        val on = s.gift.wrappedOn ?: return null
+        if (!Surprise.ready(s.gift, today)) return null
+        val opened = s.copy(gift = s.gift.copy(opened = true))
+        val outfit = Surprise.outfit(s.seed, on, s.wardrobe)
+        val kind = Surprise.roll(s.seed, on).let { if (it == GiftKind.OUTFIT && outfit == null) GiftKind.SPARKLES else it }
+        val o = when (kind) {
+            GiftKind.STICKER -> {
+                val drop = Drops.roll(s.seed, s.history, DropSource.GIFT)
+                finish(s, opened.copy(history = s.history.after(drop)), listOf(drop))
+            }
+            GiftKind.OUTFIT -> finish(s, opened.copy(wardrobe = s.wardrobe + outfit!!, fresh = s.fresh + outfit.filter { it !in s.fresh }), emptyList())
+            GiftKind.SPARKLES -> finish(s, unlock(opened.copy(ledger = opened.ledger.copy(bonus = opened.ledger.bonus + Surprise.SPARKLES)), today), emptyList())
+        }
+        return GiftOpened(kind, o.state, o.reward)
     }
 
     /** The items waiting to be shown, now shown (a finish screen that is not a lesson's or a song's: the finale). */

@@ -27,4 +27,11 @@ class ReminderPlanTest {
         assertEquals(true, ReminderPlan.skip(secondsToday = 600, goalMinutes = 10, planDone = false))
         assertEquals(true, ReminderPlan.skip(secondsToday = 40, goalMinutes = 10, planDone = true))
     }
+
+    /** 2.9: the day a kid's surprise is ready, the reminder says so, even when the owner's goal is met. */
+    @Test fun theSurpriseLineTakesTheReminder() {
+        assertEquals("Your surprise is ready.", ReminderPlan.text(5, "Minuet in G", surpriseReady = true))
+        assertEquals(false, ReminderPlan.skip(secondsToday = 600, goalMinutes = 10, planDone = true, surpriseReady = true))
+        assertEquals(true, ReminderPlan.skip(secondsToday = 600, goalMinutes = 10, planDone = false, surpriseReady = false))
+    }
 }

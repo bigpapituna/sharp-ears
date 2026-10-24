@@ -35,6 +35,11 @@ object Welcome {
         "2.8.1" to listOf(
             "My songs, at the top of Songs, takes a MIDI file of a song you love and makes its tune easy to play.",
         ),
+        "2.9.0" to listOf(
+            "Rest days: miss a single day in a week and your streak stays.",
+            "Back after a few days away? Today starts you with three easy minutes.",
+            "Reach the day's goal and the finish screen names tomorrow's next step. Kids get a surprise that opens the next day.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

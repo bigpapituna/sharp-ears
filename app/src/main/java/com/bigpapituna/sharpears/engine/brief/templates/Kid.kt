@@ -180,6 +180,9 @@ internal object KidBank {
         p(PraiseKind.STEADIER_TEMPO,
             "{name}, your beat is so steady now!", "You and the beat are best friends, {name}!",
             "Tap, tap, tap! You keep the beat like a drummer!", "Your playing marches right along with the beat!")
+        p(PraiseKind.CAME_BACK,
+            "{name}, you came back! I'm so glad!", "You're back! Yay, yay, yay!",
+            "Welcome back to the piano, {name}!", "Hooray, you're back! The keys are happy too!")
         p(PraiseKind.FINDS_KEYS_FASTER,
             "{name}, your fingers find the keys so fast now!", "Zoom! You found the keys super quick, {name}!",
             "Your hands know where the keys live now!", "You find the keys faster and faster! Woof!")

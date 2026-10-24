@@ -1,7 +1,7 @@
 package com.bigpapituna.sharpears.engine.world
 
-/** Where a sticker came from: a finished lesson, a song played to its end, or a mystery egg hatching. */
-enum class DropSource { LESSON, SONG, EGG }
+/** Where a sticker came from: a finished lesson, a song played to its end, a mystery egg hatching, or (2.9) Tomorrow's surprise. */
+enum class DropSource { LESSON, SONG, EGG, GIFT }
 
 /** One sticker given: which, from where, and whether it filled a gap in the album ([isNew]) or is a double. */
 data class Drop(val sticker: Sticker, val source: DropSource, val isNew: Boolean) {

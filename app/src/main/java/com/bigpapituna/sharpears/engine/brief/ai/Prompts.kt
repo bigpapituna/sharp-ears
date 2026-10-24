@@ -41,7 +41,7 @@ import com.bigpapituna.sharpears.engine.family.ProfileKind
  */
 object Prompts {
     /** Part of every cache key: a new prompt rewrites rather than reusing what the old one wrote. */
-    const val VERSION = 3
+    const val VERSION = 4
     /** Where the person's name goes; the app fills it in on the phone, so the name never leaves it. */
     const val NAME = "{name}"
 
@@ -150,14 +150,17 @@ object Prompts {
         "(periods says how many). Direction is UP, DOWN or STEADY, and good says whether the change is an improvement. " +
         "Stars run from one to three, accuracy and hand rates are percent, and timing is milliseconds off the beat, where " +
         "lower is better.\n" +
-        "Praise is the good news, the most special first.\n" +
+        "Praise is the good news, the most special first. CAME_BACK means back at the piano after value days away: say " +
+        "it gladly, never as days missed.\n" +
         "Stats are for the sections: the last seven days, each lesson with its best stars, tries, steps let go and minutes, " +
         "songs with runs, best stars and best accuracy, skills as four weekly points (oldest first, null for a week with " +
         "too little to measure), toys, time of day, noisy room events and hints; then the slip map (wrong keys by the key " +
         "wanted, near and far) and the most common slip, notes never played, how long keys took to find and the slowest key, " +
         "tempo steadiness, each hand's notes and clean percent, the period before's hints, claps on the drum's beats, ear " +
-        "rounds by game, practice minutes in each of four weeks, the average session's minutes now and before, and where " +
-        "the minutes went. Keys are MIDI note numbers: 60 is middle C, 62 D, 64 E, 65 F, 67 G, 69 A, 71 B, 72 the next C, " +
+        "rounds by game, practice minutes in each of four weeks, the average session's minutes now and before, where " +
+        "the minutes went, the days played this month (daysBackThisMonth) and the longest gap in the last seven days " +
+        "(longestGap, days in a row with no practice); a day marked rest is a single missed day the streak kept on its own. " +
+        "Keys are MIDI note numbers: 60 is middle C, 62 D, 64 E, 65 F, 67 G, 69 A, 71 B, 72 the next C, " +
         "and a black key is the sharp of the white key below it. Name a key by its letter, never by its number.\n" +
         "Actions are steps already taken from an earlier brief, and settings are what changed; mention them only as part " +
         "of what happened."

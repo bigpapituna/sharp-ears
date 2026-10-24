@@ -118,6 +118,13 @@ internal object PraiseBank {
             l("Perform runs are holding the beat better, within about {ms}.", "Your Perform runs are holding the beat better, within about {ms}."),
             l("The tempo stays put more than it used to. Worth saying out loud.", "The tempo stays put more than it used to. That is control."),
         )
+        // 2.9: back after days away. Glad, never a word about the days missed.
+        p(PraiseKind.CAME_BACK,
+            l("Back at the piano after {days} away. Worth a warm welcome at home.", "Back at the piano after {days} away. Welcome back."),
+            l("{Name} came back after {days}. Coming back is the habit that counts.", "You came back after {days}. Coming back is the habit that counts."),
+            l("A return after {days} away, eased in with something familiar. Say you are glad.", "A return after {days} away, eased in with something familiar."),
+            l("After {days} off, the piano came out again. That deserves a smile.", "After {days} off, the piano came out again. Good to have you back."),
+        )
         p(PraiseKind.FINDS_KEYS_FASTER,
             l("Keys are coming quicker: {wait} to find each now, faster than before.", "Keys are coming quicker for you: {wait} each now."),
             l("Less searching for keys than before, {wait} each. Tell {name} you noticed.", "Less searching for keys than before, {wait} each."),
@@ -165,4 +172,5 @@ internal fun genericPraise(c: Ctx, p: Praise): String = when (p.kind) {
     PraiseKind.QUEST_DAY -> "Pup's quest got all three stars."
     PraiseKind.STEADIER_TEMPO -> "The beat is steadier than before."
     PraiseKind.FINDS_KEYS_FASTER -> "Keys are coming quicker than before."
+    PraiseKind.CAME_BACK -> "Back at the piano after some days away."
 }

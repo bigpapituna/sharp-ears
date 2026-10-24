@@ -52,6 +52,16 @@ class WelcomeTest {
         assertTrue(lines.single().startsWith("My songs"))
     }
 
+    /** 2.9.0, the retention release: three lines at most, the rest day, the comeback and tomorrow (the kids' surprise). */
+    @Test fun whatsNewIn290IsTheRetentionRelease() {
+        val lines = Welcome.whatsNew("2.9.0")
+        assertTrue(lines.size in 1..Welcome.MAX_LINES)
+        assertEquals(lines, Welcome.WHATS_NEW.getValue("2.9.0"))
+        assertTrue(lines[0].startsWith("Rest days"))
+        assertTrue(lines.any { "three easy minutes" in it })
+        assertTrue(lines.any { "tomorrow" in it && "surprise" in it })
+    }
+
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
         assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
         assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })

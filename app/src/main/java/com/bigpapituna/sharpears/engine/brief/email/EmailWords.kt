@@ -123,6 +123,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
             PraiseKind.CLEAN_SONG -> if (song != null) "$song sounded lovely. Will you play it for me again?" else "That song sounded lovely. Will you play it for me again?"
             PraiseKind.NEW_LESSONS -> if (lesson != null) "You learned $lesson! Can you show me what it is?" else "You learned something new! Can you show me?"
             PraiseKind.QUEST_DAY -> "You got all of the pup's quest stars!"
+            PraiseKind.CAME_BACK -> "I'm so glad you came back to the piano. What shall we play?"
         }
     }
 

@@ -169,6 +169,8 @@ data class Ledger(
     val songsThatDay: Int = 0,
     /** Days on or before this were credited and then dropped from [credited]: never counted again. */
     val floor: LocalDate? = null,
+    /** 2.9: sparkles given as they are (Tomorrow's surprise, 25 at a time). */
+    val bonus: Int = 0,
 ) {
     val minutes: Long get() = seconds / 60
     val sparkles: Int get() = Sparkles.of(this)
@@ -241,7 +243,7 @@ object Sparkles {
     const val DAY_SECONDS = 60
 
     fun of(l: Ledger): Int = (l.minutes * PER_MINUTE).toInt() + l.days * PER_DAY + l.threeStars.size * PER_THREE_STARS +
-        l.songSparkles * PER_SONG + l.finales.size * PER_FINALE
+        l.songSparkles * PER_SONG + l.finales.size * PER_FINALE + l.bonus
 }
 
 /** How close the next practice item is: a share 0..1 and words with no number. */

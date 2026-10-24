@@ -190,6 +190,8 @@ enum class PraiseKind {
     STEADIER_TEMPO,
     /** Keys found faster than before. [Praise.value] the mean wait in ms now. */
     FINDS_KEYS_FASTER,
+    /** 2.9: back at the piano after [Praise.value] full days away (the comeback card showed). Said gladly, never as a lapse. */
+    CAME_BACK,
 }
 
 /**
@@ -197,7 +199,7 @@ enum class PraiseKind {
  * their place (the enum itself only ever grows at the end, so its wire names stay put).
  */
 val PRAISE_ORDER: List<PraiseKind> = listOf(
-    PraiseKind.FINALE, PraiseKind.FIRST_CHORD, PraiseKind.STUCK_WITH_IT, PraiseKind.SHINY_STICKER, PraiseKind.GOAL_STREAK,
+    PraiseKind.FINALE, PraiseKind.FIRST_CHORD, PraiseKind.STUCK_WITH_IT, PraiseKind.CAME_BACK, PraiseKind.SHINY_STICKER, PraiseKind.GOAL_STREAK,
     PraiseKind.THREE_STARS, PraiseKind.TIMING_IMPROVED, PraiseKind.STEADIER_TEMPO, PraiseKind.ACCURACY_IMPROVED,
     PraiseKind.MISSES_CLOSER, PraiseKind.FINDS_KEYS_FASTER, PraiseKind.EAR_IMPROVED, PraiseKind.LEFT_HAND_IMPROVED,
     PraiseKind.CONSISTENT, PraiseKind.CLEAN_SONG, PraiseKind.RARE_STICKER, PraiseKind.NEW_LESSONS, PraiseKind.QUEST_DAY,
@@ -278,8 +280,11 @@ data class ActionTaken(val at: Long, val action: ActionId, val params: Map<Strin
 /** A setting changed in the range ([key] and [value] as BriefEvent.SettingChanged has them). */
 data class SettingChange(val at: Long, val key: String, val value: String)
 
-/** One day of the seven-day strip: minutes on screen and practised, sessions, and whether the goal was reached. */
-data class DayStat(val date: String, val minutes: Int, val practiceMinutes: Int, val sessions: Int, val goal: Boolean)
+/**
+ * One day of the seven-day strip: minutes on screen and practised, sessions, and whether the goal was reached. [rest]
+ * (2.9): a missed day the streak kept as its rest day (engine/PracticeStats.restDays), drawn as a sleeping paw.
+ */
+data class DayStat(val date: String, val minutes: Int, val practiceMinutes: Int, val sessions: Int, val goal: Boolean, val rest: Boolean = false)
 
 /** A lesson played in the range: its best stars there (null when not finished), tries, steps let go, finishes, minutes. */
 data class LessonStat(val lessonId: String, val stars: Int?, val tries: Int, val letGo: Int, val finishes: Int, val minutes: Int)
@@ -382,6 +387,13 @@ data class Stats(
     val sessionMinutesBefore: Int? = null,
     /** Where the minutes on screen went. */
     val mix: PlayMix = PlayMix(),
+    /** 2.9 habits: days with practice in the calendar month of the range's end, up to that day. */
+    val daysBackThisMonth: Int = 0,
+    /**
+     * 2.9 habits: the longest run of days in a row with no practice in the seven-day strip (days before the person's first
+     * event, and the last day while it is still unplayed, left out). "Back 5 of the last 7, the longest gap 2 days."
+     */
+    val longestGap: Int = 0,
 )
 
 /**
@@ -473,7 +485,7 @@ internal object FindingsCodec {
     )
 
     private fun stats(s: Stats): Map<String, Any?> = linkedMapOf(
-        "days" to s.days.map { linkedMapOf("date" to it.date, "minutes" to it.minutes, "practiceMinutes" to it.practiceMinutes, "sessions" to it.sessions, "goal" to it.goal) },
+        "days" to s.days.map { linkedMapOf("date" to it.date, "minutes" to it.minutes, "practiceMinutes" to it.practiceMinutes, "sessions" to it.sessions, "goal" to it.goal, "rest" to it.rest) },
         "lessons" to s.lessons.map { linkedMapOf("lesson" to it.lessonId, "stars" to it.stars, "tries" to it.tries, "letGo" to it.letGo, "finishes" to it.finishes, "minutes" to it.minutes) },
         "songs" to s.songs.map { linkedMapOf("song" to it.songId, "runs" to it.runs, "bestStars" to it.bestStars, "bestAccuracy" to it.bestAccuracy) },
         "skills" to s.skills.map { linkedMapOf("kind" to it.kind.name, "points" to it.points) },
@@ -499,6 +511,7 @@ internal object FindingsCodec {
         "weeks" to s.weeks,
         "sessionMinutes" to s.sessionMinutes, "sessionMinutesBefore" to s.sessionMinutesBefore,
         "mix" to linkedMapOf("lessons" to s.mix.lessons, "songs" to s.mix.songs, "toys" to s.mix.toys),
+        "daysBackThisMonth" to s.daysBackThisMonth, "longestGap" to s.longestGap,
     )
 
     private fun hints(h: HintStats) = linkedMapOf("glow" to h.glow, "point" to h.point, "play" to h.play, "octave" to h.octave)
@@ -539,7 +552,7 @@ internal object FindingsCodec {
 
     private fun readStats(m: Map<*, *>): Stats = Stats(
         days = list(m["days"]).mapNotNull { e ->
-            DayStat(e["date"] as? String ?: return@mapNotNull null, int(e["minutes"]), int(e["practiceMinutes"]), int(e["sessions"]), e["goal"] == true)
+            DayStat(e["date"] as? String ?: return@mapNotNull null, int(e["minutes"]), int(e["practiceMinutes"]), int(e["sessions"]), e["goal"] == true, e["rest"] == true)
         },
         lessons = list(m["lessons"]).mapNotNull { e ->
             LessonStat(e["lesson"] as? String ?: return@mapNotNull null, intOrNull(e["stars"]), int(e["tries"]), int(e["letGo"]), int(e["finishes"]), int(e["minutes"]))
@@ -574,6 +587,7 @@ internal object FindingsCodec {
         weeks = (m["weeks"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toInt() },
         sessionMinutes = intOrNull(m["sessionMinutes"]), sessionMinutesBefore = intOrNull(m["sessionMinutesBefore"]),
         mix = (m["mix"] as? Map<*, *>)?.let { e -> PlayMix(int(e["lessons"]), int(e["songs"]), int(e["toys"])) } ?: PlayMix(),
+        daysBackThisMonth = int(m["daysBackThisMonth"]), longestGap = int(m["longestGap"]),
     )
 
     private fun readHints(m: Map<*, *>) = HintStats(int(m["glow"]), int(m["point"]), int(m["play"]), int(m["octave"]))

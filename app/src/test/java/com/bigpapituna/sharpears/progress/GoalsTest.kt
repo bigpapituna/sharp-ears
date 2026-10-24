@@ -46,11 +46,21 @@ class GoalsTest {
         assertEquals(5, r2.streak); assertFalse(r2.atRisk); assertTrue(r2.practicedToday)
     }
 
-    @Test fun missedDayWithoutFreezeBreaksIt() {
-        val r = Streaks.compute(days(0, 1, 2, 4), day(4))      // day 3 missed, no freeze held yet
+    @Test fun aSecondMissedDayInTheWeekWithoutAFreezeBreaksIt() {
+        // 2.9: day 3 is the week's rest day (kept, no freeze); day 5 is a second gap inside the seven days and no freeze is held.
+        val r = Streaks.compute(days(0, 1, 2, 4, 6), day(6))
         assertEquals(1, r.streak)
-        assertEquals(3, r.longest)
+        assertEquals(4, r.longest)
         assertEquals(0, r.freezesUsed)
+        assertEquals(setOf(day(3)), r.restDays)
+    }
+
+    @Test fun aSingleMissedDayIsARestDayAndSpendsNoFreeze() {
+        val r = Streaks.compute(days(0, 1, 2, 4), day(4))      // day 3 missed: the rest day keeps the run
+        assertEquals(4, r.streak)
+        assertEquals(1, r.restInStreak)
+        assertEquals(0, r.freezesUsed)
+        assertEquals(emptySet<LocalDate>(), r.frozenDays)
     }
 
     @Test fun sevenDaysEarnAFreeze() {
@@ -67,12 +77,14 @@ class GoalsTest {
     }
 
     @Test fun aMissedDaySpendsAFreezeInsteadOfBreaking() {
-        // Seven days earn one; day 7 is missed and frozen; practice resumes on day 8.
-        val r = Streaks.compute(run(0, 6) + days(8, 9), day(9))
-        assertEquals(9, r.streak)                              // 7 + 2 practised days; the frozen day adds nothing
+        // Seven days earn one; day 7 is the rest day; day 9, a second gap inside the same seven days, spends the freeze.
+        val r = Streaks.compute(run(0, 6) + days(8, 10, 11), day(11))
+        assertEquals(10, r.streak)                             // 7 + 3 practised days; the rest day and the frozen day add nothing
         assertEquals(0, r.freezes)
         assertEquals(1, r.freezesUsed)
-        assertEquals(setOf(day(7)), r.frozenDays)
+        assertEquals(setOf(day(9)), r.frozenDays)
+        assertEquals(setOf(day(7)), r.restDays)
+        assertEquals(1, r.restInStreak)
     }
 
     @Test fun twoMissedDaysNeedTwoFreezes() {
@@ -100,9 +112,9 @@ class GoalsTest {
     }
 
     @Test fun freezeEarnedAgainAfterUsingOne() {
-        // Week one earns a freeze, day 7 is frozen, then practice runs to a second multiple of seven.
-        val r = Streaks.compute(run(0, 6) + run(8, 14), day(14))
-        assertEquals(14, r.streak)                             // 14 practised days, one frozen
+        // Week one earns a freeze; day 7 is the rest day, day 9 is frozen; practice runs on to a second multiple of seven.
+        val r = Streaks.compute(run(0, 6) + days(8) + run(10, 16), day(16))
+        assertEquals(15, r.streak)                             // 15 practised days, one rest day, one frozen
         assertEquals(1, r.freezes)                             // spent one, earned one at 14
         assertEquals(1, r.freezesUsed)
     }

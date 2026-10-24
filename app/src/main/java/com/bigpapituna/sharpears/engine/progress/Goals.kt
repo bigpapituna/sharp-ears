@@ -72,6 +72,10 @@ data class StreakResult(
     /** Missed days a freeze covered. */
     val frozenDays: Set<LocalDate>,
     val practicedToday: Boolean,
+    /** 2.9: missed days a rest day kept (PracticeStats.restDays: a gap of one day, once in any seven), no freeze spent. */
+    val restDays: Set<LocalDate> = emptySet(),
+    /** Rest days inside the current streak: the line says "6 days, with one rest day". */
+    val restInStreak: Int = 0,
 ) {
     /** The streak is alive but today has no practice yet. */
     val atRisk get() = streak > 0 && !practicedToday
@@ -81,6 +85,10 @@ data class StreakResult(
  * Streak with freezes. Every 7th day in a row earns a freeze (up to two held). A missed day spends one instead of
  * breaking the streak; with none held, the streak resets. Worked out from the days practised, so it never drifts and
  * survives a restored backup. Today is never counted as missed: the day is not over.
+ *
+ * 2.9, rest days first: a single missed day between two practice days (PracticeStats.restDays, at most once in any seven
+ * days) keeps the streak by itself and spends no freeze; the freezes cover what a rest day cannot (a second missed day in
+ * the week, a gap of two days).
  */
 object Streaks {
     const val MAX_FREEZES = 2
@@ -89,8 +97,10 @@ object Streaks {
     fun compute(practiced: Set<LocalDate>, today: LocalDate): StreakResult {
         val first = practiced.filter { !it.isAfter(today) }.minOrNull()
             ?: return StreakResult(0, 0, 0, 0, emptySet(), false)
-        var streak = 0; var longest = 0; var freezes = 0; var used = 0
+        val rest = com.bigpapituna.sharpears.engine.PracticeStats.restDays(practiced, today)
+        var streak = 0; var longest = 0; var freezes = 0; var used = 0; var runRest = 0
         val frozen = mutableSetOf<LocalDate>()
+        val rested = mutableSetOf<LocalDate>()
         var d = first
         while (!d.isAfter(today)) {
             if (d in practiced) {
@@ -98,12 +108,13 @@ object Streaks {
                 if (streak > longest) longest = streak
                 if (streak % EARN_EVERY == 0) freezes = minOf(MAX_FREEZES, freezes + 1)
             } else if (d != today) {                         // today is still open
-                if (streak > 0 && freezes > 0) { freezes--; used++; frozen += d }
-                else streak = 0
+                if (streak > 0 && d in rest) { rested += d; runRest++ }
+                else if (streak > 0 && freezes > 0) { freezes--; used++; frozen += d }
+                else { streak = 0; runRest = 0 }
             }
             d = d.plusDays(1)
         }
-        return StreakResult(streak, longest, freezes, used, frozen, today in practiced)
+        return StreakResult(streak, longest, freezes, used, frozen, today in practiced, rested, if (streak == 0) 0 else runRest)
     }
 
     /** Full days without practice between [last] and [now] (practising the day after is 0). */

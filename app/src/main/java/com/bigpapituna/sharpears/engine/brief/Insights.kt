@@ -523,6 +523,8 @@ object Insights {
         w.firstFinishes.takeIf { it.isNotEmpty() }?.let { out += Praise(PraiseKind.NEW_LESSONS, it.size.toLong(), lessons = it.take(MAX_PER_KIND)) }
         w.of<BriefEvent.QuestStar>().groupBy { day(it.at, zone) }.count { it.value.size >= 3 }.takeIf { it > 0 }
             ?.let { out += Praise(PraiseKind.QUEST_DAY, it.toLong()) }
+        // 2.9: back after days away (the comeback card showed in the range): the latest return.
+        w.of<BriefEvent.Comeback>().lastOrNull()?.takeIf { it.daysAway > 0 }?.let { out += Praise(PraiseKind.CAME_BACK, it.daysAway.toLong()) }
         return out.sortedBy { PRAISE_ORDER.indexOf(it.kind) }.take(MAX_PRAISE)
     }
 
@@ -547,11 +549,16 @@ object Insights {
 
     private fun stats(w: Window, before: List<Window>, all: List<BriefEvent>, sessions: List<Session>, endMs: Long, zone: ZoneId): Stats {
         val end = day(endMs, zone)
+        // 2.9 habits: every day the log saw practice (as daysPractised counts it), the rest days the streak kept, the days
+        // back this month and the longest gap in the strip.
+        val practised = Window(Long.MIN_VALUE, endMs + 1, all, sessions, zone).daysPractised
+        val rest = com.bigpapituna.sharpears.engine.PracticeStats.restDays(practised, end)
         val days = (6 downTo 0).map { k ->
             val d = end.minusDays(k.toLong())
             val dw = Window(startOf(d, zone), startOf(d.plusDays(1), zone), all, sessions, zone)
-            DayStat(d.toString(), dw.minutes, dw.practiceMinutes, dw.sessions.size, dw.goalDays.isNotEmpty())
+            DayStat(d.toString(), dw.minutes, dw.practiceMinutes, dw.sessions.size, dw.goalDays.isNotEmpty(), rest = d in rest)
         }
+        val habits = Habits.of(practised, end, all.firstOrNull()?.let { day(it.at, zone) })
         val lessons = w.lessonIds.map { id ->
             val steps = w.steps.filter { it.lessonId == id }
             val dones = w.dones.filter { it.lessonId == id }
@@ -605,6 +612,7 @@ object Insights {
             ear = ear, games = games, weeks = weeks.map { it.practiceMinutes },
             sessionMinutes = meanSession(listOf(w)), sessionMinutesBefore = meanSession(before),
             mix = PlayMix(min(w.steps.sumOf { it.durationMs }), min(w.of<BriefEvent.SongRun>().sumOf { it.durationMs }), min(w.toyMs)),
+            daysBackThisMonth = habits.daysBackThisMonth, longestGap = habits.longestGap,
         )
     }
 
@@ -620,6 +628,27 @@ object Insights {
     }
     private fun round1(v: Double) = (v * 10).roundToInt() / 10.0
     private fun fmtDb(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else round1(v).toString()
+}
+
+/**
+ * 2.9 habits, from the days practised: [daysBackThisMonth] (the calendar month of [end], up to it) and [longestGap], the
+ * longest run of days without practice in the seven days ending [end]. Days before the person's [first] day are not a gap
+ * (a new player has no gap yet), nor is [end] itself while it has no practice (the day is not over).
+ */
+internal data class Habits(val daysBackThisMonth: Int, val longestGap: Int) {
+    companion object {
+        fun of(practised: Set<LocalDate>, end: LocalDate, first: LocalDate?): Habits {
+            val month = practised.count { it.year == end.year && it.month == end.month && !it.isAfter(end) }
+            var run = 0; var longest = 0
+            for (k in 6 downTo 0) {
+                val d = end.minusDays(k.toLong())
+                if (first == null || d.isBefore(first)) continue
+                if (d in practised) run = 0
+                else if (d != end) { run++; longest = maxOf(longest, run) }
+            }
+            return Habits(month, longest)
+        }
+    }
 }
 
 /** A run's slow key ([RunDetail.slowKeys]) with the lesson or song it was in. */

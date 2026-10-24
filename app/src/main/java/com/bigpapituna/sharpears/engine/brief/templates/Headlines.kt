@@ -72,6 +72,7 @@ internal fun praiseClause(c: Ctx, p: Praise): String {
         PraiseKind.QUEST_DAY -> listOf(l("completed Pup's whole quest"), l("earned all of Pup's quest stars"))
         PraiseKind.STEADIER_TEMPO -> listOf(l("kept a steadier beat"), l("held the tempo steadier than before"))
         PraiseKind.FINDS_KEYS_FASTER -> listOf(l("found the keys faster"), l("needed less time to find each key"))
+        PraiseKind.CAME_BACK -> listOf(l("came back after {days} away"), l("came back to the piano"))
     }
     return clause(c, "headline praise ${p.kind}", bank, v) ?: "did well"
 }

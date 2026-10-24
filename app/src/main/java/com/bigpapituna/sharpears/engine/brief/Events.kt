@@ -249,6 +249,15 @@ sealed class BriefEvent {
     }
 
     /**
+     * 2.9: the comeback card showed: the person was back after [daysAway] full days without practice (engine/Comeback.kt).
+     * The brief says it kindly ("came back after four days"), never as a lost streak.
+     */
+    data class Comeback(override val at: Long, val daysAway: Int) : BriefEvent() {
+        override val name get() = "comeback"
+        override fun body(m: MutableMap<String, Any?>) { m["away"] = daysAway }
+    }
+
+    /**
      * A line this version cannot read as one of the above (a newer app's event, or a field it does not understand):
      * kept with its [fields] so it is written back unchanged, and skipped by Insights.
      */
@@ -293,6 +302,7 @@ sealed class BriefEvent {
             "setting" -> SettingChanged(at, f.str("key")!!, f.str("value")!!)
             "action" -> ParentAction(at, f.str("action")!!, f.strings("params"))
             "finale" -> FinalePlayed(at, f.str("page")!!)
+            "comeback" -> Comeback(at, f.intOrNull("away")!!)
             else -> null
         }
     }
