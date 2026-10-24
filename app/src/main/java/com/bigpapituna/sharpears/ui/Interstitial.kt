@@ -65,15 +65,17 @@ private const val COUNTDOWN_MS = 2400
  * the session (without them the chips are left out and the line is quoted from [line]).
  *
  * A kid (2.1) hears and reads the kid words (SessionWords: no counts, no bar numbers, no minutes) and sees no part
- * numbers either.
+ * numbers either. Without [countdown] (back from the part itself) the ring stays empty and the part waits for Go.
  */
 @Composable
 fun Interstitial(line: String, voice: Voice, onGo: () -> Unit, onSkip: () -> Unit, onEnd: () -> Unit,
-                 parts: List<SessionPart> = emptyList(), index: Int = -1, done: List<SessionPart> = emptyList(), kid: Boolean = false) {
+                 parts: List<SessionPart> = emptyList(), index: Int = -1, done: List<SessionPart> = emptyList(), kid: Boolean = false,
+                 countdown: Boolean = true) {
     val ring = remember(line) { Animatable(0f) }
     val part = parts.getOrNull(index)
     val spoken = if (kid && part != null) SessionWords.kidNext(part) else line
-    LaunchedEffect(line) {
+    LaunchedEffect(line, countdown) {
+        if (!countdown) { Log.d(TAG, "daily: back at $spoken, waiting for Go"); return@LaunchedEffect }
         Log.d(TAG, "daily: $spoken")
         voice.speak(spoken, interrupt = true)
         delay(400)

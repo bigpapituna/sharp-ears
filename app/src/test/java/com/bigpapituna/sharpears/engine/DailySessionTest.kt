@@ -48,6 +48,23 @@ class DailySessionTest {
     @Test fun summaryNamesWhatWasDone() {
         val parts = planSession(chords.take(1), "rests" to "Rests", SessionSong("m", "Minuet in G", 2.0, 12)).parts
         assertEquals("Done today: 1 chord, the lesson Rests and bar 12 of Minuet in G. 14 min.", sessionSummary(parts, 14 * 60L + 5))
-        assertEquals("Done today: 1 chord. 1 min.", sessionSummary(parts.take(1), 10))
+        // 2.8.4 (QA D5): whole minutes as the goal line counts them ("0 of 10 min today"), none named under one.
+        assertEquals("Done today: 1 chord.", sessionSummary(parts.take(1), 10))
+        assertEquals("Done today: 1 chord. 1 min.", sessionSummary(parts.take(1), 119))
+    }
+
+    /**
+     * 2.8.4, QA D5: one chord, the lesson left by its arrow, the song left at once said "Done for today!". The plan is through
+     * only when every part was done or skipped, and something was done.
+     */
+    @Test fun thePlanIsThroughOnlyWhenEveryPartWasDoneOrSkipped() {
+        val plan = planSession(chords.take(5), "rests" to "Rests", SessionSong("twinkle", "Twinkle", 0.5, null))
+        val (c, lesson, song) = plan.parts
+        val oneChord = (c as SessionPart.Chords).copy(itemIds = c.itemIds.take(1))
+        assertFalse("the QA run: lesson and song left", plan.through(listOf(oneChord), skipped = emptyList()))
+        assertTrue("the same with Skip on both", plan.through(listOf(oneChord), skipped = listOf(lesson, song)))
+        assertTrue(plan.through(listOf(c, lesson, song), emptyList()))
+        assertFalse("ended early: the song never reached", plan.through(listOf(c, lesson), emptyList()))
+        assertFalse("nothing done is not a day", plan.through(emptyList(), plan.parts))
     }
 }

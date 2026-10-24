@@ -160,6 +160,36 @@ data class Embedded(val state: String, val labels: Boolean = true, val autoStart
                     val special: com.bigpapituna.sharpears.engine.StepKind? = null)
 
 /**
+ * The full player's landscape lock (2.8.4, QA D1). On the Fold's inner screen Android 16 ignores orientation requests, and a
+ * plain reset to UNSPECIFIED made there was dropped: the window manager compares it with the request as it overrides it
+ * there (already UNSPECIFIED), so the stored SENSOR_LANDSCAPE outlived the player and the cover screen opened sideways
+ * after the next fold. The release goes through USER first (a different value, so it is stored), then UNSPECIFIED.
+ * MainActivity also releases it on every display change while no player holds it. Counted, so a player opening over
+ * another (the transition keeps both a moment) keeps the lock.
+ */
+internal object LandscapeLock {
+    private var holders = 0
+    val held get() = holders > 0
+
+    fun hold(activity: android.app.Activity) {
+        holders++
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
+
+    fun release(activity: android.app.Activity) {
+        holders = (holders - 1).coerceAtLeast(0)
+        if (holders == 0) reset(activity, "player closed")
+    }
+
+    /** Back to the phone's own orientation, in two steps so the inner screen's override cannot swallow it. */
+    fun reset(activity: android.app.Activity, why: String) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        Log.d(com.bigpapituna.sharpears.TAG, "orientation: released ($why)")
+    }
+}
+
+/**
  * Landscape player: transport bar, falling-notes lane, keyboard, and the song's tutorial video when it has one.
  * Listen plays the song; Wait holds at each note group until it is played; Perform never waits and scores.
  * In tabletop posture the lane (and video) sit above the hinge and the keyboard below it.
@@ -224,8 +254,8 @@ private fun PlayerStage(args: PlayerArgs) {
     /** Where a rebuilt transport (after a transpose) picks up. */
     var resumeAt by remember(original.id) { mutableStateOf<Double?>(null) }
     if (embedded == null) DisposableEffect(Unit) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+        LandscapeLock.hold(activity)
+        onDispose { LandscapeLock.release(activity) }
     }
     // The stage is always dark: light status bar icons over it (with a light phone theme they were dark on black). Set
     // again after each configuration change, which puts the edge-to-edge style back (the turn to landscape is one).
@@ -818,7 +848,8 @@ private fun PlayerStage(args: PlayerArgs) {
             onTimeUp()
         }
     }
-    if (embedded == null) BackHandler(onBack = onBack)
+    // Practice today sums the seconds a part played when it is left: they are written before the caller moves on.
+    if (embedded == null) BackHandler { flushPractice(); onBack() }
     // A lesson step starts by itself once the voice has read it out (and the sounds are loaded).
     val voiceSpeaking = voice.speaking.value
     if (embedded?.autoStart == true) LaunchedEffect(ready, voiceSpeaking) {
@@ -945,7 +976,7 @@ private fun PlayerStage(args: PlayerArgs) {
             duet = duet?.let { d -> d.partnerOf(profile.id)?.let { id -> "Duet with " + (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.firstOrNull { it.id == id }?.name ?: "") } }
                 ?: if (meta != null && embedded == null && (com.bigpapituna.sharpears.ui.family.LocalProfiles.current?.all?.size ?: 0) >= 2) "" else null),
         BarActions(
-            onBack = onBack,
+            onBack = { flushPractice(); onBack() },
             onPlayPause = { if (playing) pause() else play() },
             onSpeed = { ramp = null; autoOn = false; setSpeed(it) },
             onRamp = { autoOn = false; ramp = com.bigpapituna.sharpears.engine.TempoRamp().also { setSpeed(it.speed); rampPercent = it.percent }; Log.d(TAG, "ramp on at 50%") },

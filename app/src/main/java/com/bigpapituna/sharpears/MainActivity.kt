@@ -88,6 +88,7 @@ import com.bigpapituna.sharpears.engine.SessionPlan
 import com.bigpapituna.sharpears.engine.SessionSong
 import com.bigpapituna.sharpears.engine.planSession
 import com.bigpapituna.sharpears.engine.sessionSummary
+import com.bigpapituna.sharpears.engine.through
 import com.bigpapituna.sharpears.ui.DailyChords
 import com.bigpapituna.sharpears.ui.Interstitial
 import com.bigpapituna.sharpears.engine.barMs
@@ -198,8 +199,13 @@ private sealed interface Screen {
     data class MicSetup(val back: Screen) : Screen
     /** The sight-reading drill. [inject] (debug) feeds the mic. */
     data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null) : Screen
-    /** "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it. */
-    data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>) : Screen
+    /**
+     * "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it ([held]: come back to it
+     * from the part, so it waits for Go instead of counting down). [done] and [skipped] (passed over with Skip) decide whether
+     * the plan is through at the end; [practiceAt] is today's practice seconds at Start, so the summary counts what it added.
+     */
+    data class Daily(val plan: SessionPlan, val index: Int, val between: Boolean, val startedAt: Long, val done: List<SessionPart>,
+                     val skipped: List<SessionPart> = emptyList(), val practiceAt: Int = 0, val held: Boolean = false) : Screen
     data class Privacy(val back: Screen) : Screen
     data class Licences(val back: Screen) : Screen
     /** Settings, pushed from the gear on You (it was a tab before 2.0). */
@@ -412,9 +418,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The screen the activity is on, by its smallest width: a fold or an unfold changes it (QA D1). */
+    private var smallestWidthDp = 0
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // A fold or unfold with no player open puts the phone's own orientation back (2.8.4, QA D1): a landscape lock left
+        // on the activity by the other screen would otherwise turn this one sideways.
+        val sw = newConfig.smallestScreenWidthDp
+        if (sw != smallestWidthDp) {
+            if (!com.bigpapituna.sharpears.ui.LandscapeLock.held) com.bigpapituna.sharpears.ui.LandscapeLock.reset(this, "display changed")
+            smallestWidthDp = sw
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        smallestWidthDp = resources.configuration.smallestScreenWidthDp
         restoreRoute = savedInstanceState?.getString(ROUTE)
         // The weekly brief's notification (all builds): that person's brief opens over whatever shows first. After a recreate,
         // only what was still open then (the launch intent keeps its extras, and the brief may have been closed since).
@@ -931,30 +952,43 @@ class MainActivity : ComponentActivity() {
                     fun startDaily() {
                         val plan = todayPlan()
                         Log.d(TAG, "daily: plan ${plan.aboutLabel}: " + plan.parts.joinToString { it.done })
-                        if (!plan.isEmpty) screen = Screen.Daily(plan, 0, between = true, startedAt = System.currentTimeMillis(), done = emptyList())
+                        if (!plan.isEmpty) screen = Screen.Daily(plan, 0, between = true, startedAt = System.currentTimeMillis(), done = emptyList(),
+                            practiceAt = progress.secondsToday())
                     }
                     LaunchedEffect(Unit) { if (startDaily) startDaily() }
-                    fun finishDaily(s: Screen.Daily, done: List<SessionPart>) {
-                        val secs = (System.currentTimeMillis() - s.startedAt) / 1000
+                    fun finishDaily(s: Screen.Daily, done: List<SessionPart>, skipped: List<SessionPart> = s.skipped) {
+                        // The practice the session added, as the goal line counts it (2.8.4, QA D5: the wall clock since Start,
+                        // pauses and all, said "2 min" beside "0 of 10 min today"). Each part writes its seconds before it ends.
+                        val secs = (progress.secondsToday() - s.practiceAt).coerceAtLeast(0).toLong()
                         // Nothing done (every part skipped or left at once): no summary, the panel stays as it was.
                         if (done.isEmpty()) { Log.d(TAG, "daily: ended with nothing done"); screen = Screen.Home(); return }
+                        // A grown-up's plan is done for today only when every part was played or skipped (QA D5: a plan left
+                        // after one part said "Done for today!"). Left part way, Today keeps the plan and Start. A kid's session
+                        // ends on goodnight or a lesson's own way out by design, so anything a kid did is their day.
+                        if (!profile.isKid && !s.plan.through(done, skipped)) {
+                            Log.d(TAG, "daily: ended part way, ${done.size} of ${s.plan.parts.size} parts done, ${skipped.size} skipped, $secs s; the plan stays open")
+                            screen = Screen.Home(); return
+                        }
                         val summary = sessionSummary(done, secs)
                         prefs.saveDailySummary(java.time.LocalDate.now(), summary)
                         progress.record(ProgressEvent.DailySession(done.size))
                         Log.d(TAG, "daily: $summary")
                         voice.speak(if (profile.isKid) com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(profile.name)
                             else "Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
-                        dailyDone = Triple(done.size, maxOf(1L, (secs + 30) / 60), progress.streak().streak)
+                        dailyDone = Triple(done.size, secs / 60, progress.streak().streak)
                         screen = Screen.Home()
                     }
-                    fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null) {
+                    /** On to the next part: this one [completed], passed over with Skip ([skip]), or left part way (neither). */
+                    fun advanceDaily(s: Screen.Daily, completed: Boolean, as_: SessionPart? = null, skip: Boolean = false) {
                         val part = as_ ?: s.plan.parts[s.index]
                         val done = if (completed) s.done + part else s.done
-                        Log.d(TAG, "daily: part ${s.index + 1} ${if (completed) "done" else "left"}: ${part.done}")
+                        val skipped = if (skip && !completed) s.skipped + s.plan.parts[s.index] else s.skipped
+                        Log.d(TAG, "daily: part ${s.index + 1} ${if (completed) "done" else if (skip) "skipped" else "left"}: ${part.done}")
+                        val next = s.copy(done = done, skipped = skipped, held = false)
                         // A kid's goal reached with this part: the session ends on goodnight (a lesson says it itself).
-                        if (completed && part !is SessionPart.Lesson && maybeGoodnight("a Practice today part")) finishDaily(s, done)
-                        else if (s.index + 1 >= s.plan.parts.size) finishDaily(s, done)
-                        else screen = s.copy(index = s.index + 1, between = true, done = done)
+                        if (completed && part !is SessionPart.Lesson && maybeGoodnight("a Practice today part")) finishDaily(next, done, skipped)
+                        else if (s.index + 1 >= s.plan.parts.size) finishDaily(next, done, skipped)
+                        else screen = next.copy(index = s.index + 1, between = true)
                     }
 
                     // Ear training: a tick per round, a game's credit at its end, the workout like a game plus its practice time.
@@ -1073,28 +1107,31 @@ class MainActivity : ComponentActivity() {
                             val part = s.plan.parts[s.index]
                             if (s.between) Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                                 BackHandler { finishDaily(s, s.done) }
-                                Interstitial(part.next, voice, onGo = { screen = s.copy(between = false) },
-                                    onSkip = { voice.stop(); advanceDaily(s, completed = false) },
+                                Interstitial(part.next, voice, onGo = { screen = s.copy(between = false, held = false) },
+                                    onSkip = { voice.stop(); advanceDaily(s, completed = false, skip = true) },
                                     onEnd = { voice.stop(); finishDaily(s, s.done) },
-                                    parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid)
+                                    parts = s.plan.parts, index = s.index, done = s.done, kid = profile.isKid, countdown = !s.held)
                             } else when (part) {
                                 is SessionPart.Chords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                    // Back is "Skip the rest": the chords answered count, and the session ends here (left open,
-                                    // it took over Learn chords afterwards).
+                                    // Chord practice does not run the player, so its time is counted here: when the part ends
+                                    // (before the session sums its minutes) and, for anything after that, when it closes.
+                                    val chordClock = remember(s.index) { longArrayOf(com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()) }
+                                    fun creditChords() {
+                                        val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - chordClock[0]) / 1000).toInt()
+                                        if (secs <= 0) return
+                                        chordClock[0] += secs * 1000L
+                                        prefs.addPractice(java.time.LocalDate.now(), secs)
+                                        progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
+                                    }
+                                    // Back is "Skip the rest": the chords answered count, and the session goes on (left open, it took
+                                    // over Learn chords afterwards). With none answered the part counts as skipped.
                                     fun endChords(n: Int) {
+                                        creditChords()
                                         part.itemIds.take(n).forEach { quest(QuestEvent.ChordReviewed(it)) }
-                                        advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)))
+                                        advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)), skip = n == 0)
                                     }
                                     BackHandler { val n = lessons.sessionIndex; lessons.endSession(); endChords(n) }
-                                    // Chord practice does not run the player, so its time is counted here.
-                                    androidx.compose.runtime.DisposableEffect(s.index) {
-                                        val t0 = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
-                                        onDispose {
-                                            val secs = ((com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - t0) / 1000).toInt()
-                                            prefs.addPractice(java.time.LocalDate.now(), secs)
-                                            if (secs > 0) progress.record(ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
-                                        }
-                                    }
+                                    androidx.compose.runtime.DisposableEffect(s.index) { onDispose { creditChords() } }
                                     QuietWrongKeys(mic)
                                     androidx.compose.foundation.layout.Column {
                                         Text("Your plan: chords", style = MaterialTheme.typography.titleLarge,
@@ -1106,12 +1143,16 @@ class MainActivity : ComponentActivity() {
                                 is SessionPart.Lesson -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                                     val l = COURSE.flatMap { it.lessons }.first { it.id == part.lessonId }
                                     LaunchedEffect(l.id) { if (!profile.isKid) prefs.lastPlayed = com.bigpapituna.sharpears.engine.nav.ContinueWith.encode(com.bigpapituna.sharpears.engine.nav.ContinueWith.Lesson(l.id)) }
-                                    BackHandler { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) }
+                                    // Back (and the arrow) goes back to this part's line, waiting for Go, Skip or End for today
+                                    // (2.8.4, QA D9: the arrow said "Back to lessons" and moved on); a finished lesson goes on.
+                                    fun backToPlan() { voice.stop(); if (prefs.lessonDone(l.id)) advanceDaily(s, true) else screen = s.copy(between = true, held = true) }
+                                    BackHandler { backToPlan() }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
                                         onStep = {}, onSong = null,
                                         onDone = { stars -> lessonDone(l, stars) },
                                         onNext = null,
                                         onBack = { voice.stop(); advanceDaily(s, prefs.lessonDone(l.id)) },
+                                        onArrow = ::backToPlan, arrowLabel = "Back to your plan",
                                         onSongs = { voice.stop(); finishDaily(s, s.done + part); screen = songsScreen() },
                                         onJam = { voice.stop(); finishDaily(s, s.done + part); screen = Screen.Play(Toy.JAM, Screen.Home()) }) }
                                 }

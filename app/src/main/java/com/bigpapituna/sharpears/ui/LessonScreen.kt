@@ -123,6 +123,8 @@ fun LessonScreen(
     finishLabel: String? = null,
     /** Today's goodbye waits for the caller (it shows it after the finale); the lesson does not say goodnight itself. */
     holdGoodnight: Boolean = false,
+    /** The top bar's back arrow and its label when it goes somewhere other than [onBack] (Practice today: back to the plan). */
+    onArrow: (() -> Unit)? = null, arrowLabel: String? = null,
 ) {
     val who = profile()
     val kid = who.isKid
@@ -265,7 +267,9 @@ fun LessonScreen(
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = if (kid) "Back to the map" else "Back to lessons") }
+                IconButton(onClick = { voice.stop(); (onArrow ?: onBack)() }) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = arrowLabel ?: if (kid) "Back to the map" else "Back to lessons")
+                }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     if (!kid) Text("${level.title}, lesson ${path.numberOf(lesson)}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)

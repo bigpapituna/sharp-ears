@@ -87,13 +87,24 @@ fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, so
 /** Whether this part of the plan was done: a chord part also with fewer chords than planned (Skip the rest, or Back). */
 fun SessionPart.doneIn(done: List<SessionPart>): Boolean = done.any { it == this || (it is SessionPart.Chords && this is SessionPart.Chords) }
 
-/** The summary row: "Done today: 6 chords, the lesson Rests and bar 12 of Minuet in G. 14 min." */
+/**
+ * Whether the plan is through (2.8.4, QA D5): every part was done ([done]; a chord part with at least one chord answered)
+ * or passed over with Skip ([skipped]), and at least one was done. Only then does a grown-up's session end on "Done for
+ * today!" and the summary; a part left part way (Back inside it) or a plan ended early leaves today's plan open.
+ */
+fun SessionPlan.through(done: List<SessionPart>, skipped: List<SessionPart>): Boolean =
+    done.isNotEmpty() && parts.all { it.doneIn(done) || it in skipped }
+
+/**
+ * The summary row: "Done today: 6 chords, the lesson Rests and bar 12 of Minuet in G. 14 min." [seconds] is the practice
+ * the session added, in whole minutes as the goal line counts them ("3 of 10 min today"); under a minute names none.
+ */
 fun sessionSummary(done: List<SessionPart>, seconds: Long): String {
-    val min = maxOf(1L, (seconds + 30) / 60)
+    val min = seconds / 60
     val what = when (done.size) {
         0 -> "nothing yet"
         1 -> done[0].done
         else -> done.dropLast(1).joinToString(", ") { it.done } + " and " + done.last().done
     }
-    return "Done today: $what. $min min."
+    return "Done today: $what." + if (min > 0) " $min min." else ""
 }
