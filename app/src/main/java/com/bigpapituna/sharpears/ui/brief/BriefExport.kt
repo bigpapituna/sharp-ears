@@ -125,7 +125,7 @@ class BriefExport(private val context: Context) {
         val y = item.y.toFloat()
         when (val b = item.block) {
             is ExportBlock.Header -> header(c, y, b.brand)
-            is ExportBlock.Text -> text(c, y, b.kind, b.text)
+            is ExportBlock.Text -> text(c, y, b.kind, b.text, b.first)
             is ExportBlock.Strip -> strip(c, y, b.days, b.goalMinutes)
             is ExportBlock.Trends -> b.rows.forEach { trend(c, y, it) }
             is ExportBlock.Bars -> b.rows.forEach { bar(c, y, it) }
@@ -143,11 +143,12 @@ class BriefExport(private val context: Context) {
         c.drawText(brand, 0f, y + pupSize / 2 + 14f, p)
     }
 
-    private fun text(c: Canvas, y: Float, kind: TextKind, s: String) {
+    private fun text(c: Canvas, y: Float, kind: TextKind, s: String, first: Boolean) {
         val p = paints.getValue(kind)
         val baseline = y + kind.lineHeight * 0.72f
         if (kind == TextKind.BULLET) {
-            c.drawCircle(12f, y + kind.lineHeight * 0.52f, 6f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ink.EDGE })
+            // One dot per item, on its first line; the wrapped lines sit under its text (QA D3: a dot on every line).
+            if (first) c.drawCircle(12f, y + kind.lineHeight * 0.52f, 6f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ink.EDGE })
             c.drawText(s, ExportLayout.BULLET_INDENT.toFloat(), baseline, p)
         } else if (kind == TextKind.ACTION) c.drawText(s, ExportLayout.BULLET_INDENT.toFloat(), baseline, p)
         else c.drawText(s, 0f, baseline, p)

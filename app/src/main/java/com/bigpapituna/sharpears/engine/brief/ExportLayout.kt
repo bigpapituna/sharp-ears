@@ -26,7 +26,8 @@ enum class TextKind(val size: Int, val lineHeight: Int, val gapBefore: Int, val 
 
 /** What goes into a document. */
 sealed interface ExportBlock {
-    data class Text(val kind: TextKind, val text: String) : ExportBlock
+    /** A run of text; once wrapped, one line of it. [first]: the paragraph's first line (a bullet's dot goes there only). */
+    data class Text(val kind: TextKind, val text: String, val first: Boolean = true) : ExportBlock
     /** The seven-day strip: a day label, minutes (practised) and whether the goal was reached. */
     data class Strip(val days: List<DayStat>, val goalMinutes: Int?) : ExportBlock
     /** One small line per skill (a title, its summary and the points). */
@@ -105,7 +106,7 @@ object ExportLayout {
                 val indent = if (b.kind == TextKind.BULLET || b.kind == TextKind.ACTION) BULLET_INDENT else 0
                 val lines = wrap(b.text, (WIDTH - indent).toFloat(), b.kind, metrics)
                 lines.forEachIndexed { i, l ->
-                    add(Atom(ExportBlock.Text(b.kind, l), b.kind.lineHeight, if (i == 0) b.kind.gapBefore else 0, b.kind.keepWithNext || (lines.size > 2 && i == 0)))
+                    add(Atom(ExportBlock.Text(b.kind, l, first = i == 0), b.kind.lineHeight, if (i == 0) b.kind.gapBefore else 0, b.kind.keepWithNext || (lines.size > 2 && i == 0)))
                 }
             }
             is ExportBlock.Strip -> add(Atom(b, STRIP_H, 22, false))

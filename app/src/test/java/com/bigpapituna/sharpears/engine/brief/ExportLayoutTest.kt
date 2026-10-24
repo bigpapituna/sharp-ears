@@ -41,6 +41,24 @@ class ExportLayoutTest {
         assertEquals(listOf(""), ExportLayout.wrap("", 500f, TextKind.BODY, metrics))
     }
 
+    // ---- bullets (2.8.4, QA D3: the export drew a dot on every wrapped line) ----
+
+    @Test fun aWrappedBulletHasItsDotOnItsFirstLineOnly() {
+        val long = "This week added up to 40 minutes at the piano, out of 51 minutes on screen in all, over five days."
+        val lines = ExportLayout.column(listOf(ExportBlock.Text(TextKind.BULLET, long), ExportBlock.Text(TextKind.BULLET, "Short.")), metrics).first
+            .map { it.block as ExportBlock.Text }
+        assertTrue("the long fact wraps", lines.size > 2)
+        assertEquals(listOf(true) + List(lines.size - 2) { false } + true, lines.map { it.first })
+        assertEquals(long, lines.dropLast(1).joinToString(" ") { it.text })
+        // Every other kind of text is one paragraph too: its first line is marked the same way.
+        val body = ExportLayout.column(listOf(ExportBlock.Text(TextKind.BODY, long)), metrics).first.map { it.block as ExportBlock.Text }
+        assertEquals(1, body.count { it.first })
+        assertTrue(body.first().first)
+        // The PDF pages carry the same marks as the card.
+        assertEquals(lines, ExportLayout.paginate(listOf(ExportBlock.Text(TextKind.BULLET, long), ExportBlock.Text(TextKind.BULLET, "Short.")), metrics)
+            .flatMap { it.items }.map { it.block })
+    }
+
     // ---- the tall card ----
 
     @Test fun theColumnStacksEverythingWithoutOverlapAndTheCardIsClamped() {
