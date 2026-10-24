@@ -59,6 +59,12 @@ object Reminder {
             description = "A daily nudge to practise, at the time set in Settings."
         })
         val prefs = ownerPrefs(context)
+        // Nothing to nudge once today's goal is met or today's plan is done (the owner's own; QA D7).
+        val progress = runCatching { com.bigpapituna.sharpears.data.ProgressStore(context, prefs) }.getOrNull()
+        val today = java.time.LocalDate.now()
+        if (progress != null && ReminderPlan.skip(progress.secondsToday(today), progress.goalMinutes, prefs.dailySummary(today) != null)) {
+            Log.d(TAG, "reminder: not posted, today's goal is met or the plan is done"); return
+        }
         val lessons = LessonStore(context, Profile.OWNER_ID)
         val due = runCatching {
             lessons.curriculum().queue(lessons.mastery(), System.currentTimeMillis()).count { it is LessonItem.ChordItem }

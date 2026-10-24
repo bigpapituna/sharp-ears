@@ -20,6 +20,13 @@ object ReminderPlan {
         return "Time to practise." + if (parts.isEmpty()) "" else " " + parts.joinToString(", ") + "."
     }
 
+    /**
+     * Whether today's reminder stays quiet (2.8.4, QA D7: it fired at 6:30 pm after "Done for today"): today's goal is met
+     * ([secondsToday] against [goalMinutes]) or today's plan was played through ([planDone]).
+     */
+    fun skip(secondsToday: Int, goalMinutes: Int, planDone: Boolean): Boolean =
+        planDone || com.bigpapituna.sharpears.engine.progress.DailyGoal.met(secondsToday, goalMinutes)
+
     /** "18:30" */
     fun label(minutes: Int) = "%d:%02d".format(java.util.Locale.ROOT, minutes / 60, minutes % 60)
 }

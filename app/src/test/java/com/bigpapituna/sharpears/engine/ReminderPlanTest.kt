@@ -19,4 +19,12 @@ class ReminderPlanTest {
         assertEquals("Time to practise.", ReminderPlan.text(0, null))
         assertEquals("7:05", ReminderPlan.label(7 * 60 + 5))
     }
+
+    /** 2.8.4, QA D7: the reminder came after "Done for today". It stays quiet once the goal is met or the plan is done. */
+    @Test fun noReminderOnceTheGoalIsMetOrThePlanIsDone() {
+        assertEquals(false, ReminderPlan.skip(secondsToday = 0, goalMinutes = 10, planDone = false))
+        assertEquals(false, ReminderPlan.skip(secondsToday = 599, goalMinutes = 10, planDone = false))
+        assertEquals(true, ReminderPlan.skip(secondsToday = 600, goalMinutes = 10, planDone = false))
+        assertEquals(true, ReminderPlan.skip(secondsToday = 40, goalMinutes = 10, planDone = true))
+    }
 }
