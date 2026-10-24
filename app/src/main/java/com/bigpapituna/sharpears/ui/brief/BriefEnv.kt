@@ -32,11 +32,12 @@ import java.time.ZoneId
 
 /**
  * How long the screens wait for the writers before the phone's own words are used instead. The AI writer keeps its own
- * limits (engine/brief/ai/AiLimits: three seconds for a session note and the child's card, twelve for a day and an answer,
- * twelve and one retry for a week) and falls to the templates inside the chain; these are the outer guard, a little longer,
- * for a writer that does not stop on time (docs/PARENT-BRIEF-PLAN.md: a child is waiting for the card).
+ * limits (engine/brief/ai/AiLimits: three seconds for a session note and the child's card, twelve for a day, a week and an
+ * answer, each with one more try when a reply comes back cut short, a week also after a server error) and falls to the
+ * templates inside the chain; these are the outer guard, a little longer, for a writer that does not stop on time
+ * (docs/PARENT-BRIEF-PLAN.md: a child is waiting for the card).
  */
-data class BriefLimits(val sessionMs: Long = 3_500, val longMs: Long = 26_000, val kidCardMs: Long = 3_500, val answerMs: Long = 13_000) {
+data class BriefLimits(val sessionMs: Long = 3_500, val longMs: Long = 26_000, val kidCardMs: Long = 3_500, val answerMs: Long = 26_000) {
     fun forPeriod(p: Period) = if (p == Period.SESSION) sessionMs else longMs
 }
 

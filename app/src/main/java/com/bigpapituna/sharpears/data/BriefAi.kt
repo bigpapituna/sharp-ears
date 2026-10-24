@@ -102,7 +102,9 @@ object BriefAi {
         val ai = AiWriter(transport(app), BuildConfig.AI_MODEL, System::currentTimeMillis, AiLimits(), budget(app), profile.id,
             titles = Titles.course { songs },
             otherNames = { runCatching { Profiles(app).all.map { it.name } }.getOrDefault(emptyList()) },
-            log = ::log)
+            log = ::log,
+            // A fact of the AI's with a number the findings do not hold gives way to the phone's own (QA D4).
+            phoneFacts = { f, name -> phone.write(f, name).facts })
         return BriefWriters(WriterChain(listOf(ai, phone), log = ::log), phone)
     }
 }

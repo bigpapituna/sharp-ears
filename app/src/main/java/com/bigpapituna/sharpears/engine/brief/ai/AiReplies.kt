@@ -21,6 +21,9 @@ data class Checked<T>(val value: T?, val dropped: List<String>)
  * - it is over its length limit, empty, or holds a placeholder other than {name} or a link;
  * - a recommendation's candidateIndex is not one of the findings' candidates;
  * - the headline holds a digit (numbers belong in the facts);
+ * - a fact holds a number the findings do not (2.8.4, QA D4: "all 57 notes" after a 42-note run): every whole number in
+ *   it must be one of the findings' own, or a day count up to seven ([SMALL]). The phone's fact at the same place
+ *   ([standIns], the template writer's) takes its place when there is one;
  * - the pup's lines say anything hard, hold a symbol or a number over ten, or mention letters to a child who does not
  *   read yet.
  *
@@ -32,6 +35,8 @@ internal class AiReplies(
     private val titles: TitleSet,
     private val name: String,
     private val writtenAt: Long,
+    /** The template writer's facts for the same findings, with the name in (asked only when a fact is dropped for a number). */
+    private val standIns: () -> List<String> = { emptyList() },
 ) {
     private val kid = findings.profileKind == ProfileKind.KID
 
@@ -42,7 +47,7 @@ internal class AiReplies(
         (if (headline == null) "missing" else problem(headline, Prompts.HEADLINE_MAX, headline = true))?.let {
             return Checked(null, listOf("headline: $it"))
         }
-        val facts = texts(root["facts"], "fact", Prompts.FACT_MAX, Prompts.FACTS_MAX, dropped)
+        val facts = numberedFacts(texts(root["facts"], "fact", Prompts.FACT_MAX, Prompts.FACTS_MAX, dropped), dropped)
         if (facts.isEmpty()) return Checked(null, dropped + "facts: none left")
         val notes = texts(root["notes"], "note", Prompts.NOTE_MAX, Prompts.NOTES_MAX, dropped)
         val recs = recommendations(root["recommendations"], dropped)
@@ -50,7 +55,7 @@ internal class AiReplies(
         (if (praise == null) "missing" else problem(praise, Prompts.PRAISE_MAX))?.let { return Checked(null, dropped + "praise: $it") }
         val sections = sections(root["sections"], dropped)
         return Checked(Brief(
-            period = findings.period, headline = fill(headline!!), facts = facts.map(::fill), notes = notes.map(::fill),
+            period = findings.period, headline = fill(headline!!), facts = facts.map { it.fold({ s -> s }, ::fill) }, notes = notes.map(::fill),
             recommendations = recs.map { (t, c) -> Brief.Recommendation(fill(t), c) }, praise = fill(praise!!),
             sections = sections.map { (t, b) -> Brief.Section(fill(t), fill(b)) }, writtenBy = Brief.Writer.AI, writtenAt = writtenAt,
         ), dropped)
@@ -102,6 +107,39 @@ internal class AiReplies(
             }
         }
         return out
+    }
+
+    /**
+     * [facts] with any fact whose numbers are not the findings' replaced by the phone's fact at its place (the phone's words
+     * come with the name in; the AI's are filled later), or dropped when the phone has none to spare.
+     */
+    private fun numberedFacts(facts: List<String>, dropped: MutableList<String>): List<FactText> {
+        val out = ArrayList<FactText>()
+        val phone by lazy { standIns() }
+        facts.forEachIndexed { i, s ->
+            val wrong = strangeNumbers(s)
+            if (wrong.isEmpty()) { out += FactText.Ai(s); return@forEachIndexed }
+            val stand = (listOfNotNull(phone.getOrNull(i)) + phone).firstOrNull { p -> out.none { it.text == p } }
+            dropped += "fact ${i + 1}: ${if (wrong.size == 1) "a number" else "numbers"} not in the findings (${wrong.joinToString(", ")})" +
+                (if (stand != null) ", the phone's fact stands in" else "")
+            if (stand != null) out += FactText.Phone(stand)
+        }
+        return out
+    }
+
+    /** The whole numbers in [s] (titles and {name} aside) that are neither in the findings nor a day count. */
+    internal fun strangeNumbers(s: String): List<Long> =
+        numbersIn(withoutTitles(s).replace(Prompts.NAME, " ")).filter { it !in SMALL && it !in known }.distinct()
+
+    /** Every whole number the findings hold, as the model saw them (counts, minutes, percentages, days, ids). */
+    private val known: Set<Long> by lazy { numbersIn(findings.encode()).toSet() }
+
+    /** A fact's words: the AI's ({name} filled in later) or the phone's (written whole, name and all). */
+    private sealed interface FactText {
+        val text: String
+        data class Ai(override val text: String) : FactText
+        data class Phone(override val text: String) : FactText
+        fun fold(phone: (String) -> String, ai: (String) -> String) = when (this) { is Phone -> phone(text); is Ai -> ai(text) }
     }
 
     private fun recommendations(v: Any?, dropped: MutableList<String>): List<Pair<String, Candidate>> {
@@ -213,6 +251,18 @@ internal class AiReplies(
         )
         private val SYMBOL = Regex("[^\\p{L}\\p{N}\\s.,!?'\u2019:;-]")
         private val LETTERS = words("letter", "letters")
+
+        /** Numbers a fact may hold without the findings: a count of days in a week (none is a number the model makes up). */
+        val SMALL: Set<Long> = (0L..7L).toSet()
+        private val THOUSANDS = Regex("([0-9]),([0-9]{3})(?![0-9])")
+        private val DIGITS = Regex("[0-9]+")
+
+        /** The whole numbers in [s]: each run of digits ("1,200" read as 1200; "1.5" as 1 and 5). */
+        fun numbersIn(s: String): List<Long> {
+            var t = s
+            while (THOUSANDS.containsMatchIn(t)) t = THOUSANDS.replace(t, "$1$2")
+            return DIGITS.findAll(t).mapNotNull { it.value.trimStart('0').ifEmpty { "0" }.toLongOrNull() }.toList()
+        }
 
         private val DASHED_RANGE = Regex("(\\d)\\s*[\u2013\u2014]\\s*(\\d)")
         private val DASH = Regex("\\s*[\u2013\u2014]+\\s*")

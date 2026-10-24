@@ -17,6 +17,11 @@ import java.util.concurrent.TimeoutException
  * How long each kind of call may take and how long its reply may be (docs/PARENT-BRIEF-PLAN.md: the session note and
  * the child's card three seconds, then templates; the day and the week longer). A weekly brief may try once more after
  * a server error or a timeout, so it can take up to twice [weekMs].
+ *
+ * 2.8.4 (QA D2): the week and the answer came back empty with finish "length" (the model spent 1,500 and 400 tokens before
+ * writing a word), so their caps went up, and a day, a week or an answer cut short at its cap is asked once more with
+ * [retryFactor] times the cap (also up to twice its time) before the templates write it. The session note and the child's
+ * card keep their three seconds and one attempt.
  */
 data class AiLimits(
     val sessionMs: Long = 3_000,
@@ -26,12 +31,16 @@ data class AiLimits(
     val answerMs: Long = 12_000,
     val sessionTokens: Int = 700,
     val dayTokens: Int = 1_500,
-    val weekTokens: Int = 1_500,
+    val weekTokens: Int = 4_000,
     val kidCardTokens: Int = 250,
-    val answerTokens: Int = 400,
+    val answerTokens: Int = 1_200,
+    val retryFactor: Int = 2,
 ) {
     fun briefMs(p: Period) = when (p) { Period.SESSION -> sessionMs; Period.DAY -> dayMs; Period.WEEK -> weekMs }
     fun briefTokens(p: Period) = when (p) { Period.SESSION -> sessionTokens; Period.DAY -> dayTokens; Period.WEEK -> weekTokens }
+    /** The cap a cut-short reply is asked again with: none for the session note (three seconds leave no room). */
+    fun briefRetryTokens(p: Period) = if (p == Period.SESSION) 0 else briefTokens(p) * retryFactor
+    val answerRetryTokens get() = answerTokens * retryFactor
 }
 
 /** A writer that can write again past its cache: the brief's Refresh. */
@@ -56,6 +65,9 @@ interface Refreshable {
  *
  * [log] gets one line per decision (cache, quota, failure kind, what the checks dropped); never the name, a key, a prompt
  * or a reply.
+ *
+ * [phoneFacts] (2.8.4, QA D4): the template writer's facts for the same findings and name. A fact of the AI's whose numbers
+ * are not in the findings is dropped and the phone's fact in its place stands in ([AiReplies]).
  */
 class AiWriter(
     private val transport: AiTransport,
@@ -67,6 +79,7 @@ class AiWriter(
     private val titles: Titles = Titles.course(),
     private val otherNames: () -> Collection<String> = { emptyList() },
     private val log: (String) -> Unit = {},
+    private val phoneFacts: (Findings, String) -> List<String> = { _, _ -> emptyList() },
 ) : BriefWriter, Refreshable {
 
     override fun write(findings: Findings, name: String): Brief? = brief(findings, name, refresh = false)
@@ -81,7 +94,8 @@ class AiWriter(
         val system = Prompts.brief(findings.profileKind)
         return ask(slot, refresh, system, Prompts.briefUser(sent, t.lines), Prompts.briefUser(steady(sent), t.lines),
             json = true, timeoutMs = limits.briefMs(findings.period), maxTokens = limits.briefTokens(findings.period),
-            temperature = 0.4, retryOnce = findings.period == Period.WEEK) { text, at -> AiReplies(findings, t, name, at).brief(text) }
+            temperature = 0.4, retryOnce = findings.period == Period.WEEK, retryTokens = limits.briefRetryTokens(findings.period),
+        ) { text, at -> AiReplies(findings, t, name, at, standIns(findings, name)).brief(text) }
     }
 
     /** The pup's card, for kids only (a grown-up gets null without a call; the template writer decides what they see). */
@@ -106,7 +120,8 @@ class AiWriter(
         val asked = others(name).fold(Names.replace(q, name, Prompts.NAME)) { s, n -> Names.replace(s, n, "someone else") }
         return ask("ANSWER", false, Prompts.answer(findings.profileKind), Prompts.answerUser(sent, t.lines, asked),
             Prompts.answerUser(steady(sent), t.lines, asked), json = false, timeoutMs = limits.answerMs,
-            maxTokens = limits.answerTokens, temperature = 0.3, retryOnce = false) { text, at -> AiReplies(findings, t, name, at).answer(text) }
+            maxTokens = limits.answerTokens, temperature = 0.3, retryOnce = false, retryTokens = limits.answerRetryTokens,
+        ) { text, at -> AiReplies(findings, t, name, at).answer(text) }
     }
 
     // ---- one call -------------------------------------------------------------------------------------------------
@@ -117,7 +132,7 @@ class AiWriter(
      */
     private fun <T> ask(
         slot: String, refresh: Boolean, system: String, user: String, stableUser: String,
-        json: Boolean, timeoutMs: Long, maxTokens: Int, temperature: Double, retryOnce: Boolean,
+        json: Boolean, timeoutMs: Long, maxTokens: Int, temperature: Double, retryOnce: Boolean, retryTokens: Int = 0,
         check: (String, Long) -> Checked<T>,
     ): T? {
         val key = Budget.hash(Prompts.VERSION.toString(), model, slot, system, stableUser)
@@ -126,7 +141,7 @@ class AiWriter(
         }
         val now = clock()
         if (!budget.take(profileId, now)) { log("ai: $slot not asked: this week's ${budget.callsPerWeek} calls are used"); return null }
-        val text = call(AiRequest(model, system, user, json, maxTokens, temperature, timeoutMs, retryOnce), now) ?: return null
+        val text = call(AiRequest(model, system, user, json, maxTokens, temperature, timeoutMs, retryOnce, retryTokens), now) ?: return null
         val checked = check(text, now)
         if (checked.dropped.isNotEmpty()) log("ai: $slot dropped ${checked.dropped.size}: ${checked.dropped.joinToString("; ")}")
         val value = checked.value ?: run { log("ai: $slot reply not usable"); return null }
@@ -136,7 +151,7 @@ class AiWriter(
 
     /** The transport's reply within the limit, or null; a call that cost nothing goes back to the budget. */
     private fun call(request: AiRequest, now: Long): String? {
-        val deadline = request.timeoutMs * (if (request.retryOnce) 2 else 1)
+        val deadline = request.timeoutMs * request.attempts
         val future = EXECUTOR.submit(Callable { transport.complete(request) })
         return try {
             future.get(deadline, TimeUnit.MILLISECONDS)
@@ -170,6 +185,10 @@ class AiWriter(
 
     private fun others(name: String): Collection<String> =
         runCatching { otherNames() }.getOrDefault(emptyList()).filter { it.isNotBlank() && !it.trim().equals(name.trim(), ignoreCase = true) }
+
+    /** The phone's facts for [findings], asked only when a fact of the AI's is dropped for its numbers. */
+    private fun standIns(findings: Findings, name: String): () -> List<String> =
+        { runCatching { phoneFacts(findings, name) }.getOrDefault(emptyList()) }
 
     /** The findings without "now": a day's or a week's range ends at the moment it was computed. */
     private fun steady(f: Findings) = f.copy(range = TimeRange(f.range.fromMs, 0))

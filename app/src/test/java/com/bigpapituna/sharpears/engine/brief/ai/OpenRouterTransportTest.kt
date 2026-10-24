@@ -185,6 +185,45 @@ class OpenRouterTransportTest {
         assertNoKey(e.message.orEmpty())
     }
 
+    /** A reply stopped at the cap (2.8.4, QA D2): [content] and the usage block of a model that thought first. */
+    private fun cut(content: String) = MiniJson.write(mapOf(
+        "choices" to listOf(mapOf("finish_reason" to "length", "message" to mapOf("role" to "assistant", "content" to content))),
+        "usage" to mapOf("completion_tokens" to 300, "completion_tokens_details" to mapOf("reasoning_tokens" to 300)),
+    ))
+
+    @Test fun aReplyCutShortAtTheCapIsAskedOnceMoreWithTheLargerCap() {
+        var n = 0
+        val good = """{"headline":"hi"}"""
+        val once = server { if (n++ == 0) FakeHttpServer.Reply(200, cut("")) else FakeHttpServer.Reply(200, FakeHttpServer.chat(good)) }
+        assertEquals(good, transport(once).complete(request().copy(retryTokens = 900)))
+        assertEquals(listOf(300L, 900L), once.requests.map { (MiniJson.read(it.body) as Map<*, *>)["max_tokens"] })
+        assertTrue(logs.any { it.contains("CUT_SHORT") && it.contains("the reply was empty (finish: length, 300 tokens, 300 thinking)") })
+        assertTrue(logs.any { it == "ai: asking again with 900 tokens" })
+
+        // Cut again: it gives up after the second try, and the caller falls to the templates.
+        val always = server { FakeHttpServer.Reply(200, cut("""{"headline":"half""")) }
+        val e = call(transport(always), request().copy(retryTokens = 900))
+        assertEquals(AiCallException.Kind.CUT_SHORT, e.kind)
+        assertTrue(e.kind.billed)
+        assertTrue(e.message!!.startsWith("the reply was cut short"))
+        assertEquals(2, always.requests.size)
+
+        // No larger cap (the session note, the child's card): no second try.
+        val single = server { FakeHttpServer.Reply(200, cut("")) }
+        assertEquals(AiCallException.Kind.CUT_SHORT, call(transport(single), request(retryOnce = true)).kind)
+        assertEquals(1, single.requests.size)
+        assertEquals(1, request().attempts)
+        assertEquals(2, request().copy(retryTokens = 900).attempts)
+        assertEquals(2, request(retryOnce = true).attempts)
+    }
+
+    @Test fun oneMoreTryInAllEvenWhenAServerErrorComesFirst() {
+        var n = 0
+        val s = server { if (n++ == 0) FakeHttpServer.Reply(503) else FakeHttpServer.Reply(200, cut("")) }
+        assertEquals(AiCallException.Kind.CUT_SHORT, call(transport(s), request(retryOnce = true).copy(retryTokens = 900)).kind)
+        assertEquals(2, s.requests.size)
+    }
+
     @Test fun scrubbingRemovesTheKeyItsPiecesAndAnythingShapedLikeOne() {
         val text = "a $key b Bearer xyz.123 c ${key.substring(10, 30)} d sk-or-v1-somethingelse e ${"A".repeat(40)} f hello"
         val out = Secrets.scrub(text, key)

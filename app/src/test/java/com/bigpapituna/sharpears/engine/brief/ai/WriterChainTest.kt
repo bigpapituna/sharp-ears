@@ -78,4 +78,30 @@ class WriterChainTest {
         assertEquals("a failed refresh does not show the old words as new", Brief.Writer.TEMPLATE, chain.refresh(f, "Mia")!!.writtenBy)
         assertEquals(1, phone.asked)
     }
+
+    /**
+     * 2.8.4, QA D2: the week, its Refresh and the answer came back empty at their caps. The caps went up, a day, a week and
+     * an answer ask once more with twice the cap (the transport does it), and a reply cut short twice leaves the phone's
+     * words, marked as the phone's, so the page says "Written on the phone" and the failed call is not hidden.
+     */
+    @Test fun aReplyCutShortFallsToThePhoneMarkedAsThePhones() {
+        val f = AiFixtures.week()
+        val t = FakeTransport { throw AiCallException(AiCallException.Kind.CUT_SHORT, 200, "the reply was empty (finish: length)") }
+        val chain = WriterChain(listOf(ai(t), Phone()))
+        assertEquals(Brief.Writer.TEMPLATE, chain.write(f, "Mia")!!.writtenBy)
+        assertEquals(Brief.Writer.TEMPLATE, chain.refresh(f, "Mia")!!.writtenBy)
+        assertEquals(WriterChain.Answer("From the phone.", Brief.Writer.TEMPLATE), chain.ask(f, "Mia", "What should we practise tomorrow?"))
+        val (week, refresh, answer) = t.requests
+        assertTrue("the week's cap went up", week.maxTokens >= 4_000)
+        assertEquals(week.maxTokens * 2, week.retryTokens)
+        assertEquals(week.maxTokens, refresh.maxTokens)
+        assertTrue("the answer's cap went up", answer.maxTokens >= 1_200)
+        assertEquals(answer.maxTokens * 2, answer.retryTokens)
+        assertEquals("a second try may come, so the writer waits for it", 2, answer.attempts)
+        // The session note and the child's card keep their three seconds and one try.
+        t.requests.clear()
+        chain.write(AiFixtures.session(), "Mia"); chain.kidCard(AiFixtures.session(), "Mia")
+        assertEquals(listOf(0, 0), t.requests.map { it.retryTokens })
+        assertEquals(listOf(1, 1), t.requests.map { it.attempts })
+    }
 }

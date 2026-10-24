@@ -67,4 +67,40 @@ class AiRepliesTest {
         assertEquals("Mia played.", r.answer("Answer: {name} played.").value)
         assertTrue(r.answer("Most kids her age do better.").dropped.single().contains("compares"))
     }
+
+    // ---- 2.8.4, QA D4: a fact's numbers are the findings' ----
+
+    private fun facts(f: Findings, vararg facts: String, phone: List<String> = emptyList()) =
+        AiReplies(f, TitleSet(f, titles, "Mia", emptyList()), "Mia", 5, standIns = { phone }).brief(
+            com.bigpapituna.sharpears.engine.MiniJson.write(mapOf("headline" to "A good week.", "facts" to facts.toList(), "praise" to "Well done.")))
+
+    /** Roy's run in the QA: one song's right hand to the end, 42 notes, in a week of 55 minutes on screen. */
+    private val run = Findings(ProfileKind.ADULT, Period.WEEK, TimeRange(0, 1), facts = listOf(Fact(FactKind.PRACTICE_MINUTES, 12, 55),
+        Fact(FactKind.SONG_RUNS, 1, songs = listOf("ode-to-joy"))), stats = com.bigpapituna.sharpears.engine.brief.Stats(
+        songs = listOf(com.bigpapituna.sharpears.engine.brief.SongStat("ode-to-joy", 1, 3, 42))))
+
+    @Test fun aFactWithANumberTheFindingsDoNotHoldGivesWayToThePhones() {
+        val c = facts(run, "You played 12 minutes out of 55 on screen.", "Your right hand played all 57 notes of Ode to Joy without a wrong key.",
+            phone = listOf("12 minutes of practice this week.", "Ode to Joy went from start to end."))
+        val b = c.value!!
+        assertEquals(listOf("You played 12 minutes out of 55 on screen.", "Ode to Joy went from start to end."), b.facts)
+        assertEquals("fact 2: a number not in the findings (57), the phone's fact stands in", c.dropped.single())
+        assertEquals(com.bigpapituna.sharpears.engine.brief.Brief.Writer.AI, b.writtenBy)
+    }
+
+    @Test fun dayCountsTitlesAndTheFindingsOwnNumbersPass() {
+        val f = findings(songs = listOf("gymnopedie-1"))
+        assertEquals(emptyList<String>(), facts(f, "30 minutes over 3 days, out of 40 on screen.", "Gymnopedie No. 1 (opening) twice in 7 days.").dropped)
+        assertTrue(facts(f, "1,500 notes this week.").dropped.first().contains("(1500)"))
+        assertEquals(listOf(57L, 8L), AiReplies(f, TitleSet(f, titles, "Mia", emptyList()), "Mia", 5).strangeNumbers("57 notes on 8 days, 30 minutes, 2 songs."))
+    }
+
+    @Test fun withNoPhoneFactToSpareTheFactGoesAndWithNoneLeftTheBriefDoes() {
+        val c = facts(run, "12 minutes this week.", "All 57 notes, cleanly.")
+        assertEquals(listOf("12 minutes this week."), c.value!!.facts)
+        assertNull(facts(run, "All 57 notes, cleanly.").value)
+        // A phone's fact is not used twice.
+        val twice = facts(run, "12 minutes this week.", "All 57 notes.", "And 99 more.", phone = listOf("12 minutes this week.", "Ode to Joy went from start to end."))
+        assertEquals(listOf("12 minutes this week.", "Ode to Joy went from start to end."), twice.value!!.facts)
+    }
 }

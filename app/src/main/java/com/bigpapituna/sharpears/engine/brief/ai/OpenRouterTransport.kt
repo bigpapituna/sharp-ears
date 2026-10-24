@@ -18,7 +18,8 @@ import java.net.URL
  *   the Authorization header, and is never stored in a field, logged, thrown or put in a message (see [Secrets]).
  * - [allowed] is asked before every call: false (a metered network the person did not allow) sends nothing.
  * - Timeouts come from the request (AiLimits). A 4xx is never retried; a 5xx or a timeout is retried once when the
- *   request says so (the weekly brief). Redirects are not followed, so the key never goes to another host.
+ *   request says so (the weekly brief); a reply cut short at the token cap is asked once more with the request's larger
+ *   cap ([AiRequest.retryTokens]). At most two attempts. Redirects are not followed, so the key never goes to another host.
  * - [privateProvidersOnly] asks OpenRouter to route only to providers that neither keep nor train on what is sent.
  * - [log] gets one line per attempt: what happened, the status and the time taken; never the key, the prompt or the reply.
  */
@@ -36,19 +37,25 @@ class OpenRouterTransport(
         val key = keyProvider()?.trim().orEmpty()
         if (key.isEmpty()) throw AiCallException(AiCallException.Kind.NO_KEY, message = "not sent: this build has no AI key")
         val url = endpoint()
-        val body = MiniJson.write(body(request)).toByteArray(Charsets.UTF_8)
+        var asked = request
         var attempt = 1
         while (true) {
             val started = System.nanoTime()
             try {
-                val text = once(url, key, body, request.timeoutMs)
+                val text = once(url, key, MiniJson.write(body(asked)).toByteArray(Charsets.UTF_8), asked.timeoutMs)
                 log("ai: reply in ${elapsed(started)} ms (attempt $attempt, ${text.length} chars)")
                 return text
             } catch (e: AiCallException) {
                 log("ai: ${e.kind} after ${elapsed(started)} ms (attempt $attempt): ${e.message}")
-                val again = request.retryOnce && attempt == 1 &&
-                    (e.kind == AiCallException.Kind.SERVER || e.kind == AiCallException.Kind.TIMEOUT)
-                if (!again) throw e
+                if (attempt > 1) throw e
+                when {
+                    request.retryOnce && (e.kind == AiCallException.Kind.SERVER || e.kind == AiCallException.Kind.TIMEOUT) -> {}
+                    e.kind == AiCallException.Kind.CUT_SHORT && request.retryTokens > request.maxTokens -> {
+                        asked = request.copy(maxTokens = request.retryTokens)
+                        log("ai: asking again with ${request.retryTokens} tokens")
+                    }
+                    else -> throw e
+                }
                 attempt++
             }
         }
@@ -129,8 +136,20 @@ class OpenRouterTransport(
             is List<*> -> content.mapNotNull { (it as? Map<*, *>)?.get("text") as? String }.joinToString("")
             else -> ""
         }
-        if (out.isBlank()) throw AiCallException(AiCallException.Kind.BAD_REPLY, 200, "the reply was empty (finish: ${choice["finish_reason"]})")
+        val finish = choice["finish_reason"]
+        // Cut at the cap: empty (the budget went on thinking) or stopped mid-way; neither is a reply to show.
+        if (finish == "length") throw AiCallException(AiCallException.Kind.CUT_SHORT, 200,
+            "the reply was ${if (out.isBlank()) "empty" else "cut short"} (finish: length${usage(root)})")
+        if (out.isBlank()) throw AiCallException(AiCallException.Kind.BAD_REPLY, 200, "the reply was empty (finish: $finish${usage(root)})")
         return out
+    }
+
+    /** ", 1500 tokens, 1480 thinking" from the reply's usage block (numbers only), or nothing. */
+    private fun usage(root: Map<*, *>): String {
+        val u = root["usage"] as? Map<*, *> ?: return ""
+        val out = (u["completion_tokens"] as? Number)?.toLong() ?: return ""
+        val thinking = ((u["completion_tokens_details"] as? Map<*, *>)?.get("reasoning_tokens") as? Number)?.toLong()
+        return ", $out tokens" + (thinking?.takeIf { it > 0 }?.let { ", $it thinking" } ?: "")
     }
 
     /** The provider's own error message, scrubbed and short; a body that is not JSON adds nothing. */

@@ -13,6 +13,8 @@ fun interface AiTransport {
  * One chat completion: a [system] prompt and one [user] message (Prompts.kt builds both from the redacted findings).
  * [json] asks for JSON mode where the model supports it. [timeoutMs] bounds the connection and each read;
  * [retryOnce] allows one more attempt after a server error or a timeout (the weekly brief only), never after a 4xx.
+ * [retryTokens] (2.8.4, QA D2): a reply cut short at [maxTokens] (finish "length") is asked once more with this larger cap;
+ * 0 never. A call makes at most two attempts whatever went wrong.
  */
 data class AiRequest(
     val model: String,
@@ -23,7 +25,11 @@ data class AiRequest(
     val temperature: Double,
     val timeoutMs: Long,
     val retryOnce: Boolean = false,
-)
+    val retryTokens: Int = 0,
+) {
+    /** How many attempts the call may make: the caller waits up to this many [timeoutMs]. */
+    val attempts get() = if (retryOnce || retryTokens > maxTokens) 2 else 1
+}
 
 /**
  * Why a call produced no reply. The message is safe to log: it never holds the key (see [Secrets.scrub]), the prompt or
@@ -49,6 +55,11 @@ class AiCallException(val kind: Kind, val status: Int? = null, message: String) 
         NETWORK(false),
         /** A 2xx whose body held no reply text. */
         BAD_REPLY(true),
+        /**
+         * The reply stopped at the token cap (finish "length"), empty or cut mid-way: a model that thinks first can spend the
+         * whole cap before writing (2.8.4, QA D2). Asked once more with [AiRequest.retryTokens].
+         */
+        CUT_SHORT(true),
     }
 }
 
