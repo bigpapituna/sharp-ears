@@ -21,6 +21,19 @@ class WeeklyScheduleTest {
         assertEquals(DayOfWeek.SUNDAY, WeeklySlot.DEFAULT.day); assertEquals(18 * 60, WeeklySlot.DEFAULT.minutes); assertTrue(WeeklySlot.DEFAULT.on)
     }
 
+    /**
+     * QA 2.8.3: with notifications refused, a new kid's weekly brief stayed on and its alarm was set; nothing would show. Off
+     * the phone's notifications, the setting says so and no alarm is set; the slot itself is kept for the email and for later.
+     */
+    @Test fun withNotificationsOffTheWeeklyBriefIsOffAndSaysWhy() {
+        assertTrue(WeeklyPlan.notifies(sunday6pm, canNotify = true))
+        assertFalse(WeeklyPlan.notifies(sunday6pm, canNotify = false))
+        assertFalse(WeeklyPlan.notifies(sunday6pm.copy(on = false), canNotify = true))
+        assertEquals("Sunday at 6 pm", WeeklyPlan.stateLabel(sunday6pm, canNotify = true))
+        assertEquals("Off, notifications are off on this phone", WeeklyPlan.stateLabel(sunday6pm, canNotify = false))
+        assertEquals("Off", WeeklyPlan.stateLabel(sunday6pm.copy(on = false), canNotify = false))
+    }
+
     @Test fun aSlotSurvivesBeingKept() {
         for (s in listOf(WeeklySlot(), WeeklySlot(DayOfWeek.FRIDAY, 7 * 60 + 30, false), WeeklySlot(DayOfWeek.MONDAY, 0))) assertEquals(s, WeeklySlot.decode(s.encode()))
         assertNull(WeeklySlot.decode(null)); assertNull(WeeklySlot.decode("")); assertNull(WeeklySlot.decode("FUNDAY@5")); assertNull(WeeklySlot.decode("SUNDAY@9999")); assertNull(WeeklySlot.decode("SUNDAY"))

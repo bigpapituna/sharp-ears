@@ -38,11 +38,18 @@ object BriefReminder {
         Intent(context, BriefReceiver::class.java).putExtra(EXTRA_PROFILE, profileId),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-    /** Sets (or cancels, when it is off or the person is gone) [profile]'s next alarm; [id] names the alarm when [profile] is null. */
+    /**
+     * Sets (or cancels, when it is off, the person is gone or the phone does not let the app notify) [profile]'s next alarm;
+     * [id] names the alarm when [profile] is null. Without the permission nothing is set (QA 2.8.3); the app's start sets it
+     * again once notifications are allowed.
+     */
     fun schedule(context: Context, profile: Profile?, id: String = profile?.id.orEmpty()) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         val slot = profile?.let { BriefStore(context, it.id).weeklyOrDefault(it.isKid) }
         if (slot == null || !slot.on) { alarms.cancel(pending(context, id)); Log.d(TAG, "brief: weekly off for $id"); return }
+        if (!WeeklyPlan.notifies(slot, Reminder.canNotify(context))) {
+            alarms.cancel(pending(context, id)); Log.d(TAG, "brief: weekly for $id not set, notifications are off on this phone"); return
+        }
         val at = WeeklyPlan.next(Instant.ofEpochMilli(System.currentTimeMillis()), ZoneId.systemDefault(), slot)
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), pending(context, id))
         Log.d(TAG, "brief: weekly for $id next at $at (${WeeklyPlan.label(slot)})")

@@ -49,17 +49,27 @@ import com.bigpapituna.sharpears.engine.brief.Findings
 import com.bigpapituna.sharpears.engine.brief.Period
 import com.bigpapituna.sharpears.engine.brief.Spark
 import com.bigpapituna.sharpears.engine.brief.TrendRow
+import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.ui.Pose
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.family.LocalParentGate
+import com.bigpapituna.sharpears.ui.family.ParentGateController
 import com.bigpapituna.sharpears.ui.reducedMotion
+
+/**
+ * Every action on a brief passes the parent gate itself (QA 2.8.3): on a child's brief always, unless the gate is open, and on
+ * a grown-up's own week while a kid is playing. Show Mum opens a child's session note after the hold alone (reading is its
+ * point), and its Send, Ask and Refresh reached the share sheet and the AI with no sum; guarding at the action, not only at
+ * the door, holds wherever the brief is opened from. Reading (the full report, the tabs) never asks.
+ */
+fun ParentGateController.guardBrief(about: Profile, action: () -> Unit) = if (about.isKid) guard(action) else guardForKids(action)
 
 /**
  * One brief: the one-minute read (a headline, three facts, two or three things to try with their buttons, the praise), the
  * question box, and "See the full report" with the numbers behind it. [onSend] opens the export; [footer] is a slot under
- * everything (the weekly time on the Week tab).
+ * everything (the weekly time on the Week tab). Every button that does something goes through [guardBrief].
  */
 @Composable
 fun BriefPage(
@@ -68,6 +78,7 @@ fun BriefPage(
 ) {
     val env = controller.env
     val name = page.profile.name
+    val gate = LocalParentGate.current
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         when (page.phase) {
             Phase.LOADING -> PupSays(Pose.THINKING, if (page.profile.kind == ProfileKind.KID) "Reading ${name}'s ${periodWord(page.period)}" else "Reading your ${periodWord(page.period)}",
@@ -76,7 +87,8 @@ fun BriefPage(
             Phase.READY -> {
                 val brief = page.brief ?: return@Column
                 val f = page.findings ?: return@Column
-                Meta(page, brief, f, env, onRefresh = { controller.refresh(page) }, onSend = { onSend(brief, f) })
+                Meta(page, brief, f, env, onRefresh = { gate.guardBrief(page.profile) { controller.refresh(page) } },
+                    onSend = { gate.guardBrief(page.profile) { onSend(brief, f) } })
                 Text(brief.headline, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 4.dp).semantics { heading() })
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -87,7 +99,8 @@ fun BriefPage(
                 }
                 Recommendations(page, controller)
                 Praise(brief.praise)
-                AskBox(page.asks.exchanges, page.asks.busy, AskRules.starters(f), onAsk = { controller.ask(page, it) }, modifier = Modifier.padding(top = 10.dp))
+                AskBox(page.asks.exchanges, page.asks.busy, AskRules.starters(f), onAsk = { q -> gate.guardBrief(page.profile) { controller.ask(page, q) } },
+                    modifier = Modifier.padding(top = 10.dp), guard = { a -> gate.guardBrief(page.profile, a) })
                 ExpandRow(page.expanded, onToggle = { page.expanded = !page.expanded })
                 AnimatedVisibility(page.expanded, enter = if (reducedMotion()) fadeIn() else fadeIn() + expandVertically(), exit = if (reducedMotion()) fadeOut() else fadeOut() + shrinkVertically()) {
                     FullReport(brief, f, env)
@@ -170,17 +183,17 @@ private fun Recommendations(page: BriefPageState, controller: BriefController) {
     recs.forEachIndexed { i, r ->
         val view = remember(r.candidate) { actions.view(r.candidate) }
         RecommendationCard(heading = cardHeading(r.candidate), text = r.text, view = view, state = page.cards[i] ?: CardState.Idle,
-            onPress = { gate.guard { controller.openSheet(page, i) } },
-            onUndo = { controller.undo(page, i) }, onRetry = { controller.closeSheet(page, i) })
+            onPress = { gate.guardBrief(page.profile) { controller.openSheet(page, i) } },
+            onUndo = { gate.guardBrief(page.profile) { controller.undo(page, i) } }, onRetry = { gate.guardBrief(page.profile) { controller.closeSheet(page, i) } })
     }
-    // The open sheet, if any.
-    page.cards.entries.firstOrNull { it.value is CardState.Confirm }?.let { (i, st) ->
+    // The open sheet, if any. It steps aside while the gate is asked (the sheet's window would cover the gate).
+    if (gate.pending == null) page.cards.entries.firstOrNull { it.value is CardState.Confirm }?.let { (i, st) ->
         val rec = recs.getOrNull(i) ?: return@let
         val view = actions.view(rec.candidate)
         val songs = remember(i) { if (view.needsSong) actions.songChoices(rec.candidate) else emptyList() }
         ActionSheet(view, st as CardState.Confirm, songs,
             onChange = { controller.update(page, i, it) },
-            onConfirm = { input -> controller.perform(page, i, rec.candidate, input) },
+            onConfirm = { input -> gate.guardBrief(page.profile) { controller.perform(page, i, rec.candidate, input) } },
             onDismiss = { controller.closeSheet(page, i) })
     }
 }

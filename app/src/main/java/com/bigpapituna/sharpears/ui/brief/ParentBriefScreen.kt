@@ -86,8 +86,9 @@ import kotlinx.coroutines.withContext
  * side, never compared), then Session, Today and Week for that child, each as the one-minute read with the full report
  * behind a button. [children] with one grown-up and [showChildren] false is "My week" (ui/brief/MyWeek.kt).
  *
- * Behind the parent gate: the caller wraps it in Gated (ParentBriefDialog does); every action asks the gate again when it
- * has closed.
+ * Behind the parent gate: the caller wraps it in Gated (ParentBriefDialog does), or Show Mum's hold for a child's session
+ * note. Either way every action (Refresh, Send, Ask, the cards, Email, the weekly time) asks the gate itself through
+ * [guardBrief] (QA 2.8.3): the hold is enough to read, never to do.
  */
 @Composable
 fun ParentBriefScreen(
@@ -99,6 +100,7 @@ fun ParentBriefScreen(
 ) {
     BackHandler(onBack = onBack)
     val scope = rememberCoroutineScope()
+    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     val controller = remember(env) { BriefController(env, scope) }
     DisposableEffect(controller) { onDispose { controller.commitAll() } }
     var childId by rememberSaveable { mutableStateOf(initialChild ?: children.firstOrNull()?.id) }
@@ -119,7 +121,7 @@ fun ParentBriefScreen(
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
             // The brief by email (2.8): Settings > Briefs and email, the one form, as a dialog over the brief (the gate already passed).
-            if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { emailOpen = true }) { Text("Email") }
+            if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { gate.guardBrief(child) { emailOpen = true } }) { Text("Email") }
         }
         if (child == null) {
             PupSays(Pose.WELCOME, "Add a child in Family to see how their week goes.", Modifier.padding(24.dp), size = 96.dp)
@@ -134,11 +136,11 @@ fun ParentBriefScreen(
                 val p = Period.valueOf(k.substringAfter('/'))
                 val page = controller.page(c, p)
                 var slot by remember(c.id) { mutableStateOf(env.weekly.get(c)) }
-                BriefPage(page, controller, onSend = { b, f -> exporting = b to f },
+                BriefPage(page, controller, onSend = { b, f -> gate.guardBrief(c) { exporting = b to f } },
                     footer = if (p != Period.WEEK) null else { {
-                        WeeklyRow(slot, onChange = { weeklyOpen = true })
-                        if (weeklyOpen) WeeklySheet(c.name.takeIf { c.kind == ProfileKind.KID }.orEmpty(), slot, zone = env.zone, now = env.now,
-                            onSave = { s -> slot = s; env.weekly.set(c, s) }, onDismiss = { weeklyOpen = false })
+                        WeeklyRow(slot, onChange = { gate.guardBrief(c) { weeklyOpen = true } })
+                        if (weeklyOpen && gate.pending == null) WeeklySheet(c.name.takeIf { c.kind == ProfileKind.KID }.orEmpty(), slot, zone = env.zone, now = env.now,
+                            onSave = { s -> gate.guardBrief(c) { slot = s; env.weekly.set(c, s) } }, onDismiss = { weeklyOpen = false })
                     } })
                 LaunchedEffect(page.phase) {
                     if (page.phase != Phase.READY) return@LaunchedEffect
@@ -194,6 +196,7 @@ private fun PeriodTabs(periods: List<Period>, selected: Period, onPick: (Period)
 /**
  * Send: the brief as a picture and a PDF, previewed here, then the system share sheet (Share.files) when the grown-up
  * presses Send. Short is the one-minute read; Full is the whole report (the PDF has every page, the picture is capped).
+ * Send asks the parent gate itself ([guardBrief]); the sheet steps aside while the gate shows (its window would cover it).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -201,6 +204,7 @@ fun ExportSheet(env: BriefEnv, brief: Brief, findings: Findings, who: Profile, o
     val context = LocalContext.current
     val c = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     var full by rememberSaveable { mutableStateOf(startFull) }
     var sending by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
@@ -209,6 +213,7 @@ fun ExportSheet(env: BriefEnv, brief: Brief, findings: Findings, who: Profile, o
         value = null
         value = withContext(Dispatchers.Default) { runCatching { BriefExport(context).card(doc) }.getOrNull()?.asImageBitmap() }
     }
+    if (gate.pending != null) return
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.surfaceContainerLow) {
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().align(Alignment.CenterHorizontally).navigationBarsPadding().padding(start = 24.dp, end = 24.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -225,7 +230,7 @@ fun ExportSheet(env: BriefEnv, brief: Brief, findings: Findings, who: Profile, o
             }
             Text("A picture and a PDF go to the share sheet. Nothing is sent until you pick an app there.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
             if (failed) Text("I could not make the files just now. Try again in a moment.", style = MaterialTheme.typography.bodyMedium, color = c.primary)
-            ChunkyButton(enabled = !sending, modifier = Modifier.fillMaxWidth(), onClick = {
+            ChunkyButton(enabled = !sending, modifier = Modifier.fillMaxWidth(), onClick = { gate.guardBrief(who) {
                 sending = true; failed = false
                 scope.launch {
                     val files = withContext(Dispatchers.IO) { runCatching {
@@ -235,7 +240,7 @@ fun ExportSheet(env: BriefEnv, brief: Brief, findings: Findings, who: Profile, o
                     if (files == null) { failed = true; com.bigpapituna.sharpears.analytics.Tester.error("brief send") }
                     else { Share.files(context, files, "Send this brief", ExportDoc.title(who.name, findings.period, who.kind == ProfileKind.KID)); onDismiss() }
                 }
-            }) { Text(if (sending) "Making the files" else "Send") }
+            } }) { Text(if (sending) "Making the files" else "Send") }
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Not now") }
         }
     }

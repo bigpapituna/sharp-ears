@@ -57,7 +57,9 @@ import com.bigpapituna.sharpears.ui.SpeechBubble
 /**
  * "Ask the brief": a text field with a microphone button (when this phone can recognise speech on itself), starter
  * questions, and the exchanges so far, the pup answering from the facts above. The answer comes from the writer
- * ([onAsk] -> BriefController.ask); the first name never goes with the question (AskRules.forWriter).
+ * ([onAsk] -> BriefController.ask); the first name never goes with the question (AskRules.forWriter). Asking (typed, a
+ * starter, or the microphone) goes through [guard] first: the brief's parent gate (QA 2.8.3: Show Mum's note asked the AI
+ * after the hold alone).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -66,6 +68,8 @@ fun AskBox(
     modifier: Modifier = Modifier, dictation: Dictation = rememberDictation(),
     /** A draft handed in by a test or the demo route. */
     initial: String = "",
+    /** Runs an action once a grown-up has passed the gate (BriefPage passes guardBrief). */
+    guard: (() -> Unit) -> Unit = { it() },
 ) {
     val c = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -76,7 +80,7 @@ fun AskBox(
     }
     fun send() {
         if (busy || AskRules.clean(text) == null) return
-        onAsk(text); text = ""; focus.clearFocus()
+        guard { if (AskRules.clean(text) != null) { onAsk(text); text = ""; focus.clearFocus() } }
     }
     fun toggleMic() {
         if (dictation.listening) { dictation.stop(); return }
@@ -90,7 +94,7 @@ fun AskBox(
         exchanges.forEach { e -> ExchangeView(e) }
         if (text.isBlank() && !dictation.listening) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             starters.forEach { s ->
-                Box(Modifier.heightIn(min = 40.dp).clip(CircleShape).background(c.surfaceContainerHigh).clickable(enabled = !busy) { onAsk(s) }
+                Box(Modifier.heightIn(min = 40.dp).clip(CircleShape).background(c.surfaceContainerHigh).clickable(enabled = !busy) { guard { onAsk(s) } }
                     .padding(horizontal = 16.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
                     Text(s, style = MaterialTheme.typography.labelLarge, color = c.onSurface)
                 }
@@ -104,7 +108,7 @@ fun AskBox(
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 trailingIcon = if (!dictation.available) null else { {
                     val tint by animateColorAsState(if (dictation.listening) c.primary else c.onSurfaceVariant, label = "mic")
-                    IconButton(onClick = ::toggleMic) {
+                    IconButton(onClick = { guard(::toggleMic) }) {
                         Icon(painterResource(R.drawable.ic_mic), contentDescription = if (dictation.listening) "Stop listening" else "Speak your question", tint = tint)
                     }
                 } },

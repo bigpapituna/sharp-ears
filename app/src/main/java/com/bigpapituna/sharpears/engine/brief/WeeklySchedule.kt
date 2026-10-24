@@ -57,6 +57,23 @@ object WeeklyPlan {
         return at.toInstant()
     }
 
+    /** What the weekly brief's setting says when the phone does not let the app notify. */
+    const val NOTIFICATIONS_OFF = "Off, notifications are off on this phone"
+
+    /**
+     * Whether [slot]'s notification is set: it is on, and the phone lets the app notify ([canNotify]). QA 2.8.3: a new kid's
+     * brief was set for Sunday at 6 pm on a phone that had refused notifications, so nothing would ever show. The slot itself
+     * is kept (the weekly email goes by its day and time), and the alarm comes back once notifications are allowed.
+     */
+    fun notifies(slot: WeeklySlot, canNotify: Boolean): Boolean = slot.on && canNotify
+
+    /** The setting in words: when it comes ("Sunday at 6 pm"), "Off", or [NOTIFICATIONS_OFF] when the phone says no. */
+    fun stateLabel(slot: WeeklySlot, canNotify: Boolean): String = when {
+        !slot.on -> "Off"
+        !canNotify -> NOTIFICATIONS_OFF
+        else -> label(slot)
+    }
+
     /** "Sunday at 6 pm", "Friday at 7:30 am", "Sunday at noon" (sentence case, no dashes). */
     fun label(slot: WeeklySlot): String {
         val day = slot.day.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)

@@ -139,7 +139,7 @@ private fun PupSaysGameScreen(
     val context = LocalContext.current
     val stores = remember { people.associate { it.id to PlayStore(context, it.id) } }
     var version by remember { mutableIntStateOf(0) }
-    var line by remember { mutableStateOf(if (game.multi) game.whoseTurnLine() + " Tap ready at the keys." else "Listen, then copy me.") }
+    var line by remember { mutableStateOf(if (game.multi) game.whoseTurnLine() + " Tap ready at the keys." else com.bigpapituna.sharpears.engine.play.PlayLines.LISTEN_FIRST) }
     var sounding by remember { mutableIntStateOf(-1) }
     var results by remember { mutableStateOf<List<PupSaysResult>?>(null) }
     val glow = remember { mutableStateMapOf<Int, Color>() }

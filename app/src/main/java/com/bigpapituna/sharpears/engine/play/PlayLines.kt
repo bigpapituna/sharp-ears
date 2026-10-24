@@ -6,9 +6,15 @@ package com.bigpapituna.sharpears.engine.play
  * [PupSaysGame]'s words.
  */
 object PlayLines {
+    /**
+     * Pup says' first words for one player, on opening and when a key comes during the demo. Recorded (QA 2.8.3: the screen
+     * opened on "Listen, then copy me.", which no recording has, so a pre-reader heard the phone's voice first).
+     */
+    const val LISTEN_FIRST = "Listen first, then copy me."
+
     fun fixed(): List<String> = buildList {
         // Pup says, one player.
-        add("Your turn!"); add("Your turn."); add("Listen first, then copy me."); add("Wait for it. Your turn. Tap ready at the keys.")
+        add("Your turn!"); add("Your turn."); add(LISTEN_FIRST); add("Wait for it. Your turn. Tap ready at the keys.")
         add("Your turn. Tap ready at the keys.")
         // A pattern starts at PupSaysGame.START notes, so there is never a "1 notes" to record.
         for (n in PupSaysGame.START..20) {

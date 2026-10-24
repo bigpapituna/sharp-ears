@@ -87,8 +87,23 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
     var pending by mutableStateOf<(() -> Unit)?>(null)
         private set
     private var passedAt = 0L                          // in memory when there is no store (previews)
+    /** Wrong answers in a row and the wait they started (QA 2.8.3), kept in [Profiles] so a recreate does not end a wait. */
+    var lockout by mutableStateOf(ParentGateRules.Lockout.decode(profiles?.gateLockout))
+        private set
 
     val isOpen: Boolean get() = ParentGateRules.isOpen(profiles?.gatePassedAt ?: passedAt, clock())
+
+    /** The gate's clock (the sum pad counts a wait down on it). */
+    fun now(): Long = clock()
+
+    /** A wrong sum: the third in a row makes the gate wait (30 s, then 60 s, 120 s, doubling, at most ten minutes). */
+    fun wrong() {
+        val before = lockout
+        lockout = before.wrongAt(clock())
+        profiles?.gateLockout = lockout.encode()
+        if (lockout.waits > before.waits) Log.d(TAG, "gate: ${ParentGateRules.TRIES} wrong answers, waits ${lockout.secondsLeft(clock())} s")
+        else Log.d(TAG, "gate: wrong answer, new sum")
+    }
 
     /** Runs [action] now when the gate is open, otherwise after the gate is passed (and not at all when it is left). */
     fun guard(action: () -> Unit) {
@@ -104,6 +119,7 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
     fun passed() {
         val now = clock()
         if (profiles != null) profiles.gatePassedAt = now else passedAt = now
+        if (lockout != ParentGateRules.Lockout()) { lockout = ParentGateRules.Lockout(); profiles?.gateLockout = null }
         Log.d(TAG, "gate: passed, open for ${ParentGateRules.OPEN_MS / 60_000} min")
         val a = pending
         pending = null
@@ -139,10 +155,11 @@ fun Gated(onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.cur
 
 /**
  * "Grown-ups only": hold the pup for three seconds while a ring fills, then answer a sum of two numbers from 2 to 9 on
- * a number pad. A wrong answer brings a new sum. [onPass] after the right answer; [onCancel] on Back or "Not now".
+ * a number pad. A wrong answer brings a new sum; the third in a row makes [gate] wait ("Try again in 30 seconds.", the
+ * pad off meanwhile). [onPass] after the right answer; [onCancel] on Back or "Not now".
  */
 @Composable
-fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit) {
+fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.current) {
     BackHandler(onBack = onCancel)
     var held by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()),
@@ -153,7 +170,7 @@ fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit) {
         Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Grown-ups only", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            if (!held) HoldThePup { held = true } else SumPad(onPass)
+            if (!held) HoldThePup { held = true } else SumPad(onPass, gate)
         }
     }
 }
@@ -196,9 +213,12 @@ internal fun HoldThePup(onHeld: () -> Unit) {
     Text("Kids, ask a grown-up to help.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
 }
 
-/** Step two: "What is 7 plus 5?" typed on a number pad. A wrong answer gives a new sum and a little shake. */
+/**
+ * Step two: "What is 7 plus 5?" typed on a number pad. A wrong answer gives a new sum and a little shake; while [gate]
+ * waits after three in a row, the pup says how long ("Try again in 30 seconds.", counting down) and the pad is off.
+ */
 @Composable
-private fun SumPad(onPass: () -> Unit) {
+private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
     val still = reducedMotion()
     val scope = rememberCoroutineScope()
     var sum by remember { mutableStateOf(ParentGateRules.nextSum()) }
@@ -206,16 +226,30 @@ private fun SumPad(onPass: () -> Unit) {
     var missed by remember { mutableStateOf(false) }
     val shake = remember { Animatable(0f) }
     val c = MaterialTheme.colorScheme
+    // The wait's countdown: the clock read once a second while it runs; when it ends, a fresh sum.
+    var now by remember { androidx.compose.runtime.mutableLongStateOf(gate.now()) }
+    val lock = gate.lockout
+    LaunchedEffect(lock) {
+        now = gate.now()
+        // The seconds shown change when the time left passes a whole second: sleep until then.
+        while (lock.locked(now)) { kotlinx.coroutines.delay(((lock.until - now) % 1000).let { if (it == 0L) 1000L else it }); now = gate.now() }
+        if (lock.until > 0) { missed = false; typed = "" }
+    }
+    val waiting = lock.locked(now)
     fun check() {
+        if (waiting) return
         if (sum.isRight(typed)) { onPass(); return }
-        Log.d(TAG, "gate: wrong answer, new sum")
+        gate.wrong()
         missed = true; typed = ""; sum = ParentGateRules.nextSum(previous = sum)
         if (!still) scope.launch { shake.snapTo(1f); shake.animateTo(0f, spring(dampingRatio = 0.25f, stiffness = 900f)) }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Image(painterResource(R.drawable.pup_thinking), contentDescription = null, modifier = Modifier.size(88.dp))
-        SpeechBubble(if (missed) "Not quite. Try this one: what is ${sum.spoken}?" else "What is ${sum.spoken}?",
-            Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        SpeechBubble(when {
+            waiting -> ParentGateRules.waitLine(lock.secondsLeft(now))
+            missed -> "Not quite. Try this one: what is ${sum.spoken}?"
+            else -> "What is ${sum.spoken}?"
+        }, Modifier.semantics { liveRegion = LiveRegionMode.Polite })
     }
     Box(Modifier.graphicsLayer { translationX = shake.value * 18.dp.toPx() }.widthIn(min = 140.dp).height(72.dp)
         .border(2.dp, if (typed.isEmpty()) c.outlineVariant else c.primary, RoundedCornerShape(20.dp)).padding(horizontal = 24.dp)
@@ -232,7 +266,8 @@ private fun SumPad(onPass: () -> Unit) {
                     val main = k == '='
                     Box(Modifier.size(76.dp).clip(CircleShape)
                         .background(if (main) (if (typed.isEmpty()) c.surfaceContainerHighest else c.primary) else c.surfaceContainerHigh)
-                        .clickable(enabled = !main || typed.isNotEmpty(), role = Role.Button, onClickLabel = label) {
+                        .graphicsLayer { alpha = if (waiting) 0.4f else 1f }
+                        .clickable(enabled = !waiting && (!main || typed.isNotEmpty()), role = Role.Button, onClickLabel = label) {
                             if (main) check() else typed = ParentGateRules.type(typed, k)
                         }.semantics { contentDescription = label },
                         contentAlignment = Alignment.Center) {

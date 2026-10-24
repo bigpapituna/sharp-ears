@@ -198,8 +198,8 @@ internal class StageRun(val rounds: StageRounds) {
     val letGo: List<Int> get() = rounds.letGo
     val finished get() = ended || (count > 0 && done >= count)
 
-    fun found(key: Int, nowMs: Long): InputResult {
-        val r = rounds.found(key, nowMs)
+    fun found(key: Int, nowMs: Long, early: Boolean = false): InputResult {
+        val r = rounds.found(key, nowMs, early)
         last = Struck(key, r, (last?.seq ?: 0) + 1)
         version++
         Log.d(TAG, "playground: ${noteName(key)} -> $r (${rounds.done}/${rounds.rounds})")
@@ -339,6 +339,12 @@ internal class StageState(val run: StageRun, val fx: StageFx) {
     /** Which of [demoKeys] the demo is playing now (a phrase's notes sound one after another), or null. */
     var demoIndex by mutableStateOf<Int?>(null)
         internal set
+    /**
+     * How many of the round's demo keys have sounded (kept after the demo ends, until the next round's): a key touched
+     * during the demo counts once the demo has played it (StageRounds.earlyTouchMayCount, QA 2.8.3).
+     */
+    var demoShown = 0
+        internal set
     var nudgeUntil by mutableLongStateOf(0L)
         internal set
     var listening by mutableStateOf(false)
@@ -394,6 +400,10 @@ internal fun rememberStage(
     val fx = remember { StageFx() }
     val mic = deps.mic
     val voice = deps.voice
+    // A C found on a stage counts toward a kid's quest, "Find all the Cs" (QA 2.8.3: only the Jam's did).
+    val context = LocalContext.current
+    val player = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+    val questStore = remember(player.id) { if (player.isKid) com.bigpapituna.sharpears.data.PlayStore(context.applicationContext, player.id) else null }
     val clips = remember { StageClipWatch() }
     val clipMark = remember { longArrayOf(0) }
     val holder = remember { arrayOfNulls<StageState>(1) }
@@ -405,13 +415,17 @@ internal fun rememberStage(
     val letGoNow by rememberUpdatedState(onLetGo)
     val promptNow by rememberUpdatedState(prompt)
     val lastPrompt = remember { arrayOfNulls<String>(1) }
+    // Each demo's coroutine writes the shown keys only while it is still the latest one.
+    val demoGen = remember { intArrayOf(0) }
     fun handle(cue: RoundCoach.Cue) {
         val st = holder[0] ?: return
         when (cue) {
             is RoundCoach.Cue.Demo -> {
                 val ks = demoNow(st.run)
                 val vel = velocityNow(st.run)
-                if (!cue.again) { clips.reset(now(), keysNow(st.run).map(::noteName)); clipMark[0] = mic.clipMark() }
+                val gen = ++demoGen[0]
+                // A new round starts with nothing shown; a round shown again keeps what the kid has already seen.
+                if (!cue.again) { clips.reset(now(), keysNow(st.run).map(::noteName)); clipMark[0] = mic.clipMark(); st.demoShown = 0 }
                 val said = if (cue.again) null else promptNow(st.run)?.takeIf { it != lastPrompt[0] }
                 if (!cue.again) lastPrompt[0] = promptNow(st.run)
                 scope.launch {
@@ -432,12 +446,12 @@ internal fun rememberStage(
                     for ((i, k) in ks.withIndex()) {
                         if (phrases) ks.forEach { deps.sampler.noteOff(it) }
                         if (deps.prefs.sound) deps.sampler.noteOn(k, vel); fx.ripple(k, PupGold, fill = true)
-                        st.demoIndex = i
+                        if (demoGen[0] == gen) { st.demoIndex = i; st.demoShown = maxOf(st.demoShown, i + 1) }
                         delay(demoGapMs)
                     }
                     delay(650)
                     ks.forEach { deps.sampler.noteOff(it) }
-                    st.demoKeys = emptyList(); st.demoIndex = null
+                    if (demoGen[0] == gen) { st.demoKeys = emptyList(); st.demoIndex = null }
                 }
             }
             is RoundCoach.Cue.Listen -> if (cue.first) sayOver(PlaygroundLines.YOUR_TURN)
@@ -453,13 +467,25 @@ internal fun rememberStage(
     val st = remember(run) { StageState(run, fx).also { holder[0] = it } }
     st.onCall = ::sayOver
 
-    fun answer(s: StageSound) {
-        if (!s.final || run.phase != RoundCoach.Phase.LISTEN) return
-        when (val a = judge(s, run)) {
+    /** A decided sound; [touch]: a key touched on screen (certain), which may count while the demo still plays. */
+    fun answer(s: StageSound, touch: Boolean = false) {
+        if (!s.final) return
+        // QA 2.8.3: a touch during the demo counts once the demo has played the key the round waits for. Anything else in a
+        // demo (the mic, a key not shown yet, a key that is not it) waits as before: no try, so it can never let a round go.
+        val early = touch && run.rounds.earlyTouchMayCount(st.demoShown)
+        if (run.phase != RoundCoach.Phase.LISTEN && !early) return
+        val judged = judge(s, run)
+        if (early) {
+            if (!run.rounds.takesEarly(judged, st.demoShown)) return
+            Log.d(TAG, "playground: ${s.midi?.let(::noteName)} touched during the demo, counted")
+        }
+        when (val a = judged) {
             is Answer.Found -> {
                 fx.found(a.key)
+                if (a.key in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS)
+                    questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(a.key), kid = true)
                 onFound(a.key)              // before the round moves on: the stage still knows which round it was
-                run.found(a.key, now())
+                run.found(a.key, now(), early)
                 clips.reset(now()); clipMark[0] = mic.clipMark()
                 // The pop for a round found (a phrase's notes in between go by quietly: the next may come at once).
                 if (!phrases || run.rounds.doneInRound == 0) { mic.deafFor(250); WorldSounds.stagePop() }
@@ -484,7 +510,7 @@ internal fun rememberStage(
         fx.heard(s)
         if (!s.final && (s.by == HeardBy.ONSET || s.by == HeardBy.PITCH)) st.say(PlaygroundLines.I_HEARD_YOU, ms = 1000)
     }
-    st.onFeed = { s -> heard(s); answer(s) }
+    st.onFeed = { s -> heard(s); answer(s, touch = true) }
     val heardKeys = keys(run)
     st.listening = rememberStageEar(mic, voice, run.started && !run.ended, inject, heardKeys, groups?.invoke(heardKeys), chords) { s ->
         heard(s)

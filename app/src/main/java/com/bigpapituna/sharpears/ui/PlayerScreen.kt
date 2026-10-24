@@ -239,6 +239,7 @@ private fun PlayerStage(args: PlayerArgs) {
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
     val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
     val kid = profile.isKid
+    val questStore = androidx.compose.ui.platform.LocalContext.current.let { c -> remember(profile.id) { if (kid) com.bigpapituna.sharpears.data.PlayStore(c.applicationContext, profile.id) else null } }
     // Kids get big keys: just the octave the notes need, about twice as wide (REGULAR is exactly fitRange).
     val keySize = KeyboardSize.forKid(kid)
     // A kid playing one hand (the concert's band plays the other) sees only that hand's keys; the rest play themselves.
@@ -510,6 +511,8 @@ private fun PlayerStage(args: PlayerArgs) {
                 waitMiss()
             }
             InputResult.CORRECT, InputResult.GROUP_DONE -> {
+                // A C played right counts toward a kid's quest, "Find all the Cs" (QA 2.8.3: Where C lives' every C did not).
+                if (kid && midi in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS) questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(midi), kid = true)
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
@@ -1049,13 +1052,21 @@ private fun PlayerStage(args: PlayerArgs) {
             // The end of a run is a moment of its own: the whole screen, the pup, the numbers counting up, the XP.
             Dialog(onDismissRequest = { recap = null; onRecapClosed() },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-                RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
-                    onClose = { recap = null; onRecapClosed() },
-                    onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
-                    songTitle = meta?.title ?: song.title, run = lastRun,
-                    // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
-                    nextDrop = remember(r) { if (r.reward != null) world?.previewSong() else null },
-                    say = { line -> voice.speak(line, interrupt = true) })
+                Box(Modifier.fillMaxSize()) {
+                    RunRecap(r, speed, sampler.takeIf { prefs.sound }, onAgain = { voice.stop(); recap = null; seek(0.0); play() }, onLoop = ::loopBar,
+                        onClose = { recap = null; onRecapClosed() },
+                        onReplay = { recap = null; replay = lastRun; Log.d(TAG, "hear my run: ${lastRun?.notes?.size} notes") },
+                        songTitle = meta?.title ?: song.title, run = lastRun,
+                        // "One more": the same song again, with a peek at what it will drop. Read after the reward above.
+                        nextDrop = remember(r) { if (r.reward != null) world?.previewSong() else null },
+                        say = { line -> voice.speak(line, interrupt = true) })
+                    // A kid's "Send to someone" asks the parent gate: drawn in this window, over the recap (QA 2.8.3: the
+                    // activity's own gate opened under the dialog and nothing seemed to happen). A gate still asked when the
+                    // recap goes is left with it, so it never turns up on the player afterwards.
+                    val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
+                    com.bigpapituna.sharpears.ui.family.ParentGateHost(gate)
+                    DisposableEffect(gate) { onDispose { if (gate.pending != null) gate.cancel() } }
+                }
             }
         }
         if (pickingDuet) Dialog(onDismissRequest = { pickingDuet = false },

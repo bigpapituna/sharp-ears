@@ -80,7 +80,8 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 /**
  * "Who's playing today?": shown on launch when the phone has two or more profiles. A pup avatar per person with the name
  * under it, and "Add someone" while there is room. [onPick] gets the id; [onAdd] a new profile from [NewProfileFlow]
- * (not stored yet: the caller creates it, kids go straight in, grown-ups to the onboarding).
+ * (not stored yet: the caller creates it, kids go straight in, grown-ups to the onboarding). Once the family has a kid, a
+ * grown-up's tile and Add someone ask the parent gate first (QA 2.8.3, ParentGateRules.pickerAsks); a kid's own never does.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -91,6 +92,9 @@ fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> 
                   onCheck: ((Boolean) -> Unit)? = null) {
     var adding by rememberSaveable { mutableStateOf(false) }
     if (adding) { NewProfileFlow(onDone = onAdd, onCancel = { adding = false }, onWeekly = onWeekly, onCheck = onCheck); return }
+    val gate = LocalParentGate.current
+    /** [action] for [picked] (null: Add someone), behind the gate when a kid could be the one tapping. */
+    fun asked(picked: Profile?, action: () -> Unit) = if (com.bigpapituna.sharpears.engine.family.ParentGateRules.pickerAsks(roster.profiles, picked)) gate.guard(action) else action()
     // Centred on the screen, scrolling when eight people do not fit.
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing)) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
@@ -101,9 +105,9 @@ fun ProfilePicker(roster: Roster, onPick: (String) -> Unit, onAdd: (Profile) -> 
             FlowRow(Modifier.fillMaxWidth().testerMask(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 roster.profiles.forEach { p ->
-                    Tile(p.name, onClick = { onPick(p.id) }, label = "${p.name}, ${avatarLabel(p.avatar)}") { PupAvatar(p.avatar, size = 104.dp) }
+                    Tile(p.name, onClick = { asked(p) { onPick(p.id) } }, label = "${p.name}, ${avatarLabel(p.avatar)}") { PupAvatar(p.avatar, size = 104.dp) }
                 }
-                if (!roster.isFull) Tile("Add someone", onClick = { adding = true }, label = "Add someone") { AddCircle(104.dp) }
+                if (!roster.isFull) Tile("Add someone", onClick = { asked(null) { adding = true } }, label = "Add someone") { AddCircle(104.dp) }
             }
         }
     }

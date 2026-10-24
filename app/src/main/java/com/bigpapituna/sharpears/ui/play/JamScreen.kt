@@ -223,7 +223,8 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
         said?.let(::show)
         Log.d(TAG, "jam: ${noteName(m)} ($src${if (confirmed) "" else ", not confirmed"}) at $at caption \"${said?.text}\"")
         if (m % 12 == 0) {
-            val stars: List<QuestTask> = store.recordQuest(QuestEvent.NotePlayed(m), kid)
+            // Touched, the Cs on these keys are all there are to find (C4 and C5); the mic and MIDI have every C.
+            val stars: List<QuestTask> = store.recordQuest(QuestEvent.NotePlayed(m, touchKeys = if (src == "touch") LOW..HIGH else null), kid)
             if (stars.isNotEmpty()) line = if (kid) "You found all the Cs! A quest star!" else "All the Cs: a quest star."
         }
     }

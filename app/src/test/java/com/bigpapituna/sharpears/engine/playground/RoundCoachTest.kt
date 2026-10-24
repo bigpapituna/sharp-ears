@@ -67,6 +67,60 @@ class RoundCoachTest {
         assertEquals("a let go is no slip", 0, r.report().wrongKeys)
     }
 
+    /**
+     * QA 2.8.3: a key touched while the pup still showed the round was dropped, and the quiet stretches after it let the round
+     * go (Leo's "Let's hear you play" put him in the garden). A touched answer counts once the demo has played its key; any
+     * other touch in a demo is no try, so an early touch can only ever help.
+     */
+    @Test fun aTouchDuringTheDemoCountsOnceTheDemoHasPlayedTheKey() {
+        val ex = PLAYGROUND.lessons[1].steps.first { it.game == Game.KEY_HUNT }.exercise!!
+        val r = StageRounds(ex.toSong("t", "t"), ex.practice, gapMs = 1_000)
+        var now = 0L
+        r.start(now)
+        fun run(ms: Long) { val end = now + ms; while (now < end) { now += 20; r.tick(20.0, now) } }
+        run(100)
+        assertEquals(RoundCoach.Phase.DEMO, r.coach.phase)
+        val key = r.demoKeys().first()
+        assertFalse("nothing shown yet", r.takesEarly(Answer.Found(key), shown = 0))
+        assertEquals(InputResult.IGNORED, r.found(key, now))
+        // Wrong keys while it shows, as many as a kid likes: no try, never a let go.
+        repeat(10) { assertFalse(r.takesEarly(Answer.Miss(MissWhy.WHITE_KEY, 62), shown = 1)) }
+        assertEquals(0, r.coach.tries)
+        assertTrue(r.takesEarly(Answer.Found(key), shown = 1))
+        assertEquals(InputResult.GROUP_DONE, r.found(key, now, early = true))
+        assertEquals(1, r.done)
+        assertEquals(RoundCoach.Phase.DONE, r.coach.phase)
+        assertTrue(r.letGo.isEmpty())
+        // Listening, the rule has nothing to do; the round's own tries apply.
+        run(1_000 + r.coach.demoMs + 40)
+        assertEquals(RoundCoach.Phase.LISTEN, r.coach.phase)
+        assertFalse(r.earlyTouchMayCount(shown = 5))
+    }
+
+    @Test fun inAPhraseATouchedNoteWaitsForTheDemoToPlayIt() {
+        val ex = com.bigpapituna.sharpears.engine.Exercise(right = "C4:1 D4:1 E4:1", bpm = 80.0, practice = com.bigpapituna.sharpears.engine.Practice.RIGHT)
+        val r = StageRounds(ex.toSong("t", "t"), ex.practice, phrases = true, gapMs = 1_000)
+        var now = 0L
+        r.start(now)
+        val cues = mutableListOf<RoundCoach.Cue>()
+        fun run(ms: Long) { val end = now + ms; while (now < end) { now += 20; r.tick(20.0, now).second?.let { cues += it } } }
+        run(40)
+        assertEquals(listOf(60, 62, 64), r.demoKeys())
+        assertTrue(r.takesEarly(Answer.Found(60), shown = 1))
+        r.found(60, now, early = true)
+        assertEquals("the phrase goes on, the demo too", RoundCoach.Phase.DEMO, r.coach.phase)
+        assertFalse("D is not shown yet", r.takesEarly(Answer.Found(62), shown = 1))
+        assertTrue(r.takesEarly(Answer.Found(62), shown = 2))
+        r.found(62, now, early = true)
+        // The demo ends: listening starts from E, and "Your turn!" comes as always.
+        run(r.coach.firstDemoMs)
+        assertTrue(cues.any { it is RoundCoach.Cue.Listen })
+        assertEquals(64, r.expectedKey())
+        assertEquals(InputResult.GROUP_DONE, r.found(64, now))
+        assertEquals(1, r.done)
+        assertTrue(r.letGo.isEmpty())
+    }
+
     @Test fun aStepIsLetGoOnlyInThePlaygroundAfterThreeTries() {
         assertFalse(StepRetry.letGo("playground-7", 2))
         assertTrue(StepRetry.letGo("playground-7", 3))
