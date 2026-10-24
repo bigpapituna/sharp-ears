@@ -121,9 +121,11 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     if (extras) com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 16.dp), guard = { gate.guard(it) })
 
     renaming?.let { p ->
-        var name by remember(p.id) { mutableStateOf(p.name) }
+        // The caret starts after the old name (QA D8: typing went in front of it, "MilaMia").
+        var field by remember(p.id) { mutableStateOf(com.bigpapituna.sharpears.ui.caretAtEnd(p.name)) }
+        val name = field.text
         AlertDialog(onDismissRequest = { renaming = null }, title = { Text("Rename ${p.name}") },
-            text = { OutlinedTextField(name, { name = it.take(Profile.MAX_NAME) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            text = { OutlinedTextField(field, { field = it.copy(text = it.text.take(Profile.MAX_NAME)) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = { TextButton(enabled = Profile.cleanName(name).isNotEmpty(), onClick = { profiles.rename(p.id, name); renaming = null }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } })
     }

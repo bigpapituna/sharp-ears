@@ -845,6 +845,18 @@ class MainActivity : ComponentActivity() {
                     // "Practice today" just finished: parts done, minutes, days in a row, for the celebration.
                     var dailyDone by remember { mutableStateOf<Triple<Int, Long, Int>?>(null) }
                     val scope = rememberCoroutineScope()
+                    // Settings keeps its place and "Show all settings" while one of its own pages is open (Privacy, Licences,
+                    // Mic setup) and starts at the top when it is opened again (2.8.4, QA D14: the screen is disposed on the
+                    // way to Privacy, and its scroll went with it).
+                    val settingsScroll = androidx.compose.runtime.saveable.rememberSaveable(saver = androidx.compose.foundation.ScrollState.Saver) {
+                        androidx.compose.foundation.ScrollState(0)
+                    }
+                    val settingsShowAll = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+                    fun openSettings(back: Screen) {
+                        scope.launch { settingsScroll.scrollTo(0) }
+                        settingsShowAll.value = false
+                        screen = Screen.Settings(back)
+                    }
                     val songs = remember(libraryVersion) { repo.all() }
 
                     // Each library song yields a "Chords of <song>" lesson pack (DESIGN 4.3), labeled off the main thread.
@@ -1242,7 +1254,8 @@ class MainActivity : ComponentActivity() {
                                 onPrivacy = { screen = Screen.Privacy(s) }, onLicences = { screen = Screen.Licences(s) },
                                 onBack = { screen = s.back },
                                 onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
-                                family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic)
+                                family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic,
+                                scroll = settingsScroll, showAllState = settingsShowAll)
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -1394,7 +1407,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onEgg = { voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.EGG, interrupt = true) },
                                 grownUps = if (!corner) null else com.bigpapituna.sharpears.ui.kid.GrownUpCorner(roster.profiles, current.id,
-                                    onSettings = { corner = false; screen = Screen.Settings(home) },
+                                    onSettings = { corner = false; openSettings(home) },
                                     onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
                                     onSwitch = { id -> corner = false; profiles.switchTo(id) },
                                     onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") },
@@ -1579,7 +1592,7 @@ class MainActivity : ComponentActivity() {
                                             when (t) { PracticeTab.METRONOME -> "metronome"; PracticeTab.TUNER -> "tuner"; else -> null }
                                                 ?.let { progress.record(ProgressEvent.FeatureUsed(it)) }
                                         })
-                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { screen = Screen.Settings(s) } },
+                                    HomeTab.YOU -> ProfileScreen(progress, prefs, songs, onSettings = { gate.guardForKids { openSettings(s) } },
                                         kid = current.isKid,
                                         // The pup's world in one card: the garden, and a way into the album, dress-up and the records.
                                         world = { com.bigpapituna.sharpears.ui.world.WorldCard(world, onOpen = { tab -> screen = Screen.World(s, tab) }) },

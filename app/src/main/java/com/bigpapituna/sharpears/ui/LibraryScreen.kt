@@ -266,9 +266,11 @@ private fun SongMenu(m: SongMeta, a: LibraryActions, open: Boolean, onOpen: (Boo
         }
     }
     if (renaming) {
-        var title by remember { mutableStateOf(m.title) }
+        // The caret starts after the old title, so typing adds to it (QA D8: it started before it, "Elise for meFur Elise").
+        var field by remember { mutableStateOf(caretAtEnd(m.title)) }
+        val title = field.text
         AlertDialog(onDismissRequest = { renaming = false }, title = { Text("Rename ${m.title}") },
-            text = { OutlinedTextField(title, { title = it.take(MySongs.TITLE_MAX) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            text = { OutlinedTextField(field, { field = it.copy(text = it.text.take(MySongs.TITLE_MAX)) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = { TextButton(enabled = title.isNotBlank(), onClick = { a.onRename(m, title.trim()); renaming = false }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } })
     }

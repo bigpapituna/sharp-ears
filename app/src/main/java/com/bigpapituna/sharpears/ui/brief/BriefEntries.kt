@@ -52,6 +52,7 @@ import com.bigpapituna.sharpears.ui.family.PupAvatar
 fun ParentBriefDialog(
     env: BriefEnv, children: List<Profile>, onClose: () -> Unit, initial: String? = null, period: Period = Period.WEEK,
 ) {
+    OneBriefAtATime(onClose)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -65,11 +66,38 @@ fun ParentBriefDialog(
 /** "My week" for a grown-up: the same screens for the current person, no gate, no avatar tabs. */
 @Composable
 fun MyWeekDialog(env: BriefEnv, me: Profile, onClose: () -> Unit, period: Period = Period.WEEK) {
+    OneBriefAtATime(onClose)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             ParentBriefScreen(env, listOf(me), onBack = onClose, initialPeriod = period, showChildren = false, title = "My week")
             ParentGateHost()
+        }
+    }
+}
+
+/** The brief on screen: the newest open one owns it. */
+internal object BriefSlot {
+    val owner = mutableStateOf<Any?>(null)
+}
+
+/**
+ * One brief on screen at a time (2.8.4, QA D13): the weekly notification opened a second brief over one already open, and
+ * Back then landed on the first. The newest brief takes the slot and an older one closes itself, so one Back leaves.
+ */
+@Composable
+internal fun OneBriefAtATime(onClose: () -> Unit) {
+    val me = remember { Any() }
+    androidx.compose.runtime.DisposableEffect(me) {
+        BriefSlot.owner.value = me
+        onDispose { if (BriefSlot.owner.value === me) BriefSlot.owner.value = null }
+    }
+    val owner = BriefSlot.owner.value
+    val close = androidx.compose.runtime.rememberUpdatedState(onClose)
+    androidx.compose.runtime.LaunchedEffect(owner) {
+        if (owner != null && owner !== me) {
+            android.util.Log.d(com.bigpapituna.sharpears.TAG, "brief: a newer brief opened over this one; closing it")
+            close.value()
         }
     }
 }

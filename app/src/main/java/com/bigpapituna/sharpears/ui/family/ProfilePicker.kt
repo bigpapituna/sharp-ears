@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -176,6 +178,14 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
     }
     val clean = Profile.cleanName(name)
     val ready = clean.isNotEmpty() && kind != null && (kind == ProfileKind.ADULT || reader != null)
+    // The keyboard covered "Who is this for?" under the name (2.8.4, QA D12), and Go stayed off with no reason in sight:
+    // once a name is typed with the keyboard up, the question and its two answers scroll into view above it.
+    val askKind = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val imeOpen = WindowInsets.isImeVisible
+    val named = clean.isNotEmpty()
+    androidx.compose.runtime.LaunchedEffect(named, imeOpen, kind == null) {
+        if (named && imeOpen && kind == null) { kotlinx.coroutines.delay(300); runCatching { askKind.bringIntoView() } }
+    }
     val line = when {
         clean.isEmpty() -> "Hi! What's your name?"
         kind == null -> "Hi, $clean! Who is this for?"
@@ -209,10 +219,12 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                     }
                 }
             }
-            Question("Who is this for?")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigPill("A kid", kind == ProfileKind.KID, Modifier.weight(1f)) { kind = ProfileKind.KID }
-                BigPill("A grown-up", kind == ProfileKind.ADULT, Modifier.weight(1f)) { kind = ProfileKind.ADULT; reader = null }
+            Column(Modifier.bringIntoViewRequester(askKind), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Question("Who is this for?")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BigPill("A kid", kind == ProfileKind.KID, Modifier.weight(1f)) { kind = ProfileKind.KID }
+                    BigPill("A grown-up", kind == ProfileKind.ADULT, Modifier.weight(1f)) { kind = ProfileKind.ADULT; reader = null }
+                }
             }
             AnimatedVisibility(kind == ProfileKind.KID, enter = if (still) fadeIn() else fadeIn() + expandVertically(),
                 exit = if (still) fadeOut() else fadeOut() + shrinkVertically()) {

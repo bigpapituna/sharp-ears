@@ -28,16 +28,21 @@ class MySongDraft(val bytes: ByteArray, val scan: MySongs.Scan)
  * The title dialog after "Add a song from a file": the title the file suggested (editable), how much of the tune was kept,
  * and, when the file has a left hand, Melody only (the default) or Both hands. Add saves it; Cancel keeps nothing.
  */
+/** A text field's value holding [text] with the caret after its last character: a rename starts where typing adds to it. */
+fun caretAtEnd(text: String) = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+
 @Composable
 fun MySongDialog(draft: MySongDraft, onAdd: (title: String, bothHands: Boolean) -> Unit, onCancel: () -> Unit) {
-    var title by remember(draft) { mutableStateOf(draft.scan.title) }
+    // The file's title, the caret after it (QA D8): typing adds to the title rather than in front of it.
+    var field by remember(draft) { mutableStateOf(caretAtEnd(draft.scan.title)) }
+    val title = field.text
     var both by remember(draft) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(Words.DIALOG_TITLE) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(title, { title = it.take(MySongs.TITLE_MAX) }, label = { Text(Words.TITLE_LABEL) }, singleLine = true,
+                OutlinedTextField(field, { field = it.copy(text = it.text.take(MySongs.TITLE_MAX)) }, label = { Text(Words.TITLE_LABEL) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth())
                 Text("${Words.EASY_LINE} ${Words.notes(draft.scan.melodyNotes)}", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

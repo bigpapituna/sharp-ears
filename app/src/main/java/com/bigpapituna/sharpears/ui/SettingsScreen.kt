@@ -66,7 +66,13 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** The Family section (ui/family/FamilySettings.kt), first on the screen; null hides it. */
                    family: (@Composable () -> Unit)? = null,
                    /** The daily reminder is the phone owner's (one alarm per phone); other profiles do not see it. */
-                   showReminder: Boolean = true) {
+                   showReminder: Boolean = true,
+                   /**
+                    * The page's scroll and its "Show all settings", kept by the caller so they outlive a visit to Privacy,
+                    * Licences or Mic setup (2.8.4, QA D14: the screen is left there and came back at the top).
+                    */
+                   scroll: androidx.compose.foundation.ScrollState = rememberScrollState(),
+                   showAllState: androidx.compose.runtime.MutableState<Boolean>? = null) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30): its 12 or 24-hour setting, as the picker uses.
     val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
@@ -107,9 +113,10 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     // The layouts (2.8, engine/nav/Simple.kt): Simple shows the essentials, Advanced adds keys, falling notes, wrong keys and
     // briefs, Full everything; the rest waits behind "Show all settings".
     val layout = LocalLayout.current
-    var showAll by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val ownShowAll = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showAll by (showAllState ?: ownShowAll)
     fun shows(part: Simple.SettingsPart) = Simple.settingsShows(part, Simple.shown(layout.layout, showAll))
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxWidth().verticalScroll(scroll), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 onBack?.let { IconButton(onClick = it) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") } }

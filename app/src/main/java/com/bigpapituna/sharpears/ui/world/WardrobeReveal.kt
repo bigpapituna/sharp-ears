@@ -71,17 +71,19 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
     val flip = remember(items) { Animatable(if (still) 1f else 0f) }
     val enter = remember(items) { Animatable(if (still) 1f else 0f) }
     // On a finish screen the reveal comes last, often under the fold of a scrolling column: it scrolls itself into view so
-    // a child who cannot read sees "Keep it on?" and its buttons without having to find them (2.5.0).
+    // a child who cannot read sees "Keep it on?" and its buttons without having to find them (2.5.0). A grown-up's recap
+    // stays at its top, on the stars, accuracy and XP (2.8.4, QA D11: the reveal scrolled them away); the reveal waits below.
     val inView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scrollsItself = com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid
     LaunchedEffect(items) {
         world?.let { w -> if (answered == null) w.dress(items.fold(w.state.outfit) { o, i -> o.with(i) }) }
         if (!still) {
-            launch { delay(120); runCatching { inView.bringIntoView() } }
+            if (scrollsItself) launch { delay(120); runCatching { inView.bringIntoView() } }
             enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 260f))
             delay(200)
             launch { flip.animateTo(1f, tween(520, easing = FastOutSlowInEasing)) }
             delay(260)
-        } else runCatching { inView.bringIntoView() }
+        } else if (scrollsItself) runCatching { inView.bringIntoView() }
         sounds.jingle(rarity)
         pup.react(if (rarity.special) PupReaction.SURPRISED else PupReaction.DANCE)
         say?.invoke(Wardrobe.revealLine(items))

@@ -195,9 +195,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 }
             }
             // The sticker this run dropped, flipping in once the stars have landed (and the medal, when it went up). On a
-            // phone held sideways it lands below the numbers' space: once they have counted, the column glides to it.
+            // phone held sideways it lands below the numbers' space: once they have counted, a kid's column glides to it. A
+            // grown-up's stays on the stars, accuracy and XP (2.8.4, QA D11), the drop under them.
             val dropInView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-            if (short && e.reward != null) LaunchedEffect(e) { delay(if (still) 300L else 2900L); dropInView.bringIntoView() }
+            if (short && kid && e.reward != null) LaunchedEffect(e) { delay(if (still) 300L else 2900L); dropInView.bringIntoView() }
             val drop: @Composable ColumnScope.() -> Unit = {
                 e.reward?.let { rw ->
                     Column(Modifier.fillMaxWidth().bringIntoViewRequester(dropInView).slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
