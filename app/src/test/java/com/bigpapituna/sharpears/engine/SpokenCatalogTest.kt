@@ -47,6 +47,23 @@ class SpokenCatalogTest {
         for ((file, line) in spoken) assertTrue("$file says \"$line\", which is not recorded", SpokenCatalog.normalize(line) in all)
     }
 
+    /**
+     * QA 2.8.3: Pup says opened on "Listen, then copy me.", which no recording has (the catalog had "Listen first, then copy
+     * me."), so a pre-reader's first words came in the phone's voice after a four second wait. The screen and the game now
+     * say the one constant, which is recorded; a plain line handed to the screen's opening state is caught here too.
+     */
+    @Test fun pupSaysOpensOnARecordedLine() {
+        val all = SpokenCatalog.all().toSet()
+        assertTrue(com.bigpapituna.sharpears.engine.play.PlayLines.LISTEN_FIRST in all)
+        val dir = File("src/main/assets/voice")
+        assertTrue("recorded", File(dir, SpokenCatalog.key(com.bigpapituna.sharpears.engine.play.PlayLines.LISTEN_FIRST) + ".ogg").exists())
+        val screen = File("src/main/java/com/bigpapituna/sharpears/ui/play/PupSaysScreen.kt").readText()
+        val opening = Regex("""var line by remember \{ mutableStateOf\((.*)\) \}""").find(screen)!!.groupValues[1]
+        assertTrue(opening, "PlayLines.LISTEN_FIRST" in opening)
+        // Whatever plain sentence the opening state holds is recorded (a fragment after a name is made on the phone).
+        for (m in Regex("\"([A-Z][^\"$]*[.!?])\"").findAll(opening)) assertTrue(m.value, SpokenCatalog.normalize(m.groupValues[1]) in all)
+    }
+
     /** 2.1: the kid skin, the Playground's stages and the play corner are in, and nothing with a name is recorded. */
     /**
      * 2.2.1 QA: the voice reads words, not symbols. Theory quiz lines went to the voice as "V7 to I" and "the vii chord"

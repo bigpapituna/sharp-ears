@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.data
 
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileFiles
@@ -114,8 +115,18 @@ class Profiles(
         get() = p.getLong(KEY_GATE, 0L)
         set(v) = p.edit().putLong(KEY_GATE, v).apply()
 
+    /**
+     * The gate's wrong answers and its wait (ParentGateRules.Lockout, QA 2.8.3), in a file of its own ("gate"): never in a
+     * backup, and closing the app or folding the phone does not end a wait.
+     */
+    var gateLockout: String?
+        get() = app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).getString(KEY_LOCKOUT, null)
+        set(v) { app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).edit { putString(KEY_LOCKOUT, v) } }
+
     companion object {
         const val KEY_ROSTER = "roster"
         const val KEY_GATE = "gateAt"
+        const val GATE_FILE = "gate"
+        const val KEY_LOCKOUT = "lockout"
     }
 }

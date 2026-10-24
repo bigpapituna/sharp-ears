@@ -193,6 +193,22 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
         data object Ignored : Outcome
     }
 
+    /**
+     * Whether a key touched now, while the round's demo still plays, may count (QA 2.8.3): [shown] is how many of the demo's
+     * keys ([demoKeys]) have sounded so far. A kid who copies the pup at once was not heard (the demo is deaf), and the quiet
+     * stretches that followed let the round go: "Let's hear you play" put a kid who had played a bit in the garden. A touch
+     * is certain (no echo of the demo to fear), so it may count once the demo has played the key the round waits for (in a
+     * phrase, its next note). The mic stays deaf through a demo, as before.
+     */
+    fun earlyTouchMayCount(shown: Int): Boolean = coach.phase == RoundCoach.Phase.DEMO && current != null && shown > doneInRound
+
+    /**
+     * Whether [a], touched during the demo after [shown] of its keys sounded, counts: only the round's answer, once shown.
+     * The caller plays it in with `found(key, nowMs, early = true)`. Anything else is no try at all (the demo goes on and
+     * stays deaf), so an early touch can never bring a let go.
+     */
+    fun takesEarly(a: Answer, shown: Int): Boolean = a is Answer.Found && earlyTouchMayCount(shown)
+
     /** A judged sound ([Answer]) at [nowMs], applied to the round being played. */
     fun answer(a: Answer, nowMs: Long): Outcome = when {
         coach.phase != RoundCoach.Phase.LISTEN -> Outcome.Ignored
@@ -203,10 +219,12 @@ class StageRounds(val song: Song, practice: Practice, val coach: RoundCoach = Ro
 
     /**
      * The group's answer was heard: [key] goes to the transport (a key of the group, else its first). The round is done
-     * at its last group; a phrase's earlier notes are progress.
+     * at its last group; a phrase's earlier notes are progress. [early]: touched during the demo ([takesEarly]); the demo
+     * then goes on (deaf to anything else) and listening starts when it ends, from the note reached.
      */
-    fun found(key: Int, nowMs: Long): InputResult {
-        if (coach.phase != RoundCoach.Phase.LISTEN) return InputResult.IGNORED
+    fun found(key: Int, nowMs: Long, early: Boolean = false): InputResult {
+        val open = coach.phase == RoundCoach.Phase.LISTEN || (early && coach.phase == RoundCoach.Phase.DEMO)
+        if (!open) return InputResult.IGNORED
         if (atRoundEnd()) coach.found() else coach.progress(nowMs)
         return settle(nowMs, key)
     }

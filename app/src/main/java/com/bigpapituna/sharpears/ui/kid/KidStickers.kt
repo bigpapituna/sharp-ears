@@ -107,7 +107,8 @@ fun KidStickersScreen(world: WorldStore, songs: List<SongMeta>, onBack: () -> Un
                 }
             }
         }
-        if (onDecorate != null && tray.isNotEmpty()) StickerTray(tray, onDecorate)
+        // The tray belongs to the album (QA 2.8.3: it sat under Dress up, Records and My week too, taking their room).
+        if (onDecorate != null && tray.isNotEmpty() && pager.currentPage == StickerPage.ALBUM.ordinal) StickerTray(tray, onDecorate)
     }
 }
 

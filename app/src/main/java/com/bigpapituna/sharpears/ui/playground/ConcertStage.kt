@@ -101,7 +101,10 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
         TreeSkyConcertStage(plan.songs.single(), plan.place, step, lessonId, deps, inject, onEnded, modifier)
         return
     }
-    var chosen by remember { mutableStateOf<ConcertSong?>(if (plan.pick) null else plan.songs.first()) }
+    // A retry keeps the song picked the try before (QA 2.8.3: a silent kid picked it three times).
+    val memo = LocalStageMemo.current
+    val memoKey = "concert:$lessonId:${step.text}"
+    var chosen by remember { mutableStateOf(if (plan.pick) (memo?.get(memoKey) as? ConcertSong)?.takeIf { it in plan.songs } else plan.songs.first()) }
     var shown by remember { mutableStateOf(false) }                // the pup has played the song's start
     var bravo by remember { mutableStateOf<Report?>(null) }
     val ended by rememberUpdatedState(onEnded)
@@ -109,7 +112,7 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
     BoxWithConstraints(modifier.fillMaxSize()) {
         val roomH = maxHeight
         val song = chosen
-        if (song == null) SongPicker(plan, Modifier.fillMaxSize()) { chosen = it; Log.d(TAG, "playground: concert song ${it.title}") }
+        if (song == null) SongPicker(plan, Modifier.fillMaxSize()) { chosen = it; memo?.set(memoKey, it); Log.d(TAG, "playground: concert song ${it.title}") }
         else Column(Modifier.fillMaxSize()) {
             val open = remember(song) { Animatable(if (still) 1f else 0f) }
             LaunchedEffect(song) { if (!still) open.animateTo(1f, tween(1400, easing = FastOutSlowInEasing)) }

@@ -139,6 +139,7 @@ fun LessonScreen(
     var advancedByItself by remember { mutableStateOf(false) }
     var reaction by remember { mutableStateOf<Pose?>(null) }     // the pup's answer to the last try, for a few seconds
     var fails by remember { mutableIntStateOf(0) }               // tries of this step that did not pass
+    val stageMemo = remember(lesson.id) { mutableMapOf<String, Any>() }  // a stage's choices kept across its retries
     // Each graded step's stars as it passes (2.2): the lesson's stars are their mean (engine/kid/LessonStars).
     val stepStars = remember { androidx.compose.runtime.mutableStateListOf<Int>() }
     var lessonStars by remember { mutableIntStateOf(0) }
@@ -342,10 +343,12 @@ fun LessonScreen(
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
                     if (com.bigpapituna.sharpears.ui.playground.hasPlaygroundStage(step)) key(index, run) {
-                        com.bigpapituna.sharpears.ui.playground.PlaygroundStage(step, lesson.id, deps,
-                            inject = inject?.takeIf { index == startStep && run == 0 },
-                            onEnded = { exerciseEnded(step, it) },
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).fillMaxHeight())
+                        androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.playground.LocalStageMemo provides stageMemo) {
+                            com.bigpapituna.sharpears.ui.playground.PlaygroundStage(step, lesson.id, deps,
+                                inject = inject?.takeIf { index == startStep && run == 0 },
+                                onEnded = { exerciseEnded(step, it) },
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).fillMaxHeight())
+                        }
                     } else
                     // The stage is always dark, like the full player: the one raised panel on this screen.
                     SharpEarsTheme(dark = true) {
@@ -391,7 +394,11 @@ fun LessonScreen(
                     if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it }
                     (step.exercise == null || bar?.first == Cheer.GOOD).let { ok -> Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = ok, skipped = !ok)) }
                     go(index + 1); run++
-                }) { Text("Next") }
+                }) {
+                    Text("Next")
+                    // A pre-reader sees where it goes (QA 2.8.3: "Next" was words only).
+                    if (kid) { Spacer(Modifier.size(6.dp)); Icon(painterResource(R.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(20.dp)) }
+                }
             }
         }
     }

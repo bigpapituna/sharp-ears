@@ -211,7 +211,8 @@ fun KidHome(
                 } else list.scrollToItem(target.first, offset(target.second))
                 Log.d(TAG, "kid home: next ${model.next} (item ${target.first})" + (from?.let { ", rolled on from $it" } ?: ""))
             }
-            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top + 8.dp, bottom = bottom + 16.dp),
+            // The top clears the status bar's fade (below), so "Hi, Mia!" is seen whole at the top (QA 2.8.3).
+            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top + 24.dp, bottom = bottom + 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 item(key = "hello") { Hello(name, avatar) }
                 grownUpOffer?.let { offer -> item(key = "grown-up") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp)) { offer() } } }

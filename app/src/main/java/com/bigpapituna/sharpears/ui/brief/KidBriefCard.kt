@@ -103,17 +103,21 @@ fun KidBriefCardHost(env: BriefEnv, profile: Profile, say: (String) -> Unit, onS
 }
 
 /**
- * "Show Mum": a full screen over the child's finish screen. First a light gate (hold the pup, no sum; the integrator can
- * tighten it), then the session note for that child alone. Actions inside it still ask the full parent gate when it is shut.
+ * "Show Mum": a full screen over the child's finish screen. First a light gate (hold the pup, no sum), enough to READ the
+ * session note for that child alone, which is the point of it: the grown-up standing there sees it at once. Every action
+ * inside the note (Send, Ask, Refresh, the cards) asks the full parent gate itself (BriefPage's guardBrief; QA 2.8.3 found
+ * the hold alone reaching the share sheet and the AI). Closing it shuts the gate: the phone goes back to the child.
  */
 @Composable
 fun ShowMumDialog(env: BriefEnv, profile: Profile, onClose: () -> Unit, startPassed: Boolean = false) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    val gate = LocalParentGate.current
+    val close = { if (profile.isKid) gate.close(); onClose() }
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             var passed by rememberSaveable { mutableStateOf(startPassed) }
-            if (!passed) LightGate(onPass = { passed = true }, onCancel = onClose)
-            else ParentBriefScreen(env, listOf(profile), onBack = onClose, initialPeriod = Period.SESSION, periods = listOf(Period.SESSION),
+            if (!passed) LightGate(onPass = { passed = true }, onCancel = close)
+            else ParentBriefScreen(env, listOf(profile), onBack = close, initialPeriod = Period.SESSION, periods = listOf(Period.SESSION),
                 showChildren = false, title = "${profile.name}'s session note")
             // An action in the note asks the full parent gate: drawn in this window, over the note.
             com.bigpapituna.sharpears.ui.family.ParentGateHost()

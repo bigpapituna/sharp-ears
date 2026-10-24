@@ -104,6 +104,8 @@ fun ArcadeGameScreen(
     val scope = rememberCoroutineScope()
     val voice = deps.voice
     val mic = deps.mic
+    // When keys came (wall clock, all on the main thread): only those stretches are practice.
+    val keyTimes = remember(play) { ArrayList<Long>() }
     fun now() = SystemClock.uptimeMillis()
     val endNow by rememberUpdatedState(onRoundEnd)
     // The caller makes new deps as the sampler gets ready: read the latest (a cold start opens a round before it is).
@@ -203,6 +205,7 @@ fun ArcadeGameScreen(
 
     fun key(midi: Int, how: String) {
         val t = now()
+        keyTimes += System.currentTimeMillis()          // any key, even in a demo: the kid is playing (ArcadePractice)
         if (!round.listening) return
         val cues = round.key(midi, t)
         if (cues.isNotEmpty()) Log.d(TAG, "arcade: $how ${noteName(midi)} -> ${cues.joinToString { it::class.simpleName ?: "" }}")
@@ -248,7 +251,7 @@ fun ArcadeGameScreen(
         if (s.final && (s.by == HeardBy.MATCHER || s.by == HeardBy.NAMED)) s.midi?.let { key(it, if (s.by == HeardBy.MATCHER) "heard" else "named") }
     }
     LaunchedEffect(deps.midi) { deps.midi.events.collect { e -> if (e is NoteEvent.On && phase == Phase.PLAY) key(e.midi, "midi") } }
-    if (phase == Phase.PLAY) ArcadePractice(deps, game)
+    if (phase == Phase.PLAY) ArcadePractice(deps, game, keyTimes)
     DisposableEffect(play) { onDispose { (round.keys + play.demoKeys).forEach { deps.sampler.noteOff(it) } } }
 
     fun touch(m: Int) {
@@ -392,17 +395,22 @@ private fun lineSound(game: ArcadeGame): Boolean {
 }
 
 /**
- * While the round plays (and the app is on screen) its time is practice, as a Playground stage's is: written every
- * [StageTime.FLUSH_MS] and when the round ends or the screen goes.
+ * While the round plays (and the app is on screen) its time is practice while keys come ([keys], wall-clock times; QA
+ * 2.8.3: a round left alone counted as practice), as a Playground stage's is: written every [StageTime.FLUSH_MS] and
+ * when the round ends or the screen goes.
  */
 @Composable
-private fun ArcadePractice(deps: LessonDeps, game: ArcadeGame) {
+private fun ArcadePractice(deps: LessonDeps, game: ArcadeGame, keys: MutableList<Long>) {
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
-    val from = remember { longArrayOf(0L) }
+    val from = remember { longArrayOf(0L, 0L) }          // the span's start, and the milliseconds carried to the next flush
     fun flush() {
-        val secs = ((System.currentTimeMillis() - from[0]) / 1000).toInt()
+        val now = System.currentTimeMillis()
+        val ms = com.bigpapituna.sharpears.engine.arcade.ArcadeTime.coveredMs(from[0], now, keys) + from[1]
+        from[0] = now
+        keys.removeAll { it < now - com.bigpapituna.sharpears.engine.arcade.ArcadeTime.GRACE_MS }
+        val secs = (ms / 1000).toInt()
+        from[1] = ms % 1000
         if (secs <= 0) return
-        from[0] += secs * 1000L
         deps.prefs.addPractice(java.time.LocalDate.now(), secs)
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.Practice(java.time.LocalDateTime.now(), secs))
         Log.d(TAG, "arcade: practice +$secs s (${game.id})")

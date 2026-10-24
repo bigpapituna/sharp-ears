@@ -178,15 +178,18 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             }
             val allFound = { m: Int -> found.any { m in it } }
             val demo = st.demoKeys
+            // A letter's hunt with colour notes glows in the key's own colour ("Find an orange dog key!" over a gold glow read
+            // as the yellow elephant, QA 2.8.3); the dog houses and fences keep the pup's gold.
+            val glow = { m: Int -> if (colours && hunt?.letter != null) com.bigpapituna.sharpears.ui.skin.noteColour(m) else PupGold }
             BigKeys(low, high, "Piano keys from ${noteName(low)} to ${noteName(high)}. " + when (hunt) {
                     Hunt.DOG_HOUSE -> "Find a group of two black keys"; Hunt.FENCE -> "Find a group of three black keys"; null -> "Every one is found"
                     else -> "Find a ${hunt.letter}"
                 }, Modifier.fillMaxWidth().height((roomH * 0.52f).coerceIn(150.dp, 300.dp)),
                 fill = { m -> when {
-                    m in demo -> PupGold
+                    m in demo -> glow(m)
                     allFound(m) -> Accent
                     // The place the pup points at glows gold, hard while he nudges ("try the black ones here").
-                    target != null && m in target -> PupGold.copy(alpha = if (nudging) 0.6f + 0.4f * p else 0.15f + 0.3f * p)
+                    target != null && m in target -> glow(m).copy(alpha = if (nudging) 0.6f + 0.4f * p else 0.15f + 0.3f * p)
                     else -> null
                 } },
                 last = run.last, topRoom = 64.dp, fx = st.fx,

@@ -11,7 +11,10 @@ enum class QuestKind {
     PLAY_SONGS,
     /** Copy the pup's pattern [QuestTask.target] times (Pup says or melody memory rounds). */
     COPY_PUP,
-    /** Play every C from C2 to C6 (five of them, any order), or finish the find-c lesson. */
+    /**
+     * Play every C from C2 to C6 (five of them, any order), or finish the find-c lesson. On a touch keyboard, every C it
+     * has is all the Cs there are (the Jam's keys are C4 to C5: two of them; QA 2.8.3).
+     */
     FIND_CS,
     /** Answer the day's due chords ([QuestTask.target] of them). */
     DUE_CHORDS,
@@ -34,8 +37,11 @@ sealed interface QuestEvent {
     data class SongFinished(val songId: String) : QuestEvent
     /** A Pup says pattern (or a melody memory round) copied right. */
     data class PupCopied(val length: Int) : QuestEvent
-    /** A note was heard (the Jam, a lesson, a song): only Cs matter, for Find all the Cs. */
-    data class NotePlayed(val midi: Int) : QuestEvent
+    /**
+     * A note was heard (the Jam, a lesson, a song): only Cs matter, for Find all the Cs. [touchKeys]: the keys on the screen
+     * it was touched on (null: a piano heard by the mic, or MIDI, which has every C).
+     */
+    data class NotePlayed(val midi: Int, val touchKeys: IntRange? = null) : QuestEvent
     /** A due chord from the daily review was answered. */
     data class ChordReviewed(val itemId: String) : QuestEvent
     /** A course lesson was finished. */
@@ -66,7 +72,11 @@ data class QuestTask(
             QuestKind.COPY_PUP -> if (e is QuestEvent.PupCopied) bump() else this
             QuestKind.FIND_CS -> when {
                 e is QuestEvent.LessonDone && e.lessonId == FIND_C_LESSON -> copy(done = target, seen = seen + ALL_CS.map { it.toString() })
-                e is QuestEvent.NotePlayed && e.midi in ALL_CS -> distinct(e.midi.toString())
+                e is QuestEvent.NotePlayed && e.midi in ALL_CS -> distinct(e.midi.toString()).let { t ->
+                    // A touch keyboard with only some of the Cs (the Jam's C4 and C5): finding each one there is all of them.
+                    val there = e.touchKeys?.let { keys -> ALL_CS.filter { it in keys } }.orEmpty()
+                    if (there.isNotEmpty() && there.all { it.toString() in t.seen }) t.copy(done = target) else t
+                }
                 else -> this
             }
             QuestKind.DUE_CHORDS -> if (e is QuestEvent.ChordReviewed) distinct(e.itemId) else this

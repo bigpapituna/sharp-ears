@@ -96,7 +96,7 @@ class PupSaysGame(players: List<PupSaysPlayer>, kid: Boolean, seed: Long = Syste
     fun input(midi: Int): Answer = when (phase) {
         Phase.OVER, Phase.RESULT -> Answer.Ignored(null)
         Phase.HANDOFF -> Answer.Ignored("Wait for it. ${whoseTurnLine()} Tap ready at the keys.")
-        Phase.DEMO -> Answer.Ignored(if (multi) "Listen first, ${current.player.name}." else "Listen first, then copy me.")
+        Phase.DEMO -> Answer.Ignored(if (multi) "Listen first, ${current.player.name}." else PlayLines.LISTEN_FIRST)
         Phase.LISTEN -> judge(midi)
     }
 

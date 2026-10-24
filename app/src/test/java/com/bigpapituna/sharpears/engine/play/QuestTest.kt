@@ -71,6 +71,33 @@ class QuestTest {
         assertTrue(other.record(QuestEvent.LessonDone("find-c")).isEmpty())
     }
 
+    /**
+     * QA 2.8.3: the quest opens the Jam, whose keys are C4 to C5, so by touch only two of the five Cs could ever be played and
+     * the star never came. Touched, every C on the keys there is all the Cs; a piano (mic or MIDI) still needs all five.
+     */
+    @Test fun findAllTheCsCanBeFinishedOnTheJamsKeys() {
+        val jam = 60..72
+        val q = Quest.forDay(day, true, null)
+        assertTrue(q.record(QuestEvent.NotePlayed(60, touchKeys = jam)).isEmpty())
+        assertEquals(1, q.tasks[2].done)
+        assertTrue("not a C", q.record(QuestEvent.NotePlayed(64, touchKeys = jam)).isEmpty())
+        assertEquals(QuestKind.FIND_CS, q.record(QuestEvent.NotePlayed(72, touchKeys = jam)).single().kind)
+        assertTrue(q.tasks[2].complete)
+        // Heard on a piano, C4 and C5 are two of five.
+        val piano = Quest.forDay(day, true, null)
+        listOf(60, 72).forEach { piano.record(QuestEvent.NotePlayed(it)) }
+        assertFalse(piano.tasks[2].complete)
+        assertEquals(2, piano.tasks[2].done)
+        // A C from the piano and the other from the screen: the screen's two are found, so it is done.
+        val both = Quest.forDay(day, true, null)
+        both.record(QuestEvent.NotePlayed(72))
+        assertEquals(QuestKind.FIND_CS, both.record(QuestEvent.NotePlayed(60, touchKeys = jam)).single().kind)
+        // Keys with no C on them never finish it.
+        val none = Quest.forDay(day, true, null)
+        assertTrue(none.record(QuestEvent.NotePlayed(62, touchKeys = 61..71)).isEmpty())
+        assertFalse(none.tasks[2].complete)
+    }
+
     @Test fun grownUpTasksMatchTheirSongLessonAndChords() {
         val q = Quest.forDay(day, false, fullPlan)
         q.record(QuestEvent.ChordReviewed("c1")); q.record(QuestEvent.ChordReviewed("c1"))

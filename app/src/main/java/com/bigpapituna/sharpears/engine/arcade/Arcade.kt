@@ -116,6 +116,28 @@ data class RoundResult(
     val stars: Int get() = ArcadeStars.of(this)
     /** The share of the targets the kid played themselves, 0..1. */
     val share: Double get() = if (offered <= 0) 0.0 else hits.toDouble() / offered
+    /** A key was played in the round (right or not). A round left alone ends kindly, but earns no sparkles or quest star. */
+    val played: Boolean get() = hits > 0 || slips > 0
+}
+
+/**
+ * Arcade time that counts as practice (QA 2.8.3: a round left on screen with nothing played counted 70 s toward the daily
+ * goal and fed the wardrobe): only while keys come, each key holding [GRACE_MS] after it.
+ */
+object ArcadeTime {
+    const val GRACE_MS = 8_000L
+
+    /** Milliseconds of [fromMs] until [toMs] that keys struck at [keys] (any order; earlier keys may reach into it) cover. */
+    fun coveredMs(fromMs: Long, toMs: Long, keys: Collection<Long>, graceMs: Long = GRACE_MS): Long {
+        var total = 0L
+        var cursor = fromMs
+        for (k in keys.sorted()) {
+            val start = maxOf(k, cursor)
+            val stop = minOf(k + graceMs, toMs)
+            if (stop > start) { total += stop - start; cursor = stop }
+        }
+        return total
+    }
 }
 
 /**

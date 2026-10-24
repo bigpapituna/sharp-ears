@@ -78,10 +78,44 @@ import java.util.Locale
 
 private val WEEK = listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
 
+/**
+ * Whether the phone lets the app notify, read again each time the app comes back (from the phone's settings, say). When it
+ * turns on, every weekly alarm is set (BriefReminder.schedule sets none without it, QA 2.8.3).
+ */
+@Composable
+fun rememberCanNotify(): Boolean {
+    val context = LocalContext.current
+    val shown = com.bigpapituna.sharpears.ui.onScreen()
+    val can = remember(shown) { Reminder.canNotify(context) }
+    var was by remember { mutableStateOf(can) }
+    androidx.compose.runtime.LaunchedEffect(can) {
+        if (can && !was) com.bigpapituna.sharpears.reminder.BriefReminder.scheduleAll(context.applicationContext)
+        was = can
+    }
+    return can
+}
+
+/** The phone's notification settings for this app. */
+fun openNotificationSettings(context: android.content.Context) {
+    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+}
+
+/** "Off, notifications are off on this phone." and the way to the phone's notification settings for the app. */
+@Composable
+fun NotificationsOffNote(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(modifier.fillMaxWidth()) {
+        Text(WeeklyPlan.NOTIFICATIONS_OFF + ".", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = { openNotificationSettings(context) }) { Text("Open notification settings") }
+    }
+}
+
 /** The day chips, the time stepper and the on/off switch; reports every change. */
 @Composable
 fun WeeklyPicker(slot: WeeklySlot, onChange: (WeeklySlot) -> Unit, modifier: Modifier = Modifier, zone: ZoneId = ZoneId.systemDefault(), now: () -> Long = System::currentTimeMillis) {
     val c = MaterialTheme.colorScheme
+    val canNotify = rememberCanNotify()
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Send a notification", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -107,7 +141,8 @@ fun WeeklyPicker(slot: WeeklySlot, onChange: (WeeklySlot) -> Unit, modifier: Mod
                 modifier = Modifier.widthIn(min = 140.dp).padding(horizontal = 8.dp).semantics { contentDescription = "Time, " + WeeklyPlan.timeLabel(slot.minutes) })
             StepButton("Later", R.drawable.ic_add) { onChange(slot.copy(minutes = WeeklyPlan.step(slot.minutes, 1))) }
         }
-        Text(if (slot.on) "Next one: " + nextLabel(slot, zone, now()) + "." else "No notification. The brief is still here whenever you open it.",
+        if (slot.on && !canNotify) NotificationsOffNote()
+        else Text(if (slot.on) "Next one: " + nextLabel(slot, zone, now()) + "." else "No notification. The brief is still here whenever you open it.",
             style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
     }
 }
@@ -137,18 +172,28 @@ fun rememberNotificationAsk(then: () -> Unit): () -> Unit {
     }
 }
 
-/** A row for the Week tab and the parent corner: "Weekly brief", when it comes, and Change. */
+/**
+ * A row for the Week tab and the parent corner: "Weekly brief", when it comes, and Change. On a phone that does not let the
+ * app notify it says "Off, notifications are off on this phone" with the way to the phone's settings under it.
+ */
 @Composable
 fun WeeklyRow(slot: WeeklySlot, onChange: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    Row(modifier.fillMaxWidth().heightIn(min = 68.dp).clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
-        .clickable(role = Role.Button, onClickLabel = "Change when the weekly brief comes", onClick = onChange).padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("Weekly brief", style = MaterialTheme.typography.titleSmall)
-            Text(if (slot.on) WeeklyPlan.label(slot) else "Off", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+    val canNotify = rememberCanNotify()
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 68.dp).clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
+            .clickable(role = Role.Button, onClickLabel = "Change when the weekly brief comes", onClick = onChange).padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Weekly brief", style = MaterialTheme.typography.titleSmall)
+                Text(WeeklyPlan.stateLabel(slot, canNotify), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+            }
+            Text("Change", style = MaterialTheme.typography.labelLarge, color = c.primary)
         }
-        Text("Change", style = MaterialTheme.typography.labelLarge, color = c.primary)
+        if (slot.on && !canNotify) {
+            val context = LocalContext.current
+            TextButton(onClick = { openNotificationSettings(context) }) { Text("Open notification settings") }
+        }
     }
 }
 

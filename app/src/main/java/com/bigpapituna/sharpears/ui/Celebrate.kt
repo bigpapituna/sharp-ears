@@ -122,6 +122,9 @@ fun Celebration(
     oneMore: (@Composable () -> Unit)? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
+    // The buttons fade in where the keys were: a tap meant for the keys does nothing (SettleTaps).
+    val primaryTap = settledTap(action = onPrimary)
+    val secondaryTap = settledTap { onSecondary?.invoke() }
     val compact = reward != null || oneMore != null
     val pupSize = if (compact) 120.dp else 200.dp
     androidx.compose.runtime.DisposableEffect(Unit) { celebrationsShowing.intValue++; onDispose { celebrationsShowing.intValue-- } }
@@ -198,9 +201,9 @@ fun Celebration(
         // "One more" brings its own big button; then the way out is the quieter one.
         if (oneMore != null) {
             oneMore()
-            TextButton(onClick = onPrimary, modifier = Modifier.padding(top = 6.dp)) { Text(primary) }
-        } else ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
-        if (secondary != null && onSecondary != null) TextButton(onClick = onSecondary, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
+            TextButton(onClick = primaryTap, modifier = Modifier.padding(top = 6.dp)) { Text(primary) }
+        } else ChunkyButton(onClick = primaryTap, modifier = Modifier.fillMaxWidth()) { Text(primary) }
+        if (secondary != null && onSecondary != null) TextButton(onClick = secondaryTap, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
     }
     val bottomMotion = Modifier.graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f }
     // A pane of its own: it takes the taps and, as a pane, hides the screen under it from TalkBack (its buttons were
@@ -359,13 +362,27 @@ private suspend fun fanfare(sampler: Sampler) {
     listOf(72, 76, 79, 84).forEach(sampler::noteOff)
 }
 
+/**
+ * [action] once the button has been up [com.bigpapituna.sharpears.engine.playground.SettleTaps.MS] (since [keys] last
+ * changed): a tap meant for the keys under it, as a stage or a check ends, does nothing.
+ */
+@Composable
+internal fun settledTap(vararg keys: Any?, action: () -> Unit): () -> Unit {
+    val shownAt = remember(*keys) { android.os.SystemClock.uptimeMillis() }
+    val latest = androidx.compose.runtime.rememberUpdatedState(action)
+    return {
+        if (com.bigpapituna.sharpears.engine.playground.SettleTaps.settled(shownAt, android.os.SystemClock.uptimeMillis())) latest.value()
+        else android.util.Log.d(com.bigpapituna.sharpears.TAG, "tap: ignored, the button had just appeared")
+    }
+}
+
 /** A cheer bar's look: a win (gold, high-five) or a miss (neutral, the pup thinking it over). */
 enum class Cheer { GOOD, MISS }
 
 /**
  * After one step, Duolingo style: a bar slides up from the bottom, the pup pops up over its edge (a small spring
  * overshoot) and the [title] types itself in, then the feedback [line] and one big button. Nothing moves on
- * until the button is pressed.
+ * until the button is pressed (and a tap in its first moment, meant for the keys under it, does nothing).
  */
 @Composable
 fun CheerBar(cheer: Cheer, title: String, line: String?, button: String, modifier: Modifier = Modifier, onButton: () -> Unit) {
@@ -395,7 +412,7 @@ fun CheerBar(cheer: Cheer, title: String, line: String?, button: String, modifie
                 Modifier.padding(start = 92.dp))
             line?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = if (good) c.onPrimaryContainer else c.onSurfaceVariant) }
             Spacer(Modifier.height(8.dp))
-            ChunkyButton(onClick = onButton, modifier = Modifier.fillMaxWidth()) { Text(button) }
+            ChunkyButton(onClick = settledTap(title, line, action = onButton), modifier = Modifier.fillMaxWidth()) { Text(button) }
         }
         // The pup pops up over the top edge of the bar.
         Pup(if (good) Pose.GREAT_JOB else Pose.MISTAKE, size = 96.dp, onTap = {}, idle = false, modifier = Modifier.padding(start = 12.dp).graphicsLayer {
