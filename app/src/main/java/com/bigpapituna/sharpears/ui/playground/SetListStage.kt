@@ -72,6 +72,8 @@ import com.bigpapituna.sharpears.ui.PlayerStart
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import kotlinx.coroutines.delay
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /**
  * 2.2, "Pick your three" (the concert hall's lesson 11): the shelf of every song the kid learned on the Playground's
@@ -146,7 +148,7 @@ internal fun SetListStage(step: Step, lessonId: String, deps: LessonDeps, inject
             }
             if (between) Box(Modifier.fillMaxSize().background(Color(0xCC110F0D)), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    PaintedPup(Painted.DANCING, size = 120.dp)
+                    Pup(Pose.DANCING, size = 120.dp, idle = false)
                     StageLine(if (playing + 1 < songs.size) PageLines.NEXT_SONG else PageLines.WARMED_UP)
                 }
             }
@@ -161,7 +163,7 @@ private fun ShelfPicker(picked: List<String>, modifier: Modifier, onToggle: (Str
         val columns = if (maxWidth > 560.dp) 5 else 3
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(Painted.CROWN, size = 64.dp)
+                Pup(Pose.CROWN, size = 64.dp, idle = false)
                 Spacer(Modifier.width(8.dp))
                 StageLine(if (picked.size < Recital.SIZE) PageLines.PICK_THREE else PageLines.PICKS_LEFT[0])
             }

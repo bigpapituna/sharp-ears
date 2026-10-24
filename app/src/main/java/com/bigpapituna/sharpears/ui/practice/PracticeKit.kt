@@ -76,8 +76,8 @@ import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.InkDim
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.SpeechBubble
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.profile.rememberCountUp

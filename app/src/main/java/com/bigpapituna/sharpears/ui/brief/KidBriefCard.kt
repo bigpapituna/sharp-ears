@@ -49,7 +49,7 @@ import com.bigpapituna.sharpears.engine.brief.KidCardWords
 import com.bigpapituna.sharpears.engine.brief.Period
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.ui.DialogBarsFollowTheme
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.SpeechBubble

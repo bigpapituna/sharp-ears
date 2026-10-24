@@ -60,11 +60,6 @@ fun MicInput.frameTap(): FrameTap {
 /** A key's Boomwhacker colour as a Compose colour (the skin's table; a black key is the blend of its neighbours). */
 fun noteColour(midi: Int) = Color(NoteColours.blend(midi))
 
-/** One of the pup's pose images (res/drawable-nodpi/pup_*.webp), decorative: the words beside him say what he means. */
-@Composable
-internal fun PupPicture(res: Int, size: Dp, modifier: Modifier = Modifier) =
-    Image(painterResource(res), contentDescription = null, modifier = modifier.size(size))
-
 /** The way out of a Play screen: a small pill at the top, "Done" with a cross. No score and no timer to leave behind. */
 @Composable
 internal fun ExitPill(onExit: () -> Unit, modifier: Modifier = Modifier, label: String = "Done") {

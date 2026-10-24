@@ -52,6 +52,7 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * 2.3 part B, higher or lower (the night sky's "Up or down"): the pup sits on a star at the height of his note, plays
@@ -140,13 +141,13 @@ internal fun HigherLowerStage(game: StageGame.HigherLower, step: Step, lessonId:
                     drawCircle(Color.White.copy(alpha = 0.3f), 8.dp.toPx(), from, style = Stroke(2.dp.toPx()))
                 }
                 val y = with(androidx.compose.ui.platform.LocalDensity.current) { ((1f - height.value) * (skyH - pupSize).toPx()).roundToInt() }
-                PaintedPup(when {
-                    finished -> Painted.GREAT_JOB
-                    tiltNow -> Painted.HEAD_TILT
-                    height.value > 0.56f -> Painted.FLYING
-                    else -> Painted.STANDING
+                StagePup(when {
+                    finished -> Pose.GREAT_JOB
+                    tiltNow -> Pose.HEAD_TILT
+                    height.value > 0.56f -> Pose.FLYING
+                    else -> Pose.STANDING
                 }, Modifier.offset { IntOffset((maxWidth * 0.3f - pupSize / 2).roundToPx(), y) }, size = pupSize, lift = { (height.value - 0.5f).coerceAtLeast(0f) * 2 },
-                    poke = st.fx.poke)
+                    fx = st.fx)
             }
             Spacer(Modifier.height(6.dp))
             BigKeys(low, high, "Piano keys from ${noteName(low)} to ${noteName(high)}. The pup's note is ${noteName(round.ref)}.",

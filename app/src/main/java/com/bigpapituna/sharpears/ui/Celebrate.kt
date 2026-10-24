@@ -84,6 +84,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.engine.pup.PupMotion
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 
 /** One number on a celebration: "3:12" over "Time". The number counts up from zero as it slides in. */
 data class Stat(val value: String, val label: String)
@@ -138,6 +143,14 @@ fun Celebration(
     val xp = remember { anim() }        // "+120 XP" and its bar
     val burst = remember { anim() }     // the new-best stars flying out
     val puff = remember { Animatable(0f) }   // dust where he lands (none when still)
+    // 2.10: he lands in a jump for joy, then cheers on the beat until Continue.
+    val pup = rememberPupController(idle = false)
+    LaunchedEffect(Unit) {
+        snapshotFlow { rise.value }.first { it >= 0.97f }
+        pup.play(PupMood.HAPPY)
+        delay(PupMotion.HAPPY_MS.toLong())
+        pup.mood = PupMood.CHEER
+    }
     LaunchedEffect(Unit) {
         sampler?.let { launch { fanfare(it) } }
         if (still) return@LaunchedEffect
@@ -161,7 +174,7 @@ fun Celebration(
     val px = with(LocalDensity.current) { 320.dp.toPx() }
     val head: @Composable ColumnScope.(pupSize: androidx.compose.ui.unit.Dp) -> Unit = { pupSize ->
         Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
-            Pup(pose, size = pupSize, onTap = {}, idle = false, modifier = Modifier.graphicsLayer {
+            Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
                 val s = 0.4f + 0.6f * rise.value
                 scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)

@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.engine.nav.Layout
 import com.bigpapituna.sharpears.ui.motion.pressScale
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * The launch chooser (2.8): a grown-up who never chose a layout (engine/nav/Simple.kt `asks`) picks one before Today. Three

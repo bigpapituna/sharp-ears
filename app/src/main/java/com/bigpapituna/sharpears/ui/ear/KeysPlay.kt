@@ -58,7 +58,7 @@ import com.bigpapituna.sharpears.ui.Cheer
 import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.Keyboard
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.RightHandColor
 import com.bigpapituna.sharpears.ui.cheerTitle
 import com.bigpapituna.sharpears.ui.onScreen

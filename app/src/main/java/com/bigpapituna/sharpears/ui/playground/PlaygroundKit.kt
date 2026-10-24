@@ -27,6 +27,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -52,7 +53,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -94,6 +98,12 @@ import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.PupGold
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.engine.pup.PupMotion
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.mood
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
 import com.bigpapituna.sharpears.ui.skin.colour
@@ -110,65 +120,43 @@ import kotlin.math.sin
  * What the Playground's stages share: the stage's rounds (shown, heard, let go after three tries), the microphone as
  * the stages hear it (the note matcher with strict keys, the pitch tracker's guess, every sound answered), the
  * feedback for each sound (a ripple on the keys, the pup's ear, a key lit yellow or red), the call-outs said between
- * rounds, a big keyboard to draw and touch, the painted pup poses, and the little row of round stars.
+ * rounds, a big keyboard to draw and touch, the stage's pup, and the little row of round stars.
  */
 
-// ---- The painted pup ------------------------------------------------------------------------------------------------
+// ---- The stage's pup -------------------------------------------------------------------------------------------------
 
 /**
- * The painted poses the Playground draws (res/drawable-nodpi/pup_*.webp). ui/Pup.kt's Pose (the world team's) lists
- * ten of the twenty-two; these are drawn here directly until it has them all.
- */
-enum class Painted(val res: Int) {
-    FLYING(R.drawable.pup_flying), STANDING(R.drawable.pup_standing), SLEEPING(R.drawable.pup_sleeping),
-    GOODNIGHT(R.drawable.pup_goodnight), SURPRISED(R.drawable.pup_surprised), DRUMMING(R.drawable.pup_drumming),
-    CLAPPING(R.drawable.pup_clapping), POINTING(R.drawable.pup_pointing), HEAD_TILT(R.drawable.pup_head_tilt),
-    DANCING(R.drawable.pup_dancing), CROWN(R.drawable.pup_crown), GREAT_JOB(R.drawable.pup_great_job),
-    LISTENING(R.drawable.pup_listening),
-    /** 2.2: curled up on his cushion (the pond's chord: he settles on it). */
-    RESTING(R.drawable.pup_resting),
-}
-
-/**
- * A painted pose with the pup's manners (as ui/Pup.kt): standing in a soft gold glow over his shadow, a new pose
- * cross-fading in with a little hop. [lift] (0..1) raises him off his shadow, which shrinks; [squash] presses him down
- * (a landing, a drum beat). Each change of [poke] is "I heard you": a small hop and a flick of the ears. Decorative:
- * what he means is said beside him. Still with the phone's animations off.
+ * The pup on a stage (2.10, ui/pup's rig): the pose the stage picked, and his mood from it and from what he hears. A
+ * wrong key (or the head-tilt pose) tilts his head, every key found ([StageFx.hits]) wags him, a demo's key ([point], with
+ * the stage's big keyboard given [fx]) has him slide toward it, pointing, and a finish (great job, a dance, the crown) makes
+ * him jump. [lift] (0..1) shrinks his shadow as the stage raises him, [squash] (0..1) presses him down (a landing, a drum
+ * beat); each sound the stage heard ([StageFx.poke], plus the stage's own [poke]) flicks an ear. Decorative: what he
+ * means is said beside him.
  */
 @Composable
-fun PaintedPup(pose: Painted, modifier: Modifier = Modifier, size: Dp = 120.dp, lift: () -> Float = { 0f }, squash: () -> Float = { 0f },
-               shadow: Boolean = true, poke: Int = 0) {
-    val still = reducedMotion()
-    val hop = remember { Animatable(1f) }
-    val flick = remember { Animatable(0f) }
-    LaunchedEffect(pose) { if (!still) { hop.snapTo(0.82f); hop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) } }
-    LaunchedEffect(poke) {
-        if (poke == 0 || still) return@LaunchedEffect
-        launch { hop.snapTo(0.92f); hop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) }
-        flick.snapTo(1f); flick.animateTo(0f, tween(420))
+internal fun StagePup(pose: Pose, modifier: Modifier = Modifier, size: Dp = 120.dp, fx: StageFx? = null, point: Int? = null,
+                      lift: (() -> Float)? = null, squash: (() -> Float)? = null, shadow: Boolean = true, poke: Int = 0) {
+    val pup = rememberPupController(idle = false)
+    val hits = fx?.hits ?: 0
+    val misses = fx?.misses ?: 0
+    LaunchedEffect(hits) { if (hits > 0) pup.play(PupMood.WAG) }
+    LaunchedEffect(misses) { if (misses > 0) pup.play(PupMood.TILT) }
+    // Pointing: toward the key the demo plays, half his reach at most so he never wanders over his words. The painted
+    // pointing pup points left: toward a key on the right he turns round.
+    var centre by remember { mutableFloatStateOf(Float.NaN) }
+    val sizePx = with(androidx.compose.ui.platform.LocalDensity.current) { size.toPx() }
+    val target = if (pose == Pose.POINTING) point?.let { fx?.keyX?.invoke(it) } else null
+    val toward = if (target == null || centre.isNaN()) 0f else ((target - centre) / (sizePx * PupMotion.POINT_MAX)).coerceIn(-1f, 1f) * 0.5f
+    val mirror = pose == Pose.POINTING && toward > 0.02f
+    LaunchedEffect(toward, mirror) { pup.pointAt = if (mirror) -toward else toward }
+    val mood = when (pose) {
+        Pose.HEAD_TILT -> PupMood.TILT
+        Pose.POINTING -> PupMood.POINT
+        Pose.GREAT_JOB, Pose.DANCING, Pose.CROWN -> PupMood.HAPPY
+        else -> pose.mood
     }
-    Box(modifier.size(size).drawBehind {
-        val l = lift().coerceIn(0f, 1f)
-        val c = Offset(this.size.width / 2, this.size.height * 0.55f)
-        val r = this.size.width * 0.55f
-        drawCircle(Brush.radialGradient(listOf(PupGold.copy(alpha = 0.28f + 0.25f * flick.value), Color.Transparent), c, r), r, c)
-        if (shadow) {
-            val w = this.size.width * 0.56f * (1f - 0.6f * l)
-            drawOval(Color.Black.copy(alpha = 0.32f * (1f - 0.5f * l)), Offset((this.size.width - w) / 2, this.size.height * 0.93f),
-                Size(w, this.size.height * 0.06f))
-        }
-    }) {
-        Crossfade(pose, animationSpec = if (still) snap() else tween(220), label = "pose") { p ->
-            Image(painterResource(p.res), contentDescription = null, modifier = Modifier.fillMaxSize().graphicsLayer {
-                transformOrigin = TransformOrigin(0.5f, 1f)
-                val s = hop.value
-                val q = squash().coerceIn(0f, 1f)
-                scaleX = s * (1f + 0.06f * q); scaleY = s * (1f - 0.08f * q)
-                // The ear flick: a quick wobble that rings out.
-                rotationZ = 5f * flick.value * sin(flick.value * 18f)
-            })
-        }
-    }
+    Pup(pose, mood, modifier.onGloballyPositioned { centre = it.boundsInRoot().center.x }.graphicsLayer { if (mirror) scaleX = -1f },
+        size = size, controller = pup, idle = false, lift = lift, squash = squash, shadow = shadow, zs = false, poke = (fx?.poke ?: 0) + poke)
 }
 
 // ---- A stage's rounds -----------------------------------------------------------------------------------------------
@@ -282,6 +270,14 @@ internal class StageFx {
     val ripples = mutableStateListOf<Ripple>()
     var poke by mutableIntStateOf(0)
         private set
+    /** 2.10: keys found (the pup wags) and wrong keys (he tilts his head), counted. */
+    var hits by mutableIntStateOf(0)
+        private set
+    var misses by mutableIntStateOf(0)
+        private set
+    /** Where a key of the stage's big keyboard is (its centre, x in the window, px), for the pup's pointing; null: not on it. */
+    var keyX: (Int) -> Float? = { null }
+        internal set
     private var ids = 0L
 
     fun ripple(midi: Int?, colour: Color, fill: Boolean = false) {
@@ -296,11 +292,12 @@ internal class StageFx {
         ripple(s.near, HeardBlue)
     }
 
-    fun found(midi: Int) { poke++; ripple(midi, PupGold, fill = true) }
+    fun found(midi: Int) { poke++; hits++; ripple(midi, PupGold, fill = true) }
 
     /** A wrong key: yellow within two semitones of [nearest], red further (the player's colours). */
     fun wrong(midi: Int, nearest: Int?) {
         poke++
+        misses++
         val tone = nearest?.let { WrongKey(midi, abs(it - midi)).tone }
         ripple(midi, tone?.colour ?: Ink, fill = tone != null)
     }
@@ -345,6 +342,8 @@ internal class StageState(val run: StageRun, val fx: StageFx) {
      */
     var demoShown = 0
         internal set
+    /** The key the demo is playing now (or about to), for the pup to point at; null without a demo. */
+    val demoKey: Int? get() = demoIndex?.let { demoKeys.getOrNull(it) } ?: demoKeys.firstOrNull()
     var nudgeUntil by mutableLongStateOf(0L)
         internal set
     var listening by mutableStateOf(false)
@@ -733,6 +732,9 @@ internal fun BigKeys(low: Int, high: Int, description: String, modifier: Modifie
     var size by remember { mutableStateOf(IntSize.Zero) }
     val room = with(androidx.compose.ui.platform.LocalDensity.current) { topRoom.toPx() }
     val geo = remember(low, high, size, room) { if (size.width == 0) null else PianoGeometry(low, high, size.width.toFloat(), size.height - room, room) }
+    // Where each key is in the window, for the stage's pup to point at (2.10).
+    var left by remember { mutableFloatStateOf(0f) }
+    if (fx != null) androidx.compose.runtime.SideEffect { fx.keyX = { m -> geo?.takeIf { it.contains(m) }?.rect(m)?.center?.x?.plus(left) } }
     val flash = remember { Animatable(0f) }
     val still = reducedMotion()
     LaunchedEffect(last?.seq) { if (last != null && last.result != InputResult.WRONG) { flash.snapTo(1f); flash.animateTo(0f, if (still) snap(400) else tween(600)) } }
@@ -745,7 +747,7 @@ internal fun BigKeys(low: Int, high: Int, description: String, modifier: Modifie
         clock = System.nanoTime()
     }
     val tap by rememberUpdatedState(onKey)
-    Canvas(modifier.onSizeChanged { size = it }.semantics { contentDescription = description }.pointerInput(geo, onKey != null) {
+    Canvas(modifier.onSizeChanged { size = it }.onGloballyPositioned { left = it.positionInRoot().x }.semantics { contentDescription = description }.pointerInput(geo, onKey != null) {
         val g = geo ?: return@pointerInput
         if (onKey == null) return@pointerInput
         awaitEachGesture {

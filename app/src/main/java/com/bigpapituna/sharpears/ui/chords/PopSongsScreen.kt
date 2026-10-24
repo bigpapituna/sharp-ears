@@ -60,7 +60,7 @@ import com.bigpapituna.sharpears.engine.chords.PopSong
 import com.bigpapituna.sharpears.engine.chords.PopSongs
 import com.bigpapituna.sharpears.engine.plural
 import com.bigpapituna.sharpears.ui.Nunito
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.practice.PillRow
 import com.bigpapituna.sharpears.ui.skin.inkOn
 import com.bigpapituna.sharpears.ui.skin.noteColour

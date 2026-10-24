@@ -53,7 +53,7 @@ import com.bigpapituna.sharpears.engine.kid.KidSongs
 import com.bigpapituna.sharpears.engine.kid.ShelfSong
 import com.bigpapituna.sharpears.engine.kid.SongFacts
 import com.bigpapituna.sharpears.engine.skin.NoteColours
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.skin.drawAnimal

@@ -81,6 +81,9 @@ import com.bigpapituna.sharpears.ui.profile.LocalProgress
 import com.bigpapituna.sharpears.ui.reducedMotion
 import java.time.LocalDate
 import kotlin.math.sin
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * The session goodbye for a kid (docs/KIDS-PLAN.md section 3, item 9; rules in engine/skin/Bedtime): the pup yawns
@@ -181,19 +184,19 @@ private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn
                 drawLine(star, p.copy(y = p.y - s * 2.4f), p.copy(y = p.y + s * 2.4f), strokeWidth = s * 0.45f, alpha = 0.3f * tw)
             }
         }, contentAlignment = Alignment.Center) {
-        Image(painterResource(R.drawable.pup_goodnight), contentDescription = null, modifier = Modifier.size(size).graphicsLayer {
-            transformOrigin = TransformOrigin(0.5f, 1f)
-            val k = rise.value
-            translationY = (1f - k) * size.toPx() * 0.4f
-            alpha = k.coerceIn(0f, 1f)
-            // The yawn: a stretch up and a little lean back, then settling a touch lower than he started.
-            val y = yawn.value
-            val stretch = sin(y * Math.PI).toFloat()
-            val b = breathe?.invoke()?.let { sin(it * 2 * Math.PI).toFloat() } ?: 0f
-            scaleY = 1f + 0.07f * stretch + 0.02f * b * y
-            scaleX = 1f - 0.03f * stretch
-            rotationZ = -4f * stretch + 1.5f * b * y
-        })
+        // 2.10: the rig's SLEEP breathes for him (slow and deep); the rise and the one big yawn stay this screen's.
+        Pup(Pose.GOODNIGHT, PupMood.SLEEP, size = size, ground = false, idle = false, bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE,
+            modifier = Modifier.graphicsLayer {
+                transformOrigin = TransformOrigin(0.5f, 1f)
+                val k = rise.value
+                translationY = (1f - k) * size.toPx() * 0.4f
+                alpha = k.coerceIn(0f, 1f)
+                // The yawn: a stretch up and a little lean back.
+                val stretch = sin(yawn.value * Math.PI).toFloat()
+                scaleY = 1f + 0.07f * stretch
+                scaleX = 1f - 0.03f * stretch
+                rotationZ = -4f * stretch
+            })
         // Floating z's while he sleeps (a still "z z" with animations off). One "z" is measured once and scaled.
         val z = remember(zInk) { zText.measure("z", androidx.compose.ui.text.TextStyle(color = zInk, fontSize = 36.sp, fontFamily = Nunito)) }
         Canvas(Modifier.size(size * 1.25f)) {

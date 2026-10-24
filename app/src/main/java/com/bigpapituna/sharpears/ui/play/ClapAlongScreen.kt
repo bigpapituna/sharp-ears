@@ -63,6 +63,10 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * Clap along: the pup drums a steady beat at one of three speeds, the player taps the big drum or claps. Tapping is
@@ -89,8 +93,6 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
     var line by remember { mutableStateOf(if (kid) "Tap the drum with me!" else "Tap the drum on my beat.") }
     var glow by remember { mutableIntStateOf(0) }                          // counts claps in time, for the drum's flash
     val still = reducedMotion()
-    val squash = remember { Animatable(1f) }
-    val scope = rememberCoroutineScope()
 
     fun judge(t: Long, src: String) {
         val c = along.clap(t)
@@ -118,7 +120,6 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
             if (wait > 0) delay(wait)
             beat = i
             if (sound() && (mode == ClapMode.TAP || mic.headphonesOn())) clicks?.play(i % 4 == 0)
-            if (!still) scope.launch { squash.snapTo(0.9f); squash.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 700f)) }
             if (along.tick(nowMs())) version++
             i++
         }
@@ -155,7 +156,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
     }
     ClapAlongContent(
         speed, mode, canClap = frames != null, listening = micState == MicState.LISTENING, line = if (mode == ClapMode.CLAP && micState == MicState.NO_PERMISSION) "I need the microphone to hear claps. Tapping works too." else line,
-        dots = dots, beatTick = beat, glow = glow, squash = { squash.value }, still = still,
+        dots = dots, beatTick = beat, glow = glow, beatAt = along.beatAt(0), still = still,
         onSpeed = { speed = it }, onMode = { mode = it }, onTap = { judge(nowMs(), "tap") }, onExit = onExit,
     )
 }
@@ -163,7 +164,9 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
 @Composable
 internal fun ClapAlongContent(
     speed: ClapSpeed, mode: ClapMode, canClap: Boolean, listening: Boolean = true, line: String, dots: List<Boolean?>, beatTick: Int, glow: Int,
-    squash: () -> Float, still: Boolean, onSpeed: (ClapSpeed) -> Unit, onMode: (ClapMode) -> Unit, onTap: () -> Unit, onExit: () -> Unit,
+    /** When the first beat fell (nowMs), so the pup's cheer lands on the drum's beats (0: his own clock). */
+    beatAt: Long = 0L,
+    still: Boolean, onSpeed: (ClapSpeed) -> Unit, onMode: (ClapMode) -> Unit, onTap: () -> Unit, onExit: () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().background(c.background).safeDrawingPadding().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -183,9 +186,10 @@ internal fun ClapAlongContent(
         // The pup drums and talks from beside his drum (the bubble's tail points at him).
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             Row(Modifier.widthIn(max = 600.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                PupPicture(R.drawable.pup_drumming, 190.dp, Modifier.graphicsLayer {
-                    val s = squash(); scaleY = s; scaleX = 2f - s; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                })
+                // 2.10: he cheers in time with his drum (a hop a beat, landing on it) and wags for every clap in time.
+                val pup = rememberPupController(idle = false)
+                LaunchedEffect(glow) { if (glow > 0) pup.play(PupMood.WAG) }
+                Pup(Pose.DRUMMING, PupMood.CHEER, size = 190.dp, controller = pup, bpm = speed.bpm, beatAt = beatAt.takeIf { it > 0L })
                 SpeechBubble(line, Modifier.weight(1f, fill = false))
             }
         }
@@ -232,7 +236,7 @@ private fun BeatDots(dots: List<Boolean?>) {
 private fun ClapAlongPreview() = SharpEarsTheme(dark = false) {
     Surface {
         ClapAlongContent(ClapSpeed.WALK, ClapMode.TAP, canClap = true, line = "You're right with me!",
-            dots = listOf(true, true, false, true, true, true, true, null), beatTick = 6, glow = 0, squash = { 1f }, still = false,
+            dots = listOf(true, true, false, true, true, true, true, null), beatTick = 6, glow = 0, still = false,
             onSpeed = {}, onMode = {}, onTap = {}, onExit = {})
     }
 }
@@ -242,7 +246,7 @@ private fun ClapAlongPreview() = SharpEarsTheme(dark = false) {
 private fun ClapAlongClapPreview() = SharpEarsTheme(dark = true) {
     Surface {
         ClapAlongContent(ClapSpeed.RUN, ClapMode.CLAP, canClap = true, line = "Clap with me! I'll drum quietly so I can hear you.",
-            dots = listOf(true, false, true, null, null, null, null, null), beatTick = 2, glow = 0, squash = { 0.92f }, still = true,
+            dots = listOf(true, false, true, null, null, null, null, null), beatTick = 2, glow = 0, still = true,
             onSpeed = {}, onMode = {}, onTap = {}, onExit = {})
     }
 }

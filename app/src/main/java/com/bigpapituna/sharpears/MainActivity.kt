@@ -661,6 +661,8 @@ class MainActivity : ComponentActivity() {
         //   --es screen worlddemo --es part album|world|map|jar|egg|dress|reveal|shelf|idle|onemore ...   (a demo world, ui/world/WorldDemo.kt)
         //   --es screen skin --es view lane|wrong|recap|goodbye|asleep|paws|bite ...   (the kid skin's demo, ui/skin/SkinDemo.kt)
         //   --es screen motion [--es demo celebrate|cheer|pup|keys]   (the motion demo over home)
+        //   --es screen pup [--es pose <name>] [--es mood happy|cheer|tilt|wag|point|listen|sleep] [--ei every <ms>] [--ei size <dp>]
+        //       [--ei bpm n] [--es clip jump|dance|wave|hop] [--es theme light|dark]   (2.10: the pup's rig, every mood on a button)
         //   --es lesson playground-<n> [--ei step n] [--es inject synth:...|claps:400,1150|dyn:60/-20,60/-8@1600~1500]
         //   2.2, the kid home (open as a kid with --es profile <id>):
         //   --es screen kidsongs | kidstickers [--es page album|dress|records|paws] | finale [--es page garden]
@@ -756,6 +758,8 @@ class MainActivity : ComponentActivity() {
                 Screen.Play(when (route) { "jam" -> Toy.JAM; "pupsays" -> Toy.PUP_SAYS; else -> Toy.CLAP }, Screen.Home(), intent.getStringExtra("hint"))
             // The teams' effect harnesses, each in its own demo state (never a real profile's world or progress).
             route == "worlddemo" -> return setContent { com.bigpapituna.sharpears.ui.world.WorldDemo(intent) { finish() } }
+            // 2.10: the pup's rig on its own, every mood on a button (ui/pup/PupDebug.kt).
+            route == "pup" -> return setContent { com.bigpapituna.sharpears.ui.pup.PupDebug(intent) { finish() } }
             route == "brief" -> return setContent { com.bigpapituna.sharpears.ui.brief.BriefDemo(intent) { finish() } }
             route == "email" -> return setContent { com.bigpapituna.sharpears.ui.brief.email.EmailDemo(intent, profile) { finish() } }
             route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
@@ -1853,7 +1857,7 @@ class MainActivity : ComponentActivity() {
                         if (current.isKid) com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(current.name), emptyList(),
                             primary = "Continue", onPrimary = { dailyDone = null },
-                            pose = com.bigpapituna.sharpears.ui.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound },
+                            pose = com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound },
                             reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
                         else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
@@ -1862,7 +1866,7 @@ class MainActivity : ComponentActivity() {
                                 com.bigpapituna.sharpears.ui.Stat("$min min", "Practice").takeIf { min > 0 },
                                 com.bigpapituna.sharpears.ui.Stat("$streak", if (streak == 1) "Day" else "Days in a row")),
                             primary = "Continue", onPrimary = { dailyDone = null },
-                            pose = if (streak >= 2) com.bigpapituna.sharpears.ui.Pose.STREAK else com.bigpapituna.sharpears.ui.Pose.LEVEL_UP,
+                            pose = if (streak >= 2) com.bigpapituna.sharpears.ui.pup.Pose.STREAK else com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP,
                             sampler = sampler.takeIf { prefs.sound },
                             reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
                     } }

@@ -56,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 private val SkyTop = Color(0xFF16233A)
 private val SkyMid = Color(0xFF34506F)
@@ -126,10 +127,10 @@ internal fun HighLowStage(step: Step, lessonId: String, deps: LessonDeps, inject
             }
             val y = ground - pupSize - travel * height.value
             val bobPx = if (still || height.value < 0.2f) 0f else sin(bob) * 6f
-            PaintedPup(
-                when { tiltNow -> Painted.HEAD_TILT; finished -> Painted.GREAT_JOB; height.value > 0.22f -> Painted.FLYING; else -> Painted.STANDING },
+            StagePup(
+                when { tiltNow -> Pose.HEAD_TILT; finished -> Pose.GREAT_JOB; height.value > 0.22f -> Pose.FLYING; else -> Pose.STANDING },
                 Modifier.align(Alignment.TopCenter).offset { IntOffset(0, (y.toPx() + bobPx).roundToInt()) }, size = pupSize,
-                lift = { height.value }, shadow = false, poke = st.fx.poke)
+                lift = { height.value }, shadow = false, fx = st.fx)
             StageTop(run.count, run.done, Modifier.align(Alignment.TopStart).padding(12.dp), letGo = run.letGo)
             StageLine(line, Modifier.align(Alignment.TopCenter).offset { IntOffset((pupSize * 0.62f).roundToPx(), (y - 8.dp).toPx().roundToInt().coerceAtLeast(40)) })
             if (finished) Confetti(run.count, Modifier.fillMaxSize())

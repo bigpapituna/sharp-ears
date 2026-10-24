@@ -36,7 +36,7 @@ import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.PupGold
-import com.bigpapituna.sharpears.ui.playground.Painted
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.playground.StageFx
 import com.bigpapituna.sharpears.ui.playground.star
 import com.bigpapituna.sharpears.ui.skin.drawAnimal
@@ -74,7 +74,7 @@ internal class ArcadePlay(val round: ArcadeRound, val reader: Boolean) {
     var lit by mutableStateOf<Set<Int>>(emptySet())
     var demoKeys by mutableStateOf<List<Int>>(emptyList())
     var demoIndex by mutableStateOf<Int?>(null)
-    var pose by mutableStateOf(Painted.LISTENING)
+    var pose by mutableStateOf(Pose.LISTENING)
     var poseUntil = 0L
     var line by mutableStateOf<String?>(null)
     var lineSeq by mutableIntStateOf(0)
@@ -93,7 +93,7 @@ internal class ArcadePlay(val round: ArcadeRound, val reader: Boolean) {
 
     fun show(text: String?) { line = text; lineSeq++ }
 
-    fun react(p: Painted, ms: Long, at: Long) { pose = p; poseUntil = at + ms }
+    fun react(p: Pose, ms: Long, at: Long) { pose = p; poseUntil = at + ms }
 
     /** The latest of [kind] for [targetId], or null. */
     fun last(kind: FxKind, targetId: Int): Fx? = events.lastOrNull { it.kind == kind && it.target?.id == targetId }

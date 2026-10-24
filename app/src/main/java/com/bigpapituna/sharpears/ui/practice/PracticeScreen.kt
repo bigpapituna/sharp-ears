@@ -74,7 +74,7 @@ import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.InkDim
 import com.bigpapituna.sharpears.ui.LeftHandColor
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.RightHandColor
 import com.bigpapituna.sharpears.ui.motion.ScreenMotion
 import com.bigpapituna.sharpears.ui.motion.pressScale

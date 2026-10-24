@@ -55,6 +55,7 @@ import com.bigpapituna.sharpears.ui.skin.noteColour
 import com.bigpapituna.sharpears.ui.world.WorldSounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 private enum class JamPhase { READY, DEMO, JAM, END }
 
@@ -212,8 +213,8 @@ internal fun StarJamStage(game: StageGame.Jam, step: Step, lessonId: String, dep
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when (phase) { JamPhase.END -> Painted.DANCING; JamPhase.DEMO -> Painted.POINTING; else -> if (stars.isEmpty()) Painted.LISTENING else Painted.DANCING },
-                    size = (roomH * 0.17f).coerceIn(56.dp, 100.dp), squash = { bounce.value }, poke = fx.poke)
+                StagePup(when (phase) { JamPhase.END -> Pose.DANCING; JamPhase.DEMO -> Pose.POINTING; else -> if (stars.isEmpty()) Pose.LISTENING else Pose.DANCING },
+                    size = (roomH * 0.17f).coerceIn(56.dp, 100.dp), squash = { bounce.value }, fx = fx)
                 Spacer(Modifier.width(8.dp))
                 StageLine(shown)
             }

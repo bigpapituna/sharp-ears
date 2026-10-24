@@ -74,6 +74,8 @@ import com.bigpapituna.sharpears.ui.SpeechBubble
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * The parent gate for actions (docs/KIDS-PLAN.md section 2): wrap what only a grown-up should reach in [guard] (always
@@ -207,8 +209,7 @@ internal fun HoldThePup(onHeld: () -> Unit) {
                 style = Stroke(w, cap = StrokeCap.Round))
         }
         val squeeze = if (still) 1f else 1f - 0.06f * ring.value
-        Image(painterResource(R.drawable.pup_shh), contentDescription = null,
-            modifier = Modifier.size(176.dp).graphicsLayer { scaleX = squeeze; scaleY = squeeze })
+        Pup(Pose.SHH, size = 176.dp, ground = false, idle = false, modifier = Modifier.graphicsLayer { scaleX = squeeze; scaleY = squeeze })
     }
     Text("Kids, ask a grown-up to help.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
 }
@@ -244,7 +245,7 @@ private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
         if (!still) scope.launch { shake.snapTo(1f); shake.animateTo(0f, spring(dampingRatio = 0.25f, stiffness = 900f)) }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Image(painterResource(R.drawable.pup_thinking), contentDescription = null, modifier = Modifier.size(88.dp))
+        Pup(Pose.THINKING, size = 88.dp, idle = false)
         SpeechBubble(when {
             waiting -> ParentGateRules.waitLine(lock.secondsLeft(now))
             missed -> "Not quite. Try this one: what is ${sum.spoken}?"

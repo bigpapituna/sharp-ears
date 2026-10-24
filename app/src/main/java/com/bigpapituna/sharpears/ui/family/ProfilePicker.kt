@@ -74,7 +74,7 @@ import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.engine.family.Roster
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.reducedMotion

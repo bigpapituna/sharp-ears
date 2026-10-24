@@ -89,9 +89,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /** The pup's pose in each photo of the strip. */
-private val POSES = listOf(R.drawable.pup_great_job, R.drawable.pup_dancing, R.drawable.pup_crown)
+private val POSES = listOf(Pose.GREAT_JOB, Pose.DANCING, Pose.CROWN)
 
 /**
  * 2.3, the fair's photo booth ([com.bigpapituna.sharpears.engine.playground.Game.PHOTO]): the kid picks a song from the
@@ -124,7 +126,7 @@ private fun SongShelf(modifier: Modifier, onPick: (ShelfSong) -> Unit, onShown: 
         val columns = if (maxWidth > 560.dp) 5 else 3
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(Painted.CROWN, size = 64.dp)
+                Pup(Pose.CROWN, size = 64.dp, idle = false)
                 Spacer(Modifier.width(8.dp))
                 StageLine(FairLines.PICK_SONG)
             }
@@ -201,7 +203,7 @@ private fun PhotoTakes(song: ShelfSong, lessonId: String, deps: LessonDeps, inje
                     Spacer(Modifier.height(6.dp))
                     StageLine(line)
                     Spacer(Modifier.height(6.dp))
-                    PaintedPup(if (demo.isNotEmpty()) Painted.POINTING else Painted.GREAT_JOB, size = (roomH * 0.22f).coerceIn(64.dp, 120.dp), poke = st.fx.poke)
+                    StagePup(if (demo.isNotEmpty()) Pose.POINTING else Pose.GREAT_JOB, size = (roomH * 0.22f).coerceIn(64.dp, 120.dp), fx = st.fx, point = st.demoKey)
                 }
                 // The strip: a frame per photo, filled as each take is done.
                 Column(Modifier.fillMaxHeight().width((roomH * 0.2f).coerceIn(70.dp, 120.dp)).background(Color(0xFFFBF5EE), RoundedCornerShape(10.dp)).padding(6.dp),
@@ -210,7 +212,8 @@ private fun PhotoTakes(song: ShelfSong, lessonId: String, deps: LessonDeps, inje
                         Box(Modifier.weight(1f).fillMaxWidth().background(if (i < shot) Color(0xFF7DB8FF) else Color(0xFF3A322C), RoundedCornerShape(6.dp))
                             .border(if (i == shot && run.phase == RoundCoach.Phase.LISTEN) 3.dp else 0.dp, PupGold, RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center) {
-                            if (i < shot) Image(androidx.compose.ui.res.painterResource(POSES[i]), contentDescription = "Photo ${i + 1}", modifier = Modifier.fillMaxSize().padding(4.dp))
+                            if (i < shot) Pup(POSES[i], size = androidx.compose.ui.unit.Dp.Unspecified, live = false, ground = false,
+                                modifier = Modifier.fillMaxSize().padding(4.dp).semantics { contentDescription = "Photo ${i + 1}" })
                         }
                     }
                 }
@@ -307,7 +310,7 @@ fun drawPhotoCard(context: Context, name: String, songTitle: String, stars: Int,
     for (i in 0 until 3) {
         val top = h * (0.135f + i * 0.215f); val box = RectF(stripL + w * 0.03f, top, stripR - w * 0.03f, top + h * 0.2f)
         p.color = backs[i].toInt(); c.drawRoundRect(box, w * 0.012f, w * 0.012f, p)
-        BitmapFactory.decodeResource(context.resources, POSES[i])?.let { img ->
+        BitmapFactory.decodeResource(context.resources, POSES[i].res)?.let { img ->
             val s = minOf(box.width() / img.width, box.height() / img.height) * 0.92f
             val iw = img.width * s; val ih = img.height * s
             c.drawBitmap(img, null, RectF(box.centerX() - iw / 2, box.bottom - ih, box.centerX() + iw / 2, box.bottom), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))

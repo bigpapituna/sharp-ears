@@ -72,16 +72,27 @@ class PupBrainTest {
 
     @Test fun aMoodHoldsAndKeepsIdleAway() {
         val b = PupBrain(seed = 1L, now = t0)
-        b.mood = PupMood.THINKING
-        assertEquals(PupLook.Mood(PupMood.THINKING), b.look(t0 + 10_500))
-        assertEquals(PupLook.Mood(PupMood.THINKING), b.look(t0 + 120_000))       // no sleep while he thinks
+        b.hold = PupHold.THINKING
+        assertEquals(PupLook.Held(PupHold.THINKING), b.look(t0 + 10_500))
+        assertEquals(PupLook.Held(PupHold.THINKING), b.look(t0 + 120_000))       // no sleep while he thinks
         b.react(PupReaction.CLAP, t0 + 120_000)
         assertEquals(PupLook.Reacting(PupReaction.CLAP), b.look(t0 + 120_100))     // a reaction still shows over a mood
-        assertEquals(PupLook.Mood(PupMood.THINKING), b.look(t0 + 125_000))
-        b.mood = PupMood.SLEEPING
+        assertEquals(PupLook.Held(PupHold.THINKING), b.look(t0 + 125_000))
+        b.hold = PupHold.SLEEPING
         assertEquals(PupLook.Asleep, b.look(t0 + 125_000))
-        b.mood = PupMood.NONE
+        b.hold = PupHold.NONE
         assertEquals(PupLook.Base, b.look(t0 + 125_000))
+    }
+
+    /** 2.10: a held mood of motion (cheering, pointing, listening, bedtime) keeps idle acts and the nap away, pose unchanged. */
+    @Test fun aBusyHoldKeepsIdleAwayAndShowsNoPoseOfItsOwn() {
+        val b = PupBrain(seed = 1L, now = t0)
+        b.hold = PupHold.BUSY
+        assertEquals(PupLook.Held(PupHold.BUSY), b.look(t0 + 10_500))
+        assertEquals(PupLook.Held(PupHold.BUSY), b.look(t0 + 120_000))
+        assertNull(b.nextChange(t0 + 1))
+        b.hold = PupHold.NONE
+        assertEquals(PupLook.Asleep, b.look(t0 + 120_000))
     }
 
     @Test fun aPupWithoutIdleKeepsHisPose() {

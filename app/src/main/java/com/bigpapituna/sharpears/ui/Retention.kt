@@ -75,6 +75,9 @@ import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.engine.pup.PupMood
 
 /*
  * The 2.9 retention pieces on screen: Tomorrow's surprise (the wrapped gift on a kid's finish screen once the day's goal
@@ -233,7 +236,7 @@ fun KidComebackCard(stone: String?, onPlay: () -> Unit, onLater: () -> Unit) {
     Dialog(onDismissRequest = onLater) {
         Column(Modifier.widthIn(max = 460.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(c.surfaceContainerHigh).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Pup(Pose.DANCING, size = 150.dp, idle = true)
+            Pup(Pose.DANCING, PupMood.HAPPY, size = 150.dp, idle = true)
             Text(Comeback.KID_TITLE, style = MaterialTheme.typography.headlineMedium, color = c.primary, textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() })
             Text(if (stone != null) Comeback.KID_LINE else Comeback.KID_LINE_NEXT, style = MaterialTheme.typography.titleMedium,

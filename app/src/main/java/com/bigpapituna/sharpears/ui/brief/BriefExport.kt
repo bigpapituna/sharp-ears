@@ -27,6 +27,7 @@ import com.bigpapituna.sharpears.engine.brief.TextMetrics
 import com.bigpapituna.sharpears.engine.brief.TrendRow
 import java.io.File
 import java.time.LocalDate
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * Draws a brief's document (engine/brief/ExportLayout.kt) on an Android Canvas: once on a tall bitmap for the PNG card, and
@@ -138,7 +139,7 @@ class BriefExport(private val context: Context) {
         val pupSize = ExportLayout.HEADER_H.toFloat()
         val cx = ExportLayout.WIDTH - pupSize / 2
         c.drawCircle(cx, y + pupSize / 2, pupSize * 0.5f, glow)
-        drawRes(c, R.drawable.pup_great_job, RectF(cx - pupSize / 2, y, cx + pupSize / 2, y + pupSize))
+        drawRes(c, Pose.GREAT_JOB.res, RectF(cx - pupSize / 2, y, cx + pupSize / 2, y + pupSize))
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = nunito; fontVariationSettings = "'wght' 800"; textSize = 40f; color = Ink.ACCENT }
         c.drawText(brand, 0f, y + pupSize / 2 + 14f, p)
     }

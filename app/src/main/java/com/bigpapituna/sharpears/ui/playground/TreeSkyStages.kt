@@ -51,6 +51,7 @@ import com.bigpapituna.sharpears.ui.practice.PianoGeometry
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlin.math.PI
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * 2.3: what the treehouse's and the night sky's stages share (CopyStage, TapStage, BeatStarsStage, HigherLowerStage,

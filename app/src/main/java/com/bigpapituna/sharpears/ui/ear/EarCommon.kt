@@ -54,8 +54,8 @@ import com.bigpapituna.sharpears.engine.ear.Choice
 import com.bigpapituna.sharpears.engine.ear.EarEvent
 import com.bigpapituna.sharpears.engine.ear.EarTrainer
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.reducedMotion
 
 /** Everything a game screen needs from the app, bundled so the hub, the games and the workout share one set. */

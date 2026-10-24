@@ -51,12 +51,13 @@ import com.bigpapituna.sharpears.engine.brief.Spark
 import com.bigpapituna.sharpears.engine.brief.TrendRow
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.family.LocalParentGate
 import com.bigpapituna.sharpears.ui.family.ParentGateController
 import com.bigpapituna.sharpears.ui.reducedMotion
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /**
  * Every action on a brief passes the parent gate itself (QA 2.8.3): on a child's brief always, unless the gate is open, and on
@@ -209,7 +210,7 @@ private fun Praise(text: String) {
             Text("One thing to praise", style = MaterialTheme.typography.labelLarge, color = c.onSurface.copy(alpha = 0.75f), modifier = Modifier.semantics { heading() })
             Text(text, style = MaterialTheme.typography.bodyLarge, color = c.onSurface)
         }
-        Image(painterResource(R.drawable.pup_great_job), contentDescription = null, modifier = Modifier.size(72.dp))
+        Pup(Pose.GREAT_JOB, size = 72.dp, idle = false)
     }
 }
 

@@ -69,7 +69,7 @@ import com.bigpapituna.sharpears.engine.practice.PitchTracker
 import com.bigpapituna.sharpears.engine.practice.TunerReading
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.reducedMotion

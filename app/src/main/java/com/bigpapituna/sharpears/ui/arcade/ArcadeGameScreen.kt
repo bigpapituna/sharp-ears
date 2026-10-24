@@ -61,8 +61,8 @@ import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.play.ExitPill
 import com.bigpapituna.sharpears.ui.playground.BigKeys
-import com.bigpapituna.sharpears.ui.playground.Painted
-import com.bigpapituna.sharpears.ui.playground.PaintedPup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.playground.StagePup
 import com.bigpapituna.sharpears.ui.playground.StageLine
 import com.bigpapituna.sharpears.ui.playground.rememberFleeting
 import com.bigpapituna.sharpears.ui.playground.rememberStageEar
@@ -134,12 +134,12 @@ fun ArcadeGameScreen(
         for (c in cues) {
             when (c) {
                 is Cue.Demo -> {
-                    play.react(Painted.POINTING, c.leadMs + c.keys.size * c.gapMs + 600, t)
+                    play.react(Pose.POINTING, c.leadMs + c.keys.size * c.gapMs + 600, t)
                     if (c.first) { play.show(PlaygroundLines.LET_ME_SHOW); voice.speakOverMic(PlaygroundLines.LET_ME_SHOW) } else play.show(ArcadeLines.WATCH)
                     pupPlays(c.keys, c.gapMs, c.leadMs)
                 }
                 is Cue.Listen -> {
-                    play.react(Painted.LISTENING, 0, t)
+                    play.react(Pose.LISTENING, 0, t)
                     if (c.first) { play.show(PlaygroundLines.YOUR_TURN); voice.speakOverMic(PlaygroundLines.YOUR_TURN) }
                     else if (round is CallRound) play.show(ArcadeLines.GO)
                 }
@@ -149,7 +149,7 @@ fun ArcadeGameScreen(
                     play.lit = play.lit - c.target.keys.toSet()
                     c.target.keys.forEach { play.fx.found(it) }
                     play.add(Fx(FxKind.HIT, c.target, c.key, t, c.target.phrase))
-                    play.react(if (c.streak >= 5 && c.streak % 5 == 0) Painted.DANCING else Painted.CLAPPING, 650, t)
+                    play.react(if (c.streak >= 5 && c.streak % 5 == 0) Pose.DANCING else Pose.CLAPPING, 650, t)
                     if (c.streak >= 5 && c.streak % 5 == 0) play.show(ArcadeLines.STREAK[(c.streak / 5 - 1) % ArcadeLines.STREAK.size])
                     if (hitSound(game)) mic.deafFor(220)
                 }
@@ -157,14 +157,14 @@ fun ArcadeGameScreen(
                 is Cue.Slip -> {
                     play.fx.wrong(c.key, c.near)
                     play.add(Fx(FxKind.SLIP, null, c.key, t))
-                    play.react(Painted.HEAD_TILT, 900, t)
+                    play.react(Pose.HEAD_TILT, 900, t)
                     if (round is CallRound) play.show(ArcadeLines.SLIP)
                 }
                 is Cue.Expired -> {
                     play.played[c.target.id] = false
                     play.lit = play.lit - c.target.keys.toSet()
                     play.add(Fx(FxKind.GONE, c.target, c.target.key, t))
-                    play.react(Painted.SURPRISED, 600, t)
+                    play.react(Pose.SURPRISED, 600, t)
                 }
                 is Cue.Nudge -> {
                     play.lit = play.lit + c.target.key
@@ -174,13 +174,13 @@ fun ArcadeGameScreen(
                     play.played[c.target.id] = false
                     play.lit = play.lit - c.target.key
                     play.add(Fx(FxKind.LET_GO, c.target, c.target.key, t, c.target.phrase))
-                    play.react(Painted.POINTING, 900, t)
+                    play.react(Pose.POINTING, 900, t)
                     play.show(PlaygroundLines.LET_GO)
                     pupPlays(listOf(c.target.key), 450)
                 }
                 is Cue.LineDone -> {
                     play.add(Fx(FxKind.LINE, null, -1, t, c.phrase))
-                    play.react(Painted.DANCING, 1_100, t)
+                    play.react(Pose.DANCING, 1_100, t)
                     if (lineSound(game)) mic.deafFor(400)
                     val call = round as? CallRound
                     call?.let { afterLine(it.plan, c.phrase, it.linesDone) }?.let(::say)
@@ -228,7 +228,7 @@ fun ArcadeGameScreen(
             withFrameNanos { }
             val t = now()
             play.now = t
-            if (play.poseUntil in 1..t) { play.poseUntil = 0; play.pose = Painted.LISTENING }
+            if (play.poseUntil in 1..t) { play.poseUntil = 0; play.pose = Pose.LISTENING }
             handle(round.tick(t))
         }
     }
@@ -286,7 +286,7 @@ fun ArcadeGameScreen(
                 val line = rememberFleeting(play.lineSeq, play.line, ms = 2_400) ?: if (play.demoKeys.isNotEmpty()) ArcadeLines.WATCH else null
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (!spec.pupInField) {
-                        PaintedPup(play.pose, size = (roomH * 0.1f).coerceIn(52.dp, 84.dp), poke = play.fx.poke)
+                        StagePup(play.pose, size = (roomH * 0.1f).coerceIn(52.dp, 84.dp), fx = play.fx)
                         Spacer(Modifier.width(8.dp))
                     }
                     Box(Modifier.height(44.dp), contentAlignment = Alignment.CenterStart) { StageLine(line) }

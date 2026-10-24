@@ -67,6 +67,8 @@ import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.MidiDevices
 import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.noteName
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 
 /** Fixture labels for the recording session; the file names say what was played. */

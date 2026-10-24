@@ -89,6 +89,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * 2.3 part B, the tap games ([TapQuiz]): the app plays, the child taps the answer. The pup shows one first (he plays
@@ -284,13 +285,13 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(game.rounds.size, quiz.finished, letGo = quiz.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when {
-                    reveal != null -> Painted.GREAT_JOB
-                    tilt -> Painted.HEAD_TILT
-                    !exampleShown -> Painted.POINTING
-                    playingPart != null -> Painted.LISTENING
-                    else -> Painted.STANDING
-                }, size = (roomH * 0.2f).coerceIn(64.dp, 120.dp), poke = sounding + fx.poke)
+                StagePup(when {
+                    reveal != null -> Pose.GREAT_JOB
+                    tilt -> Pose.HEAD_TILT
+                    !exampleShown -> Pose.POINTING
+                    playingPart != null -> Pose.LISTENING
+                    else -> Pose.STANDING
+                }, size = (roomH * 0.2f).coerceIn(64.dp, 120.dp), fx = fx, poke = sounding)
                 Spacer(Modifier.width(8.dp))
                 StageLine(shownLine)
             }

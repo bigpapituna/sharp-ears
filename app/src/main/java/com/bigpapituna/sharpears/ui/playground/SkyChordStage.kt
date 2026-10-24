@@ -49,6 +49,7 @@ import com.bigpapituna.sharpears.ui.skin.colourNotesOn
 import com.bigpapituna.sharpears.ui.skin.noteColour
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * 2.3 part B, the happy chord (the night sky's "Happy or sad"): a rain cloud hangs over the pup; C, E and G glow on the
@@ -123,8 +124,8 @@ internal fun SkyChordStage(step: Step, lessonId: String, deps: LessonDeps, injec
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when { finished -> Painted.DANCING; sun.value > 0.5f -> Painted.GREAT_JOB; tiltNow -> Painted.HEAD_TILT; demo.isNotEmpty() -> Painted.POINTING
-                    else -> Painted.LISTENING }, size = (roomH * 0.28f).coerceIn(80.dp, 150.dp), poke = st.fx.poke)
+                StagePup(when { finished -> Pose.DANCING; sun.value > 0.5f -> Pose.GREAT_JOB; tiltNow -> Pose.HEAD_TILT; demo.isNotEmpty() -> Pose.POINTING
+                    else -> Pose.LISTENING }, size = (roomH * 0.28f).coerceIn(80.dp, 150.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Canvas(Modifier.width(150.dp).height(110.dp).semantics { contentDescription = if (sun.value > 0.5f) "The sun is out" else "A rain cloud" }) {

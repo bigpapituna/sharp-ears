@@ -74,6 +74,11 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.PupClips
+import com.bigpapituna.sharpears.ui.pup.PupClip
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 private val Curtain = Color(0xFF8E2F2A)
 private val CurtainDeep = Color(0xFF5C1C19)
@@ -164,7 +169,8 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
             Box(Modifier.fillMaxSize().background(Color(0xCC110F0D)), contentAlignment = Alignment.Center) {
                 Fireworks(Modifier.fillMaxSize())
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    PaintedPup(Painted.DANCING, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp))
+                    // The bow (2.10): the pup's wave clip when the app has it, else his jump, then a cheer.
+                    PupClip(PupClips.WAVE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
                     if (plan.place != Place.GARDEN) Audience(plan.place, Modifier.padding(top = 10.dp), size = 44.dp, cheer = true, max = 7)
                 }
@@ -181,7 +187,7 @@ private fun SongPicker(plan: ConcertPlan, modifier: Modifier, onPick: (ConcertSo
         val wide = maxWidth > maxHeight
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(Painted.CROWN, size = 72.dp)
+                Pup(Pose.CROWN, size = 72.dp, idle = false)
                 Spacer(Modifier.width(8.dp))
                 StageLine(if (plan.place == Place.POND) PageLines.POND_WHICH else "Which song tonight?")
             }

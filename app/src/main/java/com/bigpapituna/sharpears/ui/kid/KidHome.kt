@@ -86,16 +86,18 @@ import com.bigpapituna.sharpears.engine.kid.StoneState
 import com.bigpapituna.sharpears.engine.play.Quest
 import com.bigpapituna.sharpears.engine.play.QuestTask
 import com.bigpapituna.sharpears.engine.world.WorldState
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.analytics.testerMask
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.motion.BounceSize
 import com.bigpapituna.sharpears.ui.play.QuestCardContent
 import com.bigpapituna.sharpears.ui.play.Toy
 import com.bigpapituna.sharpears.ui.reducedMotion
-import com.bigpapituna.sharpears.ui.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import kotlinx.coroutines.delay
+import com.bigpapituna.sharpears.engine.pup.PupMotion
+import com.bigpapituna.sharpears.engine.pup.PupMood
 
 /** What the grown-ups' corner offers once the parent gate is passed. */
 class GrownUpCorner(val profiles: List<Profile>, val currentId: String, val onSettings: () -> Unit, val onMicSetup: () -> Unit,
@@ -229,7 +231,8 @@ fun KidHome(
                                 val at = page.stones.indexOfFirst { it.lessonId == model.next }
                                 PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !homes && !decorate.active,
                                     forward = (at / com.bigpapituna.sharpears.engine.world.Trail.PER_ROW) % 2 == 0, gate = i == model.pages.lastIndex, hop = decorate.landed,
-                                    onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true })
+                                    onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true },
+                                    giftReady = gift != null && !decorate.active)
                             }
                             if (i == model.pages.lastIndex) {
                                 val g = com.bigpapituna.sharpears.ui.world.WorldAnchors.gate(page.place, page.stones.size)
@@ -245,7 +248,8 @@ fun KidHome(
                         if (i >= 0) {
                             val (x, y) = roadSpot(i, maxWidth)
                             PupSpot(x, y, sizes, line, asleep, quest.stars, pointable = !asleep && nudge == null && !road && !decorate.active, forward = roadForward(i, maxWidth), hop = decorate.landed,
-                                onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true })
+                                onGo = { model.stone(model.next!!)?.let(onStone) }, onSignpost = { say(KidLines.signpost(quest.stars)); questOpen = true },
+                                giftReady = gift != null && !decorate.active)
                         }
                     }
                 }
@@ -292,7 +296,9 @@ private fun Hello(name: String, avatar: Int) {
  */
 @Composable
 internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line: String, asleep: Boolean, found: Int, pointable: Boolean,
-                                             forward: Boolean, onGo: () -> Unit, onSignpost: () -> Unit, gate: Boolean = false, hop: Int = 0) {
+                                             forward: Boolean, onGo: () -> Unit, onSignpost: () -> Unit, gate: Boolean = false, hop: Int = 0,
+                                             /** 2.9's surprise is ready over the buttons: he jumps for joy, twice, then again now and then. */
+                                             giftReady: Boolean = false) {
     val w = maxWidth
     val p = sizes.pup
     val reach = sizes.next * 0.55f
@@ -317,6 +323,16 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
     val pup = rememberPupController(idle = !pointing && !asleep)
     // A sticker stuck on the map (decorate mode): he dances.
     LaunchedEffect(hop) { if (hop > 0) pup.react(com.bigpapituna.sharpears.engine.world.PupReaction.DANCE) }
+    // 2.10: a surprise waiting to be opened: a wave of jumps for joy (two in a row), then one every so often while it waits.
+    val pupNow by rememberUpdatedState(pup)       // a new controller when he starts or stops pointing
+    LaunchedEffect(giftReady, asleep) {
+        if (!giftReady || asleep) return@LaunchedEffect
+        delay(700)
+        while (true) {
+            repeat(2) { pupNow.play(PupMood.HAPPY); delay(PupMotion.HAPPY_MS + 120L) }
+            delay(GIFT_JUMPS_EVERY_MS)
+        }
+    }
     // A little behind the stone's middle, so the stone shows in front of his feet.
     val px = if (right) x - sizes.stone * 0.18f else x + sizes.stone * 0.18f
     Box(Modifier.pinAt(px, y + sizes.stone * 0.22f, ay = 1f).size(p)
@@ -336,6 +352,9 @@ internal fun BoxWithConstraintsScope.PupSpot(x: Dp, y: Dp, sizes: MapSizes, line
             .widthIn(max = minOf(room, 360.dp)))
     if (!fits) Signpost(found, onSignpost, Modifier.pinAt(if (right) x + reach + p * 0.35f else x - reach - p * 0.35f, y + sizes.stone, ay = 1f), width = p * 0.5f)
 }
+
+/** How often he jumps again for a surprise still waiting (ms). */
+private const val GIFT_JUMPS_EVERY_MS = 9_000L
 
 /** The pup's speech bubble on the map: big words on gold, its tail toward him; tapping it starts the game. */
 @Composable
@@ -422,12 +441,12 @@ internal fun KidButton(label: String, pose: Pose, onClick: () -> Unit, modifier:
         // Side by side where there is room (the unfolded Fold); the pup over the word on a phone.
         if (maxWidth >= 190.dp) Row(face0.padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-            Image(painterResource(pose.res), contentDescription = null, modifier = Modifier.size(52.dp))
+            Pup(pose, size = 52.dp, live = false, ground = false)
             Text(label, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 19.sp), maxLines = 1,
                 color = c.onSurface)
         } else Column(face0.padding(horizontal = 4.dp, vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center) {
-            Image(painterResource(pose.res), contentDescription = null, modifier = Modifier.size(40.dp))
+            Pup(pose, size = 40.dp, live = false, ground = false)
             Text(label, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 15.sp), maxLines = 1,
                 color = c.onSurface)
         }

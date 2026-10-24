@@ -87,7 +87,7 @@ import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Dictionary
 import com.bigpapituna.sharpears.ui.Nunito
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.practice.Pill

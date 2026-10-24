@@ -77,6 +77,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * 2.3, the fair's games (part A): balloons to pop, the carousel to spin, the strongman's bell to ring. Each is a stage of
@@ -145,8 +146,8 @@ internal fun BalloonStage(step: Step, lessonId: String, deps: LessonDeps, inject
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(if (run.finished) Painted.DANCING else if (demo.isNotEmpty()) Painted.POINTING else Painted.LISTENING,
-                    size = (roomH * 0.17f).coerceIn(56.dp, 100.dp), poke = st.fx.poke)
+                StagePup(if (run.finished) Pose.DANCING else if (demo.isNotEmpty()) Pose.POINTING else Pose.LISTENING,
+                    size = (roomH * 0.17f).coerceIn(56.dp, 100.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }
@@ -280,8 +281,8 @@ internal fun CarouselStage(step: Step, lessonId: String, deps: LessonDeps, injec
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(if (run.finished) Painted.DANCING else if (demo.isNotEmpty()) Painted.POINTING else Painted.LISTENING,
-                    size = (roomH * 0.16f).coerceIn(56.dp, 96.dp), poke = st.fx.poke)
+                StagePup(if (run.finished) Pose.DANCING else if (demo.isNotEmpty()) Pose.POINTING else Pose.LISTENING,
+                    size = (roomH * 0.16f).coerceIn(56.dp, 96.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }
@@ -411,12 +412,12 @@ internal fun StrongmanStage(step: Step, lessonId: String, deps: LessonDeps, inje
                 Column(Modifier.weight(1f).fillMaxSize(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
                     StageLine(line)
                     Spacer(Modifier.height(10.dp))
-                    PaintedPup(when {
-                        run.finished -> Painted.DANCING
-                        rang > 0 && puck.value > 0.9f -> Painted.CROWN
-                        puck.value > 0.1f -> Painted.SURPRISED
-                        else -> Painted.LISTENING
-                    }, size = (roomH * 0.3f).coerceIn(80.dp, 170.dp), poke = st.fx.poke)
+                    StagePup(when {
+                        run.finished -> Pose.DANCING
+                        rang > 0 && puck.value > 0.9f -> Pose.CROWN
+                        puck.value > 0.1f -> Pose.SURPRISED
+                        else -> Pose.LISTENING
+                    }, size = (roomH * 0.3f).coerceIn(80.dp, 170.dp), fx = st.fx)
                 }
                 Canvas(Modifier.weight(1f).fillMaxSize().semantics { contentDescription = "The strongman's pole and bell" }) {
                     strongman(puck.value, best, shake.value)

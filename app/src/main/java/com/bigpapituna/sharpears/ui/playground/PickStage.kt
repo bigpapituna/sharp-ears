@@ -75,6 +75,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * 2.3, the workshop's pick game ([com.bigpapituna.sharpears.engine.playground.Game.PICK]): the pup asks, two or three
@@ -196,11 +197,11 @@ internal fun PickStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(game.rounds.size, game.done, letGo = game.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when {
-                    game.ended || shown != null && wobble == null -> Painted.GREAT_JOB
-                    wobble != null -> Painted.HEAD_TILT
-                    listening -> Painted.LISTENING
-                    else -> Painted.POINTING
+                StagePup(when {
+                    game.ended || shown != null && wobble == null -> Pose.GREAT_JOB
+                    wobble != null -> Pose.HEAD_TILT
+                    listening -> Pose.LISTENING
+                    else -> Pose.POINTING
                 }, size = (roomH * 0.2f).coerceIn(64.dp, 110.dp))
                 Spacer(Modifier.width(8.dp))
                 StageLine(line ?: round?.ask)

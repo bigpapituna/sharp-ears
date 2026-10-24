@@ -40,6 +40,7 @@ import com.bigpapituna.sharpears.engine.Mode
 import com.bigpapituna.sharpears.engine.SightScore
 import com.bigpapituna.sharpears.engine.sightPiece
 import com.bigpapituna.sharpears.engine.toSong
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * Sight-reading: four bars never seen before, played once in wait mode with note names and fingers hidden.

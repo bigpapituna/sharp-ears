@@ -76,7 +76,7 @@ import com.bigpapituna.sharpears.ui.LessonDeps
 import com.bigpapituna.sharpears.ui.LessonDrop
 import com.bigpapituna.sharpears.ui.PlayerScreen
 import com.bigpapituna.sharpears.ui.PlayerStart
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.Stage

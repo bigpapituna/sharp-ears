@@ -102,6 +102,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6

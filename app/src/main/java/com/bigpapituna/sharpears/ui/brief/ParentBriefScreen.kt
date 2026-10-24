@@ -71,7 +71,7 @@ import com.bigpapituna.sharpears.engine.brief.Period
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.family.avatarLabel

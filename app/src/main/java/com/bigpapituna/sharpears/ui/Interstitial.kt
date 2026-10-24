@@ -53,6 +53,8 @@ import com.bigpapituna.sharpears.engine.SessionPart
 import com.bigpapituna.sharpears.engine.doneIn
 import com.bigpapituna.sharpears.engine.SessionWords
 import kotlinx.coroutines.delay
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /** How long the Go ring takes to fill once the voice has finished, before the part opens by itself. */
 private const val COUNTDOWN_MS = 2400

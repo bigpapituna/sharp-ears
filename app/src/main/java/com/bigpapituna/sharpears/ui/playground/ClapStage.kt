@@ -86,6 +86,7 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** The pup's drum: a low tom ([drumSamples]) synthesized once into the cache and played through SoundPool. */
 internal class DrumSound(context: Context) {
@@ -299,12 +300,12 @@ internal fun ClapStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                 // The pond's pup drums on a lily pad.
                 if (place == Place.POND) Canvas(Modifier.fillMaxSize()) { lilyPad(Offset(size.width / 2, size.height / 2 + pupSize.toPx() * 0.42f), pupSize.toPx() * 0.7f) }
                 Canvas(Modifier.fillMaxSize()) { bursts.forEach { (t, on) -> clapBurst(frameNow, t, on, still) } }
-                PaintedPup(when (phase) {
-                    ClapPhase.DONE -> Painted.CLAPPING
-                    ClapPhase.NOTHING_HEARD -> Painted.HEAD_TILT
-                    ClapPhase.READY -> Painted.LISTENING
-                    ClapPhase.DEMO -> Painted.DRUMMING
-                    else -> Painted.DRUMMING
+                StagePup(when (phase) {
+                    ClapPhase.DONE -> Pose.CLAPPING
+                    ClapPhase.NOTHING_HEARD -> Pose.HEAD_TILT
+                    ClapPhase.READY -> Pose.LISTENING
+                    ClapPhase.DEMO -> Pose.DRUMMING
+                    else -> Pose.DRUMMING
                 }, size = pupSize, squash = { beatPulse.value })
             }
             PawRow(tokens, credited.toSet(), if (phase == ClapPhase.PLAYING) hitNow else if (phase == ClapPhase.DEMO) demoBeat else -1, words,

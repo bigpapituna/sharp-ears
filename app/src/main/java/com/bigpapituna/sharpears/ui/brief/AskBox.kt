@@ -53,6 +53,8 @@ import com.bigpapituna.sharpears.engine.brief.AskRules
 import com.bigpapituna.sharpears.engine.brief.Exchange
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.SpeechBubble
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * "Ask the brief": a text field with a microphone button (when this phone can recognise speech on itself), starter
@@ -134,7 +136,7 @@ private fun ExchangeView(e: Exchange) {
                 modifier = Modifier.widthIn(max = 420.dp).clip(RoundedCornerShape(18.dp)).background(c.secondaryContainer).padding(horizontal = 16.dp, vertical = 10.dp))
         }
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
-            Image(painterResource(R.drawable.pup_thinking), contentDescription = null, modifier = Modifier.size(52.dp))
+            Pup(Pose.THINKING, size = 52.dp, idle = false)
             SpeechBubble(when {
                 e.pending -> "Let me look."
                 e.failed -> AskRules.COULD_NOT

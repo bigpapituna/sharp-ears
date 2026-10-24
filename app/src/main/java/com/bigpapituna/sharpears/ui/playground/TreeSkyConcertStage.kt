@@ -55,6 +55,10 @@ import com.bigpapituna.sharpears.ui.PlayerStart
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.PupClips
+import com.bigpapituna.sharpears.ui.pup.PupClip
 
 /**
  * 2.3, the treehouse's and the night sky's concerts ([com.bigpapituna.sharpears.engine.playground.Game.CONCERT]; ConcertStage
@@ -125,7 +129,8 @@ internal fun TreeSkyConcertStage(song: ConcertSong, place: Place, step: Step, le
                 Box(Modifier.fillMaxSize().background(Color(0x66110F0D)))
                 ShootingStars(Modifier.fillMaxSize(), still, gold = tree)
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-                    PaintedPup(Painted.DANCING, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp))
+                    // The bow (2.10): the pup's wave clip when the app has it, else his jump, then a cheer.
+                    PupClip(PupClips.WAVE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
                 }
                 Confetti(r, Modifier.fillMaxSize())

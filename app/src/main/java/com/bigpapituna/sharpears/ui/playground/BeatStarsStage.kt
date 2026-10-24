@@ -73,6 +73,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 private enum class BeatPhase { READY, DEMO, COUNT_IN, PLAYING, DONE, NOTHING_HEARD }
 
@@ -245,13 +246,13 @@ internal fun BeatStarsStage(game: StageGame.Beat, step: Step, lessonId: String, 
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size((roomH * 0.26f).coerceIn(80.dp, 150.dp)), contentAlignment = Alignment.Center) {
                     if (game.sound == BeatSound.CLICK) Canvas(Modifier.fillMaxSize()) { metronome(beatNow, pulse.value, still) }
-                    else PaintedPup(if (phase == BeatPhase.DONE) Painted.GREAT_JOB else if (phase == BeatPhase.NOTHING_HEARD) Painted.HEAD_TILT else Painted.DRUMMING,
-                        size = (roomH * 0.26f).coerceIn(80.dp, 150.dp), squash = { pulse.value }, poke = fx.poke)
+                    else StagePup(if (phase == BeatPhase.DONE) Pose.GREAT_JOB else if (phase == BeatPhase.NOTHING_HEARD) Pose.HEAD_TILT else Pose.DRUMMING,
+                        size = (roomH * 0.26f).coerceIn(80.dp, 150.dp), squash = { pulse.value }, fx = fx)
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    if (game.sound == BeatSound.CLICK) PaintedPup(if (phase == BeatPhase.DONE) Painted.GREAT_JOB else Painted.LISTENING,
-                        size = (roomH * 0.16f).coerceIn(56.dp, 96.dp), poke = fx.poke)
+                    if (game.sound == BeatSound.CLICK) StagePup(if (phase == BeatPhase.DONE) Pose.GREAT_JOB else Pose.LISTENING,
+                        size = (roomH * 0.16f).coerceIn(56.dp, 96.dp), fx = fx)
                     StageLine(shown)
                 }
             }

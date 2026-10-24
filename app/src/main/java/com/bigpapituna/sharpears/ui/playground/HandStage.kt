@@ -81,6 +81,7 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * 2.3, the workshop's hand stage ([com.bigpapituna.sharpears.engine.playground.Game.HAND]): big keys with the painted
@@ -136,8 +137,8 @@ internal fun HandStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(if (run.finished) Painted.GREAT_JOB else if (demo.isNotEmpty()) Painted.POINTING else Painted.LISTENING,
-                    size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), poke = st.fx.poke)
+                StagePup(if (run.finished) Pose.GREAT_JOB else if (demo.isNotEmpty()) Pose.POINTING else Pose.LISTENING,
+                    size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), fx = st.fx)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }

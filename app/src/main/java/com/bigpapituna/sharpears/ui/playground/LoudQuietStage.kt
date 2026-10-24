@@ -52,6 +52,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** What the pup says about one note of the loud and quiet game, from its [v]erdict. */
 internal fun loudQuietLine(v: TuneVerdict?): String? = when {
@@ -128,8 +129,8 @@ internal fun LoudQuietStage(game: StageGame.LoudQuiet, step: Step, lessonId: Str
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             RoundIcons(game.rounds.drop(1).map { it ?: Loudness.MEDIUM }, round - 1)
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when (lastHeard) { Loudness.LOUD -> Painted.SURPRISED; Loudness.SOFT -> Painted.LISTENING; else -> Painted.STANDING },
-                    size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), poke = st.fx.poke)
+                StagePup(when (lastHeard) { Loudness.LOUD -> Pose.SURPRISED; Loudness.SOFT -> Pose.LISTENING; else -> Pose.STANDING },
+                    size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), fx = st.fx)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }

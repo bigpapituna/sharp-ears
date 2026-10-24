@@ -62,6 +62,9 @@ import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.play.Toy
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.engine.pup.PupMood
 
 /**
  * Today's goal and streak for the card and the pup (ProgressStore): "3 of 10 min today", met or not, days in a row. 2.9:
@@ -126,7 +129,9 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             // The pup in one line: what he says depends on the day so far; a tap gets a word of encouragement, and left alone
             // for half a minute he dozes off.
             Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pup(pose, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000)
+                // 2.10: idle only and subtle (a breath, a blink, now and then an ear): no acts, no hops; a tap still wags him.
+                Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
+                    bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
                 Text(tapLine ?: remember(shown.state, goal, welcomeBack != null) { greeting(shown.state, goal, fresh, back = welcomeBack != null) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }

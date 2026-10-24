@@ -129,22 +129,25 @@ class BarActions(
  * speed, microphone and video controls. Icons carry spoken labels for TalkBack.
  */
 @Composable
-fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier) {
+fun TransportBar(s: BarState, a: BarActions, modifier: Modifier = Modifier,
+                 /** 2.10: what sits before the title (a kid's pup, wagging at right keys and tilting at wrong ones); null: nothing. */
+                 lead: (@Composable () -> Unit)? = null) {
     // Two fixed-height rows across a phone held sideways: at the phone's largest font sizes (up to 2x) the hands, the modes
     // and the play button ran off the right edge. The bar's text stops growing at 1.15x, where the song slider still has
     // room; the rest of the player follows the phone.
     val d = LocalDensity.current
-    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale.coerceAtMost(MAX_FONT_SCALE))) { Bar(s, a, modifier) }
+    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale.coerceAtMost(MAX_FONT_SCALE))) { Bar(s, a, modifier, lead) }
 }
 
 private const val MAX_FONT_SCALE = 1.15f
 
 @Composable
-private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
+private fun Bar(s: BarState, a: BarActions, modifier: Modifier, lead: (@Composable () -> Unit)? = null) {
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier.padding(horizontal = 8.dp)) {
         Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconButton(onClick = a.onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
+            lead?.invoke()
             Column(Modifier.weight(1f)) {
                 Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (s.subtitle.isNotEmpty()) Text(s.subtitle, style = MaterialTheme.typography.bodySmall, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)

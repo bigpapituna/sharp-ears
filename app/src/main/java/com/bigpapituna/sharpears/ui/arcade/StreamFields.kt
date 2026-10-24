@@ -46,6 +46,12 @@ import com.bigpapituna.sharpears.ui.skin.drawAnimal
 import com.bigpapituna.sharpears.ui.skin.inkOn
 import kotlin.math.PI
 import kotlin.math.sin
+import androidx.compose.runtime.LaunchedEffect
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.mood
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * The three stream games' playfields: balloons rising, treats flying past the pup, moles peeking out of the keys. Each
@@ -170,15 +176,20 @@ internal fun FeedField(play: ArcadePlay, modifier: Modifier) {
             }
         }
         val munching = play.events.any { it.kind == FxKind.HIT && play.now - it.at in 0..700 }
-        val res = when {
-            munching -> R.drawable.pup_treat
-            play.pose == com.bigpapituna.sharpears.ui.playground.Painted.HEAD_TILT -> R.drawable.pup_head_tilt
-            play.pose == com.bigpapituna.sharpears.ui.playground.Painted.SURPRISED -> R.drawable.pup_surprised
-            play.pose == com.bigpapituna.sharpears.ui.playground.Painted.POINTING -> R.drawable.pup_pointing
-            else -> R.drawable.pup_listening
+        val pose = when {
+            munching -> Pose.TREAT
+            play.pose == Pose.HEAD_TILT -> Pose.HEAD_TILT
+            play.pose == Pose.SURPRISED -> Pose.SURPRISED
+            play.pose == Pose.POINTING -> Pose.POINTING
+            else -> Pose.LISTENING
         }
-        Image(painterResource(res), contentDescription = null, modifier = Modifier.align(Alignment.BottomStart).padding(start = 4.dp, bottom = 6.dp)
-            .size(pupSize).graphicsLayer { transformOrigin = TransformOrigin(0.5f, 1f); scaleX = round * (if (munching && !still) 1.04f else 1f); scaleY = 1f + (round - 1f) * 0.4f })
+        // 2.10: a wag for every treat he catches, a tilt for a wrong key; he grows rounder as he eats.
+        val feeder = rememberPupController(idle = false)
+        LaunchedEffect(eaten) { if (eaten > 0) feeder.play(PupMood.WAG) }
+        Pup(pose, if (pose == Pose.HEAD_TILT) PupMood.TILT else pose.mood, size = pupSize, controller = feeder, idle = false, ground = false,
+            bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 4.dp, bottom = 6.dp)
+                .graphicsLayer { transformOrigin = TransformOrigin(0.5f, 1f); scaleX = round; scaleY = 1f + (round - 1f) * 0.4f })
     }
 }
 

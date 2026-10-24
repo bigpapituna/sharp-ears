@@ -52,8 +52,8 @@ import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.engine.world.Scenery
 import com.bigpapituna.sharpears.engine.world.TreatJar
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.motion.pressScale
 
 /** The open profile's world, for any screen (the integrator provides it from MainActivity's openApp). Null in previews. */

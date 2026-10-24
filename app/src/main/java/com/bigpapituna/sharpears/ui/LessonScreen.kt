@@ -77,6 +77,10 @@ import com.bigpapituna.sharpears.ui.theory.ScenePreview
 import com.bigpapituna.sharpears.ui.theory.SceneStage
 import com.bigpapituna.sharpears.ui.theory.pose
 import com.bigpapituna.sharpears.ui.theory.rememberScenePlayback
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.mood
+import com.bigpapituna.sharpears.engine.pup.PupMood
 
 /** Everything a lesson needs from the activity. */
 class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput, val voice: Voice, val prefs: Prefs, val ready: Boolean)
@@ -333,12 +337,20 @@ fun LessonScreen(
                 // ("My turn. Listen.") he keeps listening: nothing is pressed meanwhile, and he used to scratch or sneeze.
                 val pup = rememberPupController(idle = reaction == null && step.kind != StepKind.LISTEN)
                 val pupNow by androidx.compose.runtime.rememberUpdatedState(pup)
-                // A clapping step shows him clapping, not at the piano ("Clap with my drum!").
+                // A clapping step shows him clapping, not at the piano ("Clap with my drum!"). 2.10: while the app plays a
+                // listening step's demo he points at the keys below (a little slide and lean their way); a step passed, he
+                // jumps for joy; a wrong key tilts his head (onWrongKey) and a right one wags him (onRightKey).
                 val asks = when { step.game == com.bigpapituna.sharpears.engine.playground.Game.CLAP -> Pose.CLAPPING
-                    step.kind == StepKind.LISTEN -> Pose.LISTENING; else -> Pose.PRACTICING }
-                PupSays(reaction ?: asks, step.text,
+                    step.kind == StepKind.LISTEN -> Pose.GET_READY; else -> Pose.PRACTICING }
+                val shown = reaction ?: asks
+                LaunchedEffect(pup) { pup.pointAt = 0.5f }
+                PupSays(shown, step.text,
                     Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
-                    controller = pup)
+                    controller = pup, mood = when {
+                        reaction == Pose.GREAT_JOB -> PupMood.HAPPY
+                        reaction == null && step.kind == StepKind.LISTEN -> PupMood.POINT
+                        else -> shown.mood
+                    })
                 val ex = step.exercise
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
@@ -367,6 +379,7 @@ fun LessonScreen(
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
                                 anyOfLessons = com.bigpapituna.sharpears.engine.playground.ANY_OF_LESSONS,
                                 onWrongKey = { pupNow.react(PupReaction.HEAD_TILT) },
+                                onRightKey = { pupNow.play(PupMood.WAG) },
                                 letGo = com.bigpapituna.sharpears.engine.playground.StepRetry.isPlayground(lesson.id),
                             )
                         }

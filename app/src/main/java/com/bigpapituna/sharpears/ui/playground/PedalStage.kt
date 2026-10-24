@@ -48,6 +48,7 @@ import com.bigpapituna.sharpears.ui.theory.rememberStageInk
 import com.bigpapituna.sharpears.ui.theory.softFoot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** How long the pup's play back with the pedal rings before the foot lifts. */
 private const val RING_MS = 2_200L
@@ -143,12 +144,12 @@ internal fun PedalStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when {
-                    run.finished -> Painted.GREAT_JOB
-                    ringing.isNotEmpty() -> Painted.DANCING
-                    demo.isNotEmpty() -> Painted.POINTING
-                    else -> Painted.LISTENING
-                }, size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), poke = st.fx.poke)
+                StagePup(when {
+                    run.finished -> Pose.GREAT_JOB
+                    ringing.isNotEmpty() -> Pose.DANCING
+                    demo.isNotEmpty() -> Pose.POINTING
+                    else -> Pose.LISTENING
+                }, size = (roomH * 0.18f).coerceIn(60.dp, 110.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }

@@ -58,8 +58,8 @@ import com.bigpapituna.sharpears.engine.skin.NoteColours
 import com.bigpapituna.sharpears.engine.world.AlbumPage
 import com.bigpapituna.sharpears.engine.world.Rarity
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -70,6 +70,9 @@ import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.PupClips
+import com.bigpapituna.sharpears.ui.pup.PupClip
 
 /** The pup's bow: proud in his crown, a little dance, then holding up the page's sticker, round and round. */
 private val BOW = listOf(Pose.CROWN, Pose.DANCING, Pose.STICKER)
@@ -128,7 +131,9 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
             val pupSize: Dp = if (wide) minOf(maxHeight * 0.3f, 220.dp) else minOf(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize), contentAlignment = Alignment.BottomCenter) {
-                    Pup(pose, size = pupSize, idle = false, modifier = Modifier.graphicsLayer {
+                    // 2.10: the pup's dance clip when the app has it; else the rig: a jump for joy, then he cheers on the beat
+                    // through his bow (crown, dance, sticker), each pose fading into the next.
+                    PupClip(PupClips.DANCE, size = pupSize, fallback = pose, then = PupMood.CHEER, modifier = Modifier.graphicsLayer {
                         val k = 0.6f + 0.4f * rise.value; scaleX = k; scaleY = k; alpha = rise.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                     })
                 }

@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** The certificate's colours: warm paper whatever the phone's theme, so it prints and sends the same. */
 private object CertInk {
@@ -108,7 +109,7 @@ fun drawCertificate(context: Context, name: String, page: PlaygroundPage, stars:
     val pupBox = RectF(w * 0.07f, h * 0.14f, w * 0.40f, h * 0.70f)
     p.style = Paint.Style.FILL; p.color = CertInk.GLOW
     c.drawCircle(pupBox.centerX(), pupBox.centerY() + h * 0.02f, pupBox.width() * 0.5f, p)
-    drawRes(context, R.drawable.pup_crown, pupBox, c)
+    drawRes(context, Pose.CROWN.res, pupBox, c)
     val pageColour = page.place.let(KidPages::worldPlace).colour().toArgb()
     rosette(c, p, pupBox.centerX(), h * 0.80f, w * 0.075f, pageColour)
 

@@ -56,7 +56,7 @@ import com.bigpapituna.sharpears.engine.world.AlbumSlot
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.engine.world.Rarity
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.motion.pressScale
 

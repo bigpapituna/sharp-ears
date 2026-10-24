@@ -1298,6 +1298,71 @@ them. Kid-safe throughout: no guilt, no pressure, no countdown a child can see.
 - Not proven: nothing on a real phone or with a child; the reminder's surprise line by tests only (no alarm fired on the
   walk); dark mode of the new cards was not walked.
 
+## 2.10 living pup (2026-10-24, branch `pup-rig`, versionCode 25, 2.10.0; emulator-5558 Fold_QA_GU only)
+Roy: "better animations and mini clips of the dog, like the Duolingo mascot" and "make the app more engaging". No new art: the
+rig animates the forty stills (res/drawable-nodpi/pup_*.webp); clips have a slot.
+- One pup: `ui/pup/Pup.kt` `Pup(pose, mood, modifier, size, controller, ...)` and `ui/pup/PupController.kt`
+  `rememberPupController()` draw every pup on screen (ui/Pup.kt keeps SpeechBubble, PupSays, ChunkyButton, Confetti).
+  `ui/pup/PupArt.kt` holds `Pose` (moved from ui/Pup.kt, with `eyesOpen`, `mood`, `blinkTwin`), the avatar art
+  (`PupAvatarArt`), a shared LruCache of decoded, mipmapped pictures (16 MB) and `rememberPupBitmap` for game fields that
+  draw him as a sprite (the rainbow bridge, the dress-up tiles). Playground and arcade stages use `StagePup`
+  (ui/playground/PlaygroundKit.kt; `PaintedPup`/`Painted` and ui/play's `PupPicture` are gone). PNG/PDF exports draw
+  `Pose.X.res`. PupWiringTest: no `R.drawable.pup_` and no bare pose Image outside ui/pup.
+- The table: `engine/pup/PupMotion.kt`, engine-free, every number and curve as a pure function of time (PupMotionTest:
+  every beat under 1.5 s, the idle loop 2.5 to 4 s, no scale beyond 1.25; the rig also clamps whatever stacks up).
+- Idle: breathing 1.0 to 1.02 (height; width half) over 3.2 s; a blink every 3 to 6 s: a 90 ms squint, the top 45% of the
+  picture squashed to 0.92 toward the neck through a clipped second layer (a cross-fade to a closed-eyes twin is wired but
+  no still has one: no pair shares a body, `Pose.blinkTwin` is null; poses drawn with eyes shut never blink); an ear (top
+  right) or tail (bottom left) flick every 8 to 15 s, 3 degrees round a point inside the corner, the turned copy faded in
+  by a radial mask and added (BlendMode.Plus) so there is no seam or double edge. A pose change: a 150 ms cross-fade (the
+  two pictures added in a layer, so he never thins out) and a 1.04 pop.
+- Moods (`engine/pup/PupMood`): beats HAPPY (squash 1.1/0.9 80 ms, stretch 0.92/1.12 rising 220 ms to 0.22 of his size,
+  hang 80 ms, fall 180 ms, land on a spring struck at the ground, damping 0.41: bounces of 0.25 and 0.06 of the jump, a
+  third under a pixel; 1.07 s), TILT (12 degrees round a point low in the picture, held 300 ms, 0.7 s, alternating
+  sides), WAG (3 wobbles of 4 degrees, 0.45 s); held CHEER (a hop a beat landing on it, a 5 degree sway, at a bpm folded
+  into 60..150, phase-locked to `beatAt`), POINT (slides up to 0.6 of his size toward `pointAt`, leans 3 degrees),
+  LISTEN (leans 4 degrees toward `lean`), SLEEP (4.4 s breaths of 3%), IDLE. A beat that comes while a bigger one plays
+  is let go (HAPPY over TILT over WAG). Held moods keep the brain's idle acts away (`PupHold.BUSY`). Old reactions play
+  their beat too (a sticker or surprise: HAPPY; a wrong key: TILT; the treat: WAG). Eyes that follow the pointing:
+  skipped (the stills have no clean eye anchors; a dot overlay would sit wrong on forty paintings).
+- Wired: kid home (idle; a surprise ready: two jumps, again every 9 s), lessons (TILT on a wrong key, WAG on a right one
+  through PlayerScreen's new `onRightKey`, POINT through a listening step's demo, HAPPY on a step passed), every stage
+  (StagePup: StageFx's new `hits`/`misses` wag and tilt him, the head-tilt pose tilts, pointing slides toward the demo's
+  key through StageState.demoKey and BigKeys' `keyX`, turning round toward a key on his right; a finish jumps), the
+  arcade (the same; three stars on the finish: HAPPY), Celebrate and the song recap (HAPPY when he lands, then CHEER;
+  a recap's party or three stars), Clap along (CHEER at the speed's bpm from the first beat, WAG on a clap in time), the
+  kid finale (CHEER, through the clip slot), Pup says (LISTEN on the kid's turn, TILT or HAPPY on the result), the
+  player's kid mode (a 48 dp pup in the bar, TransportBar's new `lead` slot: WAG and TILT per key), bedtime (Goodbye:
+  SLEEP; the map's sleeping pup), grown-up Today (IDLE, no acts, no hops: subtle). Stills keep still: avatars, the kid
+  buttons, badges, trophies, the photo booth's photos (`live = false`). Pups that were plain pictures before get no idle
+  acts (`idle = false`).
+- Clips: `ui/pup/PupClip.kt` `PupClip(name)` plays assets/pup/<name>.webp (jump, dance, wave, hop) with the platform's
+  AnimatedImageDrawable (minSdk 28), and falls back to the rig's HAPPY (then a held mood) when the file is missing or
+  animations are off. Wired on the kid finale (dance) and the concerts' bow (ConcertStage, TreeSkyConcertStage: wave).
+  The four clips came from C:\dev\tools\pup-clips (AnimatedDrawings on pup_dancing; its README marks jump, dance and wave
+  good, hop usable): copied as assets/pup/{jump,dance,wave,hop}.webp (318 x 400, 12 fps, looped, 1.4 MB together). The
+  clip stands in the rig's glow and shadow. Open: the clips' motion comes from AnimatedDrawings' example BVHs (the repo
+  is MIT; CMU and Rokoko motion data): add a line to Licences before a public build.
+- Animations off (reducedMotion): no idle motion; a beat is one 150 ms fade of his glow; a pose change is the plain fade.
+  Never blocks input (no pointer handling unless `onTap`); everything moving is read in graphicsLayer and draw blocks from
+  remembered Animatables and one frame clock per live pup, so a pup never recomposes the screen. Smaller than 40 dp he is
+  a picture.
+- Debug: `--es screen pup` (ui/pup/PupDebug.kt): every beat, held mood, clip, size and pose on buttons, plus blink and flick.
+  For recordings: `--es pose <name> --es mood happy|tilt|wag|cheer|point|listen|sleep --ei every <ms> --ei size <dp>
+  --ei bpm n --es clip dance --es act blink|flick --ef slow n` (n times slower, to catch a 90 ms squint at the emulator's
+  frame rate). Logs: `pup #n: HAPPY`, `pup: <pose> holds <mood>`, `pup clip <name>: playing|missing, the rig's HAPPY`.
+- What's new 2.10.0: two lines (the pup comes alive; kids see him wag, point and bob).
+- Tests: PupMotionTest (the table), PupWiringTest (no pup drawable outside ui/pup, the rig's rules, every mood on its
+  screen, the clip slot and the debug route), PupBrainTest (the busy hold), WelcomeTest (2.10.0).
+- Emulator (5558, swiftshader GPU): the jump, tilt, wag, cheer, blink and flick recorded with screenrecord, frames in
+  contact sheets (not committed); the kid home's jump wave and an arcade round (wags, three-star jump) checked in the
+  log. Jank on the kid home (Mila, idle then two scrolls, gfxinfo framestats): 2.9.0 95 to 97% janky, 50th 89 to 93 ms,
+  UI thread median 3.38 ms; 2.10 86% janky, 50th 81 ms, UI thread median 3.2 to 3.35 ms. The absolute numbers are the
+  software GPU's (the 5% bar cannot be met on this emulator by either build); the rig adds no UI-thread or RenderThread
+  time.
+- Not proven: on the Fold7 itself (frame time with a real GPU), with a child; the clips (none yet); dark mode of the debug
+  screen only.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

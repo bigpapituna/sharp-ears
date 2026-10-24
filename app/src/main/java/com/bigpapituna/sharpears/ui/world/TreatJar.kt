@@ -51,11 +51,11 @@ import com.bigpapituna.sharpears.data.WorldStore
 import com.bigpapituna.sharpears.engine.world.PupReaction
 import com.bigpapituna.sharpears.engine.world.TreatJar
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.SpeechBubble
 import com.bigpapituna.sharpears.ui.family.isKid
-import com.bigpapituna.sharpears.ui.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

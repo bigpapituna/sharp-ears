@@ -92,8 +92,8 @@ import com.bigpapituna.sharpears.engine.theory.theoryLesson
 import com.bigpapituna.sharpears.ui.Celebration
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.Stat
 import com.bigpapituna.sharpears.ui.reducedMotion
@@ -440,7 +440,7 @@ private fun UnitTrophy(unit: TheoryUnit, complete: Boolean) {
     val grey = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (complete) Pup(Pose.LEVEL_UP, size = 96.dp)
-        else Image(painterResource(Pose.LEVEL_UP.res), contentDescription = null, colorFilter = grey, modifier = Modifier.size(80.dp).graphicsLayer { alpha = 0.4f })
+        else Pup(Pose.LEVEL_UP, size = 80.dp, live = false, ground = false, colorFilter = grey, modifier = Modifier.graphicsLayer { alpha = 0.4f })
         Text(if (complete) "${unit.title} complete" else "Finish ${unit.title.lowercase()} for the trophy", style = MaterialTheme.typography.labelLarge,
             color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }

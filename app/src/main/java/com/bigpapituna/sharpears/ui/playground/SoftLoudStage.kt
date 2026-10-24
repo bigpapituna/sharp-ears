@@ -82,6 +82,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 internal val NightTop = Color(0xFF111A33)
 private val NightBottom = Color(0xFF2B2346)
@@ -179,10 +180,10 @@ internal fun SoftLoudStage(step: Step, lessonId: String, deps: LessonDeps, injec
                         CornerRadius(size.height * 0.3f))
                 }
                 val lift = jump.value
-                PaintedPup(when (nap) { Nap.ASLEEP, Nap.STIR -> Painted.SLEEPING; Nap.AWAKE -> Painted.SURPRISED; Nap.YAWN -> Painted.GOODNIGHT },
+                StagePup(when (nap) { Nap.ASLEEP, Nap.STIR -> Pose.SLEEPING; Nap.AWAKE -> Pose.SURPRISED; Nap.YAWN -> Pose.GOODNIGHT },
                     Modifier.offset { IntOffset(if (nap == Nap.STIR && !still) (sin(breathe * 6) * 4).roundToInt() else 0,
                         -(lift * pupSize.toPx() * 0.35f).roundToInt() - (pupSize.toPx() * 0.12f).roundToInt()) },
-                    size = pupSize, lift = { lift }, squash = { if (nap == Nap.ASLEEP && !still) 0.25f + 0.25f * sin(breathe) else 0f }, poke = st.fx.poke)
+                    size = pupSize, lift = { lift }, fx = st.fx)   // asleep, the rig's SLEEP breathes for him (2.10)
                 if (nap == Nap.ASLEEP || nap == Nap.STIR) Canvas(Modifier.fillMaxSize()) { zs(if (still) 0.5f else (breathe / (2 * Math.PI)).toFloat(), nap == Nap.STIR, measurer) }
                 // A ring rises from the cushion for every sound heard.
                 Ripples(st.fx, Modifier.fillMaxWidth().height(pupSize * 0.6f))

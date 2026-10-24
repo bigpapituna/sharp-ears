@@ -66,6 +66,7 @@ import com.bigpapituna.sharpears.ui.skin.colourNotesOn
 import com.bigpapituna.sharpears.ui.skin.noteColour
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** How far apart the pup plays a tune's notes when he shows it. */
 private const val TUNE_GAP_MS = 450L
@@ -145,12 +146,12 @@ internal fun EchoStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
             StageTop(run.count, run.done, letGo = run.letGo)
             // The pup and what he says, then the tune's singers across the stage, then the keys.
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(when {
-                    finished || copied != null -> Painted.GREAT_JOB
-                    tiltNow -> Painted.HEAD_TILT
-                    demo.isNotEmpty() -> Painted.POINTING
-                    else -> Painted.LISTENING
-                }, size = (roomH * 0.2f).coerceIn(64.dp, 120.dp), poke = st.fx.poke)
+                StagePup(when {
+                    finished || copied != null -> Pose.GREAT_JOB
+                    tiltNow -> Pose.HEAD_TILT
+                    demo.isNotEmpty() -> Pose.POINTING
+                    else -> Pose.LISTENING
+                }, size = (roomH * 0.2f).coerceIn(64.dp, 120.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }

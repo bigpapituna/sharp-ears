@@ -26,8 +26,12 @@ enum class PupReaction(val ms: Long) {
     GOODNIGHT(3200),
 }
 
-/** A held state: the pup stays in it while it is set (an ear game is [THINKING], a listening step is [SHH]). */
-enum class PupMood { NONE, THINKING, SHH, LISTENING, PEEK, SLEEPING }
+/**
+ * A held state: the pup stays in it while it is set (an ear game is [THINKING], a listening step is [SHH]). [BUSY] (2.10) is
+ * a held mood of motion (engine/pup/PupMotion.kt: cheering, pointing, listening, bedtime): no idle acts or nap, and the
+ * screen's own pose.
+ */
+enum class PupHold { NONE, THINKING, SHH, LISTENING, PEEK, SLEEPING, BUSY }
 
 /** The things he does on his own when nobody plays or touches anything for a while. */
 enum class IdleAct { SNEEZE, TAIL_CHASE, BUTTERFLY, SCRATCH }
@@ -35,7 +39,7 @@ enum class IdleAct { SNEEZE, TAIL_CHASE, BUTTERFLY, SCRATCH }
 /** What the pup shows right now, most important first: a reaction, a mood, asleep, an idle act, or the screen's pose. */
 sealed interface PupLook {
     data class Reacting(val reaction: PupReaction) : PupLook
-    data class Mood(val mood: PupMood) : PupLook
+    data class Held(val hold: PupHold) : PupLook
     data object Asleep : PupLook
     data class Idle(val act: IdleAct) : PupLook
     data object Base : PupLook
@@ -47,7 +51,7 @@ sealed interface PupLook {
  * - [IDLE_FIRST_MS] after the last input he does an idle act ([IdleAct]) for [ACT_MS]; another every [IDLE_EVERY_MS]
  *   after that, never the same one twice in a row; at [SLEEP_MS] he falls asleep. The next input wakes him.
  * - A [react]ion shows for its time and counts as input (something happened). GOODNIGHT ends in sleep.
- * - A [mood] holds: no idle acts and no sleep while one is set (he keeps thinking while you think).
+ * - A [hold] holds: no idle acts and no sleep while one is set (he keeps thinking while you think).
  *
  * The acts are picked from [seed] and the time of the last input, so the same quiet stretch always plays the same
  * acts (tests), and two pups on one screen do not do the same thing.
@@ -58,7 +62,7 @@ class PupBrain(private val seed: Long, now: Long, /** False: no idle acts and no
     private var reaction: PupReaction? = null
     private var reactionUntil = 0L
     private var goodnight = false
-    var mood: PupMood = PupMood.NONE
+    var hold: PupHold = PupHold.NONE
 
     /** Someone touched the screen or played a note: wakes him and restarts the idle clock. */
     fun input(now: Long) {
@@ -75,7 +79,7 @@ class PupBrain(private val seed: Long, now: Long, /** False: no idle acts and no
 
     fun look(now: Long): PupLook {
         reaction?.let { if (now < reactionUntil) return PupLook.Reacting(it) }
-        if (mood != PupMood.NONE) return if (mood == PupMood.SLEEPING) PupLook.Asleep else PupLook.Mood(mood)
+        if (hold != PupHold.NONE) return if (hold == PupHold.SLEEPING) PupLook.Asleep else PupLook.Held(hold)
         if (goodnight) return PupLook.Asleep
         if (!idle) return PupLook.Base
         val t = now - lastInput
@@ -88,7 +92,7 @@ class PupBrain(private val seed: Long, now: Long, /** False: no idle acts and no
     fun nextChange(now: Long): Long? {
         val times = mutableListOf<Long>()
         if (reaction != null && now < reactionUntil) times += reactionUntil
-        if (mood == PupMood.NONE && !goodnight && idle) {
+        if (hold == PupHold.NONE && !goodnight && idle) {
             for (k in 0 until ACTS) { val s = lastInput + IDLE_FIRST_MS + k * IDLE_EVERY_MS; times += s; times += s + ACT_MS }
             times += lastInput + SLEEP_MS
         }

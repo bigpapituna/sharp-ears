@@ -40,6 +40,10 @@ object Welcome {
             "Back after a few days away? Today starts you with three easy minutes.",
             "Reach the day's goal and the finish screen names tomorrow's next step. Kids get a surprise that opens the next day.",
         ),
+        "2.10.0" to listOf(
+            "The pup comes alive: he breathes, blinks, jumps for joy when you finish well and tilts his head at a wrong note.",
+            "Kids see him wag at every right note, point at the keys in a lesson and bob along in Clap along.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

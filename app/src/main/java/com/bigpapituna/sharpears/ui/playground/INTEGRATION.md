@@ -115,9 +115,9 @@ the chosen song (`recap`), graded against `CONCERT_PASS`.
 - Every scene caption and step line is in `COURSE`, so `SpokenCatalog` already lists them (render them at speed 0.85
   for kid lines). The stages' short call-outs ("Up I go!", "Find a fence!") are shown, not spoken: the microphone is
   listening while they show, and the voice waits for it.
-- Painted poses not in `Pose` yet (flying, standing, sleeping, goodnight, surprised, drumming, clapping, pointing,
-  head tilt, dancing, crown, great job, listening) are drawn with `Painted`/`PaintedPup` in `PlaygroundKit.kt`, which
-  give them the pup's glow, shadow and a hop. **World team**: when `Pose` has them all, `PaintedPup` can call `Pup`.
+- The stages' pup is `StagePup` in `PlaygroundKit.kt` (2.10): ui/pup's `Pup` with the stage's pose, a wag for every key
+  found and a tilt for every wrong one (StageFx `hits`/`misses`), pointing that slides toward the demo's key (`point`,
+  with BigKeys given the stage's `fx`), a jump on a finish. `Painted`/`PaintedPup` are gone; every pose is a `Pose`.
 - Lesson 4 says the steps have names (C, D, E); the scene keys are drawn by ui/theory/Scenes.kt in the accent colour.
   For colour notes on the scenes too, keysScene would take the skin's colour for each lit key (integrator).
 - Copy rules held by tests: second person, sentence case, no dashes, no percentages, nothing called wrong or a

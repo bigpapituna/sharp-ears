@@ -50,14 +50,14 @@ import com.bigpapituna.sharpears.engine.world.Stickers
 import com.bigpapituna.sharpears.engine.world.WearItem
 import com.bigpapituna.sharpears.engine.world.WorldState
 import com.bigpapituna.sharpears.ui.Celebration
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.Stat
 import com.bigpapituna.sharpears.ui.motion.Juice
 import com.bigpapituna.sharpears.ui.motion.wakesPup
 import com.bigpapituna.sharpears.ui.paper
-import com.bigpapituna.sharpears.ui.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 
 /**
  * A demo world with [stickers] stickers (catalogue order, so the garden fills first; two doubles), the egg waiting,

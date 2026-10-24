@@ -43,6 +43,8 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.nav.NavTab
 import com.bigpapituna.sharpears.engine.nav.Welcome
 import com.bigpapituna.sharpears.ui.motion.ScreenMotion
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /**
  * What's new (2.7): a sheet with the pup and up to three lines for [version] (engine/nav/Welcome.kt), shown once per version

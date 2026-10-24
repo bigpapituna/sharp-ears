@@ -51,6 +51,8 @@ import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.reducedMotion
 import java.time.LocalDate
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * Pup's quest inside the Today card (2.7, a grown-up's home; it was a card of its own): one small row, the three stars and
@@ -83,7 +85,7 @@ fun QuestStars(plan: SessionPlan?, onTask: (QuestTask) -> Unit, modifier: Modifi
 internal fun QuestCardContent(quest: Quest, kid: Boolean, onTask: (QuestTask) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PupPicture(if (quest.allDone) R.drawable.pup_treat else R.drawable.pup_pointing, 44.dp)
+            Pup(if (quest.allDone) Pose.TREAT else Pose.POINTING, size = 44.dp, idle = false)
             Column {
                 Text("Pup's quest", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                 Text(questLine(quest, kid), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -73,8 +73,8 @@ import com.bigpapituna.sharpears.engine.isBlack
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Nunito
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.RightHandColor
 import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.practice.PanelColor

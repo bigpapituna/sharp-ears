@@ -68,7 +68,7 @@ import com.bigpapituna.sharpears.engine.theory.StaffVisual
 import com.bigpapituna.sharpears.engine.theory.CircleVisual
 import com.bigpapituna.sharpears.engine.theory.ChordVisual
 import com.bigpapituna.sharpears.ui.ChunkyButton
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay

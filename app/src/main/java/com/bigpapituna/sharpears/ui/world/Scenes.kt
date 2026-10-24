@@ -61,8 +61,8 @@ import com.bigpapituna.sharpears.engine.world.Sticker
 import com.bigpapituna.sharpears.engine.world.Stickers
 import com.bigpapituna.sharpears.engine.world.Trail
 import com.bigpapituna.sharpears.engine.world.WorldState
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.motion.BounceSize
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay

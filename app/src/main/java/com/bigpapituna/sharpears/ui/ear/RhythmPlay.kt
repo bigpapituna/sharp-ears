@@ -62,7 +62,7 @@ import com.bigpapituna.sharpears.engine.ear.RhythmTapGame
 import com.bigpapituna.sharpears.ui.Cheer
 import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.cheerTitle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay

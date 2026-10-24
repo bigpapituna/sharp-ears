@@ -63,12 +63,12 @@ import com.bigpapituna.sharpears.engine.world.Rarity
 import com.bigpapituna.sharpears.engine.world.Reward
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Confetti
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
-import com.bigpapituna.sharpears.ui.PupController
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.PupController
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.reducedMotion
-import com.bigpapituna.sharpears.ui.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

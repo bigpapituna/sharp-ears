@@ -48,13 +48,15 @@ import com.bigpapituna.sharpears.ui.Ink
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.Stage
 import com.bigpapituna.sharpears.ui.motion.pressScale
-import com.bigpapituna.sharpears.ui.playground.Painted
-import com.bigpapituna.sharpears.ui.playground.PaintedPup
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.playground.star
 import com.bigpapituna.sharpears.ui.reducedMotion
 import com.bigpapituna.sharpears.ui.world.StickerImage
 import com.bigpapituna.sharpears.ui.world.WorldSounds
 import kotlinx.coroutines.delay
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.mood
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /**
  * A round's end over its playfield: the stars landing one by one with a chime each (the mic is off by now), the pup, his
@@ -92,7 +94,9 @@ internal fun ArcadeFinish(game: ArcadeGame, result: RoundResult, end: RoundEnd?,
                     else drawPath(star(c, size.width * 0.46f), Ink.copy(alpha = 0.35f), style = Stroke(3.dp.toPx()))
                 }
             }
-            PaintedPup(when (stars) { 3 -> Painted.CROWN; 2 -> Painted.DANCING; else -> Painted.GREAT_JOB }, size = 132.dp)
+            // Three stars: a jump for joy (2.10), then he holds his crown; two, a dance on the beat.
+            val pose = when (stars) { 3 -> Pose.CROWN; 2 -> Pose.DANCING; else -> Pose.GREAT_JOB }
+            Pup(pose, if (stars == 3) PupMood.HAPPY else pose.mood, size = 132.dp, idle = false)
             Text(ArcadeLines.finish(stars), style = MaterialTheme.typography.titleLarge, color = Ink, textAlign = TextAlign.Center)
             if (sticker != null) {
                 StickerImage(sticker, Modifier.size(128.dp).graphicsLayer { rotationY = 180f * (1f - stickerIn.value); alpha = stickerIn.value })

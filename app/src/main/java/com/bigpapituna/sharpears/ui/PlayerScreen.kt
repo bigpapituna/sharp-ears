@@ -117,6 +117,9 @@ import com.bigpapituna.sharpears.ui.skin.rememberWrongFlash
 import com.bigpapituna.sharpears.ui.world.LocalWorld
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 
 /** Before Play, the run's first notes sit this far (song ms) above the hit line: just under the top of the lane. */
 private const val PREVIEW_MS = com.bigpapituna.sharpears.engine.LOOKAHEAD_MS * 0.75
@@ -223,9 +226,11 @@ fun PlayerScreen(
     onRecapClosed: () -> Unit = {},
     /** A popular song's band, drums and bass (ui/chords/PopSongsScreen): plays while the Band toggle is on, in step with the transport. */
     band: com.bigpapituna.sharpears.engine.chords.BandBed? = null,
+    /** 2.10: every right key (a note or a group done), for the lesson pup's wag. */
+    onRightKey: (Int) -> Unit = {},
 ) {
     PlayerStage(PlayerArgs(original, meta, sampler, midi, mic, voice, prefs, ready, startMs, debugDump, start, onBack, onFinished, embedded,
-        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band))
+        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band, onRightKey))
 }
 
 /**
@@ -237,7 +242,7 @@ private class PlayerArgs(
     val ready: Boolean, val startMs: Double, val debugDump: Boolean, val start: PlayerStart, val onBack: () -> Unit,
     val onFinished: (Report) -> Unit, val embedded: Embedded?, val modifier: Modifier, val chordTrack: com.bigpapituna.sharpears.engine.ChordTrack?,
     val onTimeUp: () -> Unit, val anyOfLessons: Set<String>, val onWrongKey: (WrongKey) -> Unit, val letGo: Boolean, val onRecapClosed: () -> Unit,
-    val band: com.bigpapituna.sharpears.engine.chords.BandBed?,
+    val band: com.bigpapituna.sharpears.engine.chords.BandBed?, val onRightKey: (Int) -> Unit,
 )
 
 /** The player itself: [PlayerScreen]'s body, reading its arguments through `with(args)` exactly as it read the parameters. */
@@ -271,6 +276,8 @@ private fun PlayerStage(args: PlayerArgs) {
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
     val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
     val kid = profile.isKid
+    // 2.10: a kid's pup in the bar (the full player): he wags at every right key and tilts his head at a wrong one.
+    val kidPup = rememberPupController(idle = false)
     val questStore = androidx.compose.ui.platform.LocalContext.current.let { c -> remember(profile.id) { if (kid) com.bigpapituna.sharpears.data.PlayStore(c.applicationContext, profile.id) else null } }
     // Kids get big keys: just the octave the notes need, about twice as wide (REGULAR is exactly fitRange).
     val keySize = KeyboardSize.forKid(kid)
@@ -538,6 +545,7 @@ private fun PlayerStage(args: PlayerArgs) {
         }
         when (result) {
             InputResult.WRONG -> {
+                if (kid) kidPup.play(com.bigpapituna.sharpears.engine.pup.PupMood.TILT)
                 wrongFeedback(); struggle.mistake(android.os.SystemClock.elapsedRealtime())
                 WrongKey.of(midi, expectedBefore, 0).let { showWrongKey(midi, it.nearest, it.distance) }
                 waitMiss()
@@ -546,6 +554,8 @@ private fun PlayerStage(args: PlayerArgs) {
                 // A C played right counts toward a kid's quest, "Find all the Cs" (QA 2.8.3: Where C lives' every C did not).
                 if (kid && midi in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS) questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(midi), kid = true)
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
+                if (kid) kidPup.play(com.bigpapituna.sharpears.engine.pup.PupMood.WAG)
+                onRightKey(midi)
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             }
@@ -1019,6 +1029,10 @@ private fun PlayerStage(args: PlayerArgs) {
             }) else null,
         ),
         modifier = Modifier.fillMaxWidth(),
+        lead = if (kid && embedded == null) ({
+            Pup(if (playing) Pose.LISTENING else Pose.GET_READY, size = 48.dp, controller = kidPup, idle = false,
+                bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
+        }) else null,
     ) }
     if (flagging) FlagDialog(onDismiss = { flagging = false }) { what, note ->
         flagging = false
@@ -1063,7 +1077,7 @@ private fun PlayerStage(args: PlayerArgs) {
         if (showHighFive) PupSays(Pose.GREAT_JOB, "High five!", Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
         else if (hintLine != null) PupSays(Pose.LEARNING, hintLine!!, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).widthIn(max = 420.dp), idle = false)
         else if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
-            Pup(Pose.GET_READY, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp, idle = false)
+            Pup(Pose.GET_READY, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp, idle = false)
         // Before the first Play: a quiet hint, nothing else.
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,

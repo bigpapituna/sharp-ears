@@ -43,7 +43,7 @@ import com.bigpapituna.sharpears.engine.world.Medal
 import com.bigpapituna.sharpears.engine.world.Records
 import com.bigpapituna.sharpears.engine.world.ShelfRecord
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.SongTile
 import com.bigpapituna.sharpears.ui.family.isKid

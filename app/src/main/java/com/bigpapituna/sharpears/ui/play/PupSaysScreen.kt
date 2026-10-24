@@ -63,7 +63,7 @@ import com.bigpapituna.sharpears.engine.play.PupSaysResult
 import com.bigpapituna.sharpears.engine.play.QuestEvent
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Keyboard
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.SpeechBubble
@@ -73,6 +73,8 @@ import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /*
  * Pup says: the pup plays a pattern on the speaker (mic off), the player copies it on the piano (mic on, the pattern's
@@ -251,15 +253,23 @@ internal fun PupSaysContent(v: PupSaysView, onExit: () -> Unit, onReady: () -> U
             Spacer(Modifier.weight(1f))
             v.seats.forEachIndexed { i, s -> SeatBadge(s, current = i == v.turn && v.phase != Phase.OVER, crowned = s.profile.id in v.crown) }
         }
-        val pupRes = when (v.phase) {
-            Phase.HANDOFF -> R.drawable.pup_pointing
-            Phase.DEMO -> R.drawable.pup_practicing
-            Phase.LISTEN -> R.drawable.pup_listening
-            Phase.RESULT -> if (v.line.startsWith("Oops") || v.line.contains("last try")) R.drawable.pup_head_tilt else R.drawable.pup_great_job
-            Phase.OVER -> if (v.crown.isNotEmpty()) R.drawable.pup_crown else R.drawable.pup_great_job
+        val oops = v.phase == Phase.RESULT && (v.line.startsWith("Oops") || v.line.contains("last try"))
+        val pose = when (v.phase) {
+            Phase.HANDOFF -> Pose.POINTING
+            Phase.DEMO -> Pose.PRACTICING
+            Phase.LISTEN -> Pose.LISTENING
+            Phase.RESULT -> if (oops) Pose.HEAD_TILT else Pose.GREAT_JOB
+            Phase.OVER -> if (v.crown.isNotEmpty()) Pose.CROWN else Pose.GREAT_JOB
+        }
+        // 2.10: he leans in to listen on the kid's turn (toward the keys and the bubble), tilts at a slip, jumps for a copy.
+        val mood = when (v.phase) {
+            Phase.LISTEN -> PupMood.LISTEN
+            Phase.RESULT -> if (oops) PupMood.TILT else PupMood.HAPPY
+            Phase.OVER -> PupMood.HAPPY
+            else -> PupMood.IDLE
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PupPicture(pupRes, 104.dp)
+            Pup(pose, mood, size = 104.dp, idle = false)
             SpeechBubble(v.line, Modifier.weight(1f, fill = false))
         }
         if (v.phase != Phase.OVER) PatternDots(v.patternSize, v.copied, v.sounding, v.phase == Phase.DEMO, still)
@@ -290,7 +300,7 @@ private fun SeatBadge(s: SeatView, current: Boolean, crowned: Boolean) {
     }) {
         Box(Modifier.clip(CircleShape).then(if (current) Modifier.border(3.dp, c.primary, CircleShape) else Modifier).padding(3.dp)) {
             PupAvatar(s.profile.avatar, size = 40.dp)
-            if (crowned) PupPicture(R.drawable.pup_crown, 22.dp, Modifier.align(Alignment.TopEnd))
+            if (crowned) Pup(Pose.CROWN, modifier = Modifier.align(Alignment.TopEnd), size = 22.dp, live = false, ground = false)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 3.dp)) {
             repeat(PupSaysGame.MISSES) { i -> Box(Modifier.size(6.dp).background(if (i < s.triesLeft) c.primary else c.outlineVariant, CircleShape)) }
@@ -319,7 +329,7 @@ private fun Results(v: PupSaysView, onAgain: () -> Unit) {
         v.seats.sortedByDescending { it.best }.forEach { s ->
             Row(Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 16.dp, vertical = 10.dp)
                 .width(260.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box { PupAvatar(s.profile.avatar, size = 48.dp); if (s.profile.id in v.crown) PupPicture(R.drawable.pup_crown, 26.dp, Modifier.align(Alignment.TopEnd)) }
+                Box { PupAvatar(s.profile.avatar, size = 48.dp); if (s.profile.id in v.crown) Pup(Pose.CROWN, modifier = Modifier.align(Alignment.TopEnd), size = 26.dp, live = false, ground = false) }
                 Text(s.profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Text(if (s.best == 0) "good try" else "${s.best} notes", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             }

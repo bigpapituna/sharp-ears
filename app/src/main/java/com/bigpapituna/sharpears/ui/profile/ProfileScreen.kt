@@ -70,8 +70,8 @@ import com.bigpapituna.sharpears.engine.progress.Snapshot
 import com.bigpapituna.sharpears.engine.progress.WeeklyGoal
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.PupGold
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.drawRestPaw
 import java.text.NumberFormat
@@ -425,8 +425,8 @@ fun AchievementBadge(icon: AchievementIcon, got: Boolean, size: androidx.compose
         Box(Modifier.fillMaxSize().clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
             if (icon.isPose) {
                 val pose = runCatching { Pose.valueOf(icon.name) }.getOrDefault(Pose.WELCOME)
-                Image(painterResource(pose.res), contentDescription = null, colorFilter = if (got) null else GREY,
-                    modifier = Modifier.size(size * 0.78f).graphicsLayer { alpha = if (got) 1f else 0.35f })
+                Pup(pose, size = size * 0.78f, live = false, ground = false, colorFilter = if (got) null else GREY,
+                    modifier = Modifier.graphicsLayer { alpha = if (got) 1f else 0.35f })
             } else {
                 Icon(painterResource(drawableFor(icon.name)), contentDescription = null, modifier = Modifier.size(size * 0.5f),
                     tint = if (got) c.onPrimaryContainer else c.onSurfaceVariant.copy(alpha = 0.45f))

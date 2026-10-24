@@ -47,12 +47,13 @@ import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.play.Duet
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.PupSays
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.SharpEarsTheme
 import com.bigpapituna.sharpears.ui.family.LocalProfile
 import com.bigpapituna.sharpears.ui.family.LocalProfiles
 import com.bigpapituna.sharpears.ui.family.PupAvatar
 import com.bigpapituna.sharpears.ui.family.avatarLabel
+import androidx.compose.foundation.Image
 
 /**
  * One person to pick: their pup avatar and name, a tap toggles them. Used by the duet picker and by Pup says when
@@ -147,7 +148,7 @@ internal fun DuetPickerContent(
 private fun HandCard(hand: String, p: Profile, handRes: Int, modifier: Modifier = Modifier) {
     Column(modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.height(56.dp), contentAlignment = Alignment.Center) { PupPicture(handRes, 56.dp) }
+        Box(Modifier.height(56.dp), contentAlignment = Alignment.Center) { Image(painterResource(handRes), contentDescription = null, modifier = Modifier.size(56.dp)) }
         Text(hand, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         PupAvatar(p.avatar, size = 56.dp)
         Text(p.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)

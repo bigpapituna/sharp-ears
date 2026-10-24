@@ -68,6 +68,7 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 private val Cream = Color(0xFFF6EBDD)
 private val HouseRoof = Color(0xFFC8693A)
@@ -171,8 +172,8 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             StageTop(run.count, run.done, letGo = run.letGo)
             Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                PaintedPup(if (finished) Painted.GREAT_JOB else if (tiltNow) Painted.HEAD_TILT else Painted.POINTING,
-                    size = (roomH * 0.3f).coerceIn(72.dp, 150.dp), poke = st.fx.poke)
+                StagePup(if (finished) Pose.GREAT_JOB else if (tiltNow) Pose.HEAD_TILT else Pose.POINTING,
+                    size = (roomH * 0.3f).coerceIn(72.dp, 150.dp), fx = st.fx, point = st.demoKey)
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
             }

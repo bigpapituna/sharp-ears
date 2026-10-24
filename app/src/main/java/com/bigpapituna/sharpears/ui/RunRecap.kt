@@ -89,6 +89,12 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
+import kotlinx.coroutines.flow.first
+import com.bigpapituna.sharpears.engine.pup.PupMotion
+import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
 
 /** The anim values of a recap, all 0..1: the pup rising, the headline, the rest sliding in, numbers counting, the XP bar. */
 private class RecapMotion(private val still: Boolean) {
@@ -123,6 +129,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val seed = remember(e) { e.hashCode() }
     // The sunburst, confetti, trophy and flourish: grown-ups on a best worth it (RunWords.CELEBRATE_FROM), kids on three stars.
     val party = RunWords.party(who.kind, e.recap, e.wrongKeys, e.newBest)
+    // 2.10: three stars (a best for a grown-up) and he lands in a jump for joy, then cheers; a good run, a wag.
+    val pup = rememberPupController(idle = false)
     LaunchedEffect(e) {
         if (party && sampler != null) launch { flourish(sampler) }
         if (still) return@LaunchedEffect
@@ -148,6 +156,11 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         kid -> if (stars >= 2) Pose.GREAT_JOB else Pose.PRACTICING      // never a sad pup for a kid
         r != null -> when { r.accuracy >= 85 -> Pose.GREAT_JOB; r.accuracy >= 50 -> Pose.PRACTICING; else -> Pose.MISTAKE }
         else -> when { e.wrongKeys == 0 -> Pose.GREAT_JOB; e.wrongKeys <= 5 -> Pose.PRACTICING; else -> Pose.MISTAKE }
+    }
+    LaunchedEffect(e) {
+        androidx.compose.runtime.snapshotFlow { m.rise.value }.first { it >= 0.97f }
+        if (party) { pup.play(PupMood.HAPPY); delay(PupMotion.HAPPY_MS.toLong()); pup.mood = PupMood.CHEER }
+        else if (pose == Pose.GREAT_JOB) pup.play(PupMood.WAG)
     }
     val title = RunWords.headline(who.kind, r, e.wrongKeys, e.newBest, seed)
     val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.name, seed = seed)
@@ -177,7 +190,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     // Held in the run's pose (as on a lesson's celebration): left alone he dozed off on the recap.
-                    Pup(pose, size = pupSize, onTap = {}, idle = false, modifier = Modifier.graphicsLayer {
+                    Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
                         val s = 0.5f + 0.5f * m.rise.value; scaleX = s; scaleY = s; alpha = m.rise.value.coerceIn(0f, 1f)
                         transformOrigin = TransformOrigin(0.5f, 1f)

@@ -51,7 +51,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.graphicsLayer
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.skin.PawCalendarCard
@@ -61,6 +61,7 @@ import com.bigpapituna.sharpears.ui.world.MedalDisc
 import com.bigpapituna.sharpears.ui.world.RecordsShelf
 import com.bigpapituna.sharpears.ui.world.WorldInk
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /** The pages of My stickers, in order. */
 enum class StickerPage(val label: String) { ALBUM("Stickers"), DRESS("Dress up"), RECORDS("Records"), PAWS("My week") }
@@ -156,8 +157,8 @@ private fun TabFace(page: StickerPage, selected: Boolean) {
         Box(Modifier.size(64.dp).clip(CircleShape).background(if (selected) c.primaryContainer else c.surfaceContainerHigh)
             .border(3.dp, if (selected) PupGold else c.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
             when (page) {
-                StickerPage.ALBUM -> Image(painterResource(Pose.STICKER.res), null, Modifier.size(50.dp))
-                StickerPage.DRESS -> Image(painterResource(Pose.WEAR_BASE.res), null, Modifier.size(50.dp))
+                StickerPage.ALBUM -> Pup(Pose.STICKER, size = 50.dp, live = false, ground = false)
+                StickerPage.DRESS -> Pup(Pose.WEAR_BASE, size = 50.dp, live = false, ground = false)
                 StickerPage.RECORDS -> MedalDisc(Medal.GOLD, Modifier.size(40.dp))
                 StickerPage.PAWS -> Canvas(Modifier.size(34.dp)) { drawPawAt(Offset(size.width / 2, size.height / 2), size.width, WorldInk.copy(alpha = 0.75f), filled = true) }
             }

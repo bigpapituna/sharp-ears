@@ -55,6 +55,7 @@ import com.bigpapituna.sharpears.ui.skin.noteColour
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** The keys the chord stage shows: A3 to C5, white at both ends. */
 private const val LOW = 57
@@ -149,8 +150,8 @@ internal fun ChordStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
                     Canvas(Modifier.width(pupSize * 1.3f).height(pupSize * 0.5f).offset(y = pupSize * 0.12f)) {
                         lilyPad(Offset(size.width / 2, size.height / 2), size.width * 0.48f)
                     }
-                    if (!sitting) PaintedPup(when { finished -> Painted.GREAT_JOB; tiltNow -> Painted.HEAD_TILT; demo.isNotEmpty() -> Painted.POINTING
-                        else -> Painted.LISTENING }, size = pupSize, poke = st.fx.poke)
+                    if (!sitting) StagePup(when { finished -> Pose.GREAT_JOB; tiltNow -> Pose.HEAD_TILT; demo.isNotEmpty() -> Pose.POINTING
+                        else -> Pose.LISTENING }, size = pupSize, fx = st.fx, point = st.demoKey)
                 }
                 Spacer(Modifier.width(8.dp))
                 StageLine(line)
@@ -174,7 +175,7 @@ internal fun ChordStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
                 // The pup drops onto the chord and settles there like on a cushion.
                 if (sitting) BoxWithConstraints(Modifier.fillMaxSize()) {
                     val x = maxWidth * chordAt - pupSize * 0.55f
-                    PaintedPup(Painted.RESTING, Modifier.offset { IntOffset(x.roundToPx(), ((1f - sit.value) * -pupSize.toPx() * 0.6f).roundToInt()) },
+                    StagePup(Pose.RESTING, Modifier.offset { IntOffset(x.roundToPx(), ((1f - sit.value) * -pupSize.toPx() * 0.6f).roundToInt()) },
                         size = pupSize * 1.1f, squash = { (1f - sit.value).coerceIn(0f, 1f) }, shadow = false)
                 }
             }

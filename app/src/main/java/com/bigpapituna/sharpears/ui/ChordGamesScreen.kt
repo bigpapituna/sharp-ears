@@ -64,6 +64,7 @@ import com.bigpapituna.sharpears.ui.ear.MiniKeys
 import com.bigpapituna.sharpears.ui.ear.STAR_AT
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 private const val LOW = 48   // C3
 private const val HIGH = 84  // C6

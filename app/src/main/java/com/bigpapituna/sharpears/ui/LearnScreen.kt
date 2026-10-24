@@ -83,6 +83,8 @@ import com.bigpapituna.sharpears.engine.LessonKind
 import com.bigpapituna.sharpears.engine.kind
 import com.bigpapituna.sharpears.engine.lessonKind
 import com.bigpapituna.sharpears.ui.motion.pressScale
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 
 /** Lessons in course order (every unit, the Playground first), for finding a lesson's unit. */
 internal val ALL = COURSE.flatMap { lv -> lv.lessons.map { lv to it } }
@@ -477,8 +479,7 @@ private fun UnitTrophy(level: CourseLevel, complete: Boolean) {
     val grey = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (complete) Pup(Pose.LEVEL_UP, size = 96.dp)
-        else Image(painterResource(Pose.LEVEL_UP.res), contentDescription = null, colorFilter = grey,
-            modifier = Modifier.size(80.dp).graphicsLayer { alpha = 0.4f })
+        else Pup(Pose.LEVEL_UP, size = 80.dp, live = false, ground = false, colorFilter = grey, modifier = Modifier.graphicsLayer { alpha = 0.4f })
         Text(if (complete) "${level.title} complete" else "Finish ${level.title} for the trophy", style = MaterialTheme.typography.labelLarge,
             color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }

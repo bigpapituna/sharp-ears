@@ -39,8 +39,8 @@ import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.Keyboard
 import com.bigpapituna.sharpears.ui.LaneBackground
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.RightHandColor
 import com.bigpapituna.sharpears.ui.Stat
 import com.bigpapituna.sharpears.ui.WrongGlow

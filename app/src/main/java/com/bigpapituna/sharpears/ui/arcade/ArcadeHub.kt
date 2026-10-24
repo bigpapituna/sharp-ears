@@ -44,7 +44,7 @@ import com.bigpapituna.sharpears.engine.arcade.ArcadeGame
 import com.bigpapituna.sharpears.engine.arcade.ArcadeLines
 import com.bigpapituna.sharpears.engine.arcade.ArcadeState
 import com.bigpapituna.sharpears.engine.arcade.ArcadeUnlocks
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupGold
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.motion.pressScale

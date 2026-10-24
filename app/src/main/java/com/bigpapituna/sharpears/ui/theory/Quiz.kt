@@ -66,7 +66,7 @@ import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.Keyboard
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.cheerTitle
 import com.bigpapituna.sharpears.ui.reducedMotion

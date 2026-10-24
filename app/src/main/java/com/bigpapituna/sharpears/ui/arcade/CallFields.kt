@@ -35,6 +35,8 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.rememberPupBitmap
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * The call games' playfields: the garden's flowers, the tower, the frogs' pond and the rainbow bridge. Each shows the
@@ -346,7 +348,7 @@ private fun DrawScope.flag(c: Offset, colour: Color) {
 internal fun BridgeField(play: ArcadePlay, modifier: Modifier) {
     val measurer = rememberTextMeasurer()
     val night = isSystemInDarkTheme()
-    val pup = ImageBitmap.imageResource(R.drawable.pup_dancing)
+    val pup = rememberPupBitmap(Pose.DANCING)
     Canvas(modifier.semantics { contentDescription = "A river: play the planks' keys, left hand and right hand in turn, to build a bridge." }) {
         val r = play.call ?: return@Canvas
         val now = play.now

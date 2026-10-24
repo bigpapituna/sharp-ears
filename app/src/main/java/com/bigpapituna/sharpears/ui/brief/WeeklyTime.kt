@@ -60,7 +60,7 @@ import com.bigpapituna.sharpears.engine.brief.WeeklySlot
 import com.bigpapituna.sharpears.reminder.Reminder
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Numeric
-import com.bigpapituna.sharpears.ui.Pose
+import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
 import com.bigpapituna.sharpears.ui.paper
 import java.time.DayOfWeek

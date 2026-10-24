@@ -27,10 +27,12 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.engine.world.Outfit
 import com.bigpapituna.sharpears.engine.world.WearItem
 import com.bigpapituna.sharpears.engine.world.WearSlot
+import com.bigpapituna.sharpears.ui.pup.rememberPupBitmap
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
  * What the pup wears, for every Pup in the composition (the integrator provides the open profile's outfit from
- * its WorldStore). Drawn only over the sitting base pose, [com.bigpapituna.sharpears.ui.Pose.WEAR_BASE].
+ * its WorldStore). Drawn only over the sitting base pose, [com.bigpapituna.sharpears.ui.pup.Pose.WEAR_BASE].
  */
 val LocalPupOutfit = compositionLocalOf { Outfit.NONE }
 
@@ -160,7 +162,7 @@ internal fun path(block: Path.() -> Unit): Path = Path().apply(block)
  */
 @Composable
 fun WearIcon(item: WearItem, modifier: Modifier = Modifier, locked: Boolean = false) {
-    val base = ImageBitmap.imageResource(R.drawable.pup_wear_base)
+    val base = rememberPupBitmap(Pose.WEAR_BASE)
     Canvas(modifier.clearAndSetSemantics { }) {
         val b = Wear.box(item).inflate(14f)
         val k = minOf(size.width / b.width, size.height / b.height)

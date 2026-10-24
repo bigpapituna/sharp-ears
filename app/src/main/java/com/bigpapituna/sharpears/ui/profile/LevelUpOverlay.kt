@@ -44,8 +44,8 @@ import com.bigpapituna.sharpears.engine.progress.LevelUp
 import com.bigpapituna.sharpears.engine.progress.Progression
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Confetti
-import com.bigpapituna.sharpears.ui.Pose
-import com.bigpapituna.sharpears.ui.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
+import com.bigpapituna.sharpears.ui.pup.Pup
 import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay

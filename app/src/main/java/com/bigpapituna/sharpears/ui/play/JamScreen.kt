@@ -97,6 +97,8 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * The Jam: every note does something, nothing is asked. Mic notes (and MIDI, and the keys on screen) make the key's
@@ -163,7 +165,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
     val bounce = remember { Animatable(0f) }
     var lastNote by remember { mutableLongStateOf(0L) }
     var lastChord by remember { mutableLongStateOf(0L) }
-    var pupRes by remember { mutableIntStateOf(R.drawable.pup_listening) }
+    var pupPose by remember { mutableStateOf(Pose.LISTENING) }
     var line by remember { mutableStateOf(hint ?: openingLine(kid)) }
     var caption by remember { mutableStateOf<JamWords.Caption?>(null) }
     var captionSeq by remember { mutableIntStateOf(0) }
@@ -190,10 +192,10 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
                 if (said == null) said = JamWords.of(e, reader)
             }
             is Jam.Effect.Bounce -> {
-                pupRes = when {
-                    nowMs() - lastChord < 1500 -> R.drawable.pup_clapping
-                    e.height > 0.75f -> R.drawable.pup_flying
-                    else -> R.drawable.pup_dancing
+                pupPose = when {
+                    nowMs() - lastChord < 1500 -> Pose.CLAPPING
+                    e.height > 0.75f -> Pose.FLYING
+                    else -> Pose.DANCING
                 }
                 if (!still) scope.launch {
                     bounce.animateTo(e.height, tween(110, easing = FastOutSlowInEasing))
@@ -208,7 +210,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
                 Log.d(TAG, "jam: two together ${e.notes.joinToString(" ") { noteName(it) }}")
             }
             is Jam.Effect.Chord -> {
-                fx.shower(e.notes, nowMs()); lastChord = nowMs(); pupRes = R.drawable.pup_clapping
+                fx.shower(e.notes, nowMs()); lastChord = nowMs(); pupPose = Pose.CLAPPING
                 said = JamWords.of(e, reader)
                 sounds.whoosh()
                 Log.d(TAG, "jam: chord ${e.notes.joinToString(" ") { noteName(it) }} (confirmed notes)")
@@ -299,8 +301,8 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
     // A while with no notes: the pup settles, then says he is ready (once per pause, never a nag).
     LaunchedEffect(lastNote) {
         if (lastNote == 0L) return@LaunchedEffect
-        delay(1600); if (pupRes == R.drawable.pup_clapping || pupRes == R.drawable.pup_flying) pupRes = R.drawable.pup_dancing
-        delay(2400); pupRes = R.drawable.pup_listening
+        delay(1600); if (pupPose == Pose.CLAPPING || pupPose == Pose.FLYING) pupPose = Pose.DANCING
+        delay(2400); pupPose = Pose.LISTENING
         delay(2000); line = if (kid) "Play some more! I'm ready." else "Ready when you are."
     }
     // The caption stays about a second. A kid hears the last one said once they pause (over the mic, deaf meanwhile).
@@ -325,7 +327,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
     val shown = if (micState != MicState.NO_PERMISSION) line
         else if (kid) "I need the microphone to hear you. Ask a grown-up, or tap the keys here."
         else "The microphone is off, so I can't hear the piano. The keys here still work."
-    JamContent(shown, pupRes, micState, { bounce.value }, lit, flash, fx, still, onExit,
+    JamContent(shown, pupPose, micState, { bounce.value }, lit, flash, fx, still, onExit,
         onKey = { m -> hit(m, nowMs(), "touch") }, startHint = startHint, caption = caption?.text, captionSeq = captionSeq)
 }
 
@@ -360,7 +362,7 @@ private fun openingLine(kid: Boolean) =
 /** The Jam's look, without the mic: for the screen and its previews. */
 @Composable
 internal fun JamContent(
-    line: String, pupRes: Int, micState: MicState, bounce: () -> Float, lit: Map<Int, Color>, flash: Map<Int, Color>, fx: JamFx,
+    line: String, pose: Pose, micState: MicState, bounce: () -> Float, lit: Map<Int, Color>, flash: Map<Int, Color>, fx: JamFx,
     still: Boolean, onExit: () -> Unit, onKey: (Int) -> Unit,
     /** "Play any key" at the top (the first ten seconds). */
     startHint: Boolean = false,
@@ -404,7 +406,8 @@ internal fun JamContent(
                             .padding(horizontal = 22.dp, vertical = 10.dp)
                             .semantics { liveRegion = LiveRegionMode.Polite })
                 }
-                PupPicture(pupRes, 168.dp, Modifier
+                // The Jam bounces him itself (a hop as high as the note), so the rig's own hop stays off.
+                Pup(pose, size = 168.dp, idle = false, bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE, modifier = Modifier
                     .offset { IntOffset(0, -(bounce() * room * 0.4f).roundToInt()) }
                     .onGloballyPositioned { pup = it.boundsInRoot() })
             }
@@ -541,7 +544,7 @@ private fun previewFx(at: Long) = JamFx().apply {
 @Composable
 private fun JamPreview() = SharpEarsTheme(dark = false) {
     Surface {
-        JamContent("Play anything! Every key has a colour.", R.drawable.pup_clapping, MicState.LISTENING, bounce = { 0.5f },
+        JamContent("Play anything! Every key has a colour.", Pose.CLAPPING, MicState.LISTENING, bounce = { 0.5f },
             lit = mapOf(64 to noteColour(64), 67 to noteColour(67)), flash = emptyMap(), fx = previewFx(10_000), still = false, onExit = {}, onKey = {}, startHint = true, caption = JamWords.CHORD)
     }
 }
@@ -550,7 +553,7 @@ private fun JamPreview() = SharpEarsTheme(dark = false) {
 @Composable
 private fun JamStillPreview() = SharpEarsTheme(dark = true) {
     Surface {
-        JamContent("The microphone is off, so I can't hear the piano. The keys here still work.", R.drawable.pup_listening, MicState.NO_PERMISSION,
+        JamContent("The microphone is off, so I can't hear the piano. The keys here still work.", Pose.LISTENING, MicState.NO_PERMISSION,
             bounce = { 0f }, lit = emptyMap(), flash = emptyMap(), fx = previewFx(10_000), still = true, onExit = {}, onKey = {})
     }
 }

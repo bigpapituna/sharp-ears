@@ -57,6 +57,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteOrder
 import java.time.LocalDate
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /*
  * Share my concert: after a performance, "Send to someone" packs the run as a WAV (the notes as played, replayed with
@@ -94,7 +95,7 @@ fun drawConcertCard(context: Context, title: String, stars: Int, stickerRes: Int
     // The pup in his gold glow.
     p.style = Paint.Style.FILL; p.color = CardInk.GLOW
     c.drawCircle(l.pup.centerX, l.pup.centerY, l.pup.width * 0.5f, p)
-    drawRes(context, R.drawable.pup_great_job, RectF(l.pup.left, l.pup.top, l.pup.right, l.pup.bottom), c)
+    drawRes(context, Pose.GREAT_JOB.res, RectF(l.pup.left, l.pup.top, l.pup.right, l.pup.bottom), c)
 
     // The title, centred, one or two lines.
     val nunito = runCatching { ResourcesCompat.getFont(context, R.font.nunito) }.getOrNull()

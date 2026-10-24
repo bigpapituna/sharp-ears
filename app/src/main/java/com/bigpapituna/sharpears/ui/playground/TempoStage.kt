@@ -55,6 +55,7 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.bigpapituna.sharpears.ui.pup.Pose
 
 /** How far apart the pup plays the tune's notes for a round that wants [pace]. */
 private fun gapFor(pace: Pace?) = when (pace) { Pace.FAST -> 240L; Pace.SLOW -> 600L; else -> 420L }
@@ -153,7 +154,7 @@ internal fun TempoStage(game: StageGame.Tempo, step: Step, lessonId: String, dep
                     when (target) {
                         Pace.FAST -> Canvas(Modifier.fillMaxSize()) { rabbit(Ink) }
                         Pace.SLOW -> Canvas(Modifier.fillMaxSize()) { turtle(Ink) }
-                        else -> PaintedPup(if (run.finished) Painted.GREAT_JOB else Painted.STANDING, size = animal, poke = st.fx.poke)
+                        else -> StagePup(if (run.finished) Pose.GREAT_JOB else Pose.STANDING, size = animal, fx = st.fx)
                     }
                 }
             }
