@@ -331,7 +331,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
         onKey = { m -> hit(m, nowMs(), "touch") }, startHint = startHint, caption = caption?.text, captionSeq = captionSeq)
 }
 
-/** Saves the Jam's clip for tuning: the last 20 s (MicInput.saveStall: files/stalls, the 250 MB cap, the reporter). */
+/** Saves the Jam's clip for tuning: the last 20 s (MicInput.saveStall: files/recordings/stalls, the 250 MB cap, the reporter). */
 private fun saveJamClip(mic: MicInput, report: String) {
     val name = "stall-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-jam"
     Log.d(TAG, "jam: saving the session's clip $name")

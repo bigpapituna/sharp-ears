@@ -238,6 +238,14 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp)); Text("Microphone setup")
             }
+            // 2.10.1 (security review finding 5): a build that keeps recordings says so here, with its switch in plain view
+            // (the same preference as Microphone setup's; on by default in the debug build, never on in a release).
+            if (mic != null && mic.canRecord) {
+                var keep by remember { mutableStateOf(mic.keepRecordings) }
+                Toggle(com.bigpapituna.sharpears.data.Recordings.KEEP_SWITCH, com.bigpapituna.sharpears.data.Recordings.KEEP_LINE, keep) {
+                    keep = it; mic.keepRecordings = it; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic keepRecordings=$it (Settings)")
+                }
+            }
 
             if (shows(Simple.SettingsPart.ABOUT)) {
             Section("About")

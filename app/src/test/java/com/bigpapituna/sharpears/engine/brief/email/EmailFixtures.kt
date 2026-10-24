@@ -20,7 +20,7 @@ import com.bigpapituna.sharpears.engine.brief.ZONE
 import com.bigpapituna.sharpears.engine.brief.templates.CourseTitles
 import com.bigpapituna.sharpears.engine.brief.templates.TemplateWriter
 
-/** The sample emails the renderer's tests and snapshots read: Mia (the blue pup, avatar 1), p1, a week, a day, the first. */
+/** The sample emails the renderer's tests and snapshots read: Mia (the blue pup, avatar 1), p1, a week, a day; the first email, the code alone. */
 object EmailFixtures {
     private val songs = mapOf("twinkle" to "Twinkle, Twinkle, Little Star", "hot-cross-buns" to "Hot Cross Buns", "ode-to-joy" to "Ode to Joy")
     private val lookup = CourseTitles.lookup { songs[it] }
@@ -44,14 +44,16 @@ object EmailFixtures {
 
     fun dayFindings(): Findings = BriefSamples.kid(Period.DAY, NOW, ZONE)
 
-    fun email(f: Findings, first: Boolean = false, name: String = "Mia", avatar: Int = 1, profileId: String = "p1",
+    fun email(f: Findings, name: String = "Mia", avatar: Int = 1, profileId: String = "p1",
               frequency: EmailFrequency = EmailFrequency.BOTH, brief: Brief = writer.write(f, name)): EmailBrief =
-        EmailBriefs.build(f, brief, name, avatar, week = 43, frequency = frequency, first = first, titles = titles, code = if (first) "482913" else null,
+        EmailBriefs.build(f, brief, name, avatar, week = 43, frequency = frequency, titles = titles,
             extras = EmailExtras(path = PathProgress("pond", 7, 12, "hall"), bedtimeOn = false, phoneName = "Roy's phone"),
             summary = { id -> if (id == "pond-3") "Listening: copy four notes" else null }, zone = ZONE, profileId = profileId)
 
-    fun week(first: Boolean = false) = email(weekFindings(), first)
+    fun week() = email(weekFindings())
     fun day() = email(dayFindings())
-    fun first() = email(dayFindings(), first = true)
-    fun firstNeverPlayed() = email(BriefSamples.empty(Period.DAY, NOW, ZONE), first = true)
+    /** A quiet day: nothing played (the thinking pup, no details). */
+    fun quietDay() = email(BriefSamples.empty(Period.DAY, NOW, ZONE))
+    /** 2.10.1: the first email is the code alone. */
+    fun code() = CodeEmail("482913")
 }

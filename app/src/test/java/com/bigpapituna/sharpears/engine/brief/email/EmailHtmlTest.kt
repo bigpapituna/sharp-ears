@@ -19,9 +19,9 @@ import java.util.Base64
 import java.util.Random
 
 /**
- * Design D as an email: the snapshots of a day, a week and the first email (src/test/resources/email/), every part of the
- * model on the page, escaping, size, the rules every email keeps (no em or en dash), and that the only links are https, the
- * app's own and one mailto.
+ * Design D as an email: the snapshots of a day, a week and the first email, the code alone (src/test/resources/email/),
+ * every part of the model on the page, escaping, size, the rules every email keeps (no em or en dash), and that the only
+ * links are https, the app's own and one mailto.
  */
 class EmailHtmlTest {
     private val hosted = EmailImages.hosted("https://pictures.example.org/email")
@@ -40,9 +40,10 @@ class EmailHtmlTest {
             (e.details.sections.isNotEmpty() || (it != e.details.title && it != e.details.intro))
     }
 
-    private val samples: Map<String, EmailBrief> get() = linkedMapOf(
-        "day" to EmailFixtures.day(), "week" to EmailFixtures.week(), "first" to EmailFixtures.first(), "first-never-played" to EmailFixtures.firstNeverPlayed(),
-    )
+    private val samples: Map<String, EmailBrief> get() = linkedMapOf("day" to EmailFixtures.day(), "week" to EmailFixtures.week())
+
+    /** Every snapshot: the briefs as [render] draws them, and the first email (2.10.1: the code alone, [EmailHtml.code]). */
+    private val pages: Map<String, String> get() = samples.mapValues { render(it.value) } + ("code" to EmailHtml.code(EmailFixtures.code()).first)
 
     // ---- snapshots ----
 
@@ -52,9 +53,9 @@ class EmailHtmlTest {
      */
     @Test fun everySampleMatchesItsSnapshot() {
         val changed = ArrayList<String>()
-        for ((name, e) in samples) {
+        for ((name, html) in pages) {
             val file = File(dir, "email-$name.html")
-            val actual = render(e).replace("\r\n", "\n")
+            val actual = html.replace("\r\n", "\n")
             val pinned = if (file.exists()) file.readText(Charsets.UTF_8).replace("\r\n", "\n") else null
             if (pinned == actual) continue
             out.mkdirs()
@@ -73,6 +74,9 @@ class EmailHtmlTest {
             File(dest, "email-$name.html").writeText(render(e, EmailHtmlOptions(inline, "pup@example.org")), Charsets.UTF_8)
             File(dest, "email-$name.txt").writeText(EmailHtml.text(e, options), Charsets.UTF_8)
         }
+        EmailHtml.code(EmailFixtures.code()).let { (html, text) ->
+            File(dest, "email-code.html").writeText(html, Charsets.UTF_8); File(dest, "email-code.txt").writeText(text, Charsets.UTF_8)
+        }
         assertTrue(File(dest, "email-week.html").length() > 10_000)
     }
 
@@ -82,8 +86,8 @@ class EmailHtmlTest {
         for ((name, e) in samples) {
             val html = render(e)
             for (t in shown(e)) assertTrue("$name: \"$t\" is not on the page", html.contains(esc(t)))
-            // The order of design D: welcome, postcard, one minute, next, details, gold star, footer.
-            val order = listOfNotNull(e.welcome?.title, e.postcard.stamp, e.postcard.headline, e.oneMinute.title, e.next?.title, e.details.title.takeIf { e.details.sections.isNotEmpty() },
+            // The order of design D: postcard, one minute, next, details, gold star, footer.
+            val order = listOfNotNull(e.postcard.stamp, e.postcard.headline, e.oneMinute.title, e.next?.title, e.details.title.takeIf { e.details.sections.isNotEmpty() },
                 e.signOff.title, e.footer.lines.first()).map(::esc)
             var at = -1
             for (s in order) { val i = html.indexOf(s, at + 1); assertTrue("$name: \"$s\" after position $at", i > at); at = i }
@@ -127,18 +131,26 @@ class EmailHtmlTest {
         assertTrue(html.contains("aria-label=\"Played on "))
     }
 
-    @Test fun theFirstEmailShowsTheCodeInLargeDigitsAboveThePostcard() {
-        val e = EmailFixtures.first()
-        val html = render(e)
+    /**
+     * 2.10.1 (security review finding 6): the first email goes before the address is confirmed, so a typo sends it to a
+     * stranger. It is the pup's line, the code in large digits and "Your first brief comes as soon as you confirm.": no name,
+     * no brief, no picture, no link, nothing to attach.
+     */
+    @Test fun theFirstEmailIsTheCodeAlone() {
+        val e = EmailFixtures.code()
+        val (html, text) = EmailHtml.code(e)
         val code = html.indexOf(">482913</div>")
         assertTrue(code > 0)
         assertTrue(html.substring(0, code).contains("font-size:42px"))
-        assertTrue(code < html.indexOf(esc(e.postcard.headline)))
-        for (c in e.welcome!!.howOften.choices) assertTrue(c.label, html.contains(esc(c.text)))
-        assertFalse("only the first email welcomes", render(EmailFixtures.day()).contains("Your code"))
-        // A first email for a child who never played still has the welcome, the postcard and the footer.
-        val quiet = render(EmailFixtures.firstNeverPlayed())
-        assertTrue(quiet.contains(">482913</div>") && quiet.contains("</html>"))
+        for (t in e.texts()) assertTrue("\"$t\" is on the page", html.contains(esc(t)))
+        assertTrue(html.contains("<title>Your Sharp Ears code is 482913</title>"))
+        assertTrue("the pup, the code, then the line (the preheader says it first, hidden)", html.indexOf(esc(CodeEmail.GREETING)) < code && code < html.lastIndexOf(CodeEmail.CONFIRM))
+        assertEquals("Hi, it's the pup from Sharp Ears. Here is your code.\n\nYour code: 482913\n\nYour first brief comes as soon as you confirm.\n", text)
+        val week = EmailFixtures.week()
+        for (s in listOf("Mia", "<img", "sharpears://", "mailto:", "<details", week.postcard.headline, week.signOff.title, "minutes", "PDF", "attached"))
+            assertFalse("the first email carries no \"$s\"", html.contains(s) || text.contains(s))
+        rules("code", html, text)
+        assertFalse("a brief never carries a code", render(EmailFixtures.day()).contains("Your code"))
     }
 
     @Test fun everyButtonIsAStyledLinkToTheChildsBrief() {
@@ -206,10 +218,9 @@ class EmailHtmlTest {
         assertTrue(html.contains("Mia &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;Co&quot; &#39;x&#39;"))
         assertFalse(html.contains("<b>\"p\""))
         assertTrue(html.contains("sharpears://brief/%3Cb%3E%22p%22/week"))
-        // The welcome too.
-        val w = EmailFixtures.first().let { f -> f.copy(welcome = f.welcome!!.copy(title = evil, code = "<1>")) }
-        val wh = render(w)
-        assertFalse(wh.contains("<script")); assertTrue(wh.contains("&lt;1&gt;"))
+        // The first email too (a code is six digits, but nothing it draws goes in raw).
+        val wh = EmailHtml.code(CodeEmail("<script>1</script>")).first
+        assertFalse(wh.contains("<script")); assertTrue(wh.contains("&lt;script&gt;1&lt;/script&gt;"))
         assertEquals("&amp;&lt;&gt;&quot;&#39;", esc("&<>\"'"))
     }
 
@@ -224,9 +235,9 @@ class EmailHtmlTest {
             // Three pictures at most (the pup, the one saying the line, the crown), about 20 KB each.
             assertTrue("$name inline: ${big.length}", big.length - small.length < 90_000)
         }
-        // The largest email there can be, whichever avatar: the first email of a full week with a picture in every place.
+        // The largest email there can be, whichever avatar: a full week with a picture in every place.
         for (avatar in 0..7) {
-            val e = EmailFixtures.email(EmailFixtures.weekFindings(), first = true, avatar = avatar)
+            val e = EmailFixtures.email(EmailFixtures.weekFindings(), avatar = avatar)
             val html = render(e, EmailHtmlOptions(inline, "pup@example.org"))
             assertTrue("avatar $avatar: ${html.length}", html.length < 400 * 1024)
             assertEquals(3, Regex("<img ").findAll(html).count())
@@ -249,7 +260,7 @@ class EmailHtmlTest {
             }
         }
         for (avatar in 0..7) for (e in listOf(EmailFixtures.email(EmailFixtures.dayFindings(), avatar = avatar),
-            EmailFixtures.email(EmailFixtures.weekFindings(), first = true, avatar = avatar), EmailFixtures.firstNeverPlayed())) {
+            EmailFixtures.email(EmailFixtures.weekFindings(), avatar = avatar), EmailFixtures.quietDay())) {
             val html = render(e, EmailHtmlOptions(EmailImages.hosted(base), "pup@example.org"))
             val srcs = Regex("<img [^>]*src=\"([^\"]*)\"").findAll(html).map { it.groupValues[1] }.toList()
             assertTrue("pictures in the email", srcs.isNotEmpty())
@@ -355,9 +366,8 @@ class EmailHtmlTest {
             val keys = List(r.nextInt(5)) { KeySlips(40 + r.nextInt(50), r.nextInt(6), r.nextInt(4)) }.distinctBy { it.midi }
             val f = base.copy(stats = base.stats.copy(keySlips = keys, topSlip = keys.firstOrNull()?.let { SlipPair(it.midi, it.midi + r.nextInt(25) - 12, 1 + r.nextInt(9)) },
                 notesDue = r.nextInt(500), weeks = if (r.nextBoolean()) List(4) { r.nextInt(120) } else emptyList()))
-            val first = r.nextInt(5) == 0
-            val e = EmailBriefs.build(f, gen.write(f, "Noor"), "Noor", r.nextInt(8), 1 + r.nextInt(52), EmailFrequency.entries[r.nextInt(4)], first, titles,
-                code = if (first) "123456" else null, zone = ZONE, profileId = "kid-$i")
+            val e = EmailBriefs.build(f, gen.write(f, "Noor"), "Noor", r.nextInt(8), 1 + r.nextInt(52), EmailFrequency.entries[r.nextInt(4)], titles,
+                zone = ZONE, profileId = "kid-$i")
             val html = render(e)
             rules("email $i ($period)", html, EmailHtml.text(e, options))
             assertNotNull(html)

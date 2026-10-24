@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the app's FileProvider may hand to another app: only the zips made by Share stuck moments. -->
+<!--
+    What the app's FileProvider may hand to another app: only what a share writes into cache/share first (the zip of Share
+    stuck moments, a concert's files, the brief's export). The recordings in files/recordings (data/Recordings.kt, 2.10.1)
+    are never served from where they live: Share stuck moments zips them into cache/share.
+-->
 <paths>
     <cache-path name="share" path="share/" />
 </paths>

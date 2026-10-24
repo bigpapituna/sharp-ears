@@ -3,7 +3,7 @@ package com.bigpapituna.sharpears.engine.playground
 /*
  * Clips for tuning (2.1.1): the stages and the Jam were tuned on synthetic audio. Roy's next session with the kids
  * should leave real audio behind: a stage keeps the moment it was stuck (sounds arriving, no key recognised for a
- * while), the Jam one stretch of play per session. Both go through MicInput.saveStall (files/stalls, the 250 MB cap,
+ * while), the Jam one stretch of play per session. Both go through MicInput.saveStall (files/recordings/stalls, the 250 MB cap,
  * the Reporter); these classes only decide when, so the rules are tested on the JVM. Reports name the stage and the
  * profile kind (kid or adult), never a name.
  */

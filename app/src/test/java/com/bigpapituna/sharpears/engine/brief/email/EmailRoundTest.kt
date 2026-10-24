@@ -81,6 +81,30 @@ class EmailRoundTest {
         assertTrue(run(r.prefs, emptyList()).sent.isEmpty())
     }
 
+    /**
+     * 2.10.1 (security review finding 6): the first email, to an address nobody has confirmed, carries the code alone; once the
+     * code is typed, the day the child played goes out as the first brief, as the schedule always sends it.
+     */
+    @Test fun theCodeGoesAloneAndTheDaysBriefFollowsOnceItIsConfirmed() {
+        val spans = listOf(session(17, 0, 17, 20))
+        clock = ms(wed, 17, 30)
+        val pending = EmailPrefs("parent@example.com", code = "482913", codeExpiresAt = clock + 1_000_000, frequency = EmailFrequency.DAILY, chosen = true)
+        val first = run(pending, spans)
+        assertEquals(listOf(EmailKind.FIRST), first.sent)
+        val code = sentMessages.single()
+        assertNull("no PDF", code.attachment)
+        for (part in listOf(code.subject, code.html, code.text)) assertFalse("no name, no brief", part.contains("Mia") || part.contains("minutes"))
+        assertTrue(code.text.contains("Your first brief comes as soon as you confirm."))
+        // Typed in the app: the day's email is the first brief, half an hour after the session, with the child's name and the PDF slot.
+        val (confirmed, ok) = EmailVerification(clock = { clock }).verify(first.prefs, "482913")
+        assertEquals(EmailVerification.Verified.OK, ok)
+        clock = ms(wed, 17, 55)
+        val day = run(confirmed, spans)
+        assertEquals(listOf(EmailKind.DAILY), day.sent)
+        assertTrue(sentMessages.last().subject.contains("Mia"))
+        assertEquals(wed, day.prefs.lastDaily)
+    }
+
     /** 2.8: one address for the family. Three children, one code: the first email goes for the lead child only. */
     @Test fun aFamilyGetsOneCodeWhateverTheNumberOfChildren() {
         clock = ms(wed, 10, 0)

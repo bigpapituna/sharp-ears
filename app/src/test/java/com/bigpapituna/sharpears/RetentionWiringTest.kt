@@ -43,7 +43,8 @@ class RetentionWiringTest {
         assertTrue("ReminderPlan.text(due, song, surprise)" in reminder && "dailySummary(today) != null, surprise)" in reminder)
         val main = src("MainActivity.kt")
         val today = main.substringAfter("private fun debugToday(").substringBefore("override fun onNewIntent")
-        assertTrue("FLAG_DEBUGGABLE == 0) return" in today)
+        // 2.10.1: only a launch the debug routes' gate let through (engine/DebugRoutes.kt, MainActivity.routesAllowed).
+        assertTrue("if (!allowed) return" in today && "debugToday(intent, debugRoutes)" in main && "debugToday(intent, allowed)" in main)
         // No countdown on the gift: nothing in its screen counts hours, minutes or seconds.
         assertFalse(Regex("(?i)hours left|minutes left|seconds left|opens in [0-9]").containsMatchIn(src("ui/Retention.kt")))
     }

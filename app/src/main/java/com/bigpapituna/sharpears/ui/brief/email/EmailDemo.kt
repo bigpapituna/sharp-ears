@@ -25,15 +25,16 @@ import com.bigpapituna.sharpears.ui.family.LocalParentGate
 import com.bigpapituna.sharpears.ui.family.ParentGateController
 
 /*
- * The debug route `--es screen email` (debug builds only, MainActivity opens it like the other demos): Settings > Briefs and
- * email (the family's address and every kid's row) over settings seeded to the state asked for, so every step can be seen.
- * Nothing is sent: a debug build has no email key, so a send is refused and the screen says so in kind words.
+ * The debug route `--es screen email` (debug builds only, MainActivity opens it like the other demos, and on a keyed build
+ * only with `--es dk <key>`: engine/DebugRoutes.kt): Settings > Briefs and email (the family's address and every kid's
+ * row) over settings seeded to the state asked for, so every step can be seen. A build with an email key could send from
+ * it (the security review's finding 1), which is why the route needs the key on the builds testers get.
  *
  *   --es child <profile id>                 the kid whose row is seeded and whose preview opens (default: the first kid)
  *   --es seed none|waiting|code|gone|unchosen|verified|daily|held|old   the step (default: what the phone holds)
  *                                           old: 2.7's per-child address on that kid, moved to the family's as the page opens
  *   --es view settings|preview              default settings
- *   --es period day|week                    the preview's tab (default week)
+ *   --es period day|week|first              the preview's tab (default week); first: the first email, the code alone
  *   --ez samples true                       the preview over made-up findings
  *   --es theme light|dark
  * The seeded address is parent@example.com, a made-up one.
@@ -50,7 +51,8 @@ fun EmailDemo(intent: Intent, fallback: Profile, onExit: () -> Unit) {
     SharpEarsTheme(dark) {
         CompositionLocalProvider(LocalParentGate provides gate) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                if (preview) EmailPreviewScreen(child, onBack = { preview = false }, samples = intent.getBooleanExtra("samples", false), startDay = intent.getStringExtra("period") == "day")
+                if (preview) EmailPreviewScreen(child, onBack = { preview = false }, samples = intent.getBooleanExtra("samples", false),
+                    startDay = intent.getStringExtra("period") == "day", first = intent.getStringExtra("period") == "first")
                 else BriefsAndEmailPage(kids.ifEmpty { listOf(child) }, onBack = onExit)
             }
         }

@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
 
 /**
  * Sends what the app saved for review (stuck moments, "that wasn't right" flags, crashes, weekly summaries; all in
- * files/stalls) to Roy's private GitHub repo: each clip goes to the "reports" branch and each report becomes an
+ * files/recordings/stalls, [Recordings]) to Roy's private GitHub repo: each clip goes to the "reports" branch and each report becomes an
  * issue, labelled by kind, where the repo's review workflow and the daily check-in pick it up.
  *
  * Off until a token is set (in Microphone setup, or scripts/set-report-token.ps1 from the PC; either way it lives only
@@ -24,7 +24,11 @@ class Reporter(context: Context) {
     private val context: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("reports", Context.MODE_PRIVATE)
     private val worker get() = WORKER
-    private val dir get() = File(context.getExternalFilesDir(null), "stalls")
+    private val dir get() = Recordings.stalls(context)
+
+    // 2.10.1: the recordings move from external app storage to the app's own (once, [Recordings.migrate]), on this thread
+    // before anything it sends reads the folder.
+    init { worker.execute { runCatching { Recordings.migrate(this.context) }.onFailure { Log.d(TAG, "recordings: not moved yet (${it.javaClass.simpleName}); next start tries again") } } }
 
     val hasToken get() = !prefs.getString("token", null).isNullOrBlank()
     var enabled: Boolean

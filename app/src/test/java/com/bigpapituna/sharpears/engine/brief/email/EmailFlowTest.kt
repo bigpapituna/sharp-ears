@@ -21,6 +21,7 @@ class EmailFlowTest {
         assertEquals(EmailFlow.Stage.FIRST_WAITING, EmailFlow.stage(started))
         val sent = started.sent(EmailKind.FIRST, LocalDate.of(2026, 10, 20), at)
         assertEquals(EmailFlow.Stage.CODE, EmailFlow.stage(sent))
+        assertNull("2.10.1: the code email covers no day, so the day's brief still goes once confirmed", sent.lastDaily)
         assertEquals(EmailFlow.Stage.CODE_GONE, EmailFlow.stage(sent.copy(code = null)))
         assertEquals(EmailFlow.Stage.VERIFIED, EmailFlow.stage(sent.copy(code = null, verified = true)))
     }
@@ -58,6 +59,7 @@ class EmailFlowTest {
         for (r in EmailSender.Refusal.entries) EmailFlow.refusalWords(r).let { assertTrue(it, it.isNotBlank() && EmailWords.clean(it) && it.endsWith(".")) }
         for (k in EmailSendException.Kind.entries) EmailFlow.failureWords(k).let { assertTrue(it, it.isNotBlank() && EmailWords.clean(it) && it.endsWith(".")) }
         assertEquals("Sent. Check your inbox.", EmailFlow.outcomeWords(EmailSender.Outcome.Sent(EmailPrefs(), EmailFixtures.day())))
+        assertEquals("the first email, the code alone, too", "Sent. Check your inbox.", EmailFlow.outcomeWords(EmailSender.Outcome.Sent(EmailPrefs(), null)))
         assertEquals(EmailFlow.refusalWords(EmailSender.Refusal.NO_KEY), EmailFlow.outcomeWords(EmailSender.Outcome.Refused(EmailSender.Refusal.NO_KEY)))
         assertTrue(EmailFlow.heldWords(EmailPrefs(held = "METERED"))!!.startsWith("Waiting"))
         assertNull(EmailFlow.heldWords(EmailPrefs(held = "nonsense"))); assertNull(EmailFlow.heldWords(EmailPrefs()))

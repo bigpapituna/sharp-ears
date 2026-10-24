@@ -98,7 +98,12 @@ object EmailJob {
             val writers by lazy { BriefAi.writers(app, k.profile) }
             val result = try {
                 EmailRound.run(now, zone, prefs, weekly, spans(k.profile.id, now),
-                    send = { due, p -> BriefEmail.sender(app, k.profile, zone).send(due, p, BriefLoader.findings(app, k.profile, due.period, due.findingsAt), writers.chain, child) },
+                    // The first email is the code alone (2.10.1): no findings read, no brief written for it.
+                    send = { due, p ->
+                        val sender = BriefEmail.sender(app, k.profile, zone)
+                        if (due.kind == EmailKind.FIRST) sender.sendCode(due, p, k.profile.id)
+                        else sender.send(due, p, BriefLoader.findings(app, k.profile, due.period, due.findingsAt), writers.chain, child)
+                    },
                     record = { due, at -> k.store.sent(due.kind, due.day, at, first) })
             } catch (e: Exception) {
                 Log.d(TAG, "email: ${k.profile.id} failed in the job (${e.javaClass.simpleName})")

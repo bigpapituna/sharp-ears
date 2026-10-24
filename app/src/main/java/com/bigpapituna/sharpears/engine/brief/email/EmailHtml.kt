@@ -14,6 +14,8 @@ import kotlin.math.roundToInt
  *
  * Every string from the model is escaped. The only links are https (the fonts, hosted pictures), the app's own
  * `sharpears://brief/<profile>/<period>` and one `mailto:` to stop the emails.
+ *
+ * The first email is not a brief (2.10.1, security review finding 6): [code] draws the code alone, on the same page.
  */
 
 /** What the renderer needs beyond the email: where the pictures come from and where a reply to stop the emails goes. */
@@ -40,6 +42,59 @@ object EmailHtml {
         address.trim().takeIf { it.isNotEmpty() && '@' in it }?.let { "mailto:" + percent(it, keep = "@") + "?subject=" + percent("Stop the emails for ${e.name}", keep = "") }
 
     fun render(e: EmailBrief, options: EmailHtmlOptions = EmailHtmlOptions()): String = Page(e, options).html()
+
+    /**
+     * The first email ([CodeEmail]): its HTML and its text part. One card on the page: the pup's line, the code in large spaced
+     * digits, the line about the first brief. No picture, no link, nothing about the child.
+     */
+    fun code(e: CodeEmail): Pair<String, String> {
+        val out = StringBuilder(4_000)
+        out.head(e.subject)
+        out.append("<body class=\"bg-page\" style=\"margin:0;padding:0;background:$PAGE;color:$INK;font-family:$BODY_FONT;-webkit-text-size-adjust:100%\">")
+        out.preheader(e.preheader)
+        out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" class=\"bg-page\" style=\"background:$PAGE\"><tr>")
+        out.append("<td align=\"center\" style=\"padding:16px\">")
+        out.append("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;max-width:600px\"><tr><td>")
+        out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" class=\"bg-card edge\" ")
+        out.append("style=\"background:$CARD;border-radius:22px;border-bottom:5px solid $LINE\"><tr><td style=\"padding:20px\">")
+        out.append("<p class=\"ink\" style=\"margin:0 0 8px;font-family:$HEAD_FONT;font-size:20px;line-height:1.35;font-weight:900;color:$INK\">").append(esc(CodeEmail.GREETING)).append("</p>")
+        out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:14px 0 10px\"><tr>")
+        out.append("<td align=\"center\" class=\"bg-panel\" style=\"background:$WHITE;border:2px dashed $ACCENT;border-radius:16px;padding:12px 8px\">")
+        out.append("<div class=\"dim\" style=\"font-size:12px;letter-spacing:1px;text-transform:uppercase;color:$DIM\">").append(esc(CodeEmail.CODE_LABEL)).append("</div>")
+        out.append("<div class=\"accent\" style=\"font-family:$HEAD_FONT;font-weight:900;font-size:42px;line-height:1.2;letter-spacing:10px;color:$ACCENT\">")
+        out.append(esc(e.code)).append("</div></td></tr></table>")
+        out.append("<p class=\"ink\" style=\"margin:8px 0 0;font-size:15px;line-height:1.5;color:$INK\">").append(esc(CodeEmail.CONFIRM)).append("</p>")
+        out.append("</td></tr></table>")
+        out.append("</td></tr></table></td></tr></table></body></html>")
+        return out.toString() to PlainTextEmail.text(e)
+    }
+
+    /** The page's head: the title, the fonts, and the one style block (the toggles of the <details> and the dark mode). */
+    private fun StringBuilder.head(title: String) {
+        append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
+        append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+        append("<meta name=\"color-scheme\" content=\"light dark\"><meta name=\"supported-color-schemes\" content=\"light dark\">")
+        append("<title>").append(esc(title)).append("</title>")
+        append("<link href=\"$FONTS\" rel=\"stylesheet\">")
+        // The only <style>: the toggles of the <details> and the dark mode. Everything else is inline.
+        append("<style>")
+        append("details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}")
+        append("details>summary:after{content:\"+\";float:right;font-size:22px;line-height:1;color:$ACCENT}details[open]>summary:after{content:\"\\2212\"}")
+        append("$DARK_QUERY{")
+        append(".bg-page{background:#1E1913!important}.bg-card{background:#2B241B!important}.bg-gold{background:#3B2F14!important}")
+        append(".bg-panel{background:#352C21!important}.bg-bubble{background:#4A3A1F!important}.bg-pale{background:#4A3E2F!important}")
+        append(".bg-hilite{background:#43361F!important}.ink,.ink *{color:#F3E9D8!important}.dim{color:#C4B397!important}")
+        append(".line-d{border-color:#4A3E2F!important}.line-b{border-bottom-color:#4A3E2F!important}.edge{border-bottom-color:#4A3E2F!important}")
+        append(".accent{color:#F2A36B!important}details>summary:after{color:#F2A36B}}")
+        append("</style></head>")
+    }
+
+    /** The line a mail app shows after the subject; padded so no body text follows it in the preview. */
+    private fun StringBuilder.preheader(text: String) {
+        append("<div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:$PAGE\">")
+        append(esc(text))
+        append("&zwnj;&nbsp;".repeat(60)).append("</div>")
+    }
 
     /** [html] that never goes dark: for a preview that must show the light design whatever the viewer's theme says. */
     fun withoutDarkMode(html: String): String = html.replace(DARK_QUERY, "@media not all")
@@ -102,13 +157,12 @@ object EmailHtml {
         private val link = esc(deepLink(e))
 
         fun html(): String {
-            head()
+            out.head(e.subject)
             out.append("<body class=\"bg-page\" style=\"margin:0;padding:0;background:$PAGE;color:$INK;font-family:$BODY_FONT;-webkit-text-size-adjust:100%\">")
-            preheader()
+            out.preheader(e.preheader)
             out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" class=\"bg-page\" style=\"background:$PAGE\"><tr>")
             out.append("<td align=\"center\" style=\"padding:16px\">")
             out.append("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;max-width:600px\">")
-            e.welcome?.let { card { welcome(it) } }
             card(style = "border:3px dashed $LINE;", classes = "bg-card line-d") { postcard() }
             card { oneMinute() }
             e.next?.let { n -> card { next(n) } }
@@ -120,32 +174,6 @@ object EmailHtml {
         }
 
         // ---- the page ----
-
-        private fun head() {
-            out.append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">")
-            out.append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
-            out.append("<meta name=\"color-scheme\" content=\"light dark\"><meta name=\"supported-color-schemes\" content=\"light dark\">")
-            out.append("<title>").append(esc(e.subject)).append("</title>")
-            out.append("<link href=\"$FONTS\" rel=\"stylesheet\">")
-            // The only <style>: the toggles of the <details> and the dark mode. Everything else is inline.
-            out.append("<style>")
-            out.append("details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}")
-            out.append("details>summary:after{content:\"+\";float:right;font-size:22px;line-height:1;color:$ACCENT}details[open]>summary:after{content:\"\\2212\"}")
-            out.append("$DARK_QUERY{")
-            out.append(".bg-page{background:#1E1913!important}.bg-card{background:#2B241B!important}.bg-gold{background:#3B2F14!important}")
-            out.append(".bg-panel{background:#352C21!important}.bg-bubble{background:#4A3A1F!important}.bg-pale{background:#4A3E2F!important}")
-            out.append(".bg-hilite{background:#43361F!important}.ink,.ink *{color:#F3E9D8!important}.dim{color:#C4B397!important}")
-            out.append(".line-d{border-color:#4A3E2F!important}.line-b{border-bottom-color:#4A3E2F!important}.edge{border-bottom-color:#4A3E2F!important}")
-            out.append(".accent{color:#F2A36B!important}details>summary:after{color:#F2A36B}}")
-            out.append("</style></head>")
-        }
-
-        /** The line a mail app shows after the subject; padded so no body text follows it in the preview. */
-        private fun preheader() {
-            out.append("<div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:$PAGE\">")
-            out.append(esc(e.preheader))
-            out.append("&zwnj;&nbsp;".repeat(60)).append("</div>")
-        }
 
         /** One card of the column: a row with the card's rounded table, then a row of space. */
         private fun card(
@@ -170,29 +198,6 @@ object EmailHtml {
             out.append("\">")
             if (bold != null) out.append("<b>").append(esc(bold)).append("</b> ")
             out.append(esc(text)).append("</p>")
-        }
-
-        // ---- the welcome (the first email) ----
-
-        private fun welcome(w: Welcome) {
-            h2(w.title, "0 0 6px")
-            w.paragraphs.forEach { p(it) }
-            out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:14px 0 6px\"><tr>")
-            out.append("<td align=\"center\" class=\"bg-panel\" style=\"background:$WHITE;border:2px dashed $ACCENT;border-radius:16px;padding:12px 8px\">")
-            out.append("<div class=\"dim\" style=\"font-size:12px;letter-spacing:1px;text-transform:uppercase;color:$DIM\">Your code</div>")
-            out.append("<div class=\"accent\" style=\"font-family:$HEAD_FONT;font-weight:900;font-size:42px;line-height:1.2;letter-spacing:10px;color:$ACCENT\">")
-            out.append(esc(w.code)).append("</div></td></tr></table>")
-            p(w.codeLine, "margin-bottom:14px")
-            h2(w.howOften.title, "10px 0 4px")
-            p(w.howOften.where)
-            out.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">")
-            for (c in w.howOften.choices) {
-                out.append("<tr><td valign=\"top\" width=\"78\" class=\"ink\" style=\"padding:5px 8px 5px 0;font-size:15px;font-weight:900;font-family:$HEAD_FONT;color:$INK\">")
-                out.append(esc(c.label)).append("</td><td valign=\"top\" class=\"ink\" style=\"padding:5px 0;font-size:15px;line-height:1.45;color:$INK\">")
-                out.append(esc(c.text)).append("</td></tr>")
-            }
-            out.append("</table>")
-            p(w.howOften.note, small = true)
         }
 
         // ---- the postcard ----

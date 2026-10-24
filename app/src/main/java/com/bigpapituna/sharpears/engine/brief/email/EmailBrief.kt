@@ -46,8 +46,9 @@ enum class EmailPeriod {
 enum class PupPose { DANCING, STICKER, CROWN, THINKING, CLAPPING, FLYING }
 
 /**
- * One email. Top to bottom as design D lays it out: [welcome] (the first email only), the [postcard], [oneMinute], [next]
- * (null when there is nothing to suggest), the [details] (tap-to-open sections), the [signOff] and the [footer].
+ * One email. Top to bottom as design D lays it out: the [postcard], [oneMinute], [next] (null when there is nothing to
+ * suggest), the [details] (tap-to-open sections), the [signOff] and the [footer]. The first email, the one with the code,
+ * is not one of these (2.10.1: [CodeEmail]).
  */
 data class EmailBrief(
     val period: EmailPeriod,
@@ -59,7 +60,6 @@ data class EmailBrief(
     val subjects: List<String>,
     /** The line a mail app shows after the subject (hidden in the body). */
     val preheader: String,
-    val welcome: Welcome?,
     val postcard: Postcard,
     val oneMinute: OneMinute,
     val next: NextSteps?,
@@ -75,10 +75,6 @@ data class EmailBrief(
     /** Every piece of text in the email, in order (the rules' tests walk it; a renderer never needs it). */
     fun texts(): List<String> = buildList {
         add(subject); addAll(subjects); add(preheader)
-        welcome?.let { w ->
-            add(w.title); addAll(w.paragraphs); add(w.code); add(w.codeLine)
-            add(w.howOften.title); add(w.howOften.where); w.howOften.choices.forEach { add(it.label); add(it.text) }; add(w.howOften.note)
-        }
         with(postcard) { add(stamp); add(range); add(headline); addAll(chips); paws.forEach { add(it.day) }; pawCaption?.let(::add) }
         add(oneMinute.title); oneMinute.parts.forEach { add(it.label); add(it.text) }
         oneMinute.sayThis?.let { add(it.label); add(it.quote) }
@@ -89,13 +85,6 @@ data class EmailBrief(
         addAll(footer.lines)
     }
 }
-
-/** The first email's welcome: what these are, the code that confirms the address, and how to choose how often. */
-data class Welcome(val title: String, val paragraphs: List<String>, val code: String, val codeLine: String, val howOften: HowOften)
-
-data class HowOften(val title: String, val where: String, val choices: List<FrequencyChoice>, val note: String)
-
-data class FrequencyChoice(val frequency: EmailFrequency, val label: String, val text: String)
 
 /**
  * The postcard at the top: the child's pup ([avatar], the sweatband colour index of Profile.avatar, and its colour's
@@ -210,9 +199,9 @@ object EmailBriefs {
     /**
      * The email for [findings] (DAY or WEEK) and the [brief] written from them, about [name]. [avatar] is the child's
      * Profile.avatar, [week] the stamp's week number ([weekNumber]); [actions] what grown-ups did (default: those in the
-     * findings); [frequency] and [weekly] what the grown-up chose (the footer says it); [first] the first email, which
-     * carries the welcome and the verification [code]. [titles] names lessons, songs and pages; [summary] a lesson's one
-     * line (COURSE's summary), shown under its name. [attached]: the full report's PDF goes with it (the footer says so). [profileId]: the child's, for the deep link.
+     * findings); [frequency] and [weekly] what the grown-up chose (the footer says it). [titles] names lessons, songs and
+     * pages; [summary] a lesson's one line (COURSE's summary), shown under its name. [attached]: the full report's PDF goes
+     * with it (the footer says so). [profileId]: the child's, for the deep link.
      */
     fun build(
         findings: Findings,
@@ -221,9 +210,7 @@ object EmailBriefs {
         avatar: Int,
         week: Int,
         frequency: EmailFrequency,
-        first: Boolean,
         titles: BriefTitles,
-        code: String? = null,
         actions: List<ActionTaken> = findings.actions,
         weekly: WeeklySlot = WeeklySlot.DEFAULT,
         extras: EmailExtras = EmailExtras(),
@@ -232,7 +219,6 @@ object EmailBriefs {
         attached: Boolean = true,
         profileId: String = "",
     ): EmailBrief {
-        require(!first || code != null) { "the first email carries the code" }
         val period = EmailPeriod.of(findings.period)
         val n = EmailWords.name(name)
         val w = EmailWords(n, period, titles)
@@ -263,13 +249,12 @@ object EmailBriefs {
 
         return EmailBrief(
             period = period, name = n,
-            subject = w.subjects(brief.headline, first, code).first(), subjects = w.subjects(brief.headline, first, code),
-            preheader = w.preheader(f, recs.size, first),
-            welcome = if (first) w.welcome(code!!, weekly, f.isEmpty) else null,
+            subject = w.subjects(brief.headline).first(), subjects = w.subjects(brief.headline),
+            preheader = w.preheader(f, recs.size),
             postcard = postcard, oneMinute = oneMinute, next = next,
             details = Details("The details, if you want them", "Tap a section to open it.", EmailSections(w, f, titles, summary, extras, zone).all()),
             signOff = SignOff("Gold star at home", brief.praise.ifBlank { w.quiet() }, "Signed, the pup", PupPose.CROWN),
-            footer = Footer(w.footer(brief.writtenBy, frequency, weekly, first, extras.phoneName, attached)),
+            footer = Footer(w.footer(brief.writtenBy, frequency, weekly, extras.phoneName, attached)),
             writtenBy = brief.writtenBy,
             attachmentName = ExportLayout.fileNames(n, f.period, last).second,
             profileId = profileId,

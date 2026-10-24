@@ -36,8 +36,9 @@ import org.junit.Test
 import java.util.Random
 
 /**
- * The email brief's model (design D): its parts in order, a day's shorter email, the first email's welcome and code, the
- * subject lines, why each suggestion helps, the text part; and over random findings, every line keeps the rules.
+ * The email brief's model (design D): its parts in order, a day's shorter email, the subject lines, why each suggestion
+ * helps, the text part; and over random findings, every line keeps the rules. The first email is not a brief (2.10.1: the
+ * code alone, CodeEmail, tested at the end).
  */
 class EmailBriefTest {
     private val songs = mapOf("twinkle" to "Twinkle, Twinkle, Little Star", "hot-cross-buns" to "Hot Cross Buns", "ode-to-joy" to "Ode to Joy")
@@ -60,9 +61,8 @@ class EmailBriefTest {
         ), facts = f.facts + Fact(FactKind.TIMING, 44, 4))
     }
 
-    private fun email(f: Findings, first: Boolean = false, code: String? = if (first) "482913" else null, frequency: EmailFrequency = EmailFrequency.BOTH,
-                      brief: Brief = writer.write(f, "Mia")) =
-        EmailBriefs.build(f, brief, "Mia", avatar = 1, week = 43, frequency = frequency, first = first, titles = titles, code = code,
+    private fun email(f: Findings, frequency: EmailFrequency = EmailFrequency.BOTH, brief: Brief = writer.write(f, "Mia")) =
+        EmailBriefs.build(f, brief, "Mia", avatar = 1, week = 43, frequency = frequency, titles = titles,
             extras = EmailExtras(path = PathProgress("pond", 7, 12, "hall"), bedtimeOn = false, phoneName = "Roy's phone"),
             summary = { id -> if (id == "pond-3") "Listening: copy four notes" else null }, zone = ZONE)
 
@@ -71,7 +71,6 @@ class EmailBriefTest {
         val brief = writer.write(f, "Mia")
         val e = email(f, brief = brief)
         assertEquals(EmailPeriod.WEEK, e.period)
-        assertNull("only the first email welcomes", e.welcome)
         with(e.postcard) {
             assertEquals("WEEK 43", stamp); assertEquals("blue", avatarColour); assertEquals(PupPose.DANCING, pose)
             assertEquals(brief.headline, headline)
@@ -161,22 +160,27 @@ class EmailBriefTest {
         assertTrue(e.preheader, e.preheader.startsWith("Today in one minute: 40 minutes, "))
     }
 
-    @Test fun theFirstEmailWelcomesCarriesTheCodeAndSaysHowToChooseHowOften() {
-        val e = email(week(), first = true)
-        val w = e.welcome!!
-        assertEquals("482913", w.code)
-        assertTrue("2.8: one place for the family's address", w.codeLine.contains("Settings > Briefs and email"))
-        assertTrue(w.howOften.where.contains("Daily and a Weekly switch"))
-        assertTrue(e.footer.lines.any { it == "To change how often these come, or stop them: Settings > Briefs and email, in the app." })
-        assertTrue(w.codeLine.contains("24 hours"))
-        assertEquals(listOf(EmailFrequency.DAILY, EmailFrequency.WEEKLY, EmailFrequency.BOTH, EmailFrequency.OFF), w.howOften.choices.map { it.frequency })
-        assertEquals("once a week, on Sunday at 6 pm.", w.howOften.choices[1].text)
-        assertEquals("Nothing is sent between 9:30 pm and 7 am, and never more than two a day.", w.howOften.note)
-        assertEquals("Mia's piano brief: your code is 482913", e.subject)
-        assertTrue(e.preheader.contains("code"))
-        assertTrue("no frequency line until one is chosen", e.footer.lines.none { it.startsWith("This comes") || it.startsWith("A day's email") })
-        val never = email(BriefSamples.empty(Period.DAY, NOW, ZONE), first = true)
-        assertTrue(never.welcome!!.paragraphs.any { it.contains("has not played yet") })
+    /**
+     * 2.10.1 (security review finding 6): the first email goes to an address nobody has confirmed, so it is the code alone:
+     * the pup's line, the code, "Your first brief comes as soon as you confirm." No name, no findings, nothing to attach.
+     */
+    @Test fun theFirstEmailIsTheCodeAloneWithNothingAboutTheChild() {
+        val e = CodeEmail("482913")
+        assertEquals("Your Sharp Ears code is 482913", e.subject)
+        assertEquals("Your first brief comes as soon as you confirm.", e.preheader)
+        assertEquals(listOf("Your Sharp Ears code is 482913", "Your first brief comes as soon as you confirm.", "Hi, it's the pup from Sharp Ears. Here is your code.",
+            "Your code", "482913", "Your first brief comes as soon as you confirm."), e.texts())
+        for (s in e.texts()) assertTrue(s, EmailWords.clean(s))
+        assertTrue(e.subject.length <= EmailWords.SUBJECT_MAX)
+        assertEquals("Hi, it's the pup from Sharp Ears. Here is your code.\n\nYour code: 482913\n\nYour first brief comes as soon as you confirm.\n", PlainTextEmail.text(e))
+        val plain = PlainTextEmail.html(e)
+        assertTrue(plain.contains("<b>482913</b>") && plain.startsWith("<!doctype html>"))
+        // A brief's footer says how often from the first one on: there is no "first" brief any more.
+        val brief = email(week())
+        assertTrue(brief.footer.lines.any { it == "To change how often these come, or stop them: Settings > Briefs and email, in the app." })
+        assertTrue(brief.footer.lines.any { it.startsWith("A day's email comes") })
+        assertFalse(brief.subject.contains("code"))
+        val never = email(BriefSamples.empty(Period.DAY, NOW, ZONE))
         assertTrue(never.details.sections.isEmpty())
         assertNull(never.next)
         assertNull(never.oneMinute.sayThis)
@@ -196,7 +200,7 @@ class EmailBriefTest {
         assertEquals("the headline itself when it fits", "Mia played on five days this week", email(f, brief = brief.copy(headline = "Mia played on five days this week.")).subject)
         assertEquals("Mia's week at the piano, from the pup", email(f, brief = long).subject)
         assertEquals("Mia's week at the piano, from the pup", email(f, brief = dashed).subject)
-        assertEquals("Mia's week: you had a quiet week", EmailWords("Mia", EmailPeriod.WEEK, titles).subjects("You had a quiet week.", false, null)[0])
+        assertEquals("Mia's week: you had a quiet week", EmailWords("Mia", EmailPeriod.WEEK, titles).subjects("You had a quiet week.")[0])
     }
 
     @Test fun everySuggestionSaysWhyInOneSentence() {
@@ -223,24 +227,27 @@ class EmailBriefTest {
         assertTrue("every flag reads differently", FlagKind.entries.map { k -> w.whyFor(Candidate(RecommendationKind.TOGETHER, ActionId.PRACTISE_TOGETHER, emptyMap(), k), f) }.toSet().size >= FlagKind.entries.size - 1)
     }
 
-    /** The samples step 2 and Roy read: app/build/email-samples/ (the text part and the fallback HTML of a week, a day, a first email). */
+    /** The samples step 2 and Roy read: app/build/email-samples/ (the text part and the fallback HTML of a week, a day, a quiet day, the first email). */
     @Test fun writesTheSamples() {
         val out = java.io.File("build/email-samples").apply { mkdirs() }
+        out.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
         val samples = mapOf(
-            "week" to email(week()), "day" to email(BriefSamples.kid(Period.DAY, NOW, ZONE)),
-            "first" to email(BriefSamples.kid(Period.DAY, NOW, ZONE), first = true), "first-never-played" to email(BriefSamples.empty(Period.DAY, NOW, ZONE), first = true),
+            "week" to email(week()), "day" to email(BriefSamples.kid(Period.DAY, NOW, ZONE)), "quiet-day" to email(BriefSamples.empty(Period.DAY, NOW, ZONE)),
         )
         for ((name, e) in samples) {
             java.io.File(out, "$name.txt").writeText("Subject: ${e.subject}\nPreheader: ${e.preheader}\n\n" + PlainTextEmail.text(e))
             java.io.File(out, "$name.html").writeText(PlainTextEmail.html(e))
         }
+        val code = CodeEmail("482913")
+        java.io.File(out, "first.txt").writeText("Subject: ${code.subject}\nPreheader: ${code.preheader}\n\n" + PlainTextEmail.text(code))
+        java.io.File(out, "first.html").writeText(PlainTextEmail.html(code))
         assertEquals(8, out.listFiles()!!.count { it.extension == "txt" || it.extension == "html" })
     }
 
     @Test fun theTextPartHasEveryPartInOrderAndTheFallbackHtmlEscapes() {
-        val e = email(week(), first = true)
+        val e = email(week())
         val text = PlainTextEmail.text(e)
-        val order = listOf("Welcome to Mia's piano brief", "Your code: 482913", "Choose how often", "WEEK 43", e.postcard.headline, "IN ONE MINUTE",
+        val order = listOf("WEEK 43", e.postcard.headline, "IN ONE MINUTE",
             "What happened.", "Say this at home:", "WHAT I'D DO NEXT", "1. ", "   Why: ", "   Do this in the app: Grown-ups corner > Family > Mia, then Set as next.",
             "THE DETAILS, IF YOU WANT THEM", "Lessons this week", "Keys and fingers", "Rhythm and listening", "Habits and trends",
             "Readiness and what changed", "GOLD STAR AT HOME", "Signed, the pup", "Sent by Sharp Ears for Mia")
@@ -249,7 +256,7 @@ class EmailBriefTest {
         assertTrue(text.contains("Played on "))
         assertTrue(text.contains("Slips by the key that was wanted, darker for more. D 5 near, E 1 near, G 2 far."))
         assertFalse(text.contains("<"))
-        val odd = EmailBriefs.build(week(), writer.write(week(), "Mia <3"), "Mia <3", 1, 43, EmailFrequency.WEEKLY, false, titles, zone = ZONE)
+        val odd = EmailBriefs.build(week(), writer.write(week(), "Mia <3"), "Mia <3", 1, 43, EmailFrequency.WEEKLY, titles, zone = ZONE)
         val (html, plain) = PlainTextEmail.renderer.render(odd)
         assertTrue(html.contains("Mia &lt;3") && !html.contains("Mia <3"))
         assertTrue(plain.contains("Mia <3"))
@@ -279,9 +286,8 @@ class EmailBriefTest {
                 weeks = if (r.nextBoolean()) List(4) { r.nextInt(120) } else emptyList(), sessionMinutes = if (r.nextBoolean()) r.nextInt(40) else null,
                 sessionMinutesBefore = if (r.nextBoolean()) r.nextInt(40) else null, mix = PlayMix(r.nextInt(60), r.nextInt(30), r.nextInt(30)),
             ))
-            val first = r.nextInt(5) == 0
-            val e = EmailBriefs.build(f, gen.write(f, "Noor"), "Noor", r.nextInt(8), 1 + r.nextInt(52), EmailFrequency.entries[r.nextInt(4)], first,
-                randomTitles, code = if (first) "123456" else null, zone = ZONE)
+            val e = EmailBriefs.build(f, gen.write(f, "Noor"), "Noor", r.nextInt(8), 1 + r.nextInt(52), EmailFrequency.entries[r.nextInt(4)],
+                randomTitles, zone = ZONE)
             val where = "email $i, $period, ${f.profileKind}"
             for (s in e.texts()) assertTrue("$where: \"$s\"", EmailWords.clean(s))
             assertTrue(where, e.subject.length <= EmailWords.SUBJECT_MAX && e.preheader.length <= EmailWords.PREHEADER_MAX)

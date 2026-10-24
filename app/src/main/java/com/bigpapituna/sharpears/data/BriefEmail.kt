@@ -152,9 +152,16 @@ object BriefEmail {
     fun preview(context: Context, profile: Profile, findings: Findings, brief: Brief, weekly: WeeklySlot, frequency: EmailFrequency, zone: ZoneId = ZoneId.systemDefault()): EmailBrief {
         val app = context.applicationContext
         val child = child(app, profile, weekly)
-        return EmailBriefs.build(findings, brief, profile.name, profile.avatar, EmailBriefs.weekNumber(findings.range.toMs, zone), frequency, first = false,
+        return EmailBriefs.build(findings, brief, profile.name, profile.avatar, EmailBriefs.weekNumber(findings.range.toMs, zone), frequency,
             titles = child.titles, weekly = weekly, extras = child.extras, summary = child.summary, zone = zone, attached = true, profileId = profile.id)
     }
+
+    /**
+     * The first email as the parent would get it (2.10.1, the code alone: [CodeEmail]), for the preview: [code] is the one
+     * waiting, or a made-up one. Nothing is sent.
+     */
+    fun codePreviewHtml(code: String, dark: Boolean): String =
+        EmailHtml.code(com.bigpapituna.sharpears.engine.brief.email.CodeEmail(code)).first.let { if (dark) it else EmailHtml.withoutDarkMode(it) }
 
     /** The preview's HTML: pictures inside it, nothing loaded from the network. */
     fun previewHtml(context: Context, email: EmailBrief, dark: Boolean): String =

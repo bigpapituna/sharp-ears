@@ -64,7 +64,8 @@ A link without a child opens the app only; a child that is not on the phone is d
   deep link, the where-to-tap line under it), five `<details>` (the first open, a note that Gmail shows them open), the
   slip heatmap (one cell per key C to C, black keys narrower and shorter, yellow near and orange far, darker for more, the
   count under it), tiles, the four-week bars (proportional heights), the mix as one split bar, the gold star, the footer.
-- The first email puts the welcome above the postcard with the code in 42 px digits.
+- The first email (2.10.1) is the code alone: one card with the pup's line, the code in 42 px digits and "Your first brief
+  comes as soon as you confirm." (`EmailHtml.code`; no picture, no link, no name).
 - Every string is escaped; the only links are https (fonts, hosted pictures), `sharpears://` and one `mailto:`.
 - The footer ends with "Send a note to stop the emails for Mia": `mailto:EMAIL_FROM?subject=Stop the emails for Mia`. **This is
   manual for now**: it lands in the sender mailbox and Roy switches the child off (or the grown-up uses the app).
@@ -75,12 +76,11 @@ A link without a child opens the app only; a child that is not on the phone is d
 |---|---|---|
 | day | 23.7 KB | 80 KB |
 | week | 36.0 KB | 93 KB |
-| first email, a day played | 27.4 KB | 84 KB |
-| first email, never played | 14.3 KB | 53 KB |
+| first email, the code alone (2.10.1) | 3.7 KB | 3.7 KB (no pictures) |
 
 A test fails above 400 KB (and above 60 KB hosted); an email inlines only the three pictures it uses (the child's pup in
 their sweatband colour, the sticker pup, the crown), never all 27. Snapshots (word for word): `app/src/test/resources/email/email-day.html`,
-`email-week.html`, `email-first.html`, `email-first-never-played.html`. When a design change is meant, run
+`email-week.html`, `email-code.html` (the first email). When a design change is meant, run
 `.\gradlew.bat :app:testDebugUnitTest --tests "*EmailHtmlTest*"`, open the new files in `app/build/email-snapshots/`, copy them over the
 snapshots. `app/build/email-samples/designed/email-*.html` (inline pictures) are what Roy opens in a browser.
 

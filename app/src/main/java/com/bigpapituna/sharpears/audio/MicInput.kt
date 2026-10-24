@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.data.Recordings
 import com.bigpapituna.sharpears.engine.MatcherConfig
 import com.bigpapituna.sharpears.engine.MicEvent
 import com.bigpapituna.sharpears.engine.NoteEvent
@@ -175,8 +176,10 @@ class MicInput(private val context: Context) {
         set(v) { prefs.edit().putString("micAddress", v).apply() }
 
     /**
-     * Debug builds only: keep the last few mic sessions on this phone, for tuning note detection offline.
-     * Release builds never record. Shown and switchable in Microphone setup.
+     * Debug builds only: keep the last four mic sessions on this phone, for tuning note detection offline (Roy keeps it on
+     * by default during the beta; the privacy page and Settings > Microphone say so, [Recordings.KEEP_LINE]). Release builds
+     * never record. Switchable in Settings > Microphone and Microphone setup. The files live in the app's own storage
+     * ([Recordings]: files/recordings), which no other app can read.
      */
     val canRecord get() = debuggable
     var keepRecordings: Boolean
@@ -185,13 +188,13 @@ class MicInput(private val context: Context) {
 
     /** Saved practice recordings (each session is a .wav with a .notes file). */
     fun recordings(): List<File> =
-        File(context.getExternalFilesDir(null), "fixtures").listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
+        Recordings.fixtures(context).listFiles { f -> f.extension == "wav" }?.sortedBy { it.name }.orEmpty()
 
     /** Deletes every saved recording; returns how many sessions were removed. */
     fun deleteRecordings(): Int {
-        val dir = File(context.getExternalFilesDir(null), "fixtures")
+        val dir = Recordings.fixtures(context)
         val n = recordings().size
-        dir.listFiles()?.forEach { if (it != recordFile) it.delete() }
+        dir.listFiles()?.forEach { if (it.isFile && it != recordFile) it.delete() }
         Log.d(TAG, "mic: deleted $n recording(s)")
         return n
     }
@@ -419,7 +422,7 @@ class MicInput(private val context: Context) {
     fun stalls(): List<File> = stallDir().listFiles { f -> f.extension == "wav" }?.sortedBy { it.lastModified() }.orEmpty()
     /** Everything in the stalls folder (clips, reports, flags, crashes, summaries, sent markers), for sharing. */
     fun stallFiles(): List<File> = stallDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
-    private fun stallDir() = File(context.getExternalFilesDir(null), "stalls")
+    private fun stallDir() = Recordings.stalls(context)
 
     /**
      * Saves a stuck moment: the input from 2 s before [fromMark] up to now (the last 45 s at most) as
@@ -461,7 +464,7 @@ class MicInput(private val context: Context) {
 
     /** Debug builds save every live mic session (session-HHmmss.wav + .notes), keeping the last five, for offline replay. */
     private fun autoRecord() {
-        val dir = File(context.getExternalFilesDir(null), "fixtures")
+        val dir = Recordings.fixtures(context)
         // By time, not name: session-HHmmss has no date, so by name the newest went first after midnight.
         dir.listFiles { f -> f.name.startsWith("session-") }?.sortedBy { it.lastModified() }?.dropLast(8)?.forEach { it.delete() }
         // ponytail: keeps the 4 newest sessions (8 files); a size cap if sessions get long
@@ -477,7 +480,7 @@ class MicInput(private val context: Context) {
     fun startRecording(label: String): File? {
         if (thread == null) return null
         if (writer != null) stopRecording()
-        val dir = File(context.getExternalFilesDir(null), "fixtures").apply { mkdirs() }
+        val dir = Recordings.fixtures(context).apply { mkdirs() }
         val f = File(dir, "$label.wav")
         synchronized(this) {
             truth.clear()

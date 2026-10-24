@@ -26,13 +26,6 @@ object PlainTextEmail {
         append("<title>").append(esc(e.subject)).append("</title></head>")
         append("<body style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:16px;color:#2B2117;background:#FFF8EC\">")
         append("<div style=\"display:none\">").append(esc(e.preheader)).append("</div>")
-        e.welcome?.let { w ->
-            h(w.title); w.paragraphs.forEach { p(it) }
-            append("<p style=\"font-size:28px;letter-spacing:4px\"><b>").append(esc(w.code)).append("</b></p>"); p(w.codeLine)
-            h(w.howOften.title, 3); p(w.howOften.where)
-            append("<ul>"); w.howOften.choices.forEach { append("<li><b>").append(esc(it.label)).append(":</b> ").append(esc(it.text)).append("</li>") }; append("</ul>")
-            p(w.howOften.note)
-        }
         with(e.postcard) { p(if (stamp.equals(range, ignoreCase = true)) range else "$stamp, $range"); h(headline); if (chips.isNotEmpty()) p(chips.joinToString(", ")); pawLine(this)?.let { p(it) } }
         h(e.oneMinute.title)
         e.oneMinute.parts.forEach { append("<p><b>").append(esc(it.label)).append("</b> ").append(esc(it.text)).append("</p>") }
@@ -55,18 +48,25 @@ object PlainTextEmail {
         append("</body></html>")
     }
 
+    /** The first email's text part (2.10.1, [CodeEmail]): the pup's line, the code, the line about the first brief. Nothing else. */
+    fun text(e: CodeEmail): String = listOf(CodeEmail.GREETING, "", "${CodeEmail.CODE_LABEL}: ${e.code}", "", CodeEmail.CONFIRM).joinToString("\n") + "\n"
+
+    /** The first email as a plain HTML page, when the designed one cannot be drawn. */
+    fun html(e: CodeEmail): String = buildString {
+        append("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+        append("<title>").append(esc(e.subject)).append("</title></head>")
+        append("<body style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:16px;color:#2B2117;background:#FFF8EC\">")
+        append("<div style=\"display:none\">").append(esc(e.preheader)).append("</div>")
+        p(CodeEmail.GREETING)
+        append("<p style=\"font-size:28px;letter-spacing:4px\"><b>").append(esc(e.code)).append("</b></p>")
+        p(CodeEmail.CONFIRM)
+        append("</body></html>")
+    }
+
     private fun StringBuilder.h(text: String, level: Int = 2) { append("<h$level>").append(esc(text)).append("</h$level>") }
     private fun StringBuilder.p(text: String) { append("<p>").append(esc(text)).append("</p>") }
 
     private fun lines(e: EmailBrief): List<String> = buildList {
-        e.welcome?.let { w ->
-            add(w.title); add("")
-            w.paragraphs.forEach { add(it); add("") }
-            add("Your code: ${w.code}"); add(w.codeLine); add("")
-            add(w.howOften.title); add(w.howOften.where)
-            w.howOften.choices.forEach { add("${it.label}: ${it.text}") }
-            add(w.howOften.note); add(""); add("")
-        }
         with(e.postcard) {
             add(if (stamp.equals(range, ignoreCase = true)) range else "$stamp, $range"); add("")
             add(headline)

@@ -108,23 +108,19 @@ object EmailSchedule {
     val STALE_AT: LocalTime = LocalTime.NOON
     /** A weekly email whose slot was missed (the phone off) still goes for this long after the slot. */
     const val WEEKLY_LATE_MS = 48 * 60 * 60_000L
-    /** The first email covers today, or the last day played within this many days (else it carries the welcome alone). */
-    const val FIRST_LOOKBACK_DAYS = 14L
-
     private val PLAYED = setOf("step", "lesson", "song", "ear")
 
     /**
      * What to do at [now] for one child: the first email at once when it is pending (the grown-up is waiting for its code,
-     * so quiet hours do not hold it); nothing else until the address is verified or with the frequency OFF; otherwise the
-     * day's email (yesterday's held overnight first, then today's) and the week's, whichever is due earliest, within the
-     * [caps]. [spans] come from [spans].
+     * so quiet hours do not hold it; since 2.10.1 it is the code alone, [CodeEmail], covering no day); nothing else until
+     * the address is verified or with the frequency OFF; otherwise the day's email (yesterday's held overnight first, then
+     * today's) and the week's, whichever is due earliest, within the [caps]. [spans] come from [spans].
      */
     fun decide(now: Long, zone: ZoneId, plan: EmailPlan, spans: List<PlaySpan>, caps: EmailCaps = EmailCaps()): EmailDue {
         val today = date(now, zone)
         if (plan.firstPending) {
             caps.nextFree(plan.sends, now, zone)?.let { return EmailDue.Wait(it) }
-            val day = if (playedOn(today, spans, zone)) today else lastPlayedDay(spans, now, zone) ?: today
-            return EmailDue.Send(EmailKind.FIRST, day, Period.DAY, if (day == today) now else endOf(day, zone))
+            return EmailDue.Send(EmailKind.FIRST, today, Period.DAY, now)
         }
         if (!plan.verified || plan.frequency == EmailFrequency.OFF) return EmailDue.Wait(null)
 
@@ -173,15 +169,6 @@ object EmailSchedule {
         if (those.any { it.endMs == null }) return if (before) Daily(cutoff, null) else Daily(null, null)
         val byGap = those.maxOf { it.endMs!! } + GAP_MS
         return Daily(if (before) minOf(byGap, cutoff) else byGap, null)
-    }
-
-    /** True when something was played in a stretch that started on [day]. */
-    fun playedOn(day: LocalDate, spans: List<PlaySpan>, zone: ZoneId): Boolean = spans.any { it.played && date(it.startMs, zone) == day }
-
-    /** The last day something was played, within [FIRST_LOOKBACK_DAYS] of [now]. */
-    fun lastPlayedDay(spans: List<PlaySpan>, now: Long, zone: ZoneId): LocalDate? {
-        val from = date(now, zone).minusDays(FIRST_LOOKBACK_DAYS)
-        return spans.filter { it.played && it.startMs <= now }.map { date(it.startMs, zone) }.filter { it >= from }.maxOrNull()
     }
 
     /**

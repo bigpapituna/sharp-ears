@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.bigpapituna.sharpears.R
+import com.bigpapituna.sharpears.data.Recordings
 import com.bigpapituna.sharpears.data.SongMeta
 
 /** Back arrow, heading, and a readable column (about 65 characters wide) for the text pages. */
@@ -62,8 +63,9 @@ private fun Link(label: String, url: String) {
 }
 
 /**
- * What the app does with the microphone, files and the network. Written for this private build: it says plainly
- * that debug builds can keep practice recordings (switchable in Microphone setup).
+ * What the app does with the microphone, files and the network. Written for this private build: on a build that can keep
+ * recordings ([canRecord], the debug build, on by default during the beta) it says so plainly ([Recordings.KEEP_LINE],
+ * security review 2026-10-22 finding 5), and never that the sound is simply discarded.
  */
 @Composable
 fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit,
@@ -87,14 +89,14 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
     Heading("Microphone")
     Para("The microphone is used only to hear which piano notes you play. It listens only while a song, a lesson or Playground game, " +
         "a chord or ear training game, the Jam, Pup says, Clap along, the tuner or Microphone setup is open with the mic on, and the app " +
-        "is on screen. The sound is analysed on this phone and then discarded.")
+        "is on screen. The sound is analysed on this phone" + if (canRecord) "." else " and then discarded.")
     if (canRecord) {
-        Para("This is a private development build. With Keep practice recordings switched on, it saves your last 4 mic sessions " +
-            "on this phone so note detection can be tuned from your playing, plus short clips when wait mode gets stuck, when you flag " +
-            "something, or when the mic and a USB keyboard disagree. Anything said in the room ends up in those files. " +
-            "They stay on the phone unless Send them for review is on: then, on Wi-Fi, those clips, crash reports and a weekly summary " +
-            "go to your own private GitHub repository, where they stay. Switch either off, or delete the clips on this phone, in Microphone setup. " +
-            "Sharing them, or switching sending on, is only ever started by you, from Microphone setup.")
+        Para(Recordings.KEEP_LINE)
+        Para("The same switch (${Recordings.KEEP_SWITCH}) also keeps short clips when wait mode gets stuck, when you flag " +
+            "something, or when the mic and a USB keyboard disagree. Anything said in the room ends up in the recordings and the clips. " +
+            "The clips stay on the phone unless Send them for review is on: then, on Wi-Fi, those clips, crash reports and a weekly summary " +
+            "go to your own private GitHub repository, where they stay. Switch either off, or delete the recordings and clips on this phone, " +
+            "in Microphone setup. Sharing them, or switching sending on, is only ever started by you, from Microphone setup.")
         TextButton(onClick = onMicSetup) { Text("Microphone setup") }
     }
     Heading("What is stored")
@@ -141,8 +143,9 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
             "the brief's words and numbers (minutes, days, stars, which lessons and songs, slips, how long keys took to find, what the app " +
             "suggests) and the full report as a PDF. It goes from this phone to Brevo (brevo.com), the email service that delivers it, and " +
             "from there to your address. Nothing else is sent: no recording or sound, no note you typed, nothing about the other children. " +
-            "The child's first name is in the email, because it is written for you. The first email carries a code; until it is typed in " +
-            "the app, nothing else is sent. For each child you choose daily, weekly, both or neither, nothing goes between 9:30 pm and 7 am, " +
+            "The child's first name is in the email, because it is written for you. The first email carries only a six-digit code, " +
+            "with no name, no brief and no attachment, in case the address was mistyped; until the code is typed in the app, nothing " +
+            "else is sent, and the first brief follows once it is. For each child you choose daily, weekly, both or neither, nothing goes between 9:30 pm and 7 am, " +
             "and never more than two a day for a child. The address stays on this phone, in the app's own storage; it is not in Android's " +
             "backup, and it is deleted when you stop the emails. Brevo keeps delivery records under its own privacy policy. When you open the email, " +
             "your mail app may fetch its font from Google" + (pictureHost?.let { " and the pup's pictures from $it (the same pictures for every family)" } ?: "") +

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Android 9 to 11 backup, the same as data_extraction_rules.xml's cloud backup. Settings and progress back up; the
-    report token (data/Reporter.kt), the practice recordings (files/fixtures) and stuck-moment clips (files/stalls, up
-    to 250 MB of the family's audio) never leave the phone, and the Kokoro model (over 100 MB, installed by script)
-    stays out: the clips or the model alone are over the 25 MB backup limit, which stops the whole backup. The AI brief's
+    report token (data/Reporter.kt), the practice recordings and stuck-moment clips (files/recordings since 2.10.1, up to
+    250 MB of the family's audio; the external fixtures and stalls folders before, data/Recordings.kt) never leave the
+    phone, and the Kokoro model (over 100 MB, installed by script) stays out: the clips or the model alone are over the 25 MB backup limit, which stops the whole backup. The AI brief's
     weekly quota and reply cache (ai-brief.xml, data/BriefAi.kt) are not worth carrying either. The email brief's
     settings (email.xml, data/EmailSettings.kt) hold the grown-ups' addresses: they stay on the phone too (the progress
     export the grown-up saves carries them). The tester switches, the random device id and the tester log (tester.xml,
@@ -17,5 +17,6 @@
     <exclude domain="file" path="tester" />
     <exclude domain="external" path="fixtures" />
     <exclude domain="external" path="stalls" />
+    <exclude domain="file" path="recordings" />
     <exclude domain="file" path="kokoro" />
 </full-backup-content>

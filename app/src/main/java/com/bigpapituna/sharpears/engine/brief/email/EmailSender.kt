@@ -16,6 +16,9 @@ import java.time.ZoneId
  * build the [EmailBrief]; render it ([render]: step 2's HTML renderer, [PlainTextEmail] as the fallback and for the text
  * part); send it through [transport]; and return the settings with the send recorded, for the caller to save.
  *
+ * The first email is the code alone ([sendCode], 2.10.1, security review finding 6): it may reach a stranger after a typo,
+ * so nothing is written for it, no findings are read and no PDF goes.
+ *
  * [log] gets one line per decision with the profile id, the kind and sizes: never the address, the name, the subject, the
  * body or the key.
  */
@@ -38,8 +41,8 @@ class EmailSender(
     )
 
     sealed interface Outcome {
-        /** It went: save [prefs] (the send recorded). [email] is what was sent, for a "sent" line in the app. */
-        data class Sent(val prefs: EmailPrefs, val email: EmailBrief) : Outcome
+        /** It went: save [prefs] (the send recorded). [email] is the brief that was sent; null for the first email (the code alone). */
+        data class Sent(val prefs: EmailPrefs, val email: EmailBrief?) : Outcome
         /** It must not go (nothing was written or sent). */
         data class Refused(val why: Refusal) : Outcome
         /** The transport could not send it; [message] is scrubbed (safe to log and show). The schedule will offer it again. */
@@ -61,15 +64,19 @@ class EmailSender(
         else -> null
     }
 
-    /** Writes, builds, renders and sends [due] for [child] from [findings] (computed at due.findingsAt). */
+    /**
+     * Writes, builds, renders and sends [due] for [child] from [findings] (computed at due.findingsAt). The first email goes
+     * through [sendCode]: the code alone, whatever the findings.
+     */
     fun send(due: EmailDue.Send, prefs: EmailPrefs, findings: Findings, writer: BriefWriter, child: Child): Outcome {
+        if (due.kind == EmailKind.FIRST) return sendCode(due, prefs, child.profileId)
         val what = "${due.kind} ${due.day} for ${child.profileId}"
         refusal(due, prefs)?.let { log("email: $what not sent: $it"); return Outcome.Refused(it) }
         val brief = try { writer.write(findings, child.name) } catch (e: Exception) { null }
             ?: run { log("email: $what not sent: no writer wrote it"); return Outcome.Refused(Refusal.NOT_WRITTEN) }
         val bytes = try { pdf(findings, brief) } catch (e: Exception) { log("email: $what has no PDF (${e.javaClass.simpleName})"); null }
         val email = EmailBriefs.build(findings, brief, child.name, child.avatar, EmailBriefs.weekNumber(findings.range.toMs, zone),
-            prefs.frequency, first = due.kind == EmailKind.FIRST, titles = child.titles, code = prefs.code, weekly = child.weekly,
+            prefs.frequency, titles = child.titles, weekly = child.weekly,
             extras = child.extras, summary = child.summary, zone = zone, attached = bytes != null, profileId = child.profileId)
         val (html, text) = try { render.render(email) } catch (e: Exception) {
             log("email: $what drawn plain (the renderer failed: ${e.javaClass.simpleName})")
@@ -77,9 +84,31 @@ class EmailSender(
         }
         val message = EmailMessage(prefs.address!!, email.subject, html.ifBlank { PlainTextEmail.html(email) }, text.ifBlank { PlainTextEmail.text(email) },
             bytes, email.attachmentName.takeIf { bytes != null })
+        return deliver(what, message, due, prefs, email, "${brief.writtenBy}, html ${html.length / 1024} KB, pdf ${(bytes?.size ?: 0) / 1024} KB")
+    }
+
+    /**
+     * The first email (2.10.1, security review finding 6): to an address not confirmed yet, so it carries the code and
+     * nothing else ([CodeEmail]: the pup's line, the code, "Your first brief comes as soon as you confirm."). No name, no
+     * brief, no attachment. The refusals are [send]'s (no address, no code, the caps, no key, a metered network).
+     */
+    fun sendCode(due: EmailDue.Send, prefs: EmailPrefs, profileId: String): Outcome {
+        require(due.kind == EmailKind.FIRST) { "only the first email is the code alone" }
+        val what = "${due.kind} ${due.day} for $profileId"
+        refusal(due, prefs)?.let { log("email: $what not sent: $it"); return Outcome.Refused(it) }
+        val email = CodeEmail(prefs.code!!)
+        val (html, text) = try { EmailHtml.code(email) } catch (e: Exception) {
+            log("email: $what drawn plain (the renderer failed: ${e.javaClass.simpleName})")
+            PlainTextEmail.html(email) to PlainTextEmail.text(email)
+        }
+        return deliver(what, EmailMessage(prefs.address!!, email.subject, html, text), due, prefs, null, "the code alone, html ${html.length / 1024} KB")
+    }
+
+    /** Sends [message] and records it; [sizes] goes into the log line. */
+    private fun deliver(what: String, message: EmailMessage, due: EmailDue.Send, prefs: EmailPrefs, email: EmailBrief?, sizes: String): Outcome {
         return try {
             transport.send(message)
-            log("email: $what sent (${brief.writtenBy}, html ${html.length / 1024} KB, pdf ${(bytes?.size ?: 0) / 1024} KB)")
+            log("email: $what sent ($sizes)")
             Outcome.Sent(prefs.sent(due.kind, due.day, clock()), email)
         } catch (e: EmailSendException) {
             log("email: $what failed: ${e.kind}: ${e.message}")

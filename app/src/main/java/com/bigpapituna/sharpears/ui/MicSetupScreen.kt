@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.bigpapituna.sharpears.data.Recordings
 import com.bigpapituna.sharpears.data.StuckShare
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -131,7 +132,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             Text("Microphone setup", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         }
         if (!granted) {
-            // Honest for this build: debug builds keep recordings by default (Keep practice recordings, below once allowed).
+            // Honest for this build: debug builds keep recordings by default (Keep the last four recordings, below once allowed).
             PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. " + if (mic.canRecord)
                 "This test build keeps recent sessions on the phone, and you can turn that off here." else "Nothing is recorded or sent anywhere.",
                 size = 88.dp, style = MaterialTheme.typography.bodyLarge)
@@ -194,14 +195,14 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
             var count by remember { mutableIntStateOf(mic.recordings().size) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Keep practice recordings", style = MaterialTheme.typography.titleMedium)
-                    Text("Saves your last 4 mic sessions on this phone so note detection can be tuned from your playing, " +
+                    Text(Recordings.KEEP_SWITCH, style = MaterialTheme.typography.titleMedium)
+                    Text("Saves your last four mic sessions in the app's own storage on this phone, so note detection can be tuned from your playing, " +
                         "plus a short clip whenever wait mode is stuck on the same notes for 5 seconds (up to 250 MB, oldest deleted first). " +
-                        "They leave the phone only if you copy them off or switch on Send them for review. Talking in the room is recorded too.",
+                        "They leave the phone only if you share them or switch on Send them for review. Talking in the room is recorded too.",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = keep, onCheckedChange = { keep = it; mic.keepRecordings = it; Log.d(TAG, "mic keepRecordings=$it") },
-                    modifier = Modifier.semantics { contentDescription = "Keep practice recordings" })
+                    modifier = Modifier.semantics { contentDescription = Recordings.KEEP_SWITCH })
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (count == 0) "No recordings saved." else "$count recording${if (count == 1) "" else "s"} saved.",

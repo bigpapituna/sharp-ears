@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import java.util.Properties
 
 plugins {
@@ -20,6 +21,15 @@ fun secret(name: String, default: String = "") = (secrets.getProperty(name) ?: d
 // never starts without a key (analytics/Tester.kt).
 val withPostHog = secret("POSTHOG_KEY").isNotBlank() || providers.gradleProperty("sharpears.posthog").orNull == "true"
 
+// The debug routes' key (security review 2026-10-22, finding 1; engine/DebugRoutes.kt). With DEBUG_ROUTE_KEY in
+// secrets.properties (scripts/set-debug-key.ps1) the debug build acts on `--es screen ...` and the other launch extras only
+// with `--es dk <key>` (scripts/adb-route.ps1); without it (keyless worktree builds) they work as before. BuildConfig keeps
+// the key's SHA-256, never the key. `-PdebugRouteKey=<key>` is read before secrets.properties, to test a keyed build
+// without touching that file.
+val debugRouteKey = (providers.gradleProperty("debugRouteKey").orNull ?: secrets.getProperty("DEBUG_ROUTE_KEY") ?: "").trim()
+val debugRouteKeySha256 = if (debugRouteKey.isEmpty()) "" else MessageDigest.getInstance("SHA-256").digest(debugRouteKey.toByteArray(Charsets.UTF_8))
+    .joinToString("") { Integer.toHexString((it.toInt() and 0xFF) or 0x100).substring(1) }
+
 android {
     namespace = "com.bigpapituna.sharpears"
     compileSdk = 37
@@ -28,8 +38,8 @@ android {
         applicationId = "com.bigpapituna.sharpears"
         minSdk = 28   // Android 9: microphone addresses (bottom/back) need API 28
         targetSdk = 37
-        versionCode = 25
-        versionName = "2.10.0"
+        versionCode = 26
+        versionName = "2.10.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The Fold's ABI only: the x86_64 emulators run arm64 apps through their ARM translation (the speech library loads
         // only with the Kokoro model installed, which the emulators never have). x86_64 cost 26 MB of every install.
@@ -50,6 +60,8 @@ android {
         buildConfigField("String", "POSTHOG_HOST", "\"${secret("POSTHOG_HOST", "https://us.i.posthog.com")}\"")
         buildConfigField("String", "DIARY_TO", "\"${secret("DIARY_TO")}\"")
         buildConfigField("boolean", "POSTHOG_SDK", "$withPostHog")
+        // The debug routes' key, as its SHA-256 (above); empty on a keyless build.
+        buildConfigField("String", "DEBUG_ROUTE_KEY_SHA256", "\"$debugRouteKeySha256\"")
         // Songs marked privateOnly (engine/chords/PopSongsTemp.kt) show only when secrets.properties says PRIVATE_BUILD=true (scripts/set-private-build.ps1); public by default.
         buildConfigField("boolean", "PRIVATE_BUILD", "${secret("PRIVATE_BUILD", "false").trim().equals("true", ignoreCase = true)}")
     }

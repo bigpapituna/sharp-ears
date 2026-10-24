@@ -220,7 +220,7 @@ private fun EmailPart(kids: List<Profile>, gate: ParentGateController, zone: Zon
             EmailFlow.Stage.NO_ADDRESS -> if (kids.isEmpty()) {
                 Text("Add a child in Family first. Each email is one child's brief.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
             } else {
-                Text("One address for every child's brief: yours. The first email carries a six-digit code, so we know the address is yours.",
+                Text("One address for every child's brief: yours. The first email carries only a six-digit code, so we know the address is yours before any brief goes.",
                     style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
                 val problem = if (addressTouched) EmailFlow.addressProblem(typed) ?: "Type your email address.".takeIf { typed.isBlank() } else null
                 OutlinedTextField(typed, { typed = it.take(254); addressTouched = false }, label = { Text("Your email address") }, singleLine = true,

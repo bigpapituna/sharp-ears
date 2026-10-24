@@ -1,7 +1,5 @@
 package com.bigpapituna.sharpears.ui.theory
 
-import android.app.Activity
-import android.content.pm.ApplicationInfo
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
@@ -202,8 +200,10 @@ private fun clock(secs: Int) = "%d:%02d".format(java.util.Locale.ROOT, secs / 60
  * quiz, `--es part done` its lesson celebration and `--es part unit` its unit celebration (nothing is saved).
  */
 private fun debugStart(context: android.content.Context): Nav {
-    if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return Nav.Path
-    val intent = (context as? Activity)?.intent ?: return Nav.Path
+    // Only a launch MainActivity let through as a debug route (engine/DebugRoutes.kt; it strips any other launch's extras too).
+    val activity = context as? com.bigpapituna.sharpears.MainActivity ?: return Nav.Path
+    if (!activity.debugRoutes) return Nav.Path
+    val intent = activity.intent
     val id = intent.getStringExtra("theory")?.takeIf { theoryLesson(it) != null } ?: return Nav.Path
     val now = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()
     Log.d(TAG, "theory: debug start $id ${intent.getStringExtra("part") ?: "watch"}")

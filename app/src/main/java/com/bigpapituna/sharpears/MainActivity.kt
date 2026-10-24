@@ -151,6 +151,8 @@ private const val ROUTE = "screen"
 private const val PICKER = "picker"
 /** The saved instance state's key for the weekly brief the notification opened, while it is still open. */
 private const val BRIEF = "brief"
+/** The launch extras every build reads: the weekly brief notification's (reminder/BriefReminder.kt). Every other extra is a debug route's. */
+private val NOTIFICATION_EXTRAS = setOf(com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PROFILE, com.bigpapituna.sharpears.reminder.BriefReminder.EXTRA_PERIOD)
 
 /**
  * Chord games, chord practice and the ear games listen for right notes only: the matcher skips naming wrong keys while
@@ -352,6 +354,13 @@ class MainActivity : ComponentActivity() {
     private val briefRequest = mutableStateOf<Pair<String, com.bigpapituna.sharpears.engine.brief.Period>?>(null)
     /** Debug: that brief over sample findings offering every action (ui/brief/BriefDemo.kt, sampleActionsEnv). */
     private var briefSamples = false
+    /**
+     * The launch intent's debug extras may act (security review 2026-10-22, finding 1): set by [routesAllowed] in onCreate and
+     * by an allowed onNewIntent. When false the activity's intent has been stripped of them ([withoutDebugExtras]), so no
+     * screen or demo it opens (TheoryScreen, EmailDemo, BriefDemo, PupDebug, SkinDemo, WorldDemo) can read one.
+     */
+    var debugRoutes = false
+        private set
 
     /**
      * The parent brief's doors into the app (ui/brief/AppEffects.kt, step 3 of the brief): Replay, Practise together and the
@@ -437,13 +446,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        debugToday(intent)
+        // Debug routes (security review 2026-10-22, finding 1): this launch's extras act only when DebugRoutes allows them
+        // (a keyed build wants `--es dk <key>`); any other launch loses them here, before anything reads them.
+        debugRoutes = routesAllowed(intent)
+        if (!debugRoutes) intent = withoutDebugExtras(intent)
+        debugToday(intent, debugRoutes)
         smallestWidthDp = resources.configuration.smallestScreenWidthDp
         restoreRoute = savedInstanceState?.getString(ROUTE)
         // The weekly brief's notification (all builds): that person's brief opens over whatever shows first. After a recreate,
         // only what was still open then (the launch intent keeps its extras, and the brief may have been closed since).
         briefRequest.value = if (savedInstanceState != null) savedInstanceState.getString(BRIEF)?.let(::briefOf) else briefFrom(intent)
-        briefSamples = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("brief_samples", false)
+        briefSamples = debugRoutes && intent.getBooleanExtra("brief_samples", false)
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
@@ -454,9 +467,8 @@ class MainActivity : ComponentActivity() {
         // Tester analytics (analytics/Tester.kt): PostHog starts only on a build with a key and "Help Roy test" on.
         com.bigpapituna.sharpears.analytics.Tester.init(this)
         Briefs.tap = com.bigpapituna.sharpears.analytics.Tester::briefEvent
-        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         // --es profile <id> (debug): open as that profile, no picker.
-        val debugProfile = intent.getStringExtra("profile")?.takeIf { debuggable }?.also(profiles::switchTo)
+        val debugProfile = intent.getStringExtra("profile")?.takeIf { debugRoutes }?.also(profiles::switchTo)
         // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
         if (mic.keepRecordings) {
             val app = applicationContext      // read at crash time, never this activity (the handler outlives it)
@@ -498,7 +510,7 @@ class MainActivity : ComponentActivity() {
         }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us;
         // a recreate while it still asked (the process stopped in the background) asks again rather than open as the last player.
-        val debugRoute = debuggable && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
+        val debugRoute = debugRoutes && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
         // The world's jingles and the note tick (one SoundPool for the app; Settings > Sound switches them with the rest).
         WorldSounds.init(this)
         if (profiles.roster.needsPicker && (savedInstanceState == null || savedInstanceState.getBoolean(PICKER)) && !debugRoute && debugProfile == null) showPicker()
@@ -579,12 +591,12 @@ class MainActivity : ComponentActivity() {
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         if ((profile.isKid || !progress.onboardingDone && progress.xp == 0) && prefs.whatsNewSeen != appVersion) prefs.whatsNewSeen = appVersion
         // Debug --ez welcome true: What's new and the tour again for this profile.
-        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("welcome", false)) {
+        if (fromLaunch && debugRoutes && intent.getBooleanExtra("welcome", false)) {
             prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
         }
         // Debug --es simple simple|advanced|full|unset (or --es layout ...; 2.7's on|off|default still read as simple|full|unset):
         // the profile's layout; unset forgets the choice, so the launch asks again.
-        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) (intent.getStringExtra("layout") ?: intent.getStringExtra("simple"))?.let { v ->
+        if (fromLaunch && debugRoutes) (intent.getStringExtra("layout") ?: intent.getStringExtra("simple"))?.let { v ->
             prefs.layout = when (v) { "on" -> com.bigpapituna.sharpears.engine.nav.Layout.SIMPLE; "off" -> com.bigpapituna.sharpears.engine.nav.Layout.FULL
                 else -> com.bigpapituna.sharpears.engine.nav.Layout.parse(v) }
             Log.d(TAG, "layout: set to ${prefs.layout?.wire ?: "unset"} for ${profile.id} (debug)")
@@ -627,11 +639,11 @@ class MainActivity : ComponentActivity() {
         val earStore = EarStore(this, profile.id)      // read for the Learn row and reset from Settings; the hub keeps its own
         val theory = TheoryStore(this, profile.id)     // one store for the Learn card and the academy, so the card updates
         val micCheck = micCheckExercise()
-        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) kidDebugSeed(intent, prefs, kidStore, progress, bedtime)
+        if (fromLaunch && debugRoutes) kidDebugSeed(intent, prefs, kidStore, progress, bedtime)
         // Stones finished before 2.5 earn their own stickers into the tray; the ledger catches up with what was played.
         world.earnLevels(prefs::lessonPlayed)
         world.sync()
-        if (fromLaunch && applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) worldDebugSeed(intent, world)
+        if (fromLaunch && debugRoutes) worldDebugSeed(intent, world)
 
         // Debug builds accept extras to open a screen directly:
         //   --es song <id>|mic-check [--el seek <ms>] [--ez dump true] [--ez tabletop true]
@@ -669,20 +681,23 @@ class MainActivity : ComponentActivity() {
         //   --es kidseed <page>:<n>|road|reset   (marks the page's first n lessons done with stars; road: every page walked and
         //       its finale played; reset: the Playground's lessons, stars and finales forgotten) [--ez sleepy true] (today's goal
         //       reached and said goodnight to, so the map shows the pup asleep) [--ei practice <minutes>] (practice added today)
+        // The launch's debug extras (finding 1): only when [routesAllowed] let this intent through (a switch's intent has none).
+        val routes = fromLaunch && debugRoutes
+        // Debug builds keep practice recordings and show the fixture recorder in Microphone setup (MicInput.canRecord).
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-        val openSong = intent.getStringExtra("song")?.takeIf { debuggable }
+        val openSong = intent.getStringExtra("song")?.takeIf { routes }
         val debugStart = PlayerStart(
             mode = when (intent.getStringExtra("mode")) { "wait" -> Mode.WAIT; "perform" -> Mode.PERFORM; else -> Mode.LISTEN },
             practice = when (intent.getStringExtra("hands")) { "left" -> Practice.LEFT; "right" -> Practice.RIGHT; else -> Practice.BOTH },
             mic = intent.getBooleanExtra("mic", false),
-            inject = intent.getStringExtra("inject")?.takeIf { debuggable },
-            tabletop = debuggable && intent.getBooleanExtra("tabletop", false),
-            lightSlow = if (debuggable) intent.getFloatExtra("lightSlow", 1f) else 1f,
+            inject = intent.getStringExtra("inject")?.takeIf { routes },
+            tabletop = routes && intent.getBooleanExtra("tabletop", false),
+            lightSlow = if (routes) intent.getFloatExtra("lightSlow", 1f) else 1f,
         )
-        com.bigpapituna.sharpears.ui.playground.FxSlow.factor = if (debuggable) intent.getFloatExtra("fxSlow", 1f).coerceIn(1f, 20f) else 1f
+        com.bigpapituna.sharpears.ui.playground.FxSlow.factor = if (routes) intent.getFloatExtra("fxSlow", 1f).coerceIn(1f, 20f) else 1f
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
-        val dump = debuggable && intent.getBooleanExtra("dump", false)
-        val route = intent.getStringExtra("screen")?.takeIf { debuggable }
+        val dump = routes && intent.getBooleanExtra("dump", false)
+        val route = intent.getStringExtra("screen")?.takeIf { routes }
         // A debug route with a bad value (an unknown lesson or song, "prog:x") opens home instead of crashing the launch.
         val first: Screen = runCatching { when {
             // 2.7: the Chords tab's places now sit at the top of Learn; the old tab names still open them.
@@ -763,7 +778,7 @@ class MainActivity : ComponentActivity() {
             route == "brief" -> return setContent { com.bigpapituna.sharpears.ui.brief.BriefDemo(intent) { finish() } }
             route == "email" -> return setContent { com.bigpapituna.sharpears.ui.brief.email.EmailDemo(intent, profile) { finish() } }
             route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }
-            debuggable && intent.getStringExtra("lesson") != null ->
+            routes && intent.getStringExtra("lesson") != null ->
                 COURSE.flatMap { it.lessons }.first { it.id == intent.getStringExtra("lesson") }.let {
                     Screen.Lesson(it, Screen.Home(HomeTab.LEARN), intent.getIntExtra("step", 0), debugStart.inject, intent.getStringExtra("midi"), intent.getIntExtra("scene", 0))
                 }
@@ -775,7 +790,7 @@ class MainActivity : ComponentActivity() {
             else -> repo.all().first { it.id == openSong }.let { m -> Screen.Player(repo.load(m), m, debugStart, seekMs, Screen.Home()) }
         } }.getOrElse { Log.d(TAG, "debug route failed, opening home: $it"); Screen.Home() }
 
-        val startDaily = debuggable && intent.getBooleanExtra("daily", false)
+        val startDaily = routes && intent.getBooleanExtra("daily", false)
         // First run: the onboarding questions, unless a debug route asked for a screen. A new kid skips them and lands in
         // the first Playground game (Back from it goes to the Learn path).
         val opening = when {
@@ -800,8 +815,8 @@ class MainActivity : ComponentActivity() {
         val requested = pendingOpen?.takeIf { it.first == profile.id }?.second
         pendingOpen = null
         // --es midi "<script>": a pretend keyboard plays into the first lesson step (see MidiDevices.debugPlay).
-        if (debuggable && intent.getStringExtra("midi") != null) midi.debugConnect()
-        intent.getStringExtra("say")?.takeIf { debuggable }?.let { line ->
+        if (routes && intent.getStringExtra("midi") != null) midi.debugConnect()
+        intent.getStringExtra("say")?.takeIf { routes }?.let { line ->
             android.os.Handler(mainLooper).postDelayed({ voice.speak(line) }, 1500)
         }
 
@@ -1341,7 +1356,7 @@ class MainActivity : ComponentActivity() {
                                 Toy.JAM -> {
                                     com.bigpapituna.sharpears.ui.play.JamScreen(mic, midi, frames, onExit = { screen = s.back }, hint = s.hint, voice = voice)
                                     // Debug: --es screen jam --es midi "3000:60/90,3010:64/90,..." plays a pretend keyboard into the Jam.
-                                    val script = remember { intent.getStringExtra("midi")?.takeIf { applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 } }
+                                    val script = remember { intent.getStringExtra("midi")?.takeIf { routes } }
                                     if (script != null) LaunchedEffect(script) { midi.debugPlay(script) }
                                 }
                                 Toy.PUP_SAYS -> com.bigpapituna.sharpears.ui.play.PupSaysScreen(mic, midi, sampler, voice, sound = { prefs.sound },
@@ -1406,7 +1421,7 @@ class MainActivity : ComponentActivity() {
                                     onAgain = { voice.stop(); screen = Screen.ArcadeRound(s.game, s.back) },
                                     onGames = { voice.stop(); screen = s.back }, onExit = { voice.stop(); screen = s.back },
                                     debugResult = debugResult,
-                                    bot = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("bot", false),
+                                    bot = routes && intent.getBooleanExtra("bot", false),
                                     first = firstRound)
                             }
                         }
@@ -1605,7 +1620,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 })
                                             },
-                                            emptyPlan = debuggable && intent.getBooleanExtra("emptyToday", false),
+                                            emptyPlan = routes && intent.getBooleanExtra("emptyToday", false),
                                             // 2.9: back after three days or more: three easy minutes with something already known.
                                             welcomeBack = if (!comebackOpen || comeback == null || progress.secondsToday() > 0) null else { {
                                                 val piece by androidx.compose.runtime.produceState<com.bigpapituna.sharpears.engine.Comeback.Piece?>(null) {
@@ -1871,7 +1886,7 @@ class MainActivity : ComponentActivity() {
                             reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE)
                     } }
                     // Debug: --es screen motion [--es demo celebrate|cheer|pup|keys] (Team E's effects, ui/motion/MotionDemo.kt).
-                    var motionDemo by remember { mutableStateOf(debuggable && intent.getStringExtra("screen") == "motion") }
+                    var motionDemo by remember { mutableStateOf(routes && intent.getStringExtra("screen") == "motion") }
                     if (motionDemo) com.bigpapituna.sharpears.ui.motion.MotionDemo(intent.getStringExtra("demo"), sampler) { motionDemo = false }
                     importError?.let { msg ->
                         LaunchedEffect(msg) { com.bigpapituna.sharpears.analytics.Tester.error("song import") }
@@ -2017,34 +2032,64 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The activity is singleTop (manifest): the launcher icon, the reminder's notification and `adb shell am start` bring
-     * this one back instead of stacking a second MainActivity on it (each with its own mic, voice, MIDI and sampler).
-     * Debug builds: a route in the new intent (--es screen, song, lesson, profile, --ez daily) opens as a fresh launch would.
-     */
-    /**
      * 2.9, debug builds: `--es today 2026-10-28` moves the app's today (data/AppClock.kt) for a walk on an emulator whose
      * clock cannot be set without root; the brief's events are stamped on the same moved clock. Lasts for the process.
+     * [allowed]: [routesAllowed] let this intent's extras through.
      */
-    private fun debugToday(intent: android.content.Intent?) {
-        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
+    private fun debugToday(intent: android.content.Intent?, allowed: Boolean) {
+        if (!allowed) return
         val day = intent?.getStringExtra("today")?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: return
         com.bigpapituna.sharpears.data.AppClock.pretend(day)
         Briefs.clock = com.bigpapituna.sharpears.data.AppClock::millis
         Log.d(TAG, "clock: today is $day (debug, moved ${com.bigpapituna.sharpears.data.AppClock.offsetDays} days)")
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        debugToday(intent)
+    /**
+     * Whether [intent]'s extras may act as debug routes (security review 2026-10-22, finding 1): a debug build, and
+     * [DebugRoutes.allowed] with the build's key digest, the intent's `dk` extra, its action and whether the launcher (its icon
+     * or a shortcut) or a browser sent it. Logs why a launch with extras was refused, never the key.
+     */
+    private fun routesAllowed(intent: android.content.Intent): Boolean {
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val names = runCatching { intent.extras?.keySet()?.toSet() }.getOrNull().orEmpty() - NOTIFICATION_EXTRAS
+        if (names.isEmpty()) return false                 // nothing to act on (the launcher, a notification, a link)
+        val fromLauncher = intent.hasCategory(android.content.Intent.CATEGORY_LAUNCHER) || intent.hasCategory(android.content.Intent.CATEGORY_BROWSABLE) ||
+            intent.sourceBounds != null || intent.hasExtra("android.intent.extra.shortcut.ID")
+        val key = runCatching { intent.getStringExtra(com.bigpapituna.sharpears.engine.DebugRoutes.KEY_EXTRA) }.getOrNull()
+        val verdict = com.bigpapituna.sharpears.engine.DebugRoutes.verdict(BuildConfig.DEBUG_ROUTE_KEY_SHA256, key, intent.action, fromLauncher)
+        val ok = debuggable && verdict == com.bigpapituna.sharpears.engine.DebugRoutes.Verdict.ALLOWED
+        if (!ok) Log.d(TAG, "debug routes: extras ignored (${if (debuggable) verdict.name.lowercase() else "not a debug build"}): " +
+            (names - com.bigpapituna.sharpears.engine.DebugRoutes.KEY_EXTRA).sorted().joinToString())
+        return ok
+    }
+
+    /** [intent] with every extra dropped but the weekly brief notification's two ([NOTIFICATION_EXTRAS], any build). */
+    private fun withoutDebugExtras(intent: android.content.Intent): android.content.Intent {
+        val kept = Bundle()
+        for (k in NOTIFICATION_EXTRAS) runCatching { intent.getStringExtra(k) }.getOrNull()?.let { kept.putString(k, it) }
+        return android.content.Intent(intent).apply { replaceExtras(kept) }
+    }
+
+    /**
+     * The activity is singleTop (manifest): the launcher icon, the reminder's notification and `adb shell am start` bring
+     * this one back instead of stacking a second MainActivity on it (each with its own mic, voice, MIDI and sampler).
+     * Debug builds: a route in the new intent (--es screen, song, lesson, profile, --ez daily) opens as a fresh launch would,
+     * when [routesAllowed] lets it through.
+     */
+    override fun onNewIntent(raw: android.content.Intent) {
+        super.onNewIntent(raw)
+        val allowed = routesAllowed(raw)
+        val intent = if (allowed) raw else withoutDebugExtras(raw)
+        debugToday(intent, allowed)
         // The weekly brief's notification on an app already running: its brief opens over the screen that is up.
         briefFrom(intent)?.let { req ->
             Log.d(TAG, "brief: notification opens ${req.first} ${req.second}")
-            briefSamples = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getBooleanExtra("brief_samples", false)
+            briefSamples = allowed && intent.getBooleanExtra("brief_samples", false)
             briefRequest.value = req
             return
         }
-        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-        if (!debuggable || (listOf("screen", "song", "lesson", "profile", "today").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
+        if (!allowed || (listOf("screen", "song", "lesson", "profile", "today").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
+        debugRoutes = true
         setIntent(intent)
         intent.getStringExtra("profile")?.let(profiles::switchTo)
         openApp(fromLaunch = true)

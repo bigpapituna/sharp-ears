@@ -97,10 +97,14 @@ fun EmailPreviewDialog(child: Profile, onClose: () -> Unit) {
  * and loads nothing from the network. The buttons inside do nothing here; in the email they open the app. Nothing is sent
  * unless the grown-up asks: once the family's address is confirmed, "Send me this email now" sends the day or the week shown
  * through the same sender and rules as the schedule (EmailJob.sendTest; it counts as one of the day's two).
+ *
+ * [first] (the debug route `--es screen email --es view preview --es period first`): the first email instead, the code alone
+ * as it goes before the address is confirmed (2.10.1, CodeEmail), with the code waiting or a made-up one.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = Modifier, samples: Boolean = false, startDay: Boolean = false) {
+fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = Modifier, samples: Boolean = false, startDay: Boolean = false,
+                       first: Boolean = false) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current.applicationContext
     var weekly by rememberSaveable { mutableStateOf(!startDay) }
@@ -115,6 +119,7 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
         value = null
         value = withContext(Dispatchers.IO) {
             runCatching {
+                if (first) return@runCatching BriefEmail.codePreviewHtml(EmailSettings.family(context).load().code ?: "482913", dark)
                 val now = System.currentTimeMillis()
                 val period = if (weekly) Period.WEEK else Period.DAY
                 val findings = if (samples) BriefSamples.kid(period, now) else BriefLoader.findings(context, child, period, now)
@@ -131,13 +136,14 @@ fun EmailPreviewScreen(child: Profile, onBack: () -> Unit, modifier: Modifier = 
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
             Text("What it looks like", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         }
-        Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!first) Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PillButton("Daily", onClick = { weekly = false }, selected = !weekly)
             PillButton("Weekly", onClick = { weekly = true }, selected = weekly)
         }
-        Text("${child.name}'s ${if (weekly) "week" else "day"} as the email draws it. Nothing is sent, and the buttons do nothing here.",
+        Text(if (first) "The first email, the code alone, as it goes before the address is confirmed. Nothing is sent."
+            else "${child.name}'s ${if (weekly) "week" else "day"} as the email draws it. Nothing is sent, and the buttons do nothing here.",
             style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp))
-        if (confirmed && !samples) Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (confirmed && !samples && !first) Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             PillButton(if (sending) "Sending" else "Send me this email now", busy = sending, enabled = !sending, onClick = {
                 sending = true; sent = null
                 scope.launch {

@@ -172,7 +172,7 @@ class PupWiringTest {
         assertTrue("if (still) ClipState.Missing" in clip)
         val main = src("MainActivity.kt")
         assertTrue("route == \"pup\" -> return setContent { com.bigpapituna.sharpears.ui.pup.PupDebug(intent) { finish() } }" in main)
-        assertTrue("val route = intent.getStringExtra(\"screen\")?.takeIf { debuggable }" in main)
+        assertTrue("val route = intent.getStringExtra(\"screen\")?.takeIf { routes }" in main)
         val claude = File("../CLAUDE.md").readText()
         assertTrue("## 2.10 living pup" in claude && "--es screen pup" in claude)
     }

@@ -97,13 +97,14 @@ class EmailScheduleTest {
         assertEquals("unverified: nothing", EmailDue.Wait(null), decide(now, plan().copy(verified = false), spans))
     }
 
-    @Test fun theFirstEmailGoesAtOnceWithTodayOrTheLastDayPlayedEvenAtNight() {
+    /** 2.10.1: the first email is the code alone (CodeEmail), so it goes at once and covers no day of playing. */
+    @Test fun theFirstEmailGoesAtOnceEvenAtNight() {
         val first = EmailPlan(EmailFrequency.OFF, sunday6pm, verified = false, firstPending = true)
         assertEquals(EmailDue.Send(EmailKind.FIRST, wed, Period.DAY, t(wed, 22)), decide(t(wed, 22), first, listOf(span(wed, 17, 0, 10))))
         val monday = LocalDate.of(2026, 10, 19)
-        assertEquals(EmailDue.Send(EmailKind.FIRST, monday, Period.DAY, EmailSchedule.endOf(monday, zone)),
+        assertEquals("played days before: still now", EmailDue.Send(EmailKind.FIRST, wed, Period.DAY, t(wed, 9)),
             decide(t(wed, 9), first, listOf(span(monday, 17, 0, 10), span(wed, 8, 0, 3, played = false))))
-        assertEquals("never played: the welcome alone, today", EmailDue.Send(EmailKind.FIRST, wed, Period.DAY, t(wed, 9)), decide(t(wed, 9), first, emptyList()))
+        assertEquals("never played", EmailDue.Send(EmailKind.FIRST, wed, Period.DAY, t(wed, 9)), decide(t(wed, 9), first, emptyList()))
         assertEquals("the caps hold it too", EmailDue.Wait(t(wed.plusDays(1), 0)), decide(t(wed, 9), first.copy(sends = listOf(t(wed, 7), t(wed, 8))), emptyList()))
     }
 

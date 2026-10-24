@@ -25,7 +25,7 @@ import kotlin.math.roundToInt
 
 /**
  * The email's own words (the brief's words come from the writer chain): subjects, the preheader, why each suggestion
- * helps, the line to say at home, the welcome, the footer. One per email ([name] the child's first name, [period]).
+ * helps, the line to say at home, the footer. One per email ([name] the child's first name, [period]).
  * Warm and plain, numbers present, the name instead of a pronoun, no em or en dash, no comparison with anyone, nothing
  * outside the app; EmailBriefTest checks every line of every email against those rules.
  */
@@ -213,12 +213,11 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
     // ---- subject, preheader ----
 
     /** The subject variants that fit, warmest first: the brief's headline, then lines with the name. Never empty. */
-    fun subjects(headline: String, first: Boolean, code: String?): List<String> {
+    fun subjects(headline: String): List<String> {
         val h = headline.trim().trimEnd('.', '!', ' ')
         val named = h.contains(name, ignoreCase = true)
         val opener = if (h.startsWith(name)) null else h.replaceFirstChar { it.lowercase() }
         val all = when {
-            first -> listOf("$name's piano brief: your code is $code", "Your code for $name's piano brief is $code", "Your code is $code")
             week -> listOfNotNull(h.takeIf { named }, opener?.let { "$name's week: $it" }, "$name's week at the piano, from the pup",
                 "A postcard from the pup: $name's week")
             else -> listOfNotNull(h.takeIf { named }, opener?.let { "$name today: $it" }, "$name's day at the piano, from the pup",
@@ -227,8 +226,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
         return all.filter { it.isNotBlank() && it.length <= SUBJECT_MAX && clean(it) }.distinct()
     }
 
-    fun preheader(f: Findings, suggestions: Int, first: Boolean): String {
-        if (first) return "Type the code in the app within 24 hours, then choose how often these come."
+    fun preheader(f: Findings, suggestions: Int): String {
         if (f.isEmpty) return if (week) "A quiet week at the piano. The brief picks up when the music does." else "A quiet day at the piano."
         val t = f.stats.totals
         val things = when (suggestions) { 0 -> "a gold star"; 1 -> "one thing to try and a gold star"; else -> "${words(suggestions)} things to try and a gold star" }
@@ -237,40 +235,12 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
         return line.take(PREHEADER_MAX)
     }
 
-    // ---- the first email ----
-
-    fun welcome(code: String, weekly: WeeklySlot, empty: Boolean): Welcome {
-        val place = SETTINGS_PLACE
-        return Welcome(
-            title = "Welcome to $name's piano brief",
-            paragraphs = listOfNotNull(
-                "From now on the pup can send you a postcard about $name's piano: what happened, what to try next, and one thing to praise at home.",
-                "It is written from the numbers the app keeps on $name's phone. No recordings or sounds ever leave it.",
-                "Nothing in these emails can change the app. Each suggestion says where to find it in the app, in the grown-ups corner.",
-                if (empty) "$name has not played yet, so this first one is short. The next ones bring the brief." else null,
-            ),
-            code = code,
-            codeLine = "To confirm this is your address, type the code in the app: $place. It works for 24 hours; three wrong tries and the app asks for a new one.",
-            howOften = HowOften(
-                title = "Choose how often",
-                where = "In the same place, once the code is in, each child has a Daily and a Weekly switch:",
-                choices = listOf(
-                    FrequencyChoice(EmailFrequency.DAILY, "Daily", "each day $name plays, once the playing is done (${WeeklyPlan.timeLabel(CUTOFF_MIN)} at the latest)."),
-                    FrequencyChoice(EmailFrequency.WEEKLY, "Weekly", "once a week, on ${WeeklyPlan.label(weekly)}."),
-                    FrequencyChoice(EmailFrequency.BOTH, "Both", "both switches on, for the daily ones and the weekly one."),
-                    FrequencyChoice(EmailFrequency.OFF, "Off", "both switches off, so no emails; the brief stays in the app."),
-                ),
-                note = "Nothing is sent between ${WeeklyPlan.timeLabel(QUIET_FROM_MIN)} and ${WeeklyPlan.timeLabel(QUIET_TO_MIN)}, and never more than two a day.",
-            ),
-        )
-    }
-
     // ---- the footer ----
 
-    fun footer(by: Brief.Writer, frequency: EmailFrequency, weekly: WeeklySlot, first: Boolean, phoneName: String?, attached: Boolean = true): List<String> = listOfNotNull(
+    fun footer(by: Brief.Writer, frequency: EmailFrequency, weekly: WeeklySlot, phoneName: String?, attached: Boolean = true): List<String> = listOfNotNull(
         "Sent by Sharp Ears for $name" + (phoneName?.trim()?.takeIf { it.isNotEmpty() }?.let { ", from $it" } ?: "") + ".",
         (if (by == Brief.Writer.AI) "Written by AI" else "Written on the phone") + " from the $spanNoun's numbers. No audio or recordings leave the phone.",
-        if (first) null else when (frequency) {
+        when (frequency) {
             EmailFrequency.DAILY -> "This comes each day $name plays."
             EmailFrequency.WEEKLY -> "This comes once a week, on ${WeeklyPlan.label(weekly)}."
             EmailFrequency.BOTH -> "A day's email comes each day $name plays, and the week's on ${WeeklyPlan.label(weekly)}."
@@ -297,9 +267,6 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
             TrendKind.DAYS, TrendKind.MINUTES, TrendKind.SESSIONS,
         )
         private val PART_WORDS = mapOf(DayPart.MORNING to "morning", DayPart.AFTERNOON to "afternoon", DayPart.EVENING to "evening", DayPart.NIGHT to "late evening")
-        private const val CUTOFF_MIN = 20 * 60 + 30
-        private const val QUIET_FROM_MIN = 21 * 60 + 30
-        private const val QUIET_TO_MIN = 7 * 60
         private val WORDS = listOf("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
         private val DASHES = Regex("[" + Char(0x2014) + Char(0x2013) + "]| - ")
 

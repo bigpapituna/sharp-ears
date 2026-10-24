@@ -54,7 +54,6 @@ filled in, titles plain). Escape every value (a name or an imported song's title
 | Model | Design D |
 |---|---|
 | `preheader` | the hidden first line (`display:none`) a mail app shows after the subject |
-| `welcome` (first email only) | a card above the postcard: `title`, `paragraphs`, the `code` big and spaced, `codeLine`, then `howOften` (`title`, `where`, the four `choices` as a list, `note`) |
 | `postcard` | the dashed card: the pup (`avatar` is Profile.avatar, the sweatband colour index; `avatarColour` its name for alt text; `pose`), the tilted `stamp` ("WEEK 43", "WED 21 OCT"), `range`, `headline` big, `chips` as pills, `paws` (seven, oldest first: `practised` a gold paw, `goal` a ring, `today` the last), `pawCaption` small |
 | `oneMinute` | "In one minute": each `Part` a paragraph with its bold `label`; `sayThis` in the speech bubble beside the pup (`pose` STICKER) |
 | `next` (null: leave the card out) | "What I'd do next": `intro` small, then each `NextItem` numbered: bold `text`, a small "Why:" `why`; when it has a `button`, a button-looking block that does not link anywhere, saying `button` ("Do this in the app") with `where` under it. An item without a `button` is something to keep doing (nothing to tap) |
@@ -198,7 +197,8 @@ stays on this phone...") needs ", except the brief by email if you turn it on" o
 > long keys took to find, what the app suggests) and the full report as a PDF. It goes from this phone to Brevo
 > (brevo.com), the email service that delivers it, and from there to your address. Nothing else is sent: no recording or
 > sound, no note you typed, nothing about the other children. The child's first name is in the email, because it is
-> written for you. The first email carries a code; until it is typed in the app, nothing else is sent. You choose daily,
+> written for you. The first email carries only a code (2.10.1: no name, no brief, no PDF); until it is typed in the app,
+> nothing else is sent. You choose daily,
 > weekly, both or off, nothing goes between 9:30 pm and 7 am, and never more than two a day. The address stays on this
 > phone, in the app's own storage; it is not in Android's backup, and it is deleted with the child's profile or when you
 > stop the emails. Brevo keeps delivery records under its own privacy policy.
@@ -230,10 +230,11 @@ shared with a service provider (Brevo) to deliver the email"; and the brief's co
 
 ## Decisions (made without asking, as briefed)
 
-- **The first email is the verification email.** It carries the code, so it goes as soon as the address is entered, with
-  that day's findings (or the last day played within two weeks; the welcome alone if never). Roy's "right after the address
-  is verified" read as "right after it is entered for verifying": the code that verifies it travels in that email.
-  It ignores the quiet hours (the grown-up is waiting for the code) but not the caps.
+- **The first email is the verification email.** It carries the code, so it goes as soon as the address is entered.
+  It ignores the quiet hours (the grown-up is waiting for the code) but not the caps. Since 2.10.1 (security review
+  2026-10-22, finding 6) it is the code alone (`CodeEmail`, `EmailSender.sendCode`, `EmailHtml.code`): the pup's line, the
+  code, "Your first brief comes as soon as you confirm." No name, no findings, no PDF, since a mistyped address hands it to
+  a stranger. It covers no day, so once the code is typed the schedule's next daily or weekly email is the first brief.
 - **Until the grown-up chooses, a verified address gets the WEEKLY email** rather than nothing; `chosen` tells the screen to
   ask.
 - **A day's email** is due 30 real minutes after the last session of the day ended (a new session restarts the half hour),
@@ -263,7 +264,8 @@ shared with a service provider (Brevo) to deliver the email"; and the brief's co
   and one per action for a candidate that answers no flag.
 - **No pronouns** about the child in the email's own words (the name, or none), as in the brief.
 - **Subjects** keep the brief's headline when it fits in 78 characters and has no dash; otherwise "Mia's week at the
-  piano, from the pup" and the like. The first email's subject carries the code, so it can be read from the notification.
+  piano, from the pup" and the like. The first email's subject ("Your Sharp Ears code is 482913") carries the code, so it
+  can be read from the notification, and no name.
 
 ## Not done here
 

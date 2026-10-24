@@ -15,6 +15,27 @@ Package: com.bigpapituna.sharpears · Device: Samsung Galaxy Z Fold7 (Android 16
 - WAV inject (debug): adb shell am start -n com.bigpapituna.sharpears/.MainActivity --es wav <path> --es song <id>
 - Lint: .\gradlew.bat lint
 
+## Debug routes (2.10.1: keyed builds)
+Every `--es`/`--ez`/`--ei`/`--ef`/`--el` launch extra the sections below list (`--es screen ...`, `seed`, `simple|layout`,
+`today`, `midi`, `say`, `kidseed`, `--ez gate`, the demos' extras) acts only on a debug build and only when
+engine/DebugRoutes.kt lets the launch through (security review 2026-10-22, finding 1). MainActivity asks it in onCreate and
+onNewIntent (`routesAllowed`) and strips a refused launch's extras before anything reads them (`withoutDebugExtras`; only the
+weekly brief notification's `brief_profile`/`brief_period` stay), so TheoryScreen and the demos (EmailDemo, BriefDemo,
+PupDebug, SkinDemo, WorldDemo) never see them. DebugRoutesWiringTest fails if a new file reads intent extras.
+- Keyless builds (no `DEBUG_ROUTE_KEY` in secrets.properties: every worktree and emulator build agents make): as before,
+  `adb -s emulator-5558 shell am start -n com.bigpapituna.sharpears/.MainActivity --es screen settings`.
+- Keyed builds (Roy's, and the ones he gives testers): `.\scripts\set-debug-key.ps1` once (a random 24-character key into
+  secrets.properties, never shown; it prints "Saved."; `-Remove` takes it out), rebuild, then every route through
+  `.\scripts\adb-route.ps1 -Serial <serial> --es screen settings` (it adds `--es dk <key>` from secrets.properties without
+  printing it; the serial is required, `-Serial` first or `$env:ANDROID_SERIAL`). Without the key the app opens as a plain
+  launch and logs `debug routes: extras ignored (no_key): screen` (`wrong_key` for a wrong one).
+- Never, keyed or not: a VIEW intent (a `sharpears://` link, a browser's `intent://`), any action but none or MAIN, a launch
+  from the launcher (its category, source bounds or a shortcut id) or a browser (BROWSABLE), a release or profile build.
+  Logged as `extras ignored (action)` / `(launcher)`.
+- BuildConfig holds `DEBUG_ROUTE_KEY_SHA256` (the key's SHA-256), never the key. To try a keyed build without touching
+  secrets.properties: `.\gradlew.bat installDebug -PdebugRouteKey=test123`, then `--es dk test123` (the property is read
+  before the file); install again without it to go back to keyless.
+
 ## Rules
 - Stdlib and platform APIs first. New dependency only if PLAN.md names it.
 - engine/ has no Android imports. Test it on the JVM.
@@ -1406,6 +1427,49 @@ at the big moments.
 - Not proven: on the Fold7 itself (frame time with a real GPU, clip decode time), with a child; "Done for today" was not
   walked (same Celebration call, by tests); dark mode of the debug screen only.
 
+## 2.10.1 security fixes (2026-10-24, branch `hardening-2`, versionCode 26; emulator-5558 Fold_QA_GU only)
+Three findings of docs/SECURITY-REVIEW-2026-10-22.md (untracked). The parent gate's were fixed in 2.8.4. What's new: no line.
+- Finding 1, debug routes (high): see "Debug routes" at the top. engine/DebugRoutes.kt `verdict`/`allowed(buildKey, intentKey,
+  action, fromLauncher)`, MainActivity `routesAllowed`, `withoutDebugExtras`, `debugRoutes` (TheoryScreen reads it); every
+  former `FLAG_DEBUGGABLE` route check reads it (`routes` in openApp). scripts/set-debug-key.ps1, scripts/adb-route.ps1.
+  Decision: BuildConfig keeps the key's SHA-256 (`DEBUG_ROUTE_KEY_SHA256`), not the key, so an unpacked APK (or another app
+  reading it on the phone) does not give the key away; the stricter action rule (none or MAIN only) covers shortcuts, whose
+  intents always carry an action.
+- Finding 6, the first email (medium): it goes before the address is confirmed, so it is the code alone
+  (engine/brief/email/CodeEmail.kt, `EmailSender.sendCode`, `EmailHtml.code`, `PlainTextEmail.text(CodeEmail)`): "Hi, it's
+  the pup from Sharp Ears. Here is your code.", the code in 42 px digits, "Your first brief comes as soon as you confirm.";
+  subject "Your Sharp Ears code is 482913". No name, no findings, no PDF; the job (reminder/EmailJob.kt) reads no findings
+  and writes no brief for it. It covers no day (`EmailSchedule.decide` gives today and now), so the day's or week's email
+  the schedule sends after the code is typed is the first brief. The brief's welcome, its `first`/`code` parameters and the
+  first-email snapshots are gone; `email-code.html` pins the new one. Privacy page and Briefs and email say "only a six-digit
+  code". Debug preview: `--es screen email --es view preview --es period first`.
+- Finding 5, recordings (medium): Roy keeps `keepRecordings` on by default in the debug build for the beta. The privacy page no
+  longer says "then discarded" on such a build; it and Settings > Microphone say `Recordings.KEEP_LINE` ("This test build
+  keeps the last four practice recordings on this phone, in the app's own storage, to tune the listening. They never leave
+  the phone unless you share them. Turn this off in Settings."), and Settings > Microphone has the switch "Keep the last
+  four recordings" in plain view (Microphone setup's switch has the same name). The recordings moved from external app
+  storage (readable by apps with the storage permission on Android 9 and 10) to files/recordings/{fixtures,stalls}
+  (data/Recordings.kt); the Reporter's thread moves old files once (`recordings: N file(s) moved`, flag `recordingsMoved` in
+  mic.xml), keeping names and times; both rule files exclude files/recordings from backup. Share stuck moments still zips
+  into cache/share, so the FileProvider paths did not need to grow (file_paths.xml says why); the Reporter reads the new
+  folder; pull-fixtures.ps1 and pull-stalls.ps1 copy through run-as and /data/local/tmp.
+- Tests: DebugRoutesTest, DebugRoutesWiringTest, RecordingsTest (the move: names, times, a second run, a file already there),
+  BackupRulesTest, EmailHtmlTest (the code email: snapshot, nothing about the child, the rules), EmailBriefTest, EmailSenderTest
+  (no writer call, no PDF, no name), EmailRoundTest (the code alone, then the day's brief once confirmed), EmailFlowTest,
+  EmailScheduleTest, RetentionWiringTest and PupWiringTest (the gate). 1651 JVM tests, all green but
+  PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 29 warnings.
+- Emulator (5558 Fold_QA_GU): keyless `--es screen settings` opens Settings; a VIEW intent and a LAUNCHER-category launch with
+  the same extras log `extras ignored (action)` / `(launcher)` and do not; old external recordings seeded on the device moved
+  (`recordings: 4 file(s) moved`, times kept, the external folders gone) and a new mic session landed in
+  /data/user/0/com.bigpapituna.sharpears/files/recordings/fixtures; Settings > Microphone's switch off and on wrote
+  keepRecordings; the privacy page's microphone paragraphs; the first-email preview shows the code alone. A build with
+  `-PdebugRouteKey=test123`: no key and a wrong key ignored (`no_key`, `wrong_key`, the picker shows), also through
+  onNewIntent on a running app; `--es dk test123` and scripts/adb-route.ps1 (a scratch copy with a scratch key file) open
+  Settings; the APK's dex holds the digest and not the key. Keyless build reinstalled after. Screenshots:
+  app/build/screens/sec-*.png (not committed).
+- Roy, after merging, on his PC: `.\scripts\set-debug-key.ps1` (prints "Saved."), then `.\gradlew.bat installDebug` (and the
+  APK he hands testers from then on is keyed). His routes go through `.\scripts\adb-route.ps1 -Serial <serial> ...`.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).
@@ -1423,7 +1487,7 @@ Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leon
 - Navigation (2.0): Songs / Learn / Practice / Chords / You bottom bar (rail when the window is 600 dp or wider); Settings opens from the gear on You. Player loop is one button: start, end, clear.
 
 ## Privacy and licences (2026-10-07)
-This repo is Roy's private build (keeps personal music, debug build). The public Play app will be a separate app: see docs/publishing.md (what to remove or replace, Play checklist, data safety answers) and docs/privacy-policy.md (draft to host). In-app: Settings > About > Privacy (honest about debug recordings) and Licences (full texts in assets/licenses). Debug recordings: Microphone setup > Keep practice recordings (MicInput.keepRecordings, default on in debug, never in release) with Delete recordings. The video window credits the channel on YouTube.
+This repo is Roy's private build (keeps personal music, debug build). The public Play app will be a separate app: see docs/publishing.md (what to remove or replace, Play checklist, data safety answers) and docs/privacy-policy.md (draft to host). In-app: Settings > About > Privacy (honest about debug recordings) and Licences (full texts in assets/licenses). Debug recordings: Settings > Microphone and Microphone setup > Keep the last four recordings (MicInput.keepRecordings, default on in debug, never in release; the privacy page and Settings say `Recordings.KEEP_LINE`) with Delete recordings in Microphone setup. Since 2.10.1 they live in internal storage, files/recordings/fixtures and files/recordings/stalls (data/Recordings.kt, out of backup); `scripts/pull-fixtures.ps1` and `pull-stalls.ps1` read them through run-as. The video window credits the channel on YouTube.
 
 ## Environment notes
 - JDK: Android Studio's bundled JBR (set in gradle.properties). For gradlew.bat in a fresh shell: $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
@@ -1437,6 +1501,6 @@ This repo is Roy's private build (keeps personal music, debug build). The public
 - Lint caches its analysis; after changing a non-source file, run: .\gradlew.bat lintAnalyzeDebug --rerun lintDebug
 
 ## Private songs (2.8.0, section 4 of docs/PLAN-2.8.md)
-- `secrets.properties` keys (all gitignored, all optional): `AI_KEY`, `AI_MODEL`, `AI_BASE_URL`, `EMAIL_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `EMAIL_BASE_URL`, `EMAIL_IMAGE_BASE`, `POSTHOG_KEY`, `POSTHOG_HOST`, `DIARY_TO`, and `PRIVATE_BUILD` (default false). `scripts/set-private-build.ps1` writes `PRIVATE_BUILD=true` (`-Off` for false).
+- `secrets.properties` keys (all gitignored, all optional): `AI_KEY`, `AI_MODEL`, `AI_BASE_URL`, `EMAIL_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `EMAIL_BASE_URL`, `EMAIL_IMAGE_BASE`, `POSTHOG_KEY`, `POSTHOG_HOST`, `DIARY_TO`, `PRIVATE_BUILD` (default false) and `DEBUG_ROUTE_KEY` (2.10.1, "Debug routes" above; `scripts/set-debug-key.ps1`). `scripts/set-private-build.ps1` writes `PRIVATE_BUILD=true` (`-Off` for false).
 - `PopSong.privateOnly` marks a chart that must never ship publicly. `engine/chords/PopSongsTemp.kt` holds six (Michael Jackson, chords only, all SKETCH). They are in `ALL_POP_SONGS` but not in `POP_SONGS`; `ui/chords/PopCatalogue.songs` (the screens' one list) adds them only when `BuildConfig.PRIVATE_BUILD` is true, via `PopFind.visible`. The engine never reads BuildConfig.
 - Before any release: delete `PopSongsTemp.kt` and its `TEMP_SONGS` term in `PopSongs.kt`. `PopSongsTest.privateSongsMustNotShipPublic` fails in any build without PRIVATE_BUILD=true while a privateOnly song exists, so a public build fails CI until then.

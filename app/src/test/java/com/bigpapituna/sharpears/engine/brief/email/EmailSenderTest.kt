@@ -51,14 +51,15 @@ class EmailSenderTest {
         val writer = Counting()
         val out = sender().send(weekly, verified, week, writer, child) as EmailSender.Outcome.Sent
         val m = sent.single()
+        val email = out.email!!
         assertEquals("parent@example.com", m.to)
-        assertEquals(out.email.subject, m.subject)
-        assertEquals(PlainTextEmail.html(out.email), m.html); assertEquals(PlainTextEmail.text(out.email), m.text)
+        assertEquals(email.subject, m.subject)
+        assertEquals(PlainTextEmail.html(email), m.html); assertEquals(PlainTextEmail.text(email), m.text)
         assertArrayEquals(pdfBytes, m.attachment); assertEquals("Mia-weekly-brief-2026-10-21.pdf", m.attachmentName)
         assertEquals(day, out.prefs.lastWeekly); assertEquals(listOf(NOW), out.prefs.sends)
         assertEquals(1, writer.calls)
-        assertEquals("WEEK ${EmailBriefs.weekNumber(NOW, ZONE)}", out.email.postcard.stamp)
-        assertTrue(out.email.footer.lines.any { it.startsWith("The full report is attached") })
+        assertEquals("WEEK ${EmailBriefs.weekNumber(NOW, ZONE)}", email.postcard.stamp)
+        assertTrue(email.footer.lines.any { it.startsWith("The full report is attached") })
         logs.forEach { assertFalse(it, it.contains("parent@") || it.contains("Mia") || it.contains(m.subject)) }
     }
 
@@ -77,24 +78,42 @@ class EmailSenderTest {
         assertTrue(sent.isEmpty())
     }
 
-    @Test fun theFirstEmailGoesUnverifiedWithItsCodeAndMarksItselfSent() {
+    /**
+     * 2.10.1 (security review finding 6): the first email goes before the address is confirmed, so it is the code alone. Nothing
+     * is written for it (the AI is not asked), no PDF is made, and the child's name is nowhere in it.
+     */
+    @Test fun theFirstEmailGoesUnverifiedWithTheCodeAloneAndMarksItselfSent() {
         val pending = EmailVerification(clock = { NOW }, digits = { "482913" }).start(EmailPrefs(), "parent@example.com").first
         val first = EmailDue.Send(EmailKind.FIRST, day, Period.DAY, NOW)
-        val out = sender().send(first, pending, BriefSamples.kid(Period.DAY, NOW, ZONE), Counting(), child) as EmailSender.Outcome.Sent
-        assertEquals("Mia's piano brief: your code is 482913", sent.single().subject)
-        assertTrue(sent.single().text.contains("Your code: 482913"))
+        val writer = Counting()
+        var pdfs = 0
+        val out = sender(pdf = { _, _ -> pdfs++; pdfBytes }).send(first, pending, BriefSamples.kid(Period.DAY, NOW, ZONE), writer, child) as EmailSender.Outcome.Sent
+        val m = sent.single()
+        assertEquals("Your Sharp Ears code is 482913", m.subject)
+        assertEquals(EmailHtml.code(CodeEmail("482913")), m.html to m.text)
+        assertTrue(m.text.contains("Your code: 482913") && m.text.contains("Your first brief comes as soon as you confirm."))
+        assertNull("nothing attached", m.attachment); assertNull(m.attachmentName)
+        assertEquals("nothing written", 0, writer.calls); assertEquals("no PDF", 0, pdfs)
+        assertFalse("no name", m.subject.contains("Mia") || m.html.contains("Mia") || m.text.contains("Mia"))
+        assertNull("no brief", out.email)
         assertTrue(out.prefs.firstSent)
+        assertEquals("the code email covers no day", null, out.prefs.lastDaily)
         assertFalse(out.prefs.plan(com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT).firstPending)
+        assertTrue(logs.any { it.contains("FIRST") && it.contains("the code alone") })
+        // The job's own door says the same.
+        sent.clear()
+        assertTrue(sender().sendCode(first, pending, "p1") is EmailSender.Outcome.Sent)
+        assertEquals("Your Sharp Ears code is 482913", sent.single().subject)
     }
 
     @Test fun aFailingRendererOrNoPdfStillSendsAndAFailedSendRecordsNothing() {
         val broken = EmailRenderer { throw IllegalStateException("boom") }
         val out = sender(render = broken, pdf = { _, _ -> null }).send(weekly, verified, week, Counting(), child) as EmailSender.Outcome.Sent
-        assertEquals(PlainTextEmail.html(out.email), sent.single().html)
+        assertEquals(PlainTextEmail.html(out.email!!), sent.single().html)
         assertNull(sent.single().attachment); assertNull(sent.single().attachmentName)
-        assertTrue("no PDF, so the footer does not promise one", out.email.footer.lines.none { it.startsWith("The full report is attached") })
+        assertTrue("no PDF, so the footer does not promise one", out.email!!.footer.lines.none { it.startsWith("The full report is attached") })
         val blankText = sender(render = { e -> "<p>designed</p>" to "" }).send(weekly, verified, week, Counting(), child) as EmailSender.Outcome.Sent
-        assertEquals(PlainTextEmail.text(blankText.email), sent.last().text)
+        assertEquals(PlainTextEmail.text(blankText.email!!), sent.last().text)
         assertEquals("<p>designed</p>", sent.last().html)
         val failed = sender(fail = EmailSendException(EmailSendException.Kind.SERVER, 503, "HTTP 503")).send(weekly, verified, week, Counting(), child)
         assertEquals(EmailSender.Outcome.Failed(EmailSendException.Kind.SERVER, "HTTP 503"), failed)
