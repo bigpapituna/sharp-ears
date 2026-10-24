@@ -241,7 +241,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                     // No room on a short screen for the peek at the next drop: Play it again is a plain button there.
                     val peek = nextDrop.takeIf { !short }
                     if (peek != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(peek, onClick = onAgain, title = songTitle, label = "Play it again",
-                        delayMs = if (still) 0L else 1400L, lead = "Again")
+                        delayMs = if (still) 0L else 1400L)
                     FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                         if (peek == null) ChunkyButton(onClick = onAgain, modifier = Modifier.widthIn(min = 180.dp)) {

@@ -1172,8 +1172,8 @@ ones and 12 polish nits. Fixed here, in severity order:
   first 900 ms (`SettleTaps`, defect 9); a concert retry keeps its song (`LocalStageMemo`, defect 11); arcade practice
   counts only while keys come (`ArcadeTime`, 8 s a key) and a round with no key played earns no sparkles, quest star or
   brief line (defect 12). Nits: the sticker tray only under the album, no hand or mode words on a pre-reader's song bar, an
-  arrow on a kid's Next, "Again: <song>" on the recap's replay peek, the outfit bar's repeated words gone, a letter hunt
-  glowing in the key's colour, "Hi, Mia!" clear of the map's top fade.
+  arrow on a kid's Next, the outfit bar's repeated words gone, a letter hunt glowing in the key's colour, "Hi, Mia!" clear
+  of the map's top fade. Nit 7 (the recap's "Next:" naming the same song) is qa-grownup's fix ("Once more: <song>").
 - Not done: defect 6 (the AI's "finish: length") is qa-grownup's; defect 13 (My stickers silent) needs new recordings
   (about 100 wardrobe lines; scripts/render_voice.py with Kokoro); nits 4 and 5 (map layout), 8 and 12 (by design).
 

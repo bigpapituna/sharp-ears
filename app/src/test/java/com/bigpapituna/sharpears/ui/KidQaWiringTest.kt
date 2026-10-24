@@ -47,6 +47,5 @@ class KidQaWiringTest {
     @Test fun polishNits() {
         assertTrue(src("ui/kid/KidStickers.kt").contains("pager.currentPage == StickerPage.ALBUM.ordinal) StickerTray("))
         assertTrue(src("ui/TransportBar.kt").contains("if (!(s.kid && !com.bigpapituna.sharpears.ui.family.reader())) {"))
-        assertTrue(src("ui/RunRecap.kt").contains("lead = \"Again\""))
     }
 }
