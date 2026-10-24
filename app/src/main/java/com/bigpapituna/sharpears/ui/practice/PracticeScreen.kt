@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -147,7 +149,7 @@ fun PracticeScreen(
     val sections = PracticeSection.entries.filter { it != PracticeSection.TOOLS || Simple.practiceShows(Simple.PracticePart.TOOLS, shown) }
     val shownTab = if (simple && (tab.section == PracticeSection.TOOLS || tab == PracticeTab.ARPEGGIOS)) PracticeTab.SCALES else tab
     val foot: @Composable () -> Unit = { com.bigpapituna.sharpears.ui.LayoutMore(Simple.Place.PRACTICE, more, { more = true }) }
-    Column(modifier) {
+    Column(modifier.fillMaxSize().wrapContentWidth().widthIn(max = 720.dp)) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
         PrimaryTabRow(selectedTabIndex = sections.indexOf(shownTab.section).coerceAtLeast(0), containerColor = Color.Transparent, divider = {}) {
@@ -323,7 +325,8 @@ private fun PatternScreen(
 
             Text("Your ${typeWords(arps, if (arps) arpType.label else scaleType.label)}", style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 14.dp))
-            StatTiles(stat.times, stat.bestBpm, (0..11).filter { counts[it] > 0 }.toSet(), root, names, Modifier.padding(horizontal = 20.dp))
+            StatTiles(stat.times, stat.bestBpm, (0..11).filter { counts[it] > 0 && (!simple || it in Simple.SCALE_ROOTS) }.toSet(), root, names,
+                Modifier.padding(horizontal = 20.dp), keys = if (simple) Simple.SCALE_ROOTS.size else 12)
             foot()
         }
         AnimatedVisibility(nudge, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {

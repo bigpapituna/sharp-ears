@@ -154,7 +154,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
         (first..first + 7).map { i -> if (i > beat) null else along.hit(i) }
     }
     ClapAlongContent(
-        speed, mode, canClap = frames != null, line = if (mode == ClapMode.CLAP && micState == MicState.NO_PERMISSION) "I need the microphone to hear claps. Tapping works too." else line,
+        speed, mode, canClap = frames != null, listening = micState == MicState.LISTENING, line = if (mode == ClapMode.CLAP && micState == MicState.NO_PERMISSION) "I need the microphone to hear claps. Tapping works too." else line,
         dots = dots, beatTick = beat, glow = glow, squash = { squash.value }, still = still,
         onSpeed = { speed = it }, onMode = { mode = it }, onTap = { judge(nowMs(), "tap") }, onExit = onExit,
     )
@@ -162,7 +162,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
 
 @Composable
 internal fun ClapAlongContent(
-    speed: ClapSpeed, mode: ClapMode, canClap: Boolean, line: String, dots: List<Boolean?>, beatTick: Int, glow: Int,
+    speed: ClapSpeed, mode: ClapMode, canClap: Boolean, listening: Boolean = true, line: String, dots: List<Boolean?>, beatTick: Int, glow: Int,
     squash: () -> Float, still: Boolean, onSpeed: (ClapSpeed) -> Unit, onMode: (ClapMode) -> Unit, onTap: () -> Unit, onExit: () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
@@ -205,7 +205,8 @@ internal fun ClapAlongContent(
             .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(); tap() } }
             .semantics { role = Role.Button; contentDescription = "Drum. Tap on the beat"; onClick { onTap(); true } },
             contentAlignment = Alignment.Center) {
-            Text(if (mode == ClapMode.TAP) "Tap" else "Clap", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+            // Clap mode without the mic counts taps only, so the drum says so.
+            Text(if (mode == ClapMode.CLAP && listening) "Clap" else "Tap", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                 color = c.onSurface)
         }
         Spacer(Modifier.size(8.dp))

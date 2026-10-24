@@ -247,7 +247,8 @@ private fun EmailPart(kids: List<Profile>, gate: ParentGateController, zone: Zon
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { confirm() }))
                 ChunkyButton(enabled = code.length == 6 && busy == null, modifier = Modifier.fillMaxWidth(), onClick = ::confirm) { Text("Confirm") }
                 val wait = EmailFlow.resendIn(address, now)
-                TextButton(enabled = wait == 0L && busy == null, onClick = { sendCode(address.address.orEmpty()) }) {
+                TextButton(enabled = wait == 0L && busy == null, onClick = { sendCode(address.address.orEmpty()) },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
                     Text(if (wait == 0L) "Send a new code" else "Send a new code, ${EmailFlow.waitWords(wait)}")
                 }
                 TextButton(onClick = { stopAsk = StopAsk.CHANGE }) { Text("Use a different address") }

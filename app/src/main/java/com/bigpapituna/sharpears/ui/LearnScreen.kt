@@ -203,7 +203,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     SideRow("Sight-read", sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
                         null, R.drawable.ic_play_arrow, onSightRead)
                 }
-                if (!kid) LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true })
+                if (!kid) LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true }, edge = 0.dp)
             }
         }
         items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"

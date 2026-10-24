@@ -247,7 +247,7 @@ private fun WelcomeStep() {
 
 @Composable
 private fun ExperienceStep(picked: Int, onPick: (Int) -> Unit) {
-    PupSays(Pose.LEARNING, "Have you played before? Any answer is fine. I'll pick a good place to start, and everything before it stays open.", Modifier.fillMaxWidth(), size = 96.dp)
+    PupSays(Pose.LEARNING, "Any answer is fine. I'll pick a good place to start, and everything before it stays open.", Modifier.fillMaxWidth(), size = 96.dp)
     StepTitle("Have you played before?")
     Level.adult.forEach { l -> Choice(picked == l.ordinal, l.label, l.adultLine) { onPick(l.ordinal) } }
     val level = Level.entries.getOrNull(picked)

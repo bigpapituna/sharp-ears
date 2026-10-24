@@ -19,8 +19,8 @@ import com.bigpapituna.sharpears.engine.playground.rounds
 object PlacementCheck {
     /** The things to play, in order. */
     enum class Task(val title: String, val ask: String) {
-        /** Any C counts; the middle one is best. */
-        FIND_C("Find a C", "Find a C. Any C will do; the one in the middle is best."),
+        /** Any C counts. */
+        FIND_C("Find a C", "Find a C. Any C will do."),
         /** C D E F G, the right hand's five fingers. */
         FIVE_NOTES("Five notes", "Play C, D, E, F, G with your right hand, one finger on each key."),
         /** The first phrase of Twinkle in time with the band. */

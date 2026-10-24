@@ -226,7 +226,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             // then who writes the parent brief (BriefAiSettings, at the bottom of BriefsAndEmail). Simple shows it too.
             if (family != null && shows(Simple.SettingsPart.BRIEFS)) {
                 Section("Briefs and email")
-                Text("Each child's brief is under Family: tap the child, then Read the brief. Your own week is on You, under My week.",
+                Text("Each child's brief is under Family: tap Change beside the child, then Read the brief. Your own week is on You, under My week.",
                     style = MaterialTheme.typography.bodyMedium, color = dim)
                 val kids = profiles?.rosterFlow?.collectAsState()?.value?.profiles.orEmpty().filter { it.isKid }
                 com.bigpapituna.sharpears.ui.brief.email.BriefsAndEmail(kids)

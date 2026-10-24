@@ -241,7 +241,9 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 Column(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // No room on a short screen for the peek at the next drop: Play it again is a plain button there.
                     val peek = nextDrop.takeIf { !short }
+                    // The song just played is not "Next" (QA nit 15): it is the same song again.
                     if (peek != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(peek, onClick = onAgain, title = songTitle, label = "Play it again",
+                        heading = songTitle?.let { "Once more: $it" },
                         delayMs = if (still) 0L else 1400L)
                     FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {

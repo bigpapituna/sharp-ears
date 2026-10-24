@@ -1438,7 +1438,7 @@ class MainActivity : ComponentActivity() {
                             // 2.8, the launch chooser: a grown-up who never chose a layout picks one before the tabs (Today); a
                             // tap saves it and the home opens under it. Kids never see it; 2.7's Simple switch counts as chosen.
                             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                com.bigpapituna.sharpears.ui.LayoutChooser(current.name, returning = progress.xp > 0) { l ->
+                                com.bigpapituna.sharpears.ui.LayoutChooser(current.name, returning = progress.practiceLog().keys.any { it.isBefore(java.time.LocalDate.now()) }) { l ->
                                     Log.d(TAG, "layout: chosen at launch")
                                     layoutMode.set(l)
                                 }

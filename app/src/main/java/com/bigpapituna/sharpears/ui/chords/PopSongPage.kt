@@ -206,7 +206,7 @@ fun PopSongPage(
                     FilledTonalButton(onClick = { hearing = !hearing }, modifier = Modifier.height(52.dp)) {
                         Icon(painterResource(if (hearing) R.drawable.ic_stop else R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(if (hearing) "Stop" else "Hear the band")
+                        Text(if (hearing) "Stop the band" else "Hear the band")
                     }
                     ChunkyButton(onClick = { hearing = false; onPlayAlong(PopPlay.Run(built, bed, PopPlay.chordTrack(song, key, bpm))) }) { Text("Play along") }
                     // The band is drums and bass; the piano plays the chords softly over it.
@@ -277,7 +277,7 @@ private fun Header(song: PopSong, key: Int, bpm: Int, kid: Boolean, modifier: Mo
 private fun VoiceCard(song: PopSong, shift: Int, bpm: Int, key: Int, onShift: (Int) -> Unit, onTempo: (Int) -> Unit, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerLow).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Transpose to my voice", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        Text("Key and tempo", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         val keyStepper = @Composable { Column(Modifier.weight(1f)) { Stepper(
             value = "Key of ${PopPlay.keyName(key, song.minor)}",
             detail = when { shift == 0 -> "the original key"; shift > 0 -> "up ${semis(shift)}"; else -> "down ${semis(-shift)}" },

@@ -68,7 +68,7 @@ fun QuestStars(plan: SessionPlan?, onTask: (QuestTask) -> Unit, modifier: Modifi
             .clickable(role = Role.Button, onClickLabel = if (open) "Hide the quest's tasks" else "Show the quest's tasks") { open = !open }
             .semantics(mergeDescendants = true) { contentDescription = "Pup's quest, " + questLine(quest, profile.isKid) },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { quest.tasks.forEach { QuestStar(it.complete, side = 22.dp) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { repeat(quest.tasks.size) { QuestStar(it < quest.stars, side = 22.dp) } }
             Text("Pup's quest", style = MaterialTheme.typography.labelLarge)
             Text(questLine(quest, profile.isKid), style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -135,7 +135,7 @@ private fun QuestStar(earned: Boolean, side: androidx.compose.ui.unit.Dp = 30.dp
     val still = reducedMotion()
     val pop = remember { Animatable(1f) }
     LaunchedEffect(earned) { if (earned && !still) { pop.snapTo(0.6f); pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f)) } }
-    val outline = MaterialTheme.colorScheme.outlineVariant
+    val outline = MaterialTheme.colorScheme.outline
     Canvas(Modifier.size(side).scale(pop.value)) {
         val pts = ConcertCardLayout.starPoints(CardBox(0f, 0f, size.width, size.height))
         val path = Path().apply { pts.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x, y) else lineTo(x, y) }; close() }

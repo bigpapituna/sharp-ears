@@ -272,7 +272,9 @@ internal fun PupLine(pose: Pose, line: String, modifier: Modifier = Modifier, si
  * key's segment outlined). Numbers count up when they first show.
  */
 @Composable
-internal fun StatTiles(times: Int, best: Int, covered: Set<Int>, selected: Int, keyNames: List<String>, modifier: Modifier = Modifier) {
+internal fun StatTiles(times: Int, best: Int, covered: Set<Int>, selected: Int, keyNames: List<String>, modifier: Modifier = Modifier,
+                       /** The keys offered: 12, or Simple's three. */
+                       keys: Int = 12) {
     val c = MaterialTheme.colorScheme
     val t = rememberCountUp(times, 800)
     val b = rememberCountUp(best, 900)
@@ -295,13 +297,13 @@ internal fun StatTiles(times: Int, best: Int, covered: Set<Int>, selected: Int, 
             }
         }
         tile(Modifier.weight(1.25f).semantics(mergeDescendants = true) {
-            contentDescription = "${covered.size} of 12 keys practised" + if (covered.isNotEmpty()) ": " + covered.sorted().joinToString(", ") { spokenKey(keyNames[it]) } else ""
+            contentDescription = "${covered.size} of $keys keys practised" + if (covered.isNotEmpty()) ": " + covered.sorted().joinToString(", ") { spokenKey(keyNames[it]) } else ""
         }) {
             Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 KeysRing(covered, selected, Modifier.size(64.dp)) {
                     Text("$k", style = MaterialTheme.typography.titleMedium.merge(Numeric).copy(fontWeight = FontWeight.SemiBold), color = c.onSurface)
                 }
-                Text("of 12 keys", style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+                Text("of $keys keys", style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
             }
         }
     }

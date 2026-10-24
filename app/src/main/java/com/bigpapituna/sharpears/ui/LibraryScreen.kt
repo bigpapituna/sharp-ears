@@ -195,7 +195,8 @@ private fun GroupHeader(label: String, group: List<LibraryEntry>, stars: Int) {
         if (stars > 0) DifficultyStars(stars, size = 16.dp)
         else Icon(painterResource(R.drawable.ic_library_music), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         Text(label, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-        Text("${group.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // The songs that open (a locked import is not one), as "N of M played" counts them.
+        Text("${if (open > 0) open else group.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.weight(1f))
         if (open > 0) Text("$played of $open played", style = Numeric.merge(MaterialTheme.typography.labelMedium),
             color = if (played > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -287,7 +288,7 @@ private fun Status(e: LibraryEntry) {
     when {
         !e.available -> {}
         p.bestAccuracy >= 0 || p.completed -> BestBadge(p.bestAccuracy.takeIf { it >= 0 }, p.completed)
-        p.lastPositionMs > 0 -> Text(formatTime(p.lastPositionMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge),
+        p.lastPositionMs > 0 -> Text("Paused at " + formatTime(p.lastPositionMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         else -> {}                                   // untouched songs carry no label; every song starts that way
     }

@@ -163,7 +163,7 @@ private fun emptyLine(chip: PopFind.Chip, sort: PopFind.Sort) = when {
 @Composable
 fun PlayableLine(count: Int, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
-    val text = if (count == 0) "Learn a few chords and the songs they play appear here." else "You can play ${plural(count, "song")}"
+    val text = if (count == 0) "Learn a few chords to see which of these songs you can play." else "You can play ${plural(count, "song")}"
     Row(modifier.clip(RoundedCornerShape(50)).then(if (onClick != null && count > 0) Modifier.clickable(role = Role.Button, onClickLabel = "Show them", onClick = onClick) else Modifier)
         .padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (count > 0) Icon(painterResource(R.drawable.ic_music_note), contentDescription = null, tint = c.primary, modifier = Modifier.size(18.dp))
@@ -264,7 +264,7 @@ fun ConfidenceNote(confidence: PopSong.Confidence) {
 @Composable
 fun FourChordBadge() {
     val c = MaterialTheme.colorScheme
-    Text("four chords", style = MaterialTheme.typography.labelMedium, color = c.onSecondaryContainer, maxLines = 1,
+    Text("built on four chords", style = MaterialTheme.typography.labelMedium, color = c.onSecondaryContainer, maxLines = 1,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(c.secondaryContainer).padding(horizontal = 8.dp, vertical = 2.dp))
 }
 

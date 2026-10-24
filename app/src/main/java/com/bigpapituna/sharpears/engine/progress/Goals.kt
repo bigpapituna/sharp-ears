@@ -32,7 +32,7 @@ object DailyGoal {
     /** What a goal gets you, in plain words. */
     fun note(minutes: Int) = when (minutes) {
         5 -> "A gentle habit. About 35 minutes a week keeps what you know fresh."
-        10 -> "Steady progress. Your first songs come together in a few weeks."
+        10 -> "Good progress. Your first songs come together in a few weeks."
         15 -> "A good rhythm. Lessons and a song fit in most days."
         20 -> "Real momentum. Scales, a lesson and a song every day."
         30 -> "All in. Fast progress, if your hands and time allow it."

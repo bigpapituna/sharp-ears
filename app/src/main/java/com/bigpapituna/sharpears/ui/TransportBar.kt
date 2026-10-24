@@ -180,7 +180,7 @@ private fun Bar(s: BarState, a: BarActions, modifier: Modifier) {
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Song position" },
                 )
             }
-            Text(formatTime(s.durationMs.toDouble()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
+            Text(com.bigpapituna.sharpears.engine.SongArt.length(s.durationMs.toLong()), style = Numeric.merge(MaterialTheme.typography.labelLarge), color = dim)
             Spacer(Modifier.width(4.dp))
             fun shows(c: Simple.PlayerControl) = Simple.inBar(c, s.layout)
             if (shows(Simple.PlayerControl.LOOP)) LoopButton(s, a.onLoop)

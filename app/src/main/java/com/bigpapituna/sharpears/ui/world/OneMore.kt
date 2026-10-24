@@ -65,7 +65,10 @@ private fun Place.short() = when (this) {
  * the celebration lands first.
  */
 @Composable
-fun OneMoreButton(next: NextDrop, onClick: () -> Unit, modifier: Modifier = Modifier, title: String? = null, label: String = "One more", delayMs: Long = 900) {
+fun OneMoreButton(next: NextDrop, onClick: () -> Unit, modifier: Modifier = Modifier, title: String? = null, label: String = "One more", delayMs: Long = 900,
+                  /** The card's heading in place of "Next: <title>" (the recap's own song is not next, it is again). */
+                  heading: String? = null) {
+    val head = heading ?: title?.let { "Next: $it" }
     val still = reducedMotion()
     val rise = remember { Animatable(if (still) 1f else 0f) }
     LaunchedEffect(Unit) { if (!still) { delay(delayMs); rise.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 260f)) } }
@@ -76,7 +79,7 @@ fun OneMoreButton(next: NextDrop, onClick: () -> Unit, modifier: Modifier = Modi
         alpha = rise.value.coerceIn(0f, 1f); translationY = (1f - rise.value) * 80f
     }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh).padding(12.dp)
-            .semantics(mergeDescendants = true) { contentDescription = (title?.let { "Next: $it. " } ?: "") + line },
+            .semantics(mergeDescendants = true) { contentDescription = (head?.let { "$it. " } ?: "") + line },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(Modifier.size(76.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerLowest)
                 .then(if (next.rareDue) Modifier.border(3.dp, RareBlue, RoundedCornerShape(16.dp)) else Modifier)
@@ -92,7 +95,7 @@ fun OneMoreButton(next: NextDrop, onClick: () -> Unit, modifier: Modifier = Modi
                 if (next.rareDue) Canvas(Modifier.fillMaxSize()) { sparkle(Offset(size.width * 0.82f, size.height * 0.2f), size.width * 0.1f, Color.White) }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title?.let { "Next: $it" } ?: "Next lesson", style = MaterialTheme.typography.titleMedium)
+                Text(head ?: "Next lesson", style = MaterialTheme.typography.titleMedium)
                 Text(line, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
             }
         }

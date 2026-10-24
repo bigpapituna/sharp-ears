@@ -77,12 +77,13 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
                   testerDashboard: Boolean = com.bigpapituna.sharpears.analytics.Tester.hasKey,
                   testerDiary: Boolean = com.bigpapituna.sharpears.analytics.Tester.diaryBuilt) = TextPage("Privacy", onBack) {
     val tester = testerDashboard || testerDiary
-    val except = listOfNotNull("the parent brief's numbers when the AI writes it (below)".takeIf { aiBrief },
-        "the brief by email, if a grown-up turns it on (below)".takeIf { emailBrief },
-        "what Roy's testing sends, if he turns it on (below)".takeIf { tester },
-        "the review reports below, which you switch on".takeIf { canRecord })
-    Para("Sharp Ears has no account and no ads" + (if (testerDashboard) ". " else ", and no analytics. ") + if (except.isNotEmpty()) "Apart from ${except.joinToString(" and ")}, " +
-        "it sends nothing about you or your playing anywhere." else "It does not send anything about you or your playing anywhere.")
+    val except = listOfNotNull("the parent brief's numbers when the AI writes it".takeIf { aiBrief },
+        "the brief by email, if a grown-up turns it on".takeIf { emailBrief },
+        "what Roy's testing sends, if he turns it on".takeIf { tester },
+        "the review reports, which you switch on".takeIf { canRecord })
+    val apart = if (except.size < 2) except.joinToString() else except.dropLast(1).joinToString(", ") + " and " + except.last()
+    Para("Sharp Ears has no account and no ads" + (if (testerDashboard) ". " else ", and no analytics. ") + if (except.isNotEmpty()) "Apart from $apart, " +
+        "it sends nothing about you or your playing anywhere. More on ${if (except.size == 1) "it" else "each"} below." else "It does not send anything about you or your playing anywhere.")
     Heading("Microphone")
     Para("The microphone is used only to hear which piano notes you play. It listens only while a song, a lesson or Playground game, " +
         "a chord or ear training game, the Jam, Pup says, Clap along, the tuner or Microphone setup is open with the mic on, and the app " +

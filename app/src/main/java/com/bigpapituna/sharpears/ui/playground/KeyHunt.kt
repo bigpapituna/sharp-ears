@@ -115,7 +115,7 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
             keys = { run -> huntOf(run)?.let(StageKeys::forHunt) ?: StageKeys.CS },
             demoKeys = { run -> targetOf(run).orEmpty() },
             judge = { s, run -> huntOf(run)?.let { HuntJudge.judge(s, it) } ?: Answer.Heard },
-            foundLine = { run, _ -> if (run.finished) "You found them all!" else listOf("You found it!", "That's it!", "Yes!")[(run.done - 1).coerceAtLeast(0) % 3] },
+            foundLine = { run, _ -> if (run.finished) (if (run.count > 1) "You found them all!" else "You found it!") else listOf("You found it!", "That's it!", "Yes!")[(run.done - 1).coerceAtLeast(0) % 3] },
             missLine = { a, run -> when (a.why) {
                 MissWhy.WHITE_KEY -> PlaygroundLines.WHITE_KEY
                 MissWhy.OTHER_GROUP -> if (huntOf(run) == Hunt.DOG_HOUSE) "Look for two black keys." else "Look for three black keys."
@@ -150,7 +150,7 @@ internal fun KeyHuntStage(step: Step, lessonId: String, deps: LessonDeps, inject
         LaunchedEffect(tiltSeq) { if (tiltSeq > 0) { tiltNow = true; delay(1300); tiltNow = false } }
         val finished = run.finished
         val line = stageLine(st, when {
-            finished -> "You found them all!"
+            finished -> if (run.count > 1) "You found them all!" else "You found it!"
             st.demoKeys.isNotEmpty() -> "Listen!"
             else -> when (hunt) {
                 Hunt.DOG_HOUSE -> "Find a dog house!"
