@@ -133,11 +133,12 @@ private suspend fun playChime(sampler: Sampler, notes: List<ChimeNote>) {
     }
 }
 
-// The pop's colours, all from the design system: the accent, the pup's gold, the stage's green and the left hand's blue.
+// The pop's colours, all from the design system: the accent, the pup's gold, the stage's green, the left hand's blue and
+// the stage's ink for the check.
 private val popGreen = Good
 private val popGold = PupGold
 private val popPaper = listOf(Accent, PupGold, Good, LeftHandColor)
-private val popInk = Color.White
+private val popInk = Ink
 
 /**
  * The step pop over the step (2.11), one of four pictures, each gone in 600 ms (engine/lessons/StepPopMotion.kt has every

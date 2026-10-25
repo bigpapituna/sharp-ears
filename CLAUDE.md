@@ -1514,7 +1514,8 @@ variants to keep it fresh".
 - Animations off (reducedMotion): every picture is one 150 ms fade of the check on its disc, drawn from the frame clock (the
   system scale does not cut it short); no stars, bits, arc or paw; the pup plays no beat (IDLE).
 - Never blocks: the Canvas (its own layer) handles no pointer and is read in its draw block from one frame clock; the cheer
-  bar's Continue still waits its usual 900 ms (SettleTaps) and then goes straight to the next page.
+  bar's Continue still waits its usual 900 ms (SettleTaps) and then goes straight to the next page. Colours: the accent,
+  PupGold, Good, LeftHandColor and Ink only (StepPopWiringTest).
 - Telemetry: `Tester.stepPop(streak)` sends `step_pop` with `streak` only (engine/tester/StepPopEvent.kt;
   analytics/INTEGRATION.md).
 - Debug: `--es screen steppop` (ui/StepPopDebug.kt, through the debug-route gate; reads no extras): Streak 1, 3 and 6 roll
@@ -1548,8 +1549,13 @@ variants to keep it fresh".
 - Recordings: around a step's end the emulator draws 4 to 8 frames a second, so a 600 ms pop shows in 2 to 4 frames at
   full speed; the contact sheet used `--ef fxSlow 2.5` on the debug route. screenrecord starts about 3.5 s late here, so 8 s
   of footage took `--time-limit 12` or more. app/build/screens/steppop-contact.png (8 frames from an 8 s clip, two of each
-  picture), steppop-four-8s.mp4, steppop-kid-paw.png, steppop-grownup-confetti.png, steppop-reduced-motion.png (not
-  committed).
+  picture), steppop-four-8s.mp4, the walks' 8-frame sheets steppop-walk-kid.png (the hunt's own confetti, then PAW) and
+  steppop-walk-grownup.png (CONFETTI) with their clips, steppop-reduced-motion.png (not committed).
+- For Roy: a lesson step always rolls the same picture (the seed is the lesson and step), so a kid replaying a lesson sees
+  the same ones (playground-2's first game is RAINBOW at a streak of one); an attempt or day counter in `seedOf` would vary
+  it. Kid stages already end with their own confetti, ding and jump at "You found them all!"; the pop and chime come about
+  2 s later, when the run ends. The CONFETTI and RAINBOW beat is the new 520 ms CHEER_WAG and the BURST and PAW beat the
+  520 ms POP, not the 1.07 s HAPPY jump (the beat had to stay under 700 ms; `pupBeat` is the one line to change).
 - Jank (gfxinfo reset just before the step's last input, read 5 s later: the stage's or player's end, the pop, the bar; the
   two APKs back to back, three runs each, the kid's taps sent as the log says each round listens): the kid hunt 2.10.1 83 to
   88% janky, 50th 81 to 85 ms, 90th 150 ms; 2.11.0 85 to 90%, 50th 85 ms, 90th 150 ms. The grown-up step 2.10.1 78 to 82%,

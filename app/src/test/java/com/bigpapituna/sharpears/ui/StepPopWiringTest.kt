@@ -71,6 +71,7 @@ class StepPopWiringTest {
         // Colours from the design system only.
         assertTrue("listOf(Accent, PupGold, Good, LeftHandColor)" in pop)
         assertFalse(Regex("""Color\(0x""").containsMatchIn(pop))
+        assertFalse("Color.White" in pop || "Color.Black" in pop)
     }
 
     @Test fun theDebugRouteGoesThroughTheGateAndReadsNoExtras() {
