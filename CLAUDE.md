@@ -1638,7 +1638,9 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
   (`LocalCheers`) to its embedded player and its stages; `stepBegan` on each step and try; `clear()` when a try ends, a page
   moves or the lesson finishes. PlayerScreen takes the lesson's, or makes its own for a song played on its own; its feed lives in
   PlayerVars (`ui/CheerFeed.kt`, so the body gains no locals): `struck` in keyStruck (right notes), `wrong` in showWrongKey
-  (every wrong key shown), `began` on a fresh run, `frame` ten times a
+  (every wrong key shown; not in Perform, where only a note let pass breaks the streak, as the lane's combo and PerformScore
+  have it, and a chord's second key reads as wrong), `began` on a fresh run, `passEnded` when an A-B loop wraps (a one-bar
+  loop never leaves its bar, so the wrap judges it for the hard part passed), `frame` ten times a
   second. The Playground stages (`rememberStage`): found, missed, and a 250 ms tick (a stage's 7 s re-demo comes before any nudge
   there). Log: `cheer: <trigger> <kid|grown-up> "<line>" voice=PLAY|PLAY_DEAF|SKIP` (`skipped, no room` when no corner fits).
 - Telemetry: `Tester.cheerPop(trigger, kid)` sends `cheer_pop` with `trigger` and `profile_kind` only
@@ -1663,7 +1665,9 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
   guidance is on by default, so it could not be the switch); Often keeps the four-a-minute cap; the kid nudge may be seven
   words for Roy's own line, "Which key is next?" became "Where's the next key? Let's look!" (kid lines end with a stop or an
   exclamation); runs pop at 5, 10, 20 and 40 only; halfway needs a run of 16 notes or more, so short steps never say it; a
-  step's tail is its last quarter (two bars at most), or every pop would fall in a four-bar step's last two bars; a song's
+  step's tail is its last quarter (two bars at most), or every pop would fall in a four-bar step's last two bars; the tail is
+  the song's own end, never a loop's (Practice today's one-bar loop is not a finish); a hard part passed while a wait holds
+  it back stays hard for a later clean pass; a song's
   corner is chosen by the notes the learner plays (the other hand's, dimmed, are not read); the pup's run pose is the
   dancing one (the streak pose's flame carries a 7); `--es midi` now drives a song too (debug).
 - Emulator (5558 Fold_QA_GU, screenrecord contact sheets in app/build/screens, not committed): a kid lesson (Mila, key-g step
@@ -1675,7 +1679,10 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
   notes are on the right): cheer-walk-grownup.png. The cover screen, dark mode, the same kid walk: cheer-cover-dark.png. The
   debug route's three entries, both audiences, both places, light and dark: cheer-debug-entries-light.png,
   cheer-debug-grown-light.png, cheer-debug-dark.png. A Playground stage (fair-2, the carousel) popped a run of five. Settings
-  in Simple: cheer-settings.png. No crash, no ANR. Nothing covered the keys, the hit line, the notes being read or the
+  in Simple: cheer-settings.png. Perform on the cover screen, landscape (Roy, Twinkle, right hand, `--es mode perform`, MIDI
+  on the beat): a save after a note let pass, then eight in the good window ("Nice and even.") in the lane's top band:
+  cheer-cover-song-perform.png. The hard part passed: Twinkle with a slip in bar 1, then the song opened again in the same
+  process and bar 1 played clean ("The practice is paying off." as bar 2 began). No crash, no ANR. Nothing covered the keys, the hit line, the notes being read or the
   instruction in any frame.
 - For Roy, on the Fold: whether 1.6 s is long enough to read a pop mid-song and short enough not to distract; the pup's size
   in a lesson's header (56 dp at most, the header's height) and in a song's corner (48 dp); whether Often (12 s and 15 s) is
@@ -1686,7 +1693,9 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
   TesterRules.switchOn/defaultTurnsOn/showsNotice; an unset switch where the row shows becomes on once and is saved
   (`tester: default on`, `tester_default_on`), a saved choice always wins (contains), the diary stays off by default; a
   grown-up sees TesterDefaultNotice once (a card with OK, never a kid, never over the stage; a kid's profile leaves it for
-  the next grown-up one). Checked on 5558: tester.xml unset gave on with the notice pending; Mila's home showed nothing; Roy's
+  the next grown-up one). The event's mark (`defaultEvent`) is saved with the default, so whichever process applied it (the
+  email job's after an update loads first) the next launch sends it once the dashboard records; a build without the dashboard
+  keeps the mark. Checked on 5558: tester.xml unset gave on with the notice pending; Mila's home showed nothing; Roy's
   Today showed the card after What's new; OK cleared it (`tester: default on, notice seen`). The notice also shows on keyless
   debug builds (the row shows there; nothing is sent without the key).
 

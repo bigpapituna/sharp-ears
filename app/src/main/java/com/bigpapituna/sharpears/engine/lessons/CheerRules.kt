@@ -142,13 +142,27 @@ class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequenc
         val steadyNow = onTime == true && steady > 0 && steady % STEADY_NOTES == 0
         // One pop at most: the rarest thing first.
         val trigger = when {
-            passed -> CheerTrigger.HARD_PASSED
+            passed != null -> CheerTrigger.HARD_PASSED
             recovered -> CheerTrigger.RECOVERY
             milestone -> CheerTrigger.RUN
             steadyNow -> CheerTrigger.STEADY
             else -> return null
         }
         return pop(trigger, m, count = if (trigger == CheerTrigger.RUN) run else null)
+            ?.also { if (passed != null && it.trigger == CheerTrigger.HARD_PASSED) memory.clear(part, passed) }
+    }
+
+    /**
+     * A pass of the bars is over without leaving the bar played last: an A-B loop wrapped (a one-bar loop never moves to
+     * another bar) or a run ended. That bar is judged as if left: hard on the way in and clean now, the hard part passed. The
+     * run goes on.
+     */
+    fun passEnded(m: CheerMoment): Cheer? {
+        val left = bar ?: return null
+        val earned = barWasHard && barClean && barHeard
+        bar = null; barClean = true; barHeard = false; barWasHard = false
+        if (!earned) return null
+        return pop(CheerTrigger.HARD_PASSED, m)?.also { memory.clear(part, left) }
     }
 
     /** A wrong key, or a Perform note let pass (a miss): the run starts again, the bar is marked hard. Never a pop. */
@@ -255,15 +269,17 @@ class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequenc
         return fresh[random.nextInt(fresh.size)]
     }
 
-    /** Into [b] (null: no bars here). Leaving a bar that was hard on the way in and played clean now: true (the pop). */
-    private fun enterBar(b: Int?): Boolean {
-        if (b == null || b == bar) return false
+    /**
+     * Into [b] (null: no bars here). Leaving a bar that was hard on the way in and played clean now returns that bar (the hard
+     * part passed); it stays hard in [memory] until its pop shows, so one held back by a wait can be earned on a later pass.
+     */
+    private fun enterBar(b: Int?): Int? {
+        if (b == null || b == bar) return null
         val left = bar
         val earned = left != null && barWasHard && barClean && barHeard
-        if (earned) memory.clear(part, left!!)
         bar = b; barClean = true; barHeard = false
         barWasHard = memory.isHard(part, b)
-        return earned
+        return if (earned) left else null
     }
 
     companion object {

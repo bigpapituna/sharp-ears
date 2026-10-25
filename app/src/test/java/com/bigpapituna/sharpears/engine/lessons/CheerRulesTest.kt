@@ -102,6 +102,35 @@ class CheerRulesTest {
         assertEquals(CheerTrigger.HARD_PASSED, next.right(at(105_000), bar = 6)?.trigger)
     }
 
+    /**
+     * A one-bar loop never moves to another bar: each wrap ends the pass, and the bar played last is judged then. A hard part
+     * passed while a pop is not allowed stays hard, to be earned on a later clean pass.
+     */
+    @Test fun aLoopsWrapJudgesItsBarAndAHeldBackPassStaysHard() {
+        val memory = CheerMemory()
+        val c = coach(memory = memory)
+        // Pass 1 of a loop on bar 4: a slip in it.
+        c.right(at(4_000), bar = 4); c.wrong(at(5_000), bar = 4); c.right(at(6_000), bar = 4)
+        assertNull(c.passEnded(at(7_000)))
+        assertTrue(memory.isHard("lesson-1", 4))
+        // Pass 2: clean (its third note is the save, which pops); the wrap, once the wait is over, is the hard part passed.
+        c.right(at(8_000), bar = 4); assertEquals(CheerTrigger.RECOVERY, c.right(at(9_000), bar = 4)?.trigger)
+        assertEquals(CheerTrigger.HARD_PASSED, c.passEnded(at(25_000))?.trigger)
+        assertFalse(memory.isHard("lesson-1", 4))
+        // Held back by the wait after a pop: still hard, and earned on the next clean pass.
+        val d = coach(memory = memory)
+        memory.mark("lesson-1", 2)
+        d.forced(CheerTrigger.RUN, 5_000)
+        d.right(at(6_000), bar = 2)
+        assertNull("the wait holds it back", d.right(at(7_000), bar = 3))
+        assertTrue(memory.isHard("lesson-1", 2))
+        d.right(at(30_000), bar = 2)
+        assertEquals(CheerTrigger.HARD_PASSED, d.right(at(31_000), bar = 3)?.trigger)
+        assertFalse(memory.isHard("lesson-1", 2))
+        // Nothing played since the last pass: nothing to judge.
+        assertNull(coach(memory = memory).passEnded(at(50_000)))
+    }
+
     @Test fun eightNotesInTheGoodWindowAreSteadyTiming() {
         val c = coach()
         // Spread past the run pops' waits: run pops at notes 5 (t 8 s) take the slot; steady at 8 needs 15 s after it.

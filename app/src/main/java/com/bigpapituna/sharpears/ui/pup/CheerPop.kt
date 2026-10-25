@@ -143,6 +143,9 @@ class CheerPops internal constructor(
     /** A right note (a chord once): [bar] its bar (a stage: its round), [onTime] in the good window where timing is graded. */
     fun right(bar: Int?, onTime: Boolean?, s: CheerSituation) { sync(); show(coach.right(moment(s), bar, onTime), s) }
 
+    /** A pass is over without a new bar (an A-B loop wrapped): the bar played last is judged (CheerCoach.passEnded). */
+    fun passEnded(s: CheerSituation) { sync(); show(coach.passEnded(moment(s)), s) }
+
     /** A wrong key or a Perform note let pass. */
     fun wrong(bar: Int?) = coach.wrong(CheerMoment(now()), bar)
 

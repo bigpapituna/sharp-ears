@@ -34,6 +34,7 @@ internal class CheerFeed {
     private var tailMs = 0.0
     private var bar = 1.0
     private var lastFrame = 0L
+    private var passes = 0
 
     /** A fresh run starts (Play from the top or after a seek): a new step for the rules. */
     fun began(cheers: CheerPops?, song: Song) {
@@ -52,10 +53,13 @@ internal class CheerFeed {
         firstMs = need.firstOrNull()?.startMs?.toDouble() ?: from
         lastMs = need.lastOrNull()?.startMs?.toDouble() ?: end
         long = need.size >= LONG_GROUPS
-        endMs = end
+        // The tail is the song's own end, never a loop's: a one-bar loop (Practice today's worst bar) is not the finish.
+        val songEnd = song.durationMs.toDouble()
+        endMs = songEnd
         bar = barMs(song).coerceAtLeast(1.0)
         // A song lets its last two bars be; a lesson's step (often four bars) its last quarter at most.
-        tailMs = if (embedded) minOf(2 * bar, (end - from) * 0.25) else 2 * bar
+        tailMs = if (embedded) minOf(2 * bar, (songEnd - from) * 0.25) else 2 * bar
+        passes = t.passes
         misses = t.troubles.missedAt.size
         ready = true
     }
@@ -97,10 +101,14 @@ internal class CheerFeed {
         }
     }
 
-    /** A wrong key shown (the player's showWrongKey: touch, MIDI, or one the mic named): the run starts again, the bar is hard. */
+    /**
+     * A wrong key shown (the player's showWrongKey: touch, MIDI, or one the mic named): the run starts again, the bar is hard.
+     * Not in Perform, where only a note let pass breaks the streak (the lane's combo and PerformScore say the same; a chord's
+     * second key also reads as wrong there): those come from the transport's misses in [frame].
+     */
     fun wrong(cheers: CheerPops?, t: Transport, song: Song, embedded: Boolean) {
         cheers ?: return
-        if (t.mode == Mode.LISTEN) return
+        if (t.mode == Mode.LISTEN || t.mode == Mode.PERFORM) return
         ensure(t, song, embedded)
         cheers.wrong(barOf(t.positionMs))
     }
@@ -115,6 +123,8 @@ internal class CheerFeed {
         if (missed.size < misses) misses = missed.size
         while (misses < missed.size) cheers.wrong(barOf(missed[misses++].toDouble()))
         val s = situation(t, song, hinting)
+        // An A-B loop wrapped: the bar played last is judged (a one-bar loop never moves to another bar).
+        if (t.passes != passes) { passes = t.passes; cheers.passEnded(s) }
         if (lastMs > firstMs) cheers.progress((t.positionMs - firstMs) / (lastMs - firstMs), long, s)
         cheers.tick(running = t.mode != Mode.LISTEN, s)
     }

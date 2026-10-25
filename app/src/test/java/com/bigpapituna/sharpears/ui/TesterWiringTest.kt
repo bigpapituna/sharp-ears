@@ -91,7 +91,9 @@ class TesterWiringTest {
         val tester = src("analytics/Tester.kt")
         assertTrue("val stored = if (p.contains(ON)) p.getBoolean(ON, false) else null" in tester)
         assertTrue("switchOn.value = TesterRules.switchOn(stored, shown)" in tester && "diaryOn.value = p.getBoolean(DIARY, false)" in tester)
-        assertTrue("logcat(\"tester: default on\")" in tester && "capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT))" in tester)
+        assertTrue("logcat(\"tester: default on\")" in tester && "capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT), force = true)" in tester)
+        // The event's mark is saved with the default, so a background process that applied it cannot lose the event.
+        assertTrue("putBoolean(ON, true); putBoolean(NOTICE, true); putBoolean(DEFAULT_EVENT, true)" in tester && "sendDefaultEvent(prefs(a))" in tester)
         val main = src("MainActivity.kt")
         assertTrue("TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid)" in main)
         assertTrue(main.indexOf("TesterDefaultNotice {") in 1 until main.indexOf("SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }"))

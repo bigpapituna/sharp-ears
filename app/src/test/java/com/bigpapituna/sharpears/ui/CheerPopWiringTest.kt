@@ -56,7 +56,10 @@ class CheerPopWiringTest {
         // A chord counts once (a wait group done), a Perform note with its timing; misses from the transport's trouble log.
         assertTrue("t.mode == Mode.WAIT && result == InputResult.GROUP_DONE" in feed && "t.mode == Mode.PERFORM && result == InputResult.CORRECT" in feed)
         assertTrue("t.troubles.missedAt" in feed && "busy = t.mode == Mode.LISTEN || hinting" in feed)
-        assertTrue("tailMs = if (embedded) minOf(2 * bar, (end - from) * 0.25) else 2 * bar" in feed)
+        assertTrue("tailMs = if (embedded) minOf(2 * bar, (songEnd - from) * 0.25) else 2 * bar" in feed)
+        // The tail is the song's end, never a loop's; a loop's wrap judges its bar; Perform's wrong keys do not break the run.
+        assertTrue("endMs = songEnd" in feed && "if (t.passes != passes) { passes = t.passes; cheers.passEnded(s) }" in feed)
+        assertTrue("if (t.mode == Mode.LISTEN || t.mode == Mode.PERFORM) return" in feed.substringAfter("fun wrong("))
         val stage = src("ui/playground/PlaygroundKit.kt")
         assertTrue("val cheers = com.bigpapituna.sharpears.ui.pup.LocalCheers.current" in stage)
         val found = stage.substringAfter("is Answer.Found -> {").substringBefore("is Answer.Miss ->")

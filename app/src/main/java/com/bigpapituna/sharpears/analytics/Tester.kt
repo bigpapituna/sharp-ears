@@ -44,6 +44,8 @@ object Tester {
     private const val ON = "on"
     /** 2.13: the default turned the switch on and no grown-up has tapped OK on the notice yet. */
     private const val NOTICE = "defaultNotice"
+    /** 2.13: the default turned the switch on and `tester_default_on` has not gone out yet (whichever process applied it). */
+    internal const val DEFAULT_EVENT = "defaultEvent"
     private const val DIARY = "diary"
     private const val DEVICE = "device"
     internal const val DIARY_LAST = "diaryLast"
@@ -61,8 +63,6 @@ object Tester {
     val diaryOn = mutableStateOf(false)
     /** 2.13: the notice that the default turned Help Roy test on waits for a grown-up (TesterDefaultNotice). */
     val noticePending = mutableStateOf(false)
-    /** The default turned the switch on in this process: the tester event goes once the dashboard is up. */
-    @Volatile private var defaultedOn = false
 
     /** Where the "tester: ..." lines go (logcat; JVM tests pass their own). */
     @Volatile var logcat: (String) -> Unit = { Log.d(TAG, it) }
@@ -99,8 +99,7 @@ object Tester {
         val p = prefs(a)
         val stored = if (p.contains(ON)) p.getBoolean(ON, false) else null
         if (TesterRules.defaultTurnsOn(stored, shown)) {
-            p.edit(commit = true) { putBoolean(ON, true); putBoolean(NOTICE, true) }
-            defaultedOn = true
+            p.edit(commit = true) { putBoolean(ON, true); putBoolean(NOTICE, true); putBoolean(DEFAULT_EVENT, true) }
             logcat("tester: default on")
         }
         switchOn.value = TesterRules.switchOn(stored, shown)
@@ -116,8 +115,17 @@ object Tester {
         logcat("tester: help Roy test ${if (switchOn.value) "on" else "off"}, diary ${if (diaryOn.value) "on" else "off"}, " +
             "dashboard ${if (hasKey && TesterSdk.present) "built in" else "not in this build"}")
         startIfAllowed(a)
-        // 2.13: the default turned it on: the event, once (it goes only where the dashboard is up).
-        if (defaultedOn) { defaultedOn = false; capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT)) }
+        // 2.13: the default turned it on (here, or in a background process that loaded first): the event, once, when the
+        // dashboard is up; on a build without it the mark waits (nothing is ever sent there).
+        sendDefaultEvent(prefs(a))
+    }
+
+    /** The pending `tester_default_on`, sent and cleared only while the dashboard records. */
+    internal fun sendDefaultEvent(p: SharedPreferences, capturingNow: Boolean = capturing) {
+        if (!p.getBoolean(DEFAULT_EVENT, false) || !capturingNow) return
+        capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT), force = true)
+        p.edit { putBoolean(DEFAULT_EVENT, false) }
+        logcat("tester: default on, event sent")
     }
 
     /** 2.13: a grown-up tapped OK on the notice: it never shows again on this phone. */
@@ -175,7 +183,7 @@ object Tester {
     private val recording get() = TesterRules.records(switchOn.value, diaryOn.value, diaryTo)
     private val capturing get() = switchOn.value && TesterSdk.running
 
-    private fun capture(e: TesterEvent) { if (capturing) runCatching { TesterSdk.capture(e.name, e.props) } }
+    private fun capture(e: TesterEvent, force: Boolean = false) { if (capturing || force) runCatching { TesterSdk.capture(e.name, e.props) } }
 
     /** The tester log (opened on first use), or null before [init]. */
     internal fun log(): EventLog? {
@@ -324,5 +332,5 @@ object Tester {
 
     /** Tests only: forget the process state. */
     internal fun resetForTest() { route = null; lastRoute = null; screen = null; before = null; kind = null; logFile = null; app = null
-        defaultedOn = false; noticePending.value = false }
+        noticePending.value = false }
 }

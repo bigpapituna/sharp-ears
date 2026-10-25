@@ -77,6 +77,25 @@ class TesterTest {
         assertTrue(Tester.switchOn.value)
     }
 
+    /**
+     * The event's mark is saved with the default: applied by one process (the email job's, loading first after an update), it
+     * is still there for the next launch, which sends it once the dashboard records; a build without the dashboard keeps it.
+     */
+    @Test fun theDefaultsEventWaitsForTheDashboardWhicheverProcessAppliedIt() {
+        val fresh = FolderContext(tmp.newFolder())
+        Tester.resetForTest(); lines.clear()
+        Tester.load(fresh, shown = true)                     // a background process: load only, no init
+        val p = fresh.getSharedPreferences(Tester.FILE, 0)
+        assertTrue(p.getBoolean(Tester.DEFAULT_EVENT, false))
+        Tester.resetForTest(); Tester.init(fresh, shown = true)   // the next launch, a keyless build: no dashboard
+        assertTrue("kept until it can go", p.getBoolean(Tester.DEFAULT_EVENT, false))
+        Tester.sendDefaultEvent(p, capturingNow = true)     // a build whose dashboard records
+        assertFalse(p.getBoolean(Tester.DEFAULT_EVENT, false))
+        assertEquals(1, lines.count { it == "tester: default on, event sent" })
+        Tester.sendDefaultEvent(p, capturingNow = true)
+        assertEquals("once", 1, lines.count { it == "tester: default on, event sent" })
+    }
+
     /** A choice made on the phone wins: a saved off stays off (no default, no notice), and so does one turned off after it. */
     @Test fun aChoiceMadeOnThePhoneWins() {
         val off = FolderContext(tmp.newFolder())
