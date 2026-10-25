@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.ui
 import com.bigpapituna.sharpears.analytics.HELP_ROY_TEST_LINE
 import com.bigpapituna.sharpears.data.ProgressFiles
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -62,7 +63,10 @@ class TesterWiringTest {
         assertTrue(activity.contains("Tester.profile(profile.isKid, profile.id)"))
     }
 
-    /** The switches are the phone's own: not per profile, not in the progress export (a restored phone starts with them off). */
+    /**
+     * The switches are the phone's own: not per profile, not in the progress export (a restored phone starts as a new one: Help Roy
+     * test on by default where the row shows, the diary off).
+     */
     @Test fun theTesterFileIsThePhonesOwn() {
         assertEquals("tester", com.bigpapituna.sharpears.analytics.Tester.FILE)
         assertTrue("tester" !in ProgressFiles.NAMES)
@@ -74,5 +78,25 @@ class TesterWiringTest {
         for (s in listOf("PostHog (posthog.com)", "No sound is ever recorded", "PostHog keeps recordings for 30 days", "Kid profiles are recorded too"))
             assertTrue(s, about.contains(s))
         assertTrue(src("ui/onboarding/OnboardingScreen.kt").contains("t.switchOn.value && t.hasKey"))
+        // 2.13: the page says Help Roy test is on from the start, and where to turn it off.
+        assertTrue(about.contains("Help Roy test is on from the start in this build") && about.contains("Settings, Testing"))
+        assertFalse(about.contains("Both are off until Roy turns them on"))
+    }
+
+    /**
+     * 2.13 (Roy, 2026-10-25): on by default where the row shows, a saved choice kept (contains, so an off stays off), the notice
+     * once to a grown-up and never over the stage, `tester: default on` and the event once.
+     */
+    @Test fun helpRoyTestIsOnByDefaultWithANoticeForAGrownUp() {
+        val tester = src("analytics/Tester.kt")
+        assertTrue("val stored = if (p.contains(ON)) p.getBoolean(ON, false) else null" in tester)
+        assertTrue("switchOn.value = TesterRules.switchOn(stored, shown)" in tester && "diaryOn.value = p.getBoolean(DIARY, false)" in tester)
+        assertTrue("logcat(\"tester: default on\")" in tester && "capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT))" in tester)
+        val main = src("MainActivity.kt")
+        assertTrue("TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid)" in main)
+        assertTrue(main.indexOf("TesterDefaultNotice {") in 1 until main.indexOf("SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }"))
+        assertTrue("!isStage(screen)) SharpEarsTheme" in main)
+        assertEquals("This test build sends screen recordings and app events to Roy to help improve the app. No sound is recorded. " +
+            "You can turn this off in Settings, Testing.", com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
     }
 }

@@ -6,8 +6,12 @@ himself, turns testing on on the phone he hands over, and removes the feature be
 
 ## What it is
 
-- **"Help Roy test"**: one phone-wide switch, off by default, behind the parent gate (the kids' grown-ups corner, which the
-  gate already opened, and Settings > Family, where each change asks the gate). One line under it:
+- **"Help Roy test"**: one phone-wide switch behind the parent gate (the kids' grown-ups corner, which the gate already opened,
+  and Settings > Family, where each change asks the gate). Since 2.13 (Roy, 2026-10-25) it is on by default where its row
+  shows (a build with the key, or a debug build, which sends nothing without the key): an unset switch becomes on once, is
+  saved (`tester: default on`, the event `tester_default_on`), and a grown-up gets a one-time notice card with OK (never a
+  kid: it waits for a grown-up's profile; never over the stage). A choice saved on the phone, on or off, always wins. One
+  line under it:
   "Sends screen recordings and app events to Roy's test dashboard. No sound." While it is on, the kids' whistle carries a
   small accent dot. Kid profiles are recorded too (Roy's update, 2026-10-21: no per-child tick).
 - **PostHog** (com.posthog:posthog-android 3.72.5, session replay) records only on a build with `POSTHOG_KEY` and only while the

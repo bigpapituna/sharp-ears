@@ -21,7 +21,9 @@ import java.util.UUID
 
 /**
  * Tester analytics on the phone (CLAUDE.md "Tester analytics"; the rules in engine/tester). Two phone-wide switches behind the
- * parent gate, both off by default, kept in [FILE] (tester.xml, left out of Android's backup with the tester log):
+ * parent gate, kept in [FILE] (tester.xml, left out of Android's backup with the tester log). "Help Roy test" is on by default
+ * since 2.13 where its row shows (TesterRules.switchOn: an unset switch becomes on, once, saved, with a one-time notice for a
+ * grown-up, [noticePending]); a choice made on the phone stays. The diary is off by default.
  *
  * - "Help Roy test": while on, and only on a build with POSTHOG_KEY (the SDK is compiled in only then), PostHog records the
  *   screen (masked text and images, never sound) and the app's own events, under a random device id made once on this phone.
@@ -40,6 +42,8 @@ object Tester {
     /** The tester log's folder under the app's files folder; never backed up either. */
     const val DIR = "tester"
     private const val ON = "on"
+    /** 2.13: the default turned the switch on and no grown-up has tapped OK on the notice yet. */
+    private const val NOTICE = "defaultNotice"
     private const val DIARY = "diary"
     private const val DEVICE = "device"
     internal const val DIARY_LAST = "diaryLast"
@@ -55,6 +59,10 @@ object Tester {
     /** The switches as the screens show them (the whistle's dot reads [switchOn]). */
     val switchOn = mutableStateOf(false)
     val diaryOn = mutableStateOf(false)
+    /** 2.13: the notice that the default turned Help Roy test on waits for a grown-up (TesterDefaultNotice). */
+    val noticePending = mutableStateOf(false)
+    /** The default turned the switch on in this process: the tester event goes once the dashboard is up. */
+    @Volatile private var defaultedOn = false
 
     /** Where the "tester: ..." lines go (logcat; JVM tests pass their own). */
     @Volatile var logcat: (String) -> Unit = { Log.d(TAG, it) }
@@ -77,23 +85,46 @@ object Tester {
     /** "Help Roy test" shows here (a build with a key, or Roy's debug build without one). */
     fun rowShown(context: Context) = TesterRules.rowShown(hasKey, debuggable(context))
 
-    /** Reads the switches (once per process; the email job's alarm may run in a process with no screen). Starts nothing. */
-    fun load(context: Context) {
+    /** [rowShown], or false where the context cannot say (a test's folder context). */
+    private fun rowShownOrNot(context: Context) = runCatching { rowShown(context) }.getOrDefault(false)
+
+    /**
+     * Reads the switches (once per process; the email job's alarm may run in a process with no screen). Starts nothing. 2.13: an
+     * unset Help Roy test where the row shows ([shown]) becomes on and is saved, with the notice pending (`tester: default on`);
+     * a saved choice, on or off, is kept (TesterRules.switchOn).
+     */
+    fun load(context: Context, shown: Boolean = rowShownOrNot(context)) {
         if (app != null) return
         val a = context.applicationContext
         val p = prefs(a)
-        switchOn.value = p.getBoolean(ON, false)
+        val stored = if (p.contains(ON)) p.getBoolean(ON, false) else null
+        if (TesterRules.defaultTurnsOn(stored, shown)) {
+            p.edit(commit = true) { putBoolean(ON, true); putBoolean(NOTICE, true) }
+            defaultedOn = true
+            logcat("tester: default on")
+        }
+        switchOn.value = TesterRules.switchOn(stored, shown)
         diaryOn.value = p.getBoolean(DIARY, false)
+        noticePending.value = p.getBoolean(NOTICE, false)
         app = a
     }
 
     /** Called at the app's start: reads the switches and sets PostHog up only when it may start. */
-    fun init(context: Context) {
+    fun init(context: Context, shown: Boolean = rowShownOrNot(context)) {
         val a = context.applicationContext
-        load(a)
+        load(a, shown)
         logcat("tester: help Roy test ${if (switchOn.value) "on" else "off"}, diary ${if (diaryOn.value) "on" else "off"}, " +
             "dashboard ${if (hasKey && TesterSdk.present) "built in" else "not in this build"}")
         startIfAllowed(a)
+        // 2.13: the default turned it on: the event, once (it goes only where the dashboard is up).
+        if (defaultedOn) { defaultedOn = false; capture(TesterEvent(TesterRules.DEFAULT_ON_EVENT)) }
+    }
+
+    /** 2.13: a grown-up tapped OK on the notice: it never shows again on this phone. */
+    fun noticeSeen(context: Context) {
+        prefs(context).edit { putBoolean(NOTICE, false) }
+        noticePending.value = false
+        logcat("tester: default on, notice seen")
     }
 
     private fun startIfAllowed(a: Context) {
@@ -117,7 +148,9 @@ object Tester {
     fun setOn(context: Context, on: Boolean) {
         val a = context.applicationContext
         val was = recording
-        prefs(a).edit { putBoolean(ON, on) }
+        // A choice made here also answers the notice: no need to tell them what they just chose.
+        prefs(a).edit { putBoolean(ON, on); putBoolean(NOTICE, false) }
+        noticePending.value = false
         switchOn.value = on
         logcat("tester: help Roy test ${if (on) "on" else "off"}")
         if (on) { if (TesterSdk.running) TesterSdk.resume() else startIfAllowed(a) } else TesterSdk.pause()
@@ -290,5 +323,6 @@ object Tester {
     internal fun prefsOf(context: Context) = prefs(context)
 
     /** Tests only: forget the process state. */
-    internal fun resetForTest() { route = null; lastRoute = null; screen = null; before = null; kind = null; logFile = null; app = null }
+    internal fun resetForTest() { route = null; lastRoute = null; screen = null; before = null; kind = null; logFile = null; app = null
+        defaultedOn = false; noticePending.value = false }
 }

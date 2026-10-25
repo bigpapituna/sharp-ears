@@ -2,7 +2,10 @@ package com.bigpapituna.sharpears.analytics
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +30,31 @@ import com.bigpapituna.sharpears.ui.brief.SwitchRow
 
 /** "Help Roy test"'s one line (Roy, 2026-10-21). */
 const val HELP_ROY_TEST_LINE = "Sends screen recordings and app events to Roy's test dashboard. No sound."
+
+/** 2.13: the one-time notice when the default turned Help Roy test on (Roy's words, 2026-10-25). */
+const val DEFAULT_ON_NOTICE = "This test build sends screen recordings and app events to Roy to help improve the app. No sound is recorded. " +
+    "You can turn this off in Settings, Testing."
+
+/**
+ * 2.13: the notice that the default turned Help Roy test on, once, to a grown-up (MainActivity shows it while
+ * [Tester.noticePending] and the profile is a grown-up's, never on the stage): a small card at the bottom of the screen with OK.
+ * It holds nothing up: the screen under it works as before, and only the card itself takes touches.
+ */
+@Composable
+fun TesterDefaultNotice(onOk: () -> Unit) {
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+        contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
+        androidx.compose.material3.Surface(Modifier.widthIn(max = 560.dp).fillMaxWidth().testerMask(),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp) {
+            Column(Modifier.padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Help Roy test is on", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                Text(DEFAULT_ON_NOTICE, style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onOk, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) { Text("OK") }
+            }
+        }
+    }
+}
 
 /**
  * The tester switches (analytics/Tester.kt): "Help Roy test", "Email Roy a daily diary" (only on a build with DIARY_TO) and,

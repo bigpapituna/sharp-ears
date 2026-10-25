@@ -838,7 +838,7 @@ integrator, fixed what the walk found and released.
   for the brief ("Let's hear you play", `Placement.CHECK_TITLE`), and only a check played through moves the level.
 - Tester analytics (Roy tests with friends and family; he gets their consent and removes it before any public release):
   "Help Roy test", one phone-wide switch behind the parent gate (the kids' corner and Settings > Family), with an accent dot
-  on the kids' whistle while on; PostHog session replay (all text and pictures masked, no sound, kids recorded masked, as
+  on the kids' whistle while on (on by default since 2.13 where the row shows, a one-time notice to a grown-up; see 2.13); PostHog session replay (all text and pictures masked, no sound, kids recorded masked, as
   "kid") and app events only on a build with POSTHOG_KEY; "Email Roy a daily diary" only on a build with DIARY_TO (hidden on
   this PC); "Something felt off" (one line kept with the screen) while a switch is on. The keyless APK has no PostHog class:
   dexdump over all 19 dex files of the 2.6.0 debug APK finds 0 `Lcom/posthog/` among 22,746 classes; `-Psharpears.posthog=true`
@@ -848,7 +848,8 @@ integrator, fixed what the walk found and released.
   API key (phc_...); Settings > Session replay: "Record user sessions" on; Data retention 30 days. 2.
   `.\scripts\set-posthog-key.ps1` (the key at the hidden prompt; `-ApiHost https://eu.i.posthog.com` for EU; it also asks for
   the diary address, Roy's own). The diary needs the Brevo key too (`.\scripts\set-email-key.ps1`). 3. `.\gradlew.bat
-  installDebug` to each test phone (never paste the key in chat). 4. On the phone: the kids' whistle (or Settings > Family) >
+  installDebug` to each test phone (never paste the key in chat). 4. On the phone: Help Roy test is on by default (2.13; a
+  grown-up sees the notice once and taps OK); a phone where someone turned it off: the kids' whistle (or Settings > Family) >
   the gate > Help Roy test on; the dot shows. 5. Replays: PostHog > Session replay (a few minutes after a session, on Wi-Fi or
   data); events in Activity; filter by `profile_kind`. 6. End of the beta: the switch off on each phone,
   `.\scripts\set-posthog-key.ps1 -Remove`, rebuild, and in PostHog Settings > Project > Danger zone, Delete project (that

@@ -6,10 +6,12 @@ import com.bigpapituna.sharpears.engine.brief.BriefEvent
  * Tester analytics (CLAUDE.md "Tester analytics"): the rules, Android-free and tested on the JVM. analytics/Tester.kt on the
  * phone asks them; the PostHog SDK (only on a build with POSTHOG_KEY) and the tester diary act on what they say.
  *
- * Roy's terms (2026-10-21): one phone-wide switch, "Help Roy test", off by default, behind the parent gate, that Roy turns on
- * when he hands a phone to a tester (he asks the tester, and a child's parent, himself); when it is on every profile on the
- * phone is recorded, kids too, with all text masked, no sound ever, the profile's kind and never its name. The diary is its
- * own switch and goes only to Roy's address. The feature is removed before any public release.
+ * Roy's terms (2026-10-21): one phone-wide switch, "Help Roy test", behind the parent gate, on a phone Roy hands to a tester
+ * (he asks the tester, and a child's parent, himself); when it is on every profile on the phone is recorded, kids too, with all
+ * text masked, no sound ever, the profile's kind and never its name. Since 2.13 (Roy, 2026-10-25) the switch is on by default
+ * where its row shows ([switchOn]: a build with the dashboard key, or a debug build, where nothing is sent without the key),
+ * and a grown-up sees a one-time notice saying so; a choice made on the phone, on or off, always wins. The diary is its own
+ * switch, off by default, and goes only to Roy's address. The feature is removed before any public release.
  */
 
 /** One analytics event: its [name] and properties (ids, numbers and words of the app's own; never a name or an address). */
@@ -27,6 +29,21 @@ object TesterRules {
 
     /** "Help Roy test" shows on a build with a key, and on Roy's debug builds without one (it then says nothing is sent). */
     fun rowShown(hasKey: Boolean, debuggable: Boolean): Boolean = hasKey || debuggable
+
+    /**
+     * "Help Roy test" as the phone has it (2.13): the choice saved on it ([stored], true or false) wins; with none saved it is on
+     * where the row shows ([rowShown]) and off elsewhere. A keyless build has no SDK, so on or off it sends nothing.
+     */
+    fun switchOn(stored: Boolean?, rowShown: Boolean): Boolean = stored ?: rowShown
+
+    /** The default, not a choice, turns the switch on now: nothing saved yet and the row shows. Once, then it is saved. */
+    fun defaultTurnsOn(stored: Boolean?, rowShown: Boolean): Boolean = stored == null && rowShown
+
+    /** The tester event sent once when the default turned the switch on (no properties). */
+    const val DEFAULT_ON_EVENT = "tester_default_on"
+
+    /** The default turned the switch on: a grown-up sees the notice once, never a kid (it waits for a grown-up's profile). */
+    fun showsNotice(pending: Boolean, kid: Boolean): Boolean = pending && !kid
 
     /** "Email Roy a daily diary" shows only on a build with the diary's address. */
     fun diaryShown(diaryTo: String): Boolean = diaryTo.isNotBlank()

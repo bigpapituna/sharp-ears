@@ -1930,6 +1930,12 @@ class MainActivity : ComponentActivity() {
                     }
                     // The weekly brief's notification asked for someone's brief (2.4).
                     BriefFromNotification(roster, openKid = current.isKid)
+                    // 2.13: Help Roy test came on by default in this test build: a one-time notice, to a grown-up only (a kid's
+                    // profile leaves it for the next grown-up one), never over the stage. OK and it is gone for good.
+                    if (com.bigpapituna.sharpears.engine.tester.TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid) &&
+                        !isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                        com.bigpapituna.sharpears.analytics.TesterDefaultNotice { com.bigpapituna.sharpears.analytics.Tester.noticeSeen(this@MainActivity) }
+                    }
                     // The parent gate, over everything while an action waits for a grown-up.
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }
                 }
