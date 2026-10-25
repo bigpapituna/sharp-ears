@@ -78,6 +78,7 @@ fun CheerPopDebug(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Prefs, o
             cheers.debugFire(t, entry.value, CheerSituation(betweenNotes = !turn.value, place = place))
         }
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).onGloballyPositioned { at.value = it.positionInRoot() }) {
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // The stand-in header: a back arrow, a title, the step dots (what a lesson's pop sits over).
                 Column(Modifier.fillMaxWidth().onGloballyPositioned { header.value = it.boundsInRoot() }) {
@@ -131,6 +132,7 @@ fun CheerPopDebug(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Prefs, o
                 lane.value?.let { r -> Rect(r.left, r.top, r.right, r.top + r.height * com.bigpapituna.sharpears.engine.lessons.CheerPlace.LANE_BAND).translate(-at.value) }
             }, maxPupDp = 48f)
             else CheerPop(cheers.cue, Modifier.inRect { header.value?.translate(-at.value) })
+        }
         }
     }
 }

@@ -45,6 +45,8 @@ class CheerPopWiringTest {
         assertTrue("    val cheer = CheerFeed()" in player.substringAfter("private class PlayerVars("))
         val struck = player.substringAfter("fun keyStruck(").substringBefore("\n    fun setSpeed(")
         assertTrue("cheer.struck(cheers, transport, song, result, grade == HitLights.PERFECT, embedded != null, hintStep == HintStep.PLAY)" in struck)
+        // Every wrong key shown (touch, MIDI and the mic's named ones) breaks the run, from the one place they are shown.
+        assertTrue("cheer.wrong(cheers, transport, song, embedded != null)" in player.substringAfter("fun showWrongKey(").substringBefore("\n    }\n"))
         assertTrue("cheer.began(cheers, song)" in player.substringAfter("fun play() {").substringBefore("\n    }\n"))
         assertTrue("cheer.frame(cheers, transport, song, now / 1_000_000, hintStep == HintStep.PLAY, embedded != null)" in player)
         // A song's pop sits in the lane's top band (never the hit line or the notes being read), a lesson's over its header.

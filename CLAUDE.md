@@ -1637,7 +1637,8 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
 - Wiring: LessonScreen makes one `CheerPops` per lesson (`rememberCheerPops(..., key = lesson.id)`) and provides it
   (`LocalCheers`) to its embedded player and its stages; `stepBegan` on each step and try; `clear()` when a try ends, a page
   moves or the lesson finishes. PlayerScreen takes the lesson's, or makes its own for a song played on its own; its feed lives in
-  PlayerVars (`ui/CheerFeed.kt`, so the body gains no locals): `struck` in keyStruck, `began` on a fresh run, `frame` ten times a
+  PlayerVars (`ui/CheerFeed.kt`, so the body gains no locals): `struck` in keyStruck (right notes), `wrong` in showWrongKey
+  (every wrong key shown), `began` on a fresh run, `frame` ten times a
   second. The Playground stages (`rememberStage`): found, missed, and a 250 ms tick (a stage's 7 s re-demo comes before any nudge
   there). Log: `cheer: <trigger> <kid|grown-up> "<line>" voice=PLAY|PLAY_DEAF|SKIP` (`skipped, no room` when no corner fits).
 - Telemetry: `Tester.cheerPop(trigger, kid)` sends `cheer_pop` with `trigger` and `profile_kind` only
@@ -1646,17 +1647,48 @@ does". Now and then, while a step or a song plays, the pup pops in at a corner w
   header, instruction and step; one button per trigger (step passed shows the step pop's bubble), Kid or Grown-up, Lesson or Song
   (the lane's two corners alternate), "Learner's turn" (the mic rule), Roll or one entry (Slide, Pop up, Peek). The waits do not
   apply there; no tester event. `--ef fxSlow n` slows the pop n times for a recording.
-- Voice: VOICE_COUNT_LINE
+- Voice: 253 new lines recorded with Kokoro (speaker 3) by scripts/render_voice.py on this PC: 124 kid lines at 0.85 (every
+  family but the step passed one, the runs' numbered lines, the focus minutes) and 129 grown-up lines at 1.0 (for "Say it
+  aloud"). 3970 in the catalog, nothing left to record or delete (`--check`). The step passed lines are shown, not recorded.
 - What's new 2.13.0: one line (the pup pops up with a few kind words when you're on a roll; change how often in Settings).
 - Tests: CheerRulesTest (every trigger, the waits, Less, the minute's cap, busy and tail, Off, the step passed line, the last six,
   the seed, the entries and sides, the holds, the sound and voice tables, the sparkle, the places, the setting's defaults, the
   tester event), CheerLinesTest (the counts, the copy rules, the two voices, Roy's examples, the catalog), CheerPopWiringTest (the
   lesson, the player and the stages feed it, where it is drawn, no touches, the mic rule, the log line, the setting in every
   layout, the debug route), StepPopWiringTest (the line handed to the pop), LayoutTest (Encouragement an essential), WelcomeTest
-  (2.13.0, one line), KidCopyTest and SpokenCatalogTest (the new lines). TEST_RESULTS_LINE
-- Decisions: DECISIONS_LINE
-- Emulator: EMULATOR_LINE
-- For Roy, on the Fold: ROY_LINE
+  (2.13.0, one line), KidCopyTest and SpokenCatalogTest (the new lines). 1719 JVM tests, all green but
+  PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 29 warnings (as 2.12).
+- Decisions: a chord counts once (a wait group done); every wrong key shown counts, from the player's showWrongKey (touch,
+  MIDI, the mic's named ones), a mic sound it did not name does not; grown-ups hear pops only with "Say it aloud" (Spoken
+  guidance is on by default, so it could not be the switch); Often keeps the four-a-minute cap; the kid nudge may be seven
+  words for Roy's own line, "Which key is next?" became "Where's the next key? Let's look!" (kid lines end with a stop or an
+  exclamation); runs pop at 5, 10, 20 and 40 only; halfway needs a run of 16 notes or more, so short steps never say it; a
+  step's tail is its last quarter (two bars at most), or every pop would fall in a four-bar step's last two bars; a song's
+  corner is chosen by the notes the learner plays (the other hand's, dimmed, are not read); the pup's run pose is the
+  dancing one (the streak pose's flame carries a 7); `--es midi` now drives a song too (debug).
+- Emulator (5558 Fold_QA_GU, screenrecord contact sheets in app/build/screens, not committed): a kid lesson (Mila, key-g step
+  2, the mic listening, `--es inject` notes) popped a run of five ("Five in a row! Keep going!"), the nudge after ten quiet
+  seconds (Roy's "Find the next key, I'm right here."), a save after a named F5 for F sharp 5 ("You found it again!") and the
+  step passed bubble with the burst ("Another one done!"), all `voice=SKIP` (the mic listening through the speaker):
+  cheer-walk-kid.png. A grown-up song (Roy, Twinkle, wait mode, right hand, `--es midi`): a run of five, a save, the nudge
+  (held for the 15 s wait, before the hint plays at 18 s) and 20 in a row, all in the lane's top left corner (the right hand's
+  notes are on the right): cheer-walk-grownup.png. The cover screen, dark mode, the same kid walk: cheer-cover-dark.png. The
+  debug route's three entries, both audiences, both places, light and dark: cheer-debug-entries-light.png,
+  cheer-debug-grown-light.png, cheer-debug-dark.png. A Playground stage (fair-2, the carousel) popped a run of five. Settings
+  in Simple: cheer-settings.png. No crash, no ANR. Nothing covered the keys, the hit line, the notes being read or the
+  instruction in any frame.
+- For Roy, on the Fold: whether 1.6 s is long enough to read a pop mid-song and short enough not to distract; the pup's size
+  in a lesson's header (56 dp at most, the header's height) and in a song's corner (48 dp); whether Often (12 s and 15 s) is
+  the right rate or Less suits grown-ups better; the three entries' feel at 120 Hz (the emulator draws 4 to 8 frames a
+  second here); the sparkle's loudness against the piano (velocity 55, two high notes) and the kid's voice lines over a real
+  room (they are the bubble alone while the mic listens without headphones); the lines themselves, kid and grown-up.
+- Help Roy test on by default (same release, Roy 2026-10-25): see "Tester analytics" above and analytics/INTEGRATION.md.
+  TesterRules.switchOn/defaultTurnsOn/showsNotice; an unset switch where the row shows becomes on once and is saved
+  (`tester: default on`, `tester_default_on`), a saved choice always wins (contains), the diary stays off by default; a
+  grown-up sees TesterDefaultNotice once (a card with OK, never a kid, never over the stage; a kid's profile leaves it for
+  the next grown-up one). Checked on 5558: tester.xml unset gave on with the notice pending; Mila's home showed nothing; Roy's
+  Today showed the card after What's new; OK cleared it (`tester: default on, notice seen`). The notice also shows on keyless
+  debug builds (the row shows there; nothing is sent without the key).
 
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.

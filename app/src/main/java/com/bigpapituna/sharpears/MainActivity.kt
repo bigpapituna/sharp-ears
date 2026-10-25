@@ -693,6 +693,8 @@ class MainActivity : ComponentActivity() {
             inject = intent.getStringExtra("inject")?.takeIf { routes },
             tabletop = routes && intent.getBooleanExtra("tabletop", false),
             lightSlow = if (routes) intent.getFloatExtra("lightSlow", 1f) else 1f,
+            // 2.13: a pretend MIDI keyboard into a song too (`--es song twinkle --es midi "3000:60/80,..."`, after Play).
+            midiScript = intent.getStringExtra("midi")?.takeIf { routes },
         )
         com.bigpapituna.sharpears.ui.playground.FxSlow.factor = if (routes) intent.getFloatExtra("fxSlow", 1f).coerceIn(1f, 20f) else 1f
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()

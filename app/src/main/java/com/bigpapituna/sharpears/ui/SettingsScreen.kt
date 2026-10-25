@@ -203,7 +203,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
             // 2.13: the cheer pops (ui/pup/CheerPop.kt), per profile; every layout shows them. Often for everyone by default.
             if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {
                 Sub("Encouragement")
-                Text(ENCOURAGEMENT_LINE, style = MaterialTheme.typography.bodyMedium, color = dim)
+                Text(ENCOURAGEMENT_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
                 SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
                     val opts = com.bigpapituna.sharpears.engine.lessons.CheerFrequency.entries
                     opts.forEachIndexed { i, f ->

@@ -474,6 +474,7 @@ private fun PlayerStage(args: PlayerArgs) {
         Log.d(TAG, "wrong key ${noteName(played)}" + (nearest?.let { " near ${noteName(it)}, $distance away, ${if (k.slip) "yellow" else "red"}" } ?: ""))
         distance?.let { wrongs.show(com.bigpapituna.sharpears.engine.skin.WrongKey(played, it)) }
         onWrongKey(k)
+        cheer.wrong(cheers, transport, song, embedded != null)        // 2.13: the cheer pops' run starts again
     }
     /** Asks the room-noise watchdog; the pup offers once per session. */
     fun checkNoise(now: Long) {
@@ -1109,7 +1110,8 @@ private fun PlayerStage(args: PlayerArgs) {
             val sides = buildSet { if (!(chordsOn && chords != null)) add(com.bigpapituna.sharpears.engine.lessons.CheerSide.START)
                 if (!showVideo) add(com.bigpapituna.sharpears.engine.lessons.CheerSide.END) }
             androidx.compose.runtime.SideEffect {
-                cheer.place = { c -> com.bigpapituna.sharpears.engine.lessons.CheerPlace.laneSides(song.notes, range.first, range.last,
+                // The notes the learner plays (the other hand's, dimmed, are not read).
+                cheer.place = { c -> com.bigpapituna.sharpears.engine.lessons.CheerPlace.laneSides(song.notes.filter { transport.required(it) }, range.first, range.last,
                     transport.positionMs, transport.speed, c.holdMs, CheerFeed.POP_WIDTH_DP / laneDp, sides, preferStart = c.other).firstOrNull() }
             }
             com.bigpapituna.sharpears.ui.pup.CheerPop(cheers.cue, Modifier.align(Alignment.TopStart).fillMaxWidth()

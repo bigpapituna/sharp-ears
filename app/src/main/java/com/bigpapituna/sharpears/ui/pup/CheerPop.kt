@@ -315,7 +315,7 @@ fun CheerPop(cue: CheerCue?, modifier: Modifier = Modifier, maxPupDp: Float = 56
         val density = LocalDensity.current
         val away = with(density) { 96.dp.toPx() }
         val entry = c.cheer.entry
-        val bubbleMax = (maxWidth - pupDp.dp - 16.dp).coerceIn(80.dp, 260.dp)
+        val bubbleMax = (maxWidth - pupDp.dp - 16.dp).coerceIn(80.dp, 300.dp)
         Row(Modifier.align(if (end) Alignment.TopEnd else Alignment.TopStart).padding(horizontal = 4.dp, vertical = 2.dp)
             .graphicsLayer {
                 val p = enter.value

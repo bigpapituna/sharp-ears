@@ -82,17 +82,27 @@ internal class CheerFeed {
         betweenNotes = !t.waiting && nextGapMs(t, song) >= CheerRules.BETWEEN_NOTES_MS * t.speed,
         place = place)
 
-    /** A key struck: [result] as the transport saw it, [perfect] in the good window (Perform's "Perfect" light). */
+    /**
+     * A key struck: [result] as the transport saw it, [perfect] in the good window (Perform's "Perfect" light). Right notes
+     * only: every wrong key shown, from touch, MIDI or the mic, comes through [wrong].
+     */
     fun struck(cheers: CheerPops?, t: Transport, song: Song, result: InputResult, perfect: Boolean, embedded: Boolean, hinting: Boolean) {
         cheers ?: return
         if (t.mode == Mode.LISTEN || !t.playing) return
         ensure(t, song, embedded)
         val at = barOf(t.positionMs)
         when {
-            result == InputResult.WRONG -> cheers.wrong(at)
             t.mode == Mode.WAIT && result == InputResult.GROUP_DONE -> cheers.right(at, null, situation(t, song, hinting))
             t.mode == Mode.PERFORM && result == InputResult.CORRECT -> cheers.right(at, perfect, situation(t, song, hinting))
         }
+    }
+
+    /** A wrong key shown (the player's showWrongKey: touch, MIDI, or one the mic named): the run starts again, the bar is hard. */
+    fun wrong(cheers: CheerPops?, t: Transport, song: Song, embedded: Boolean) {
+        cheers ?: return
+        if (t.mode == Mode.LISTEN) return
+        ensure(t, song, embedded)
+        cheers.wrong(barOf(t.positionMs))
     }
 
     /** A frame while the run plays: the notes let pass, the run's progress and the time (ten times a second). */
