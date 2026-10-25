@@ -185,7 +185,7 @@ class PupWiringTest {
      */
     @Test fun everyNamedClipShipsOrIsMarkedOptional() {
         val clip = src("ui/pup/PupClip.kt")
-        val body = clip.substringAfter("object PupClips {").substringBefore("\n}\n")
+        val body = clip.replace("\r\n", "\n").substringAfter("object PupClips {").substringBefore("\n}\n")
         val named = Regex("""const val (\w+) = "(\w+)"""").findAll(body).map { it.groupValues[1] to it.groupValues[2] }
             .filter { it.first != "DIR" }.toList()
         assertTrue("clip names found: $named", named.size >= 6)
