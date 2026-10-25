@@ -77,7 +77,10 @@ class PupWiringTest {
         val clap = src("ui/play/ClapAlongScreen.kt")
         assertTrue("PupMood.CHEER" in clap && "bpm = speed.bpm" in clap && "beatAt = along.beatAt(0)" in clap)
         assertTrue("PupClip(PupClips.DANCE" in src("ui/kid/Finale.kt") && "then = PupMood.CHEER" in src("ui/kid/Finale.kt"))
-        for (f in listOf("ui/playground/ConcertStage.kt", "ui/playground/TreeSkyConcertStage.kt")) assertTrue(f, "PupClip(PupClips.DANCE" in src(f))
+        // 2.12: the concerts' bow is the bow clip once when assets/pup/bow.webp ships, else the dance as before.
+        for (f in listOf("ui/playground/ConcertStage.kt", "ui/playground/TreeSkyConcertStage.kt")) assertTrue(f, "PupBow(size = " in src(f) && "PupClips.DANCE" !in src(f))
+        assertTrue("PupClip(if (bow) PupClips.BOW else PupClips.DANCE, modifier, size, fallback, then)" in src("ui/pup/PupClip.kt"))
+        assertTrue("remember { PupClips.has(context, PupClips.BOW) }" in src("ui/pup/PupClip.kt"))
         // The jump clip on three stars (the arcade, a kid's song), a sticker revealed or placed on the map, the surprise opened.
         assertTrue("clips = stars == 3" in src("ui/arcade/ArcadeFinish.kt") && "clips = kid" in src("ui/RunRecap.kt"))
         assertTrue("Pup(Pose.STICKER, controller = pup, size = 128.dp, clips = true)" in src("ui/world/DropReveal.kt"))
@@ -122,15 +125,18 @@ class PupWiringTest {
     private fun le(b: ByteArray, at: Int, n: Int) = (0 until n).sumOf { (b[at + it].toInt() and 0xff) shl (8 * it) }
 
     /**
-     * The five Veo clips in assets/pup (and nothing else: no hop, no bow): animated WebPs on one 318 x 400 canvas, looping, at
-     * 12 fps, each under 600 KB; jump and sleep scaled up 1.15 to match the others' heads; celebrate played once and held.
+     * The clips in assets/pup (2.12: Gemini jump, wave and sleep, the Flow celebrate, the Veo dance; nothing else, and the bow
+     * only once it ships): animated WebPs on one 318 x 400 canvas, loop count 0 in the file, at 12 fps, each under 600 KB;
+     * only the sleep scaled up (1.15) to match the others' heads; jump, celebrate and bow played once.
      */
     @Test fun theClipsAreAnimatedWebps() {
         val dir = File("src/main/assets/pup")
         val clip = src("ui/pup/PupClip.kt")
-        val names = listOf("jump", "dance", "wave", "sleep", "celebrate")
-        assertEquals(names.map { "$it.webp" }.toSet(), dir.list()!!.toSet())
-        for (name in names) {
+        val required = listOf("jump", "dance", "wave", "sleep", "celebrate")
+        val present = dir.list()!!.toSet()
+        assertTrue("required clips $present", required.all { "$it.webp" in present })
+        assertTrue("only the slot's clips in assets/pup: $present", present.all { it.removeSuffix(".webp") in required + "bow" && it.endsWith(".webp") })
+        for (name in present.map { it.removeSuffix(".webp") }) {
             val b = File(dir, "$name.webp").readBytes()
             assertEquals("$name RIFF", "RIFF", String(b, 0, 4, Charsets.US_ASCII))
             assertEquals("$name WEBP", "WEBPVP8X", String(b, 8, 8, Charsets.US_ASCII))
@@ -155,10 +161,14 @@ class PupWiringTest {
             assertTrue("$name frames ${ms.size}", ms.size in 20..60)
             assertTrue("$name 12 fps $ms", ms.all { it in 80..90 })
         }
-        for (c in listOf("JUMP = \"jump\"", "DANCE = \"dance\"", "WAVE = \"wave\"", "SLEEP = \"sleep\"", "CELEBRATE = \"celebrate\"")) assertTrue(c, c in clip)
+        for (c in listOf("JUMP = \"jump\"", "DANCE = \"dance\"", "WAVE = \"wave\"", "SLEEP = \"sleep\"", "CELEBRATE = \"celebrate\"", "BOW = \"bow\"")) assertTrue(c, c in clip)
         assertTrue(dir.listFiles()!!.sumOf { it.length() } < 2_400_000)
-        // Heads that match: the jump and the sleep were drawn about 15% small; the canvas maps to the box as the stills do.
-        assertTrue("JUMP_SCALE = 1.15f" in clip && "SLEEP_SCALE = 1.15f" in clip && "JUMP -> JUMP_SCALE; SLEEP -> SLEEP_SCALE" in clip)
+        // Heads that match (2.12): the jump, wave and celebrate are full size (1); the lying sleep, width-limited, scales 1.15;
+        // the canvas maps to the box as the stills do. The jump (its wrap pops) and the celebrate (its ends differ) never loop.
+        assertTrue("JUMP to Spec(oneShot = true)," in clip && "DANCE to Spec()," in clip && "WAVE to Spec()," in clip)
+        assertTrue("SLEEP to Spec(scale = 1.15f)," in clip && "CELEBRATE to Spec(oneShot = true)," in clip)
+        assertTrue("BOW to Spec(oneShot = true, optional = true)," in clip)
+        assertTrue("once: Boolean = PupClips.oneShot(name)" in clip && "_SCALE = 1.15f" !in clip)
         assertTrue("const val FEET = 380f" in clip && "const val STAND_H = 306f" in clip)
         // Celebrate plays once and stays on its last frame (its loop's wrap jumps from a laugh to a calm sit).
         assertTrue("if (hold) { kept = true; return true }" in clip && "d.repeatCount = if (once) 0 else AnimatedImageDrawable.REPEAT_INFINITE" in clip)
@@ -166,6 +176,45 @@ class PupWiringTest {
         assertTrue("isClickable = false" in clip)
         // The goodnight screen curls him up with the sleep clip, scaled to the others.
         assertTrue("PupClip(PupClips.SLEEP" in src("ui/skin/Goodbye.kt") && "scale = PupClips.SLEEP_SCALE" in src("ui/skin/Goodbye.kt"))
+    }
+
+    /**
+     * 2.12: every clip PupClips names (each `const val X = "name"` but the folder) is in assets/pup or marked optional in its
+     * table, and every name has a row there; nothing optional is required by a screen without a fallback (the bow is the
+     * dance until it ships).
+     */
+    @Test fun everyNamedClipShipsOrIsMarkedOptional() {
+        val clip = src("ui/pup/PupClip.kt")
+        val body = clip.substringAfter("object PupClips {").substringBefore("\n}\n")
+        val named = Regex("""const val (\w+) = "(\w+)"""").findAll(body).map { it.groupValues[1] to it.groupValues[2] }
+            .filter { it.first != "DIR" }.toList()
+        assertTrue("clip names found: $named", named.size >= 6)
+        val dir = File("src/main/assets/pup")
+        val optional = Regex("""(\w+) to Spec\([^)]*optional = true""").findAll(body).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("BOW"), optional)
+        for ((id, name) in named) {
+            assertTrue("$id has a row in SPECS", Regex("""\b$id to Spec\(""").containsMatchIn(body))
+            assertTrue("$name.webp is in assets/pup or $id is optional", File(dir, "$name.webp").exists() || id in optional)
+        }
+        // And the code the app runs agrees with the source.
+        val specs = com.bigpapituna.sharpears.ui.pup.PupClips.SPECS
+        assertEquals(named.map { it.second }.toSet(), specs.keys)
+        for ((name, spec) in specs) assertTrue("$name ships or is optional", File(dir, "$name.webp").exists() || spec.optional)
+        assertEquals(1f, com.bigpapituna.sharpears.ui.pup.PupClips.scale("jump"))
+        assertEquals(1.15f, com.bigpapituna.sharpears.ui.pup.PupClips.scale("sleep"))
+        assertTrue(listOf("jump", "celebrate", "bow").all { com.bigpapituna.sharpears.ui.pup.PupClips.oneShot(it) })
+        assertFalse(listOf("dance", "wave", "sleep").any { com.bigpapituna.sharpears.ui.pup.PupClips.oneShot(it) })
+    }
+
+    /** 2.12: the jump never loops (its wrap pops): the rig plays it once, the debug screen too, and no PupClip loops it. */
+    @Test fun theJumpIsNeverLooped() {
+        assertTrue("playClip(context, PupClips.JUMP, 1, clipNow, clipFade" in src("ui/pup/Pup.kt"))
+        assertTrue("PupClip(c, size = size.dp, fallback = pose)" in src("ui/pup/PupDebug.kt"))
+        for (f in sources) {
+            val s = f.readText()
+            assertFalse(f.name, Regex("""PupClip\(PupClips\.JUMP[^)]*once = false""").containsMatchIn(s))
+            assertFalse(f.name, Regex("""playClip\(PupClips\.JUMP, (loops = )?[2-9]""").containsMatchIn(s))
+        }
     }
 
     @Test fun theClipSlotFallsBackToTheRigAndTheDebugRouteIsDebugOnly() {

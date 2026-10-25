@@ -1321,8 +1321,8 @@ them. Kid-safe throughout: no guilt, no pressure, no countdown a child can see.
 
 ## 2.10 living pup (2026-10-24, branch `pup-rig`, versionCode 25, 2.10.0; emulator-5558 Fold_QA_GU only)
 Roy: "better animations and mini clips of the dog, like the Duolingo mascot" and "make the app more engaging". The rig
-animates the forty stills (res/drawable-nodpi/pup_*.webp), nine of them through SAM 2 layers; five Google Veo clips play
-at the big moments.
+animates the forty stills (res/drawable-nodpi/pup_*.webp), nine of them through SAM 2 layers; five generated clips play
+at the big moments (2.12.0, versionCode 28: four of them replaced, branch `pup-clips-2`; see Clips).
 - One pup: `ui/pup/Pup.kt` `Pup(pose, mood, modifier, size, controller, ...)` and `ui/pup/PupController.kt`
   `rememberPupController()` draw every pup on screen (ui/Pup.kt keeps SpeechBubble, PupSays, ChunkyButton, Confetti).
   `ui/pup/PupArt.kt` holds `Pose` (moved from ui/Pup.kt, with `eyesOpen`, `mood`, `blinkTwin`), the avatar art
@@ -1374,26 +1374,41 @@ at the big moments.
   yawn, then the sleep clip; the map's sleeping pup: SLEEP), grown-up Today (IDLE, no acts, no hops: subtle). Stills
   keep still: avatars, the kid buttons, badges, trophies, the photo booth's photos (`live = false`). Pups that were plain
   pictures before get no idle acts (`idle = false`).
-- Clips (`ui/pup/PupClip.kt`, assets/pup): five Google Veo videos of the pup cut to loops, judged the best of three
-  sources (AnimatedDrawings and Wan 2.2 lost; C:\dev\tools\pup-veo\README.md has the verdicts and the reproduce script).
-  All 318 x 400, alpha, 12 fps, loop count 0, ground line row 380: dance.webp (pup_veo_dance, 2.4 s), jump.webp
-  (pup_veo_jump_1p5x, the jump at 1.5 times, 2.7 s), wave.webp (3.7 s), sleep.webp (2.4 s), celebrate.webp (sit, arms
-  up laughing, claps; 3.3 s). 2,332,238 bytes together. Not shipped: the bow (not a bow: a crowned wave), the hop
-  variant of celebrate, every AnimatedDrawings and Wan clip. Played by the platform's AnimatedImageDrawable (minSdk 28,
-  `ImageDecoder.decodeDrawable`) in a non-clickable ImageView; `PupClips.STAND_H` 306 canvas px map to the pup's box, so
-  a Veo head (a 116 px headband) is 0.38 of the box, as the stills' heads are (measured: 0.36 to 0.395). The jump and
-  the sleep were drawn about 15% small (the leap stays on the canvas; the lying pup is width-limited): their views scale
-  1.15 (`PupClips.scale`). `PupClip(name)` loops one in a pup's place (`once`: plays once and holds): dance on the kid
-  finale and the concerts' bow, sleep on the goodnight screen once the yawn is done. A `Pup(clips = true)` plays his
-  HAPPY as the jump clip (decoded ahead): three stars (arcade, a kid's song), the sticker reveal, a sticker placed on the
-  map, the surprise opened. The controller's `playClip(name, loops, fallback, hold, then)` plays any clip in his place
-  (`prepare(name)` decodes it ahead): the wave on the kid home; the celebrate clip on Celebrate, `hold = true`, because
-  its loop's wrap jumps from a laughing sit to a calm one (AnimatedImageDrawable with repeatCount 0 stays on its last
-  frame; checked: the frame 3 s later is the same). Each fades over the still (150 ms); a held one stays until the
-  screen goes. The rig plays the fallback beat (and then `then`) when the clip is missing, animations are off, or he is
-  dressed up (the clips wear nothing). Open: the Veo clips come from generated video: add a Licences line before a
-  public build.
-- Size added: clips 2,332,238 bytes, layers 490,040 bytes: 2,822,278 bytes (2.7 MB) of assets and drawables (both stored
+- Clips (`ui/pup/PupClip.kt`, assets/pup). 2.12 swapped four of the five for better cuts. Every file is 318 x 400, alpha,
+  12 fps, loop count 0 in the file, ground line row 380, cut by the pipelines in C:\dev\tools\pup-veo (Veo) and its
+  `gemini` folder (Gemini and Flow; its README has the windows, the cut-out and the verdicts):
+  dance.webp (Veo `pup_veo_dance`, 2.4 s, loops; it beat the Gemini dance), jump.webp (Gemini `pup_gem_jump_1p5x`, one jump
+  at 1.5 times, 2.17 s, one-shot: its wrap pops), wave.webp (Gemini `pup_gem_wave`, three waves in 2.5 s, loops; red
+  collar and whistle as in pup_welcome), sleep.webp (Gemini `pup_gem_sleep`, one breath, 2.67 s, loops; the twitch
+  alternate was not shipped: it lies 14 px high), celebrate.webp (Flow `pup_flow_celebrate`, 43 frames, 3.58 s: sits with a
+  paw up, claps, hops, sits with paws at the chest; the 6.25 s action at 1.75 times; one-shot, held). 2,203,700 bytes
+  together (2.10's 2,332,238). Not shipped: a bow (Google's video service was overloaded), the Gemini dance, the sleep
+  twitch, every AnimatedDrawings and Wan clip. Played by the platform's AnimatedImageDrawable (minSdk 28,
+  `ImageDecoder.decodeDrawable`) in a non-clickable ImageView; `PupClips.STAND_H` 306 canvas px map to the pup's box, so a
+  head with a 116 px headband is 0.38 of the box, as the stills' heads are (measured: 0.36 to 0.395). One table,
+  `PupClips.SPECS`, holds each clip's row (`Spec(scale, oneShot, optional)`): jump, wave and celebrate have full-size heads
+  (headbands 115.7, 117 and 118 px), scale 1; dance 114.5 px, 1; the sleep is a lying pup, width-limited to a 99.6 px
+  headband, so its view scales 1.15 (114.5 px; 2.10's sleep was 95 px at the same 1.15, about 109). 2.10's jump scaled 1.15
+  (drawn 15% small); the Gemini jump is full size, so 1. `PupClip(name)` loops one in a pup's place (`once`, by default
+  `PupClips.oneShot(name)`: plays once and holds): dance on the kid finale, sleep on the goodnight screen once the yawn is
+  done. The concerts' bravo (ConcertStage, TreeSkyConcertStage) is `PupBow`: the optional bow slot (`BOW`, one-shot, the
+  rig's HAPPY without it) when assets/pup/bow.webp is in the app, else the dance looping as in 2.10; to ship a bow, drop
+  the file in (318 x 400, 12 fps, the same pipeline), nothing else changes. The kid finale stays on the dance (a bow there
+  was not asked; the 2.10 What's new line says "dance at the finale"). A `Pup(clips = true)` plays his HAPPY as the jump
+  clip once (decoded ahead): three stars (arcade, a kid's song), the sticker reveal, a sticker placed on the map, the
+  surprise opened; nothing loops the jump (PupWiringTest), the debug screen included. The controller's
+  `playClip(name, loops, fallback, hold, then)` plays any clip in his place (`prepare(name)` decodes it ahead): the wave on
+  the kid home; the celebrate clip on Celebrate, `hold = true` (AnimatedImageDrawable with repeatCount 0 stays on its last
+  frame). Each fades over the still (150 ms); a held one stays until the screen goes. The rig plays the fallback beat (and
+  then `then`) when the clip is missing, animations are off, or he is dressed up (the clips wear nothing). Open: all the
+  clips come from generated video (Veo, Gemini, Flow): add a Licences line before a public build.
+- 2.12 check (emulator-5558, screenrecord contact sheets, not committed): the debug route's jump (once, held on its
+  stand; its head matches the rig's standing pose at 1), wave and celebrate (once; its last frame, paws at the chest, the
+  same a minute later) in light and dark; the Goodbye yawn then the sleep loop in light and night mode (the lying head
+  about the yawning one's); the kid home's greeting wave over the pond (Mila undressed with `--es wear none`, then dressed
+  again: partyhat and sunglasses). Dark outlines everywhere, no cream fringe, nothing cropped. `--es clip bow` logs
+  "missing, the rig's HAPPY". Not on the Fold itself.
+- Size added (2.10; 2.12 clips: 2,203,700 bytes, 128,538 fewer): clips 2,332,238 bytes, layers 490,040 bytes: 2,822,278 bytes (2.7 MB) of assets and drawables (both stored
   uncompressed). The debug APK, packaged clean: 133,322,417 (main's last build, 2.9.0) to 133,823,811 bytes, +501,394;
   but main's was a keyed build with PostHog compiled in (2.3 MB more dex, okhttp) and this worktree is keyless: outside
   the dex the APK grew 2,786,607 bytes, about what a keyed 2.10 build adds over 2.9.0.
@@ -1404,14 +1419,16 @@ at the big moments.
   Smaller than 40 dp he is a picture.
 - Debug: `--es screen pup` (ui/pup/PupDebug.kt): every beat, held mood, clip, size and pose on buttons, plus blink and flick.
   For recordings: `--es pose <name> --es mood happy|tilt|wag|cheer|point|listen|sleep --ei every <ms> --ei size <dp>
-  --ei bpm n --es clip jump|dance|wave|sleep|celebrate --es act blink|flick --ef slow n` (n times slower, to catch a 90 ms
-  squint at the emulator's frame rate; celebrate plays once and holds, its chip again replays it). Logs: `pup #n: HAPPY`,
+  --ei bpm n --es clip jump|dance|wave|sleep|celebrate|bow --es act blink|flick --ef slow n` (n times slower, to catch a
+  90 ms squint at the emulator's frame rate; the one-shots, jump, celebrate and bow, play once and hold, their chip again
+  replays them; bow is the rig's jump until its file ships). Logs: `pup #n: HAPPY`,
   `pup: <pose> holds <mood>`, `pup #n: clip wave x1`, `pup clip <name>: playing x1[, holding its last frame]`.
 - What's new 2.10.0: three lines (the pup comes alive; kids see him wag, point and bob; he cheers after each lesson and
   kids see him wave, dance and curl up at bedtime).
 - Tests: PupMotionTest (the table, the layered parts), PupWiringTest (no pup drawable outside ui/pup, the rig's rules,
-  every mood and clip on its screen, the layers whole and small, the five clips: 318 x 400, alpha, loop 0, 12 fps, under
-  600 KB each and 2.4 MB together, nothing else in assets/pup, the scales, the held celebrate; the debug route),
+  every mood and clip on its screen, the layers whole and small, the clips: 318 x 400, alpha, loop 0, 12 fps, under
+  600 KB each and 2.4 MB together, nothing in assets/pup but SPECS' names, every name in PupClips shipped or marked optional
+  (2.12, only the bow), the scales, the one-shots, the jump never looped, the concerts' PupBow; the debug route),
   PupBrainTest (the busy hold), WelcomeTest (2.10.0, three lines).
 - Emulator (5558, swiftshader GPU), screenrecord contact sheets (not committed): the kid home's greeting wave (Mila
   undressed for it with `--es wear none`, then dressed again: partyhat and sunglasses; dressed, the map logs the wave and

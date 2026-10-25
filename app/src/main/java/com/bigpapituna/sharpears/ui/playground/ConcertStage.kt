@@ -76,8 +76,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.engine.pup.PupMood
-import com.bigpapituna.sharpears.ui.pup.PupClips
-import com.bigpapituna.sharpears.ui.pup.PupClip
+import com.bigpapituna.sharpears.ui.pup.PupBow
 import com.bigpapituna.sharpears.ui.pup.Pup
 
 private val Curtain = Color(0xFF8E2F2A)
@@ -169,8 +168,8 @@ internal fun ConcertStage(step: Step, lessonId: String, deps: LessonDeps, inject
             Box(Modifier.fillMaxSize().background(Color(0xCC110F0D)), contentAlignment = Alignment.Center) {
                 Fireworks(Modifier.fillMaxSize())
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // The bow (2.10): the pup's dance clip when the app has it, else his jump, then a cheer.
-                    PupClip(PupClips.DANCE, size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
+                    // The bow (2.12): the bow clip once when the app has it, else the dance clip (2.10), else his jump, then a cheer.
+                    PupBow(size = (roomH * 0.4f).coerceIn(110.dp, 220.dp), fallback = Pose.DANCING, then = PupMood.CHEER)
                     Text("Bravo!", color = Ink, fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp)
                     if (plan.place != Place.GARDEN) Audience(plan.place, Modifier.padding(top = 10.dp), size = 44.dp, cheer = true, max = 7)
                 }

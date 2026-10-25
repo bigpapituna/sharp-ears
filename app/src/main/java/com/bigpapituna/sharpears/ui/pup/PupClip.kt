@@ -42,14 +42,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The pup's mini clips (2.10): short animations (animated WebP, 318 x 400, 12 fps, with alpha, ground line row 380) in
- * assets/pup/<name>.webp, played by the platform's AnimatedImageDrawable (API 28, the app's minSdk). All five are Google Veo
- * videos of the pup cut to loops (C:\dev\tools\pup-veo, judged the best of three sources): [DANCE] loops on the kid
- * finale and the concerts' bow, [SLEEP] on the goodnight screen ([PupClip]); [JUMP] is the HAPPY of a pup with `clips` on
- * (three stars, a sticker revealed or placed, the surprise opened); [WAVE] his hello on the kid home and his call while a
- * surprise waits; [CELEBRATE] plays once after a lesson and on "Done for today", holding its last frame (its loop's wrap
- * jumps from a laughing sit to a calm one). A clip that is not there falls back to the rig; with animations off it is
- * always the rig, holding still. A clip never takes a touch and never holds up the screen around it.
+ * The pup's mini clips (2.10, new moves 2.12): short animations (animated WebP, 318 x 400, 12 fps, with alpha, ground line
+ * row 380) in assets/pup/<name>.webp, played by the platform's AnimatedImageDrawable (API 28, the app's minSdk). Generated
+ * videos of the pup cut to clips (C:\dev\tools\pup-veo and its gemini folder): [DANCE] (Veo) loops on the kid finale and,
+ * until a bow clip ships, the concerts' bow; [SLEEP] (Gemini) on the goodnight screen ([PupClip]); [JUMP] (Gemini) is the
+ * HAPPY of a pup with `clips` on (three stars, a sticker revealed or placed, the surprise opened), played once; [WAVE]
+ * (Gemini) his hello on the kid home and his call while a surprise waits; [CELEBRATE] (Flow) plays once after a lesson and
+ * on "Done for today", holding its last frame (it starts with a paw up and ends with paws at the chest); [BOW], optional,
+ * plays once at a concert's bravo when assets/pup/bow.webp is there ([PupBow]). A clip that is not there falls back to
+ * the rig; with animations off it is always the rig, holding still. A clip never takes a touch and never holds up the
+ * screen around it.
  */
 object PupClips {
     const val JUMP = "jump"
@@ -57,26 +59,47 @@ object PupClips {
     const val WAVE = "wave"
     const val SLEEP = "sleep"
     const val CELEBRATE = "celebrate"
+    const val BOW = "bow"
     const val DIR = "pup"
-    /** Every clip the app ships (PupWiringTest: these and nothing else in assets/pup). */
-    val ALL = listOf(JUMP, DANCE, WAVE, SLEEP, CELEBRATE)
 
     /**
-     * All five share one canvas and one ground line. [STAND_H] canvas px map to the pup's box, so the clips' heads (a 116 px
+     * One clip's row: how much its view scales him so his head matches the others' (a 116 px headband at 1), whether it
+     * plays once and stops (never looped: its ends differ), and whether the app may ship without it.
+     */
+    class Spec(val scale: Float = 1f, val oneShot: Boolean = false, val optional: Boolean = false)
+
+    /**
+     * Every clip by name (PupWiringTest: each one in assets/pup unless optional, and nothing else there). The jump, the
+     * wave and the celebrate have full-size heads (116 to 118 px); the sleep is a lying pup, width-limited to a 99.6 px
+     * headband, so its view scales 1.15 (114.5 px, as the dance's).
+     */
+    val SPECS: Map<String, Spec> = linkedMapOf(
+        JUMP to Spec(oneShot = true),
+        DANCE to Spec(),
+        WAVE to Spec(),
+        SLEEP to Spec(scale = 1.15f),
+        CELEBRATE to Spec(oneShot = true),
+        BOW to Spec(oneShot = true, optional = true),
+    )
+    val ALL: List<String> = SPECS.keys.toList()
+    val SLEEP_SCALE = scale(SLEEP)
+
+    /**
+     * All share one canvas and one ground line. [STAND_H] canvas px map to the pup's box, so the clips' heads (a 116 px
      * headband) come out 0.38 of the box, as the stills' do; feet on row [FEET].
      */
     const val CANVAS_W = 318f
     const val CANVAS_H = 400f
     const val FEET = 380f
     const val STAND_H = 306f
-    /** The jump (drawn small so the leap stays on the canvas) and the sleep (a lying pup, width-limited) are about 15% smaller. */
-    const val JUMP_SCALE = 1.15f
-    const val SLEEP_SCALE = 1.15f
-    /** A clip that never reports its end is let go after this long a time through (the longest, the wave, is 3.7 s). */
+    /** A clip that never reports its end is let go after this long a time through (the longest, the celebrate, is 3.6 s). */
     const val MAX_LOOP_MS = 4_500L
 
     /** How much [name]'s view scales him up so his head matches the others'. */
-    fun scale(name: String): Float = when (name) { JUMP -> JUMP_SCALE; SLEEP -> SLEEP_SCALE; else -> 1f }
+    fun scale(name: String): Float = SPECS[name]?.scale ?: 1f
+
+    /** Whether [name] plays once and stays on its last frame wherever it shows (never looped). */
+    fun oneShot(name: String): Boolean = SPECS[name]?.oneShot == true
 
     /** Whether assets/pup/<[name]>.webp is in the app. */
     fun has(context: Context, name: String): Boolean = runCatching { context.assets.list(DIR)?.contains("$name.webp") == true }.getOrDefault(false)
@@ -150,14 +173,14 @@ internal suspend fun playClip(context: Context, name: String, loops: Int, now: M
 }
 
 /**
- * A clip of the pup, looping ([once]: played once, staying on its last frame), [size] square, feet on the bottom edge (and
+ * A clip of the pup, looping ([once], by default for a one-shot clip: played once, staying on its last frame), [size] square, feet on the bottom edge (and
  * [scale] for a clip drawn smaller); or the rig when the clip is missing: [fallback]'s pose, a HAPPY jump first when [jump],
  * then holding [then] (see [PupClips]). [ground] false: no glow or shadow (a screen with its own light).
  */
 @Composable
 fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fallback: Pose = Pose.GREAT_JOB,
             then: PupMood = fallback.mood, bpm: Int? = null, jump: Boolean = true, ground: Boolean = true,
-            scale: Float = PupClips.scale(name), once: Boolean = false) {
+            scale: Float = PupClips.scale(name), once: Boolean = PupClips.oneShot(name)) {
     val context = LocalContext.current
     val still = reducedMotion()
     val state by produceState<ClipState>(ClipState.Loading, name, still) {
@@ -183,4 +206,16 @@ fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fall
                 bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
         }
     }
+}
+
+/**
+ * The concert's bow (2.12): the bow clip once, staying on its last frame, when the app has assets/pup/bow.webp; until then
+ * the dance clip, looping, as in 2.10. Without either (or with animations off) the rig: [fallback]'s pose, a HAPPY jump, then
+ * holding [then].
+ */
+@Composable
+fun PupBow(size: Dp, modifier: Modifier = Modifier, fallback: Pose = Pose.DANCING, then: PupMood = PupMood.CHEER) {
+    val context = LocalContext.current
+    val bow = remember { PupClips.has(context, PupClips.BOW) }
+    PupClip(if (bow) PupClips.BOW else PupClips.DANCE, modifier, size, fallback, then)
 }

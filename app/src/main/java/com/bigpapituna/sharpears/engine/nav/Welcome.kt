@@ -48,6 +48,9 @@ object Welcome {
         "2.11.0" to listOf(
             "Every step you pass pops with a check and a quick chime that climbs higher with each step in a row.",
         ),
+        "2.12.0" to listOf(
+            "The pup has new moves: a bigger jump, a proper wave, and a celebration after every lesson.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

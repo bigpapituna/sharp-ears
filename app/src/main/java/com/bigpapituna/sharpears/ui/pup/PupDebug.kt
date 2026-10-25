@@ -43,8 +43,8 @@ import kotlinx.coroutines.delay
  * Debug only (2.10): `--es screen pup` puts the rig on its own for QA, every mood on a button. Options, for screen
  * recordings: `--es pose <name>` (default welcome), `--es mood <name>` (held, or a beat played on launch), `--ei every <ms>`
  * (play that beat again every so often), `--ei size <dp>` (default 220), `--ei bpm <n>`,
- * `--es clip jump|dance|wave|sleep|celebrate` (the clip slot instead of the rig; celebrate plays once and holds, as after a
- * lesson; tap its chip again to replay), `--es theme light|dark`, `--ef slow n` (everything n times slower, for a
+ * `--es clip jump|dance|wave|sleep|celebrate|bow` (the clip slot instead of the rig; the one-shots, jump, celebrate and bow,
+ * play once and hold, as in the app; tap a chip again to replay; bow is the rig's jump until assets/pup/bow.webp ships), `--es theme light|dark`, `--ef slow n` (everything n times slower, for a
  * recording), `--es act blink|flick` (one every `every` ms, 2 s by default).
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -88,7 +88,7 @@ fun PupDebug(intent: Intent, onClose: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Box(Modifier.fillMaxWidth().height((size * 1.45f).dp), contentAlignment = Alignment.BottomCenter) {
                 val c = clip
-                if (c != null) androidx.compose.runtime.key(c, replays) { PupClip(c, size = size.dp, fallback = pose, once = c == PupClips.CELEBRATE) }
+                if (c != null) androidx.compose.runtime.key(c, replays) { PupClip(c, size = size.dp, fallback = pose) }
                 else Pup(pose, held ?: pose.mood, size = size.dp, controller = pup, onTap = {}, idle = false)
             }
             Text("Beats", style = MaterialTheme.typography.labelLarge)
