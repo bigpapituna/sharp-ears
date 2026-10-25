@@ -20,6 +20,7 @@ class Sampler(context: Context, onReady: () -> Unit = {}) {
 
     private val samples: Map<Int, Int>                         // midi -> SoundPool sound id
     private val streams = HashMap<Int, Int>()                  // midi -> playing stream id
+    private val volumes = HashMap<Int, Float>()                // midi -> the volume it was struck at
     private var loaded = 0
 
     init {
@@ -38,6 +39,14 @@ class Sampler(context: Context, onReady: () -> Unit = {}) {
         val volume = 0.3f + 0.7f * velocity / 127f
         streams.remove(midi)?.let(pool::stop)
         streams[midi] = pool.play(samples.getValue(sample), volume, volume, 1, 0, rate)
+        volumes[midi] = volume
+    }
+
+    /** A sounding note turned down to [share] of the volume it was struck at (the step pop's chime fades before its noteOff). */
+    fun noteVolume(midi: Int, share: Float) {
+        val id = streams[midi] ?: return
+        val v = (volumes[midi] ?: 1f) * share.coerceIn(0f, 1f)
+        pool.setVolume(id, v, v)
     }
 
     // ponytail: hard stop on release (no damper fade); add a short volume ramp if the cut-off clicks

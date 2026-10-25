@@ -201,6 +201,9 @@ object Tester {
         logcat("retention: $name (${TesterRules.profileKind(kid)})")
     }
 
+    /** 2.11, the step pop (engine/tester/StepPopEvent.kt): `step_pop` with the streak's length and nothing else. */
+    fun stepPop(streak: Int) = capture(com.bigpapituna.sharpears.engine.tester.StepPopEvent.of(streak))
+
     /** An error was put on screen at [where] (a short place name of the app's own, never the message). */
     fun error(where: String) {
         write(TesterLog.error(now(), where))

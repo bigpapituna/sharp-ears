@@ -81,6 +81,12 @@ import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.pup.rememberPupController
 import com.bigpapituna.sharpears.ui.pup.mood
 import com.bigpapituna.sharpears.engine.pup.PupMood
+import com.bigpapituna.sharpears.engine.lessons.StepOutcome
+import com.bigpapituna.sharpears.engine.lessons.StepPopRules
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 
 /** Everything a lesson needs from the activity. */
 class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput, val voice: Voice, val prefs: Prefs, val ready: Boolean)
@@ -192,6 +198,18 @@ fun LessonScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val clicks = remember { runCatching { com.bigpapituna.sharpears.audio.Clicks(context) }.getOrNull() }
     DisposableEffect(Unit) { onDispose { clicks?.release() } }
+    // 2.11, the step pop: a clean step with another to come gets one of four pictures over the step, the pup's beat and a
+    // chime that climbs a scale step with each clean step in a row (engine/lessons/StepPopRules.kt). A new lesson, a new streak.
+    val still = reducedMotion()
+    val pops = rememberStepPops(deps.sampler, deps.mic, sound = { deps.prefs.sound }, key = lesson.id,
+        tonic = remember(lesson.id) { StepPopRules.tonicOf(lesson.steps.mapNotNull { it.exercise }) })
+    // The pup's beat when a step passes: the pop's hop (none with animations off), or the jump as before.
+    var passBeat by remember { mutableStateOf(PupMood.HAPPY) }
+    // Where the step is on screen and how tall the cheer bar is, for the pop (read only while it draws).
+    val stepArea = remember { mutableStateOf<Rect?>(null) }
+    val screenBox = remember { mutableStateOf(Rect.Zero) }
+    val barPx = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     // A reading step plays its scenes; the pup says each caption as it comes (queued behind a feedback line after
     // an automatic advance).
     val reading = step.kind == StepKind.READ && step.scenes.isNotEmpty() && !finished
@@ -213,8 +231,9 @@ fun LessonScreen(
         advancedByItself = false
     }
 
-    fun go(to: Int) { feedback = null; bar = null; finished = false; index = to; fails = 0 }
+    fun go(to: Int) { pops.flush(); feedback = null; bar = null; finished = false; index = to; fails = 0 }
     fun complete() {
+        pops.flush()
         Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = true))
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.LessonStepPassed)
         if (last) {
@@ -238,7 +257,17 @@ fun LessonScreen(
         // Pup's Playground (2.1.1, no dead ends): the third try that does not pass lets the step go on.
         val letGo = !judged && s.kind != StepKind.LISTEN && com.bigpapituna.sharpears.engine.playground.StepRetry.letGo(lesson.id, fails + 1)
         val passed = judged || letGo
-        stepLog.run(report, runTally[0].also { runTally[0] = null }, letGo)
+        val tally = runTally[0]
+        runTally[0] = null
+        stepLog.run(report, tally, letGo)
+        // 2.11: the pop for a clean step with another to come. Not on a let-go (nor a pass made of let-go rounds or notes),
+        // not on the last step (Celebrate has it), not on a listening step; the streak starts again on a let-go.
+        val outcome = StepPopRules.outcome(listen = s.kind == StepKind.LISTEN, judged = judged, letGo = letGo, last = last,
+            mostlyLetGo = StepPopRules.mostlyLetGo(report.letGoRounds, report.rounds) || StepPopRules.mostlyLetGo(tally?.letGos ?: 0, report.groups))
+        val streak = pops.streak.after(outcome)
+        // One of four pictures, rolled per lesson step (never the last one again); the pup's beat goes with it.
+        val pop = if (outcome == StepOutcome.POP) pops.fire(streak, StepPopRules.seedOf(lesson.id, index)) else null
+        passBeat = if (pop == null) PupMood.HAPPY else if (still) PupMood.IDLE else StepPopRules.pupBeat(pop.variant)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake (a kid: the pup's
         // words with their name, no numbers).
         val line = if (s.kind == StepKind.LISTEN) null
@@ -254,21 +283,22 @@ fun LessonScreen(
             else feedbackLine(report, perform = s.kind == StepKind.PERFORM, pass = s.exercise?.pass ?: 80, next = !last, flats = s.exercise?.flats == true)
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed${if (letGo) " (let go after ${fails + 1} tries)" else ""} feedback=\"${line?.text}\"")
         feedback = line?.text
-        line?.let { voice.speak(it.spoken) }
+        // The pup's line waits for the chime when one plays (it never talks over it).
+        line?.let { l -> pops.afterChime { voice.speak(l.spoken) } }
         if (s.kind != StepKind.LISTEN) reaction = if (judged) Pose.GREAT_JOB else if (kid || letGo) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
         if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text); return }
         stepStars += if (letGo) com.bigpapituna.sharpears.engine.kid.LessonStars.LET_GO else com.bigpapituna.sharpears.engine.kid.LessonStars.ofRun(report)
         // Passing a step that took a few tries earns the high-five (not a step let go).
         val highFive = fails >= 2 && !letGo
-        if (highFive) { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE); Log.d(TAG, "pup: high five after $fails tries") }
+        if (highFive) { pops.afterChime { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) }; Log.d(TAG, "pup: high five after $fails tries") }
         fails = 0
         // The last step goes straight to the celebration; any other waits on Continue.
         if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!" else cheerTitle(cheers++),
             if (highFive) "You stuck with it. " + (line?.text ?: "") else line?.text)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onGloballyPositioned { screenBox.value = it.boundsInRoot() }) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -347,12 +377,12 @@ fun LessonScreen(
                 PupSays(shown, step.text,
                     Modifier.padding(horizontal = 4.dp).padding(bottom = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge,
                     controller = pup, mood = when {
-                        reaction == Pose.GREAT_JOB -> PupMood.HAPPY
+                        reaction == Pose.GREAT_JOB -> passBeat
                         reaction == null && step.kind == StepKind.LISTEN -> PupMood.POINT
                         else -> shown.mood
                     })
                 val ex = step.exercise
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { stepArea.value = it.boundsInRoot() }, contentAlignment = Alignment.TopCenter) {
                     // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
                     if (com.bigpapituna.sharpears.ui.playground.hasPlaygroundStage(step)) key(index, run) {
                         androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.playground.LocalStageMemo provides stageMemo) {
@@ -404,7 +434,8 @@ fun LessonScreen(
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
                 else -> ChunkyButton(onClick = {
                     // A graded step skipped counts as one star, so Next through every game is not three stars.
-                    if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it }
+                    // Not a clean step either: the pop's climb starts again (2.11).
+                    if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it; pops.streak.skipped() }
                     (step.exercise == null || bar?.first == Cheer.GOOD).let { ok -> Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = ok, skipped = !ok)) }
                     go(index + 1); run++
                 }) {
@@ -415,8 +446,19 @@ fun LessonScreen(
             }
         }
     }
+    // The step pop over the part of the step the cheer bar leaves in view (2.11), under the bar; it takes no touches.
+    StepPop(pops.cue, Modifier.fillMaxSize(), area = {
+        stepArea.value?.let { a ->
+            val box = screenBox.value
+            val barTop = if (bar != null && barPx.intValue > 0) box.bottom - barPx.intValue + with(density) { CHEER_BAR_PEEK.toPx() } else a.bottom
+            val bottom = maxOf(minOf(a.bottom, barTop), a.top + with(density) { POP_MIN_HEIGHT.toPx() })
+            Rect(a.left, a.top, a.right, bottom).translate(-box.left, -box.top)
+        }
+    })
     bar?.let { (cheer, title, line) ->
-        CheerBar(cheer, title, line, if (cheer == Cheer.GOOD) "Continue" else "Try again", Modifier.align(Alignment.BottomCenter), onButton = {
+        CheerBar(cheer, title, line, if (cheer == Cheer.GOOD) "Continue" else "Try again",
+            Modifier.align(Alignment.BottomCenter).onSizeChanged { barPx.intValue = it.height }, onButton = {
+            Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ${if (cheer == Cheer.GOOD) "continue" else "try again"}")
             bar = null
             if (cheer == Cheer.GOOD) complete() else { feedback = null; run++ }
         })
@@ -509,6 +551,11 @@ internal fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, s
         if (dropped) com.bigpapituna.sharpears.ui.world.RewardExtras(reward, say = say, level = false)
     }
 }
+
+/** The cheer bar's see-through top (where its pup peeks over the edge): the pop shows through it. */
+private val CHEER_BAR_PEEK = 44.dp
+/** The least height the pop is given, however much of the step the cheer bar covers. */
+private val POP_MIN_HEIGHT = 200.dp
 
 /** A kid's version of the bar label: what to do, no tempo or pass mark. */
 private fun kidStateLabel(step: Step): String = when (step.kind) {

@@ -1470,6 +1470,95 @@ Three findings of docs/SECURITY-REVIEW-2026-10-22.md (untracked). The parent gat
 - Roy, after merging, on his PC: `.\scripts\set-debug-key.ps1` (prints "Saved."), then `.\gradlew.bat installDebug` (and the
   APK he hands testers from then on is keyed). His routes go through `.\scripts\adb-route.ps1 -Serial <serial> ...`.
 
+## 2.11 step pop (2026-10-24, branch `step-pop`, versionCode 27, 2.11.0; emulator-5558 Fold_QA_GU only)
+Roy: "a little animation with a fun quick audio after every lesson page completion, to incentivize people to continue,
+similar to Duolingo when you get a right answer during a lesson", then "not one animation but 3 or 4 different step-pop
+variants to keep it fresh".
+- Where: LessonScreen's `exerciseEnded`, the one place every step's try ends (the embedded player's onFinished and every
+  Playground stage's onEnded: letter hunts, ear games, the drum and claps, song parts, picks, the fair). It pops when the step
+  passed on its own terms and another step follows (`StepPopRules.outcome` gives POP), at the moment the GOOD cheer bar comes
+  up (Duolingo's green bar), so nothing waits on it: Continue goes on as before. No pop on a let-go (three tries, StepRetry),
+  nor on a pass made of let-go rounds or notes (half or more: `mostlyLetGo` on Report.letGoRounds/rounds and RunTally.letGos/
+  Report.groups, the line LessonStars gives one star at, so a silent kid gets no pop and no climb), nor on the last step
+  (Celebrate has it), nor on a listening step or a reading page (nothing judged; the streak is left alone).
+- Four pictures (`PopVariant`, engine/lessons/StepPopMotion.kt has every number, ui/StepPop.kt draws them, one Canvas over the
+  part of the step the cheer bar leaves in view, under the bar): BURST (a green disc springs in with a white check drawing on,
+  a gold ring spreads from 0.6 to 1.2 and fades, seven gold and green stars fly out on a spring), CONFETTI (eighteen paper bits
+  in the accent, gold, green and the left hand's blue pop up from the step's bottom edge, rise and fall with gravity, spin a
+  little and flip, round the check), RAINBOW (four bands in those colours draw on as an arc from left to right, three sparkles
+  trailing the tip, the check popping at the arc's end), PAW (a big terracotta paw print stamps down from 1.6 times its size,
+  squashes and bounces on a spring, the check draws inside its pad, a gold ring ripples out). Each gone by 600 ms. Rolled per
+  lesson step (`StepPopRules.variant(streak, previous, seedOf(lessonId, step))`): never the same twice in a row; at a streak of
+  one or two BURST and PAW are three times as likely as the others, from four RAINBOW and CONFETTI, at three all alike.
+- The pup's beat goes with the picture (`pupBeat`): the new `PupMood.POP` (a small HAPPY: squash, a hop of 0.1 of his size,
+  a squash ringing out; 520 ms) with BURST and PAW, the new `PupMood.CHEER_WAG` (two bobs swaying one way then the other, the
+  tail layer swinging; 520 ms) with CONFETTI and RAINBOW. Priority HAPPY 4, POP and CHEER_WAG 3, TILT 2, WAG 1 (the pop cuts
+  the last right key's wag short). The lesson pup's GREAT_JOB mood plays it (`passBeat`); a last step keeps HAPPY.
+- The chime (`StepPopRules.chime`, ui/StepPop.kt `playChime`): three piano samples (audio/Sampler.kt, no new assets), the
+  triad on a step of the lesson's major scale, rising, 60 ms apart, velocity 72, 80, 88, a 60 ms fade (Sampler.noteVolume)
+  and noteOff at 400 ms. In C: C6 E6 G6 for the first clean step, then D F A, E G B, F A C, G B D, A C E (climb =
+  min(streak - 1, 5) scale steps) and no higher. The same for all four pictures: the sound is the steady hook. The lesson's
+  key (`tonicOf`): the lowest key sounding at the end of its last exercise that does not end on a choice of keys; C when none.
+- The streak (`StepStreak`, one per lesson, `rememberStepPops(key = lesson.id)`): one more per clean step (POP, and LAST),
+  back to none on a let-go or a graded step skipped with Next; a try that did not pass changes nothing; "Skip (needs MIDI)"
+  and Back leave it alone.
+- The mic rule (`chimeMode(micListening, headphones, soundOn)`): App sound off, SKIP (the picture only); the mic listening
+  with no headphones (MicInput.headphonesOn), PLAY_DEAF: `mic.deafFor(700)` (the chime and 300 ms of room) before the first
+  note, so the matcher drops it and it can never count as the learner's note (MicInput's deaf window outlives a stop and a
+  start, so a next step's mic opened during it is deaf too); otherwise PLAY. At a step's end the mic usually still listens
+  (the player stops it a frame later), so lessons log PLAY_DEAF; the debug screen logs PLAY. Logcat: `step pop: streak N,
+  chime PLAY|PLAY_DEAF|SKIP, <variant>`.
+- The voice: the step's feedback line and the high five wait for the chime (`StepPops.afterChime`, 400 ms; leaving the step
+  says them first, `flush`), so the chime never talks over the pup's praise. Nothing dropped, no new lines.
+- No sparkles chip: the wardrobe ledger (engine/world/Wardrobe.kt) awards nothing per step, so none is shown.
+- Animations off (reducedMotion): every picture is one 150 ms fade of the check on its disc, drawn from the frame clock (the
+  system scale does not cut it short); no stars, bits, arc or paw; the pup plays no beat (IDLE).
+- Never blocks: the Canvas (its own layer) handles no pointer and is read in its draw block from one frame clock; the cheer
+  bar's Continue still waits its usual 900 ms (SettleTaps) and then goes straight to the next page.
+- Telemetry: `Tester.stepPop(streak)` sends `step_pop` with `streak` only (engine/tester/StepPopEvent.kt;
+  analytics/INTEGRATION.md).
+- Debug: `--es screen steppop` (ui/StepPopDebug.kt, through the debug-route gate; reads no extras): Streak 1, 3 and 6 roll
+  the picture as a lesson does; Burst, Confetti, Rainbow and Paw show that one at the streak last chosen; the pup beside it;
+  no tester event. `--ef fxSlow n` slows the pictures n times for a recording.
+- What's new 2.11.0: one line (every step you pass pops, the chime climbs).
+- Tests: StepPopRulesTest (the outcomes, half let go, the streak, the climb and every chime in key, rising, a consonant triad,
+  on the samples, the mic rule's table, the lesson's key over the whole course, the variant rolls: never twice, deterministic,
+  preferred by streak, all four over the course, the pup's pairing, the tester event), StepPopMotionTest (each picture's
+  curves a millisecond at a time, gone by 600 ms, the calm fade), PupMotionTest (POP and CHEER_WAG), StepPopWiringTest
+  (exerciseEnded fires once, the pairing, the voice waits, the mic is deaf before the first note, no touches, the four
+  pictures, design-system colours only, the debug route), PupWiringTest (passBeat), WelcomeTest (2.11.0, one line). 1677 JVM
+  tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors,
+  29 warnings (as 2.10.1).
+- Decisions: a pop needs a judged step (READ pages and LISTEN steps have nothing to judge, so Roy's "every page" is read as
+  every page the learner passes, Duolingo's right answer); a try that did not pass leaves the streak alone (no punishment
+  for trying; the high five already rewards it); a graded step skipped with Next resets it, "Skip (needs MIDI)" does not;
+  the chime's chords stay in the key (I, ii, iii, IV, V, vi), so three of the six are minor; the voice line waits rather
+  than being dropped (a kid's carries their name); the pop fires as the cheer bar comes up, not on Continue, so it can
+  never hold up the next page; the lesson's key comes from its last exercise (the model has no key field).
+- Emulator (5558 Fold_QA_GU, swiftshader): kid walk (Mila p1, playground-2 "Two black, three black" from step 2, by touch
+  on the dog houses and fences): step 2 popped (streak 1, PLAY_DEAF, rainbow; the mic deaf 700 ms; "You did it, Mila!"
+  started after the chime), step 3 popped (streak 2, PLAY_DEAF, paw; the line 428 ms after the pop), step 4, the last, went
+  to Celebrate with no pop. Grown-up walk (Roy, fingers-right from step 2): the listening step went on with no pop (66 ms to
+  the next page), the play step popped by touch (streak 1, PLAY with the mic off, confetti; the line 540 ms after), the
+  memory step, the last, went to Celebrate with no pop. The pop logs in the same frame as the step's end and the bar comes
+  up with it; Continue to the next page's first log line took 66 to 75 ms (four taps), and Continue still waits SettleTaps'
+  900 ms, longer than the pop. The same lesson step replayed rolled the same picture. `dumpsys audio`: the sampler's
+  SoundPool (USAGE_GAME, CONTENT_TYPE_MUSIC) logged `event:started` twice within 80 ms of a pop. Animations off
+  (animator_duration_scale 0, deleted again after): the check alone, fading; no pup beat logged.
+- Recordings: around a step's end the emulator draws 4 to 8 frames a second, so a 600 ms pop shows in 2 to 4 frames at
+  full speed; the contact sheet used `--ef fxSlow 2.5` on the debug route. screenrecord starts about 3.5 s late here, so 8 s
+  of footage took `--time-limit 12` or more. app/build/screens/steppop-contact.png (8 frames from an 8 s clip, two of each
+  picture), steppop-four-8s.mp4, steppop-kid-paw.png, steppop-grownup-confetti.png, steppop-reduced-motion.png (not
+  committed).
+- Jank (gfxinfo reset just before the step's last input, read 5 s later: the stage's or player's end, the pop, the bar; the
+  two APKs back to back, three runs each, the kid's taps sent as the log says each round listens): the kid hunt 2.10.1 83 to
+  88% janky, 50th 81 to 85 ms, 90th 150 ms; 2.11.0 85 to 90%, 50th 85 ms, 90th 150 ms. The grown-up step 2.10.1 78 to 82%,
+  50th 65 to 73 ms, 90th 85 to 101 ms; 2.11.0 78 to 84%, 50th 73 ms, 90th 105 to 109 ms. Software GPU numbers; the 90th
+  of the grown-up step's end rose about 10 ms with the pop (giving the Canvas its own layer did not change it). Measure on
+  the Fold before trusting either.
+- Not proven: by ear on the Fold's speaker (the chime's loudness against the voice, the climb, the minor chimes, the fade at
+  400 ms), the 700 ms deaf window against a real piano and room, frame time on a real GPU, a child's reaction, dark mode.
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

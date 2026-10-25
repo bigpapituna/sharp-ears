@@ -53,10 +53,12 @@ class PupWiringTest {
         val home = src("ui/kid/KidHome.kt")
         assertTrue("giftReady = gift != null" in home && "pup.prepare(PupClips.WAVE)" in home)
         assertTrue("pupNow.playClip(PupClips.WAVE, fallback = PupMood.WAG)" in home && "pupNow.playClip(PupClips.WAVE, fallback = PupMood.HAPPY)" in home)
-        // Lessons: a tilt on a wrong key, a wag on a right one, pointing through a demo, a jump for a step passed.
+        // Lessons: a tilt on a wrong key, a wag on a right one, pointing through a demo, a jump for a step passed (2.11: the
+        // step pop's mini hop when another step follows, none with animations off).
         val lesson = src("ui/LessonScreen.kt")
         assertTrue("onRightKey = { pupNow.play(PupMood.WAG) }" in lesson && "PupReaction.HEAD_TILT" in lesson)
-        assertTrue("PupMood.POINT" in lesson && "reaction == Pose.GREAT_JOB -> PupMood.HAPPY" in lesson)
+        assertTrue("PupMood.POINT" in lesson && "reaction == Pose.GREAT_JOB -> passBeat" in lesson)
+        assertTrue("passBeat = if (pop == null) PupMood.HAPPY else if (still) PupMood.IDLE else StepPopRules.pupBeat(pop.variant)" in lesson)
         // The stages: the same from what they hear (StageFx.hits and misses), pointing at the demo's key.
         val kit = src("ui/playground/PlaygroundKit.kt")
         assertTrue("pup.play(PupMood.WAG)" in kit && "pup.play(PupMood.TILT)" in kit && "Pose.POINTING -> PupMood.POINT" in kit && "-> PupMood.HAPPY" in kit)

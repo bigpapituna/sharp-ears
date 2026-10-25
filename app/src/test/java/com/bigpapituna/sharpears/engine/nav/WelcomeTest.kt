@@ -74,6 +74,14 @@ class WelcomeTest {
         assertEquals(3, lines.size)
     }
 
+    /** 2.11.0, the step pop: one line (three at most), the check, the chime and its climb. */
+    @Test fun whatsNew2110IsTheStepPop() {
+        val lines = Welcome.whatsNew("2.11.0")
+        assertEquals(1, lines.size)
+        assertTrue(lines.size <= Welcome.MAX_LINES)
+        assertTrue(lines.single().let { "pops" in it && "chime" in it && "climbs" in it })
+    }
+
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
         assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
         assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })

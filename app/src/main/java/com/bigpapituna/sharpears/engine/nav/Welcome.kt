@@ -45,6 +45,9 @@ object Welcome {
             "Kids see him wag at every right note, point at the keys in a lesson and bob along in Clap along.",
             "He cheers after each lesson, and kids see him wave hello, dance at the finale and curl up at bedtime.",
         ),
+        "2.11.0" to listOf(
+            "Every step you pass pops with a check and a quick chime that climbs higher with each step in a row.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

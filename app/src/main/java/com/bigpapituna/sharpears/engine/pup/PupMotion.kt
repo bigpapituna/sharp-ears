@@ -11,7 +11,7 @@ import kotlin.math.sqrt
 
 /**
  * What the pup is doing (2.10, the living pup). A screen holds one of the held moods ([IDLE], [CHEER], [POINT], [LISTEN],
- * [SLEEP]) and plays beats ([HAPPY], [TILT], [WAG]) that run once and hand back to it. Never sad: a wrong key gets a puzzled
+ * [SLEEP]) and plays beats ([HAPPY], [POP], [CHEER_WAG], [TILT], [WAG]) that run once and hand back to it. Never sad: a wrong key gets a puzzled
  * tilt, nothing more. [beat] is true for the ones that play once.
  */
 enum class PupMood(val beat: Boolean) {
@@ -19,6 +19,10 @@ enum class PupMood(val beat: Boolean) {
     IDLE(false),
     /** A jump for joy: squash, stretch up, hang, land with two bounces. Three stars, a sticker, a surprise, a step done. */
     HAPPY(true),
+    /** 2.11: a quick little hop, under 0.6 s: a lesson step passed with another to come (the step pop). */
+    POP(true),
+    /** 2.11: two quick bobs swaying side to side with his tail going, about half a second: the step pop's bigger pictures. */
+    CHEER_WAG(true),
     /** Bobbing and swaying on the beat, in time to a bpm: finales, Clap along, a celebration after its jump. */
     CHEER(false),
     /** A puzzled head tilt held a moment: a wrong key. */
@@ -119,6 +123,30 @@ object PupMotion {
     const val SEEN = 0.03f
     const val HAPPY_MS = SQUASH_MS + RISE_MS + HANG_MS + FALL_MS + LAND_LOBE_MS * LAND_LOBES
 
+    // ---- POP: the step pop's mini hop (2.11), a small HAPPY that is over before the burst ---------------------------------
+    const val POP_SQUASH_MS = 60
+    const val POP_SQUASH_X = 1.06f
+    const val POP_SQUASH_Y = 0.94f
+    const val POP_RISE_MS = 140
+    const val POP_STRETCH_X = 0.96f
+    const val POP_STRETCH_Y = 1.06f
+    /** How high the hop gets, as a share of his size (HAPPY's jump is 0.22). */
+    const val POP_JUMP = 0.10f
+    const val POP_FALL_MS = 120
+    /** The landing: a squash at touchdown ringing out over [POP_LAND_MS]. */
+    const val POP_LAND_MS = 200
+    const val POP_LAND_SQUASH = 0.05f
+    const val POP_BEAT_MS = POP_SQUASH_MS + POP_RISE_MS + POP_FALL_MS + POP_LAND_MS
+
+    // ---- CHEER_WAG: two bobs and a sway, the tail going (2.11) ------------------------------------------------------------
+    /** Each bob (a hop off the ground and back) takes this long; two of them, swaying one way then the other. */
+    const val CHEER_WAG_BOB_MS = 260
+    const val CHEER_WAG_BOBS = 2
+    const val CHEER_WAG_LIFT = 0.06f
+    const val CHEER_WAG_DEG = 6f
+    const val CHEER_WAG_SQUASH = 0.04f
+    const val CHEER_WAG_MS = CHEER_WAG_BOB_MS * CHEER_WAG_BOBS
+
     // ---- TILT: the puzzled head tilt ---------------------------------------------------------------------------------------
     const val TILT_DEG = 12f
     const val TILT_IN_MS = 160
@@ -201,7 +229,7 @@ object PupMotion {
 
     /** Every one-off move with its length: each one is over in under 1.5 s. */
     val TIMINGS: List<Timing> = listOf(
-        Timing("happy", HAPPY_MS), Timing("tilt", TILT_MS), Timing("wag", WAG_MS),
+        Timing("happy", HAPPY_MS), Timing("pop", POP_BEAT_MS), Timing("cheer wag", CHEER_WAG_MS), Timing("tilt", TILT_MS), Timing("wag", WAG_MS),
         Timing("blink", BLINK_FADE_MS * 2 + BLINK_SHUT_MS), Timing("squint", SQUINT_MS), Timing("flick", FLICK_MS),
         Timing("swap fade", SWAP_MS), Timing("swap pop", SWAP_POP_MS), Timing("calm", CALM_MS),
         Timing("held", HELD_MS), Timing("point", POINT_MS), Timing("listen", LISTEN_MS),
@@ -211,22 +239,29 @@ object PupMotion {
 
     /** Every scale the table names (the curves stay within them). */
     val SCALES: List<Float> = listOf(1f + BREATH_SCALE, SQUINT_Y, SWAP_POP, ENTER_FROM, SQUASH_X, SQUASH_Y, STRETCH_X, STRETCH_Y,
-        FALL_X, FALL_Y, 1f + LAND_SQUASH, 1f - LAND_SQUASH, 1f + CHEER_SQUASH, 1f - CHEER_SQUASH, 1f + SLEEP_SCALE, 1f - HEARD_DIP)
+        FALL_X, FALL_Y, 1f + LAND_SQUASH, 1f - LAND_SQUASH, 1f + CHEER_SQUASH, 1f - CHEER_SQUASH, 1f + SLEEP_SCALE, 1f - HEARD_DIP,
+        POP_SQUASH_X, POP_SQUASH_Y, POP_STRETCH_X, POP_STRETCH_Y, 1f + POP_LAND_SQUASH * 0.75f, 1f - POP_LAND_SQUASH,
+        1f + CHEER_WAG_SQUASH * 0.6f, 1f - CHEER_WAG_SQUASH)
 
     /** A beat's length (0 for a held mood). */
     fun beatMs(mood: PupMood): Int = when (mood) {
         PupMood.HAPPY -> HAPPY_MS
+        PupMood.POP -> POP_BEAT_MS
+        PupMood.CHEER_WAG -> CHEER_WAG_MS
         PupMood.TILT -> TILT_MS
         PupMood.WAG -> WAG_MS
         else -> 0
     }
 
-    /** Which beat wins when two come close: a jump is not cut short by a wag, a wag gives way to anything. */
-    fun priority(mood: PupMood): Int = when (mood) { PupMood.HAPPY -> 3; PupMood.TILT -> 2; PupMood.WAG -> 1; else -> 0 }
+    /** Which beat wins when two come close: a jump is not cut short by a wag, a wag gives way to anything (the pop's hop
+     *  cuts the last right key's wag short, and gives way to a jump). */
+    fun priority(mood: PupMood): Int = when (mood) { PupMood.HAPPY -> 4; PupMood.POP, PupMood.CHEER_WAG -> 3; PupMood.TILT -> 2; PupMood.WAG -> 1; else -> 0 }
 
     /** A beat at [t] ms; [side] 1 or -1 turns a tilt the other way. Rest outside its time. */
     fun beat(mood: PupMood, t: Float, side: Float = 1f): PupFrame = when (mood) {
         PupMood.HAPPY -> happy(t)
+        PupMood.POP -> pop(t)
+        PupMood.CHEER_WAG -> cheerWag(t)
         PupMood.TILT -> tilt(t, side)
         PupMood.WAG -> wag(t)
         else -> PupFrame.REST
@@ -285,6 +320,51 @@ object PupMotion {
         val s = u / 1000.0
         val ring = (exp(-sigma * s) * cos(omega * s) * cos(omega * s)).toFloat()   // a squash at each touchdown
         return PupFrame(1f + LAND_SQUASH * 0.75f * ring, 1f - LAND_SQUASH * ring, lift = JUMP * landLift(u))
+    }
+
+    /** The step pop's mini hop at [t] ms (0 .. [POP_BEAT_MS]): a squash, a small stretch up, down, a squash ringing out. */
+    fun pop(t: Float): PupFrame {
+        var u = t
+        if (u <= 0f || u >= POP_BEAT_MS) return PupFrame.REST
+        if (u < POP_SQUASH_MS) {
+            val p = easeOut(u / POP_SQUASH_MS)
+            return PupFrame(lerp(1f, POP_SQUASH_X, p), lerp(1f, POP_SQUASH_Y, p))
+        }
+        u -= POP_SQUASH_MS
+        if (u < POP_RISE_MS) {
+            val p = u / POP_RISE_MS
+            val lift = POP_JUMP * (1f - (1f - p) * (1f - p))
+            return if (p < STRETCH_IN) {
+                val q = easeOut(p / STRETCH_IN)
+                PupFrame(lerp(POP_SQUASH_X, POP_STRETCH_X, q), lerp(POP_SQUASH_Y, POP_STRETCH_Y, q), lift = lift)
+            } else {
+                val q = easeInOut((p - STRETCH_IN) / (1f - STRETCH_IN))
+                PupFrame(lerp(POP_STRETCH_X, 1f, q), lerp(POP_STRETCH_Y, 1f, q), lift = lift)
+            }
+        }
+        u -= POP_RISE_MS
+        if (u < POP_FALL_MS) {
+            val k = (u / POP_FALL_MS).let { it * it }
+            return PupFrame(lift = POP_JUMP * (1f - k))
+        }
+        u -= POP_FALL_MS
+        val s = u / POP_LAND_MS
+        val ring = (1f - s) * (1f - s) * cos(PI * 2.5 * s).toFloat()
+        return PupFrame(1f + POP_LAND_SQUASH * 0.75f * ring, 1f - POP_LAND_SQUASH * ring)
+    }
+
+    /**
+     * The cheer wag at [t] ms (0 .. [CHEER_WAG_MS]): a bob off the ground and back per [CHEER_WAG_BOB_MS], swaying one way on
+     * the first and the other on the second, a little squash between, all of it easing in and out so it starts and ends at rest.
+     */
+    fun cheerWag(t: Float): PupFrame {
+        if (t <= 0f || t >= CHEER_WAG_MS) return PupFrame.REST
+        val b = t / CHEER_WAG_BOB_MS                                       // 0 .. 2 bobs
+        val hop = abs(sin(PI * b)).toFloat()
+        val env = sin(PI * t / CHEER_WAG_MS).toFloat()
+        val land = (1f - hop).let { it * it * it * it } * env
+        return PupFrame(1f + CHEER_WAG_SQUASH * 0.6f * land, 1f - CHEER_WAG_SQUASH * land,
+            rotation = CHEER_WAG_DEG * sin(PI * b).toFloat() * (1f - 0.3f * t / CHEER_WAG_MS), lift = CHEER_WAG_LIFT * hop)
     }
 
     /** The head tilt at [t] ms: over, held, back. [side] -1 tilts the other way. */

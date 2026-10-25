@@ -36,7 +36,7 @@ class PupMotionTest {
 
     @Test fun noScaleGoesBeyondOnePointTwoFive() {
         for (s in m.SCALES) assertTrue("$s", s in m.MIN_SCALE..m.MAX_SCALE)
-        val all = frames(m.HAPPY_MS) { m.happy(it) } + frames(m.TILT_MS) { m.tilt(it) } + frames(m.WAG_MS) { m.wag(it) } +
+        val all = frames(m.HAPPY_MS) { m.happy(it) } + frames(m.POP_BEAT_MS) { m.pop(it) } + frames(m.CHEER_WAG_MS) { m.cheerWag(it) } + frames(m.TILT_MS) { m.tilt(it) } + frames(m.WAG_MS) { m.wag(it) } +
             (0..4000).map { m.cheer(it / 1000.0) }
         for (f in all) {
             assertTrue("$f", f.scaleX <= m.MAX_SCALE && f.scaleY <= m.MAX_SCALE)
@@ -143,10 +143,56 @@ class PupMotionTest {
     }
 
     @Test fun beatsHaveAnOrderAndHeldMoodsDoNotPlay() {
-        assertTrue(m.priority(PupMood.HAPPY) > m.priority(PupMood.TILT))
+        assertTrue(m.priority(PupMood.HAPPY) > m.priority(PupMood.POP))
+        assertTrue(m.priority(PupMood.POP) > m.priority(PupMood.TILT))
+        assertEquals(m.priority(PupMood.POP), m.priority(PupMood.CHEER_WAG))
         assertTrue(m.priority(PupMood.TILT) > m.priority(PupMood.WAG))
-        assertEquals(setOf(PupMood.HAPPY, PupMood.TILT, PupMood.WAG), PupMood.entries.filter { it.beat }.toSet())
+        assertEquals(setOf(PupMood.HAPPY, PupMood.POP, PupMood.CHEER_WAG, PupMood.TILT, PupMood.WAG), PupMood.entries.filter { it.beat }.toSet())
         for (mood in PupMood.entries.filter { !it.beat }) assertEquals(PupFrame.REST, m.beat(mood, 100f))
         assertFalse(m.beat(PupMood.HAPPY, 300f) == PupFrame.REST)
+        assertFalse(m.beat(PupMood.POP, 150f) == PupFrame.REST)
+        assertFalse(m.beat(PupMood.CHEER_WAG, 130f) == PupFrame.REST)
+    }
+
+    /** 2.11, the step pop's cheer wag (CONFETTI and RAINBOW): two bobs swaying one way then the other, about half a second, from rest to rest. */
+    @Test fun theCheerWagIsTwoBobsAndASwayFromRestToRest() {
+        assertTrue(m.CHEER_WAG_MS in 1 until 700)
+        assertEquals(m.CHEER_WAG_MS, m.beatMs(PupMood.CHEER_WAG))
+        val f = frames(m.CHEER_WAG_MS) { m.cheerWag(it) }
+        assertEquals(PupFrame.REST, f.first())
+        assertEquals(PupFrame.REST, f.last())
+        assertTrue(f.all { it.lift >= 0f && it.lift <= m.CHEER_WAG_LIFT + 1e-6f })
+        // Up on each bob, down between them.
+        assertEquals(m.CHEER_WAG_LIFT, m.cheerWag(m.CHEER_WAG_BOB_MS / 2f).lift, 1e-4f)
+        assertEquals(0f, m.cheerWag(m.CHEER_WAG_BOB_MS.toFloat()).lift, 1e-4f)
+        // One way on the first bob, the other on the second, never past the cheer's sway by much.
+        assertTrue(m.cheerWag(m.CHEER_WAG_BOB_MS / 2f).rotation > 3f && m.cheerWag(m.CHEER_WAG_BOB_MS * 1.5f).rotation < -3f)
+        assertTrue(f.all { kotlin.math.abs(it.rotation) <= m.CHEER_WAG_DEG })
+        // Nothing jumps at either end: the first and last tenths stay close to rest.
+        assertTrue((f.take(5) + f.takeLast(5)).all { kotlin.math.abs(it.scaleY - 1f) < 0.01f && kotlin.math.abs(it.rotation) < 0.6f })
+    }
+
+    /**
+     * 2.11, the step pop's mini hop: over in under 700 ms (inside the 600 ms burst's time, near enough), a small HAPPY: a
+     * squash, a stretch up to [PupMotion.POP_JUMP] (half the jump's height or less), back on the ground, a squash ringing out.
+     */
+    @Test fun thePopIsALittleHopUnderSevenHundredMilliseconds() {
+        assertTrue(m.POP_BEAT_MS in 1 until 700)
+        assertEquals(m.POP_BEAT_MS, m.beatMs(PupMood.POP))
+        assertTrue(m.TIMINGS.any { it.name == "pop" && it.ms == m.POP_BEAT_MS })
+        val f = frames(m.POP_BEAT_MS) { m.pop(it) }
+        assertEquals(PupFrame.REST, f.first())
+        assertEquals(PupFrame.REST, f.last())
+        assertEquals(m.POP_JUMP, f.maxOf { it.lift }, 1e-3f)
+        assertTrue(m.POP_JUMP <= m.JUMP / 2f)
+        assertTrue(f.all { it.lift >= 0f && it.rotation == 0f })
+        // Squashed before it leaves the ground, stretched on the way up, squashed again as it lands.
+        assertTrue(m.pop(m.POP_SQUASH_MS - 1f).let { it.scaleY < 0.95f && it.lift == 0f })
+        assertEquals(m.POP_STRETCH_Y, f.maxOf { it.scaleY }, 0.005f)
+        val land = m.POP_SQUASH_MS + m.POP_RISE_MS + m.POP_FALL_MS
+        assertEquals(1f - m.POP_LAND_SQUASH, f[land].scaleY, 0.002f)
+        assertTrue(f.drop(land).all { it.lift == 0f })
+        // It rings out to nothing: the last tenth is within a hair of rest, so it hands back without a jolt.
+        assertTrue(f.takeLast(m.POP_BEAT_MS / 10).all { kotlin.math.abs(it.scaleY - 1f) < 0.003f })
     }
 }

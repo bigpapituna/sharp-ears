@@ -402,7 +402,7 @@ fun Pup(
                             leftEar = if (flickPart.intValue == 0) -PupMotion.EAR_FLICK_DEG * fs else 0f,
                             rightEar = if (flickPart.intValue == 1) PupMotion.EAR_FLICK_DEG * fs else 0f,
                             tail = (if (flickPart.intValue == 2) PupMotion.TAIL_FLICK_DEG * fs else 0f) +
-                                (if (beatMood.value == PupMood.WAG && wagTail.value) PupMotion.tailWag(beatT.value) else 0f),
+                                (if ((beatMood.value == PupMood.WAG || beatMood.value == PupMood.CHEER_WAG) && wagTail.value) PupMotion.tailWag(beatT.value) else 0f),
                             eyes = if (it.rig.hasEyes) PupMotion.eyesBlink(blinkT.value) else 1f,
                         )
                     }

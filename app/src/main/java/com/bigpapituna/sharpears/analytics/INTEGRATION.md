@@ -72,6 +72,10 @@ own words and numbers; a sanitizer drops any value shaped like an email address.
 comeback_shown, the share of returns that play; rest_day_used per active profile per week; surprise_opened over surprise_wrapped
 (a kid who came back the next day or later), and the days-back numbers the weekly brief now carries.
 
+2.11, the step pop (`Tester.stepPop`, engine/tester/StepPopEvent.kt): `step_pop` each time a lesson step pops (passed
+cleanly with another step to come), with `streak` (the run of clean steps in that lesson, 1 and up) only. To judge it: the
+spread of streak lengths, and lesson_finished over lesson_started before and after 2.11.
+
 ## Not done / for the integrator
 
 - Nothing ran against PostHog or Brevo (no keys on this PC). Roy's check is in CLAUDE.md.
