@@ -47,10 +47,11 @@ import kotlin.math.sin
 
 /**
  * A pop on screen: [seq] counts up so two pops in a row both play; [streak] is the run of clean steps it crowns, [variant]
- * the picture rolled for it and [chime] what its chime did.
+ * the picture rolled for it and [chime] what its chime did. [line] (2.13): the cheer pop's step passed line, shown in a
+ * bubble over the check (ui/pup/CheerPop.kt StepPopLine), never said; null with Encouragement off.
  */
 @Immutable
-data class StepPopCue(val seq: Int, val streak: Int, val variant: PopVariant, val chime: ChimeMode)
+data class StepPopCue(val seq: Int, val streak: Int, val variant: PopVariant, val chime: ChimeMode, val line: String? = null)
 
 /**
  * The step pop (2.11) for one lesson: its [streak] of clean steps (engine/lessons/StepStreak), the pop to show ([cue],
@@ -69,6 +70,9 @@ class StepPops internal constructor(
     private var voiceJob: Job? = null
     private val waiting = ArrayList<() -> Unit>()
 
+    /** The chime is ringing now (2.13: a cheer pop's sparkle never sounds on top of it). */
+    val chiming: Boolean get() = chimeJob?.isActive == true
+
     /**
      * The pop for a clean step at [streak]: the picture rolled from [seed] (StepPopRules.variant: never the last one again,
      * the small ones early and the big ones from a streak of four; [force] picks one, for the debug screen), the chime by
@@ -76,10 +80,10 @@ class StepPops internal constructor(
      * first, so it is never heard as the learner's note), the log line and the tester event. Never waits on anything: the
      * page goes on as it would without it.
      */
-    fun fire(streak: Int, seed: Long, force: PopVariant? = null): StepPopCue {
+    fun fire(streak: Int, seed: Long, force: PopVariant? = null, line: String? = null): StepPopCue {
         val mode = StepPopRules.chimeMode(micListening = mic.listening, headphones = mic.headphonesOn(), soundOn = sound())
         val variant = force ?: StepPopRules.variant(streak, cue?.variant, seed)
-        val next = StepPopCue((cue?.seq ?: 0) + 1, streak, variant, mode)
+        val next = StepPopCue((cue?.seq ?: 0) + 1, streak, variant, mode, line)
         cue = next
         Log.d(TAG, "step pop: streak $streak, chime $mode, ${variant.name.lowercase()}")
         if (telemetry) Tester.stepPop(streak)

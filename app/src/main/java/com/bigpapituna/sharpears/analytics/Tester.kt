@@ -204,6 +204,10 @@ object Tester {
     /** 2.11, the step pop (engine/tester/StepPopEvent.kt): `step_pop` with the streak's length and nothing else. */
     fun stepPop(streak: Int) = capture(com.bigpapituna.sharpears.engine.tester.StepPopEvent.of(streak))
 
+    /** 2.13, the cheer pop (engine/tester/CheerPopEvent.kt): `cheer_pop` with the trigger's family and the audience, nothing else. */
+    fun cheerPop(trigger: com.bigpapituna.sharpears.engine.lessons.CheerTrigger, kid: Boolean) =
+        capture(com.bigpapituna.sharpears.engine.tester.CheerPopEvent.of(trigger, kid))
+
     /** An error was put on screen at [where] (a short place name of the app's own, never the message). */
     fun error(where: String) {
         write(TesterLog.error(now(), where))

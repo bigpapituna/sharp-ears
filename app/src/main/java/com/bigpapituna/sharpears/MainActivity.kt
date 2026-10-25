@@ -777,6 +777,8 @@ class MainActivity : ComponentActivity() {
             route == "pup" -> return setContent { com.bigpapituna.sharpears.ui.pup.PupDebug(intent) { finish() } }
             // 2.11: the step pop on buttons, at a streak of 1, 3 and 6 (ui/StepPopDebug.kt).
             route == "steppop" -> return setContent { com.bigpapituna.sharpears.ui.StepPopDebug(sampler, mic, prefs) { finish() } }
+            // 2.13: the cheer pops on buttons, every trigger, kid and grown-up, each way in (ui/pup/CheerPopDebug.kt).
+            route == "cheerpop" -> return setContent { com.bigpapituna.sharpears.ui.pup.CheerPopDebug(sampler, mic, voice, prefs) { finish() } }
             route == "brief" -> return setContent { com.bigpapituna.sharpears.ui.brief.BriefDemo(intent) { finish() } }
             route == "email" -> return setContent { com.bigpapituna.sharpears.ui.brief.email.EmailDemo(intent, profile) { finish() } }
             route == "skin" -> return setContent { com.bigpapituna.sharpears.ui.skin.SkinDemo(intent, sampler, midi, mic, voice, prefs) { samplerReady.value } }

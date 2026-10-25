@@ -229,8 +229,12 @@ fun PlayerScreen(
     /** 2.10: every right key (a note or a group done), for the lesson pup's wag. */
     onRightKey: (Int) -> Unit = {},
 ) {
+    // 2.13, cheer pops: a lesson's own (LocalCheers, drawn over its header); a song played on its own gets one per song, drawn
+    // in a top corner of its notes.
+    val cheers = com.bigpapituna.sharpears.ui.pup.LocalCheers.current ?: if (embedded == null) com.bigpapituna.sharpears.ui.pup.rememberCheerPops(
+        sampler, mic, voice, prefs, com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid, key = original.id) else null
     PlayerStage(PlayerArgs(original, meta, sampler, midi, mic, voice, prefs, ready, startMs, debugDump, start, onBack, onFinished, embedded,
-        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band, onRightKey))
+        modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band, onRightKey, cheers))
 }
 
 /**
@@ -243,6 +247,7 @@ private class PlayerArgs(
     val onFinished: (Report) -> Unit, val embedded: Embedded?, val modifier: Modifier, val chordTrack: com.bigpapituna.sharpears.engine.ChordTrack?,
     val onTimeUp: () -> Unit, val anyOfLessons: Set<String>, val onWrongKey: (WrongKey) -> Unit, val letGo: Boolean, val onRecapClosed: () -> Unit,
     val band: com.bigpapituna.sharpears.engine.chords.BandBed?, val onRightKey: (Int) -> Unit,
+    val cheers: com.bigpapituna.sharpears.ui.pup.CheerPops?,
 )
 
 /** The player itself: [PlayerScreen]'s body, reading its arguments through `with(args)` exactly as it read the parameters. */
@@ -488,7 +493,7 @@ private fun PlayerStage(args: PlayerArgs) {
             backingOn -> metro.barMs
             else -> 2 * metro.beatMs
         }
-        if (transport.fresh) { recorder.clear(); touchRun = false; transport.tally.clear() }
+        if (transport.fresh) { recorder.clear(); touchRun = false; transport.tally.clear(); cheer.began(cheers, song) }
         transport.tally.open = true
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
@@ -562,6 +567,8 @@ private fun PlayerStage(args: PlayerArgs) {
             // Listen mode, a count-in, a key between groups: no grade, a soft glow up its column.
             InputResult.IGNORED -> if (prefs.feedbackLight) lights.touch(midi, handColor(handOf(midi)))
         }
+        // 2.13: the cheer pops hear it (a chord once, a Perform note with its timing).
+        cheer.struck(cheers, transport, song, result, grade == HitLights.PERFECT, embedded != null, hintStep == HintStep.PLAY)
         version++
         return result
     }
@@ -931,6 +938,8 @@ private fun PlayerStage(args: PlayerArgs) {
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
                 // The lane's combo counter follows the Perform streak (only misses break it).
                 if (mode == Mode.PERFORM) transport.score?.let { lights.streak(it.streakNow) }
+                // 2.13: the cheer pops' time, the Perform notes let pass, the run's progress.
+                cheer.frame(cheers, transport, song, now / 1_000_000, hintStep == HintStep.PLAY, embedded != null)
             }
         }
         playing = false
@@ -1092,6 +1101,20 @@ private fun PlayerStage(args: PlayerArgs) {
             )
         }
         if (chordsOn && chords != null) ChordLabel(chords, position, song.preferFlats, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
+        // 2.13: a song's cheer pop, in a top corner of the notes no deeper than CheerPlace.LANE_BAND of the lane (so it never
+        // sits over the notes being read or the line), on the side with fewer notes coming through; the chord names keep the
+        // left corner and the video the right. A lesson draws its pops over its header instead.
+        if (embedded == null && cheers != null) {
+            val laneDp = maxWidth.value
+            val sides = buildSet { if (!(chordsOn && chords != null)) add(com.bigpapituna.sharpears.engine.lessons.CheerSide.START)
+                if (!showVideo) add(com.bigpapituna.sharpears.engine.lessons.CheerSide.END) }
+            androidx.compose.runtime.SideEffect {
+                cheer.place = { c -> com.bigpapituna.sharpears.engine.lessons.CheerPlace.laneSides(song.notes, range.first, range.last,
+                    transport.positionMs, transport.speed, c.holdMs, CheerFeed.POP_WIDTH_DP / laneDp, sides, preferStart = c.other).firstOrNull() }
+            }
+            com.bigpapituna.sharpears.ui.pup.CheerPop(cheers.cue, Modifier.align(Alignment.TopStart).fillMaxWidth()
+                .height(com.bigpapituna.sharpears.engine.lessons.CheerPlace.laneHeightDp(maxHeight.value).dp), maxPupDp = 48f)
+        }
         if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
@@ -1367,6 +1390,8 @@ private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android
     var autoStarted by mutableStateOf(false)
     var wasPlayingBeforeScrub by mutableStateOf(false)
     var laneBox by mutableStateOf<Rect?>(null)
+    /** 2.13: what the player tells the cheer pops (ui/CheerFeed.kt). */
+    val cheer = CheerFeed()
     var rootTopPx by mutableFloatStateOf(0f)
 }
 

@@ -1582,6 +1582,81 @@ variants to keep it fresh".
 - Not proven: by ear on the Fold's speaker (the chime's loudness against the voice, the climb, the minor chimes, the fade at
   400 ms), the 700 ms deaf window against a real piano and room, frame time on a real GPU, a child's reaction, dark mode.
 
+## 2.13 cheer pops (2026-10-25, branch `cheer-pop`, versionCode 29, 2.13.0; emulator-5558 Fold_QA_GU only)
+Roy: "there are no real animations within the lesson itself that help keep the user engaged ... I would like some things where
+they sometimes pop up just to say 'Good job,' 'Continue,' or 'Don't stop. You're doing so well,' ... similar to what Duolingo
+does". Now and then, while a step or a song plays, the pup pops in at a corner with a line in a bubble, a small sparkle, and goes.
+- The rules (engine/lessons/CheerRules.kt `CheerCoach`, Android-free, deterministic for a seed): in go right notes (a wait group
+  done, so a chord counts once; a Perform note hit with its timing; a stage's key found), wrong keys and Perform notes let pass
+  (`Transport.troubles.missedAt`), the run's progress and the time; out comes a `Cheer` (trigger, line, entry, `other`, hold).
+  Triggers, the rarest first when two meet: HARD_PASSED (a bar, or a stage's round, that went astray earlier this session
+  played clean: `CheerMemory.SESSION`, per exercise or song id, for the life of the process, so a lesson's retries and the next
+  visit to a song share it), RECOVERY (three right notes straight after a slip, once per slip), RUN (5, 10, 20 and 40 clean notes
+  in a row; 20 and 40 always say the number, 5 and 10 roll between the number and a plain line), STEADY (8 notes in a row in the
+  good window, Perform only), HALFWAY (half of a run of 16 or more notes, between 50 and 65%, once a step), FOCUS (every five
+  minutes of practice, a break over two minutes starts it again; names its minutes up to thirty), NUDGE (ten seconds with nothing
+  played while the step runs and nothing busy, once a step), STEP_PASSED (handed to the step pop, below). A trigger that comes
+  while a pop is not allowed is let go; the focus pop and the nudge wait for a free moment.
+- Rate limits (CheerRulesTest): never in the first 3 s of a step, a try or a fresh run; 15 s between pops for grown-ups, 12 s for
+  kids; at most 4 in any minute; never while the voice speaks (any line: the instruction, a hint, a call-out) or the app plays a
+  demo or a hint (Listen steps, hint step PLAY, a stage's demo); never in a song's last two bars, nor a step's last quarter (two
+  bars at most). Settings > Playing > Encouragement, per profile (Prefs `cheer`): Often (the default for everyone, Roy
+  2026-10-25), Less (the waits doubled, 30 s and 24 s, two a minute), Off (no cheer pops; the step pop stays, without its line).
+  Every layout shows it (`Simple.SettingsPart.ENCOURAGEMENT` is an essential). "Say it aloud" under it (Prefs `cheerAloud`, null
+  until chosen: on for kids, off for grown-ups). The brief logs both ("Encouragement was set to Less.").
+- Lines (engine/lessons/CheerLines.kt): two banks, at least 12 per family per audience, plus the runs' numbered lines and the focus
+  minutes. KID: the pup's voice, two to six words (the nudge seven, for Roy's "Find the next key, I'm right here."), ending with a
+  stop or an exclamation, no digits ("Ten in a row!", KidCopyTest's rule). GROWN-UP: warm and plain, never an exclamation mark, no
+  woofs ("Nice and steady.", "10 in a row.", "Take your time."). Never one of the last six shown; never a word about wrong notes
+  (a recovery celebrates the save); no step passed line is a cheer bar title. CheerLinesTest.
+- The pop (ui/pup/CheerPop.kt `CheerPop`): the pup in a happy pose per family (STREAK, GREAT_JOB, CLAPPING, CROWN, DANCING,
+  LEVEL_UP; the nudge waves, WELCOME) with the line in the gold bubble (its tail toward him, two lines at most, a polite live
+  region), a seven-star sparkle as he lands with his POP or CHEER_WAG beat, held `CheerCoach.holdMs` (1.6 s, 50 ms a character
+  past 18, at most 2.4 s), then out the way he came. Three entries, never the same twice in a row: SLIDE (a spring in from the
+  side edge, or down from the top edge every other pop where the place has one corner), POP_UP (springs up from below its spot),
+  PEEK (leans in round the edge, tilted, and rights himself). Animations off: the pop fades in and out where it sits, no slide,
+  no sparkle, no beat. No pointer handling anywhere; it moves in graphics layers only.
+- Where: a lesson (LessonScreen, every step, grown-up and kid, player steps and Playground stages) over the end of its header,
+  the title row and the step dots (measured; `Modifier.inRect`), above the pup's instruction, never over it, the player, the keys
+  or the notes; the pup 36 to 56 dp to fit the header's height (`CheerPlace.pupDp`), the bubble at most 260 dp. A song played on
+  its own (the full player): a top corner of the falling notes, no deeper than 36% of the lane (`CheerPlace.LANE_BAND`: only notes
+  still more than 1.6 s from the line, each in view again before it is read; never the hit line), the corner with fewer notes
+  passing under it while it shows (`CheerPlace.laneSides`), alternating when even; the chord names keep the left corner, the
+  video the right.
+- The step pop (2.11) gets the step passed line: `StepPops.fire(..., line = cheerPops.stepPassed())`, `StepPopCue.line`,
+  drawn by `StepPopLine` as a bubble over the check (its tail down at it) for the line's hold. Shown, never said (the step's own
+  line is spoken after the chime); none with Encouragement off.
+- Sound (CheerRules.soundMode, voiceMode, the 2.11 chime's PLAY / PLAY_DEAF / SKIP): a kid's pop is said by the pup (recorded
+  lines, Voice), a grown-up's only with "Say it aloud" (and Spoken guidance) on. The mic listening through the speaker during the
+  learner's turn: the bubble alone, no word, no sparkle (making the mic deaf then would swallow their note); between notes (a
+  stage between its rounds, a rest of 2 s or more in the music): `speakOverMic` and the sparkle with `mic.deafFor(600)`; the mic
+  off or headphones on: as it is. The sparkle: two piano samples, the key's fifth and octave high (in C: G6 then C7), velocity 55
+  (the chime's 72 to 88), let go at 300 ms; never while the step pop's chime rings (`StepPops.chiming`). A stage's key found pops
+  before the stage's own line, so the line keeps the voice.
+- Wiring: LessonScreen makes one `CheerPops` per lesson (`rememberCheerPops(..., key = lesson.id)`) and provides it
+  (`LocalCheers`) to its embedded player and its stages; `stepBegan` on each step and try; `clear()` when a try ends, a page
+  moves or the lesson finishes. PlayerScreen takes the lesson's, or makes its own for a song played on its own; its feed lives in
+  PlayerVars (`ui/CheerFeed.kt`, so the body gains no locals): `struck` in keyStruck, `began` on a fresh run, `frame` ten times a
+  second. The Playground stages (`rememberStage`): found, missed, and a 250 ms tick (a stage's 7 s re-demo comes before any nudge
+  there). Log: `cheer: <trigger> <kid|grown-up> "<line>" voice=PLAY|PLAY_DEAF|SKIP` (`skipped, no room` when no corner fits).
+- Telemetry: `Tester.cheerPop(trigger, kid)` sends `cheer_pop` with `trigger` and `profile_kind` only
+  (engine/tester/CheerPopEvent.kt; analytics/INTEGRATION.md).
+- Debug: `--es screen cheerpop` (ui/pup/CheerPopDebug.kt, through the debug-route gate; reads no extras): a stand-in lesson
+  header, instruction and step; one button per trigger (step passed shows the step pop's bubble), Kid or Grown-up, Lesson or Song
+  (the lane's two corners alternate), "Learner's turn" (the mic rule), Roll or one entry (Slide, Pop up, Peek). The waits do not
+  apply there; no tester event. `--ef fxSlow n` slows the pop n times for a recording.
+- Voice: VOICE_COUNT_LINE
+- What's new 2.13.0: one line (the pup pops up with a few kind words when you're on a roll; change how often in Settings).
+- Tests: CheerRulesTest (every trigger, the waits, Less, the minute's cap, busy and tail, Off, the step passed line, the last six,
+  the seed, the entries and sides, the holds, the sound and voice tables, the sparkle, the places, the setting's defaults, the
+  tester event), CheerLinesTest (the counts, the copy rules, the two voices, Roy's examples, the catalog), CheerPopWiringTest (the
+  lesson, the player and the stages feed it, where it is drawn, no touches, the mic rule, the log line, the setting in every
+  layout, the debug route), StepPopWiringTest (the line handed to the pop), LayoutTest (Encouragement an essential), WelcomeTest
+  (2.13.0, one line), KidCopyTest and SpokenCatalogTest (the new lines). TEST_RESULTS_LINE
+- Decisions: DECISIONS_LINE
+- Emulator: EMULATOR_LINE
+- For Roy, on the Fold: ROY_LINE
+
 ## Design system (taste-skill redesign, 2026-10-07)
 Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leonxlnx/taste-skill). They target the web; their portable rules apply here. Read them before UI work.
 - Type: Geist (res/font/geist.ttf) for everything, Geist Mono via `Numeric` for times, scores, counts. Both OFL (licenses/).

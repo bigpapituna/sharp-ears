@@ -200,6 +200,25 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it; com.bigpapituna.sharpears.data.Briefs.setting("naturalVoice", it) }
             if (voice != null && prefs.voice && !prefs.naturalVoice) VoicePicker(voice, v)
 
+            // 2.13: the cheer pops (ui/pup/CheerPop.kt), per profile; every layout shows them. Often for everyone by default.
+            if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {
+                Sub("Encouragement")
+                Text(ENCOURAGEMENT_LINE, style = MaterialTheme.typography.bodyMedium, color = dim)
+                SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
+                    val opts = com.bigpapituna.sharpears.engine.lessons.CheerFrequency.entries
+                    opts.forEachIndexed { i, f ->
+                        SegmentedButton(prefs.cheerFrequency == f && v >= 0, { prefs.cheerFrequency = f; com.bigpapituna.sharpears.data.Briefs.setting("cheer", f.wire)
+                            android.util.Log.d(com.bigpapituna.sharpears.TAG, "cheer: frequency ${f.wire}") },
+                            SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(f.title) }
+                    }
+                }
+                if (prefs.cheerFrequency != com.bigpapituna.sharpears.engine.lessons.CheerFrequency.OFF && v >= 0)
+                    Toggle("Say it aloud", "The pup says the words too, never while the microphone waits for your note.",
+                        com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.isKid, prefs.cheerAloud)) {
+                        prefs.cheerAloud = it; com.bigpapituna.sharpears.data.Briefs.setting("cheerAloud", it)
+                    }
+            }
+
             if (showReminder) Sub("Reminder")
             if (showReminder) Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
                 prefs.reminderOn && v >= 0) { on ->
@@ -370,3 +389,7 @@ private fun Toggle(title: String, detail: String, checked: Boolean, onChange: (B
         Switch(checked, onCheckedChange = null)
     }
 }
+
+/** Settings > Playing > Encouragement (2.13): what the cheer pops are and what the three choices do. */
+internal const val ENCOURAGEMENT_LINE = "Now and then the pup pops up while you play with a few kind words. Less waits longer between them. " +
+    "Off keeps only the check when you pass a step."

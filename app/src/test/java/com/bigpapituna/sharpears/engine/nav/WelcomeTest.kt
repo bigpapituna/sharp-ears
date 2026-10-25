@@ -90,6 +90,14 @@ class WelcomeTest {
         assertEquals("The pup has new moves: a bigger jump, a proper wave, and a celebration after every lesson.", lines.single())
     }
 
+    /** 2.13.0, the cheer pops: one line (three at most), the pup's kind words while you play and where to change how often. */
+    @Test fun whatsNew2130IsTheCheerPops() {
+        val lines = Welcome.whatsNew("2.13.0")
+        assertEquals(1, lines.size)
+        assertTrue(lines.size <= Welcome.MAX_LINES)
+        assertTrue(lines.single().let { "pops up" in it && "kind words" in it && "Settings" in it })
+    }
+
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
         assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
         assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })

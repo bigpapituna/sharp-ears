@@ -405,6 +405,9 @@ internal fun rememberStage(
     val questStore = remember(player.id) { if (player.isKid) com.bigpapituna.sharpears.data.PlayStore(context.applicationContext, player.id) else null }
     val clips = remember { StageClipWatch() }
     val clipMark = remember { longArrayOf(0) }
+    // 2.13: the lesson's cheer pops hear every key found and missed; a stage's rounds are its bars (a round that went astray
+    // on an earlier try and comes out clean now is the hard part passed).
+    val cheers = com.bigpapituna.sharpears.ui.pup.LocalCheers.current
     val holder = remember { arrayOfNulls<StageState>(1) }
     fun now() = SystemClock.uptimeMillis()
     fun sayOver(text: String) { holder[0]?.say(text); voice.speakOverMic(text) }
@@ -484,7 +487,10 @@ internal fun rememberStage(
                 if (a.key in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS)
                     questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(a.key), kid = true)
                 onFound(a.key)              // before the round moves on: the stage still knows which round it was
+                val round = run.done
                 run.found(a.key, now(), early)
+                // Before the stage's own line: a pop over the learner's turn is the bubble alone (the mic listens), then the line.
+                cheers?.right(round, null, com.bigpapituna.sharpears.ui.pup.CheerSituation(busy = run.demoing))
                 clips.reset(now()); clipMark[0] = mic.clipMark()
                 // The pop for a round found (a phrase's notes in between go by quietly: the next may come at once).
                 if (!phrases || run.rounds.doneInRound == 0) { mic.deafFor(250); WorldSounds.stagePop() }
@@ -494,6 +500,7 @@ internal fun rememberStage(
             is Answer.Miss -> {
                 // Yellow or red against what the round wanted (its demo keys): a neighbour of them is a slip, the other side far.
                 a.key?.let { k -> fx.wrong(k, demoNow(run).filter { it != k }.minByOrNull { abs(it - k) }) }
+                cheers?.wrong(run.done)
                 clips.sound(now(), "${s.by.name.lowercase()} ${a.key?.let(::noteName) ?: "?"}: ${a.why.name.lowercase()}")
                 onMiss(a)
                 val first = run.rounds.coach.tries == 0
@@ -514,6 +521,15 @@ internal fun rememberStage(
     st.listening = rememberStageEar(mic, voice, run.started && !run.ended, inject, heardKeys, groups?.invoke(heardKeys), chords) { s ->
         heard(s)
         answer(s)
+    }
+    // 2.13: the cheer pops' time while the stage runs (the focus pop; a demo or a line holds them). Between rounds is between
+    // notes: a pop said then goes over the mic, deaf.
+    if (cheers != null) LaunchedEffect(run) {
+        while (!run.ended) {
+            delay(250)
+            cheers.tick(running = run.started, com.bigpapituna.sharpears.ui.pup.CheerSituation(busy = run.demoing,
+                betweenNotes = run.phase != RoundCoach.Phase.LISTEN))
+        }
     }
     // A stuck moment (sounds, no key) is kept for tuning, once per stretch.
     LaunchedEffect(run) {

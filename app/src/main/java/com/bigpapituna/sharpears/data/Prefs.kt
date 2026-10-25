@@ -69,6 +69,15 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getBoolean("voice", true)
         set(v) = edit { putBoolean("voice", v) }
 
+    /** 2.13, Settings > Playing > Encouragement: how often the pup pops up mid-lesson with a few kind words (Often). */
+    var cheerFrequency: com.bigpapituna.sharpears.engine.lessons.CheerFrequency
+        get() = com.bigpapituna.sharpears.engine.lessons.CheerFrequency.parse(p.getString("cheer", null))
+        set(v) = edit { putString("cheer", v.wire) }
+    /** The pup says the pops aloud too: null until chosen, which is on for a kid and off for a grown-up (CheerRules.aloud). */
+    var cheerAloud: Boolean?
+        get() = if (p.contains("cheerAloud")) p.getBoolean("cheerAloud", false) else null
+        set(v) = edit { if (v == null) remove("cheerAloud") else putBoolean("cheerAloud", v) }
+
     /** Note names inside the falling notes. */
     var noteNames: Boolean
         get() = p.getBoolean("noteNames", true)

@@ -72,6 +72,8 @@ object SpokenCatalog {
         // Audit 2026-10-20: the chord and ear games' fixed lines, and Practice today's song part.
         gameLines().forEach(::add)
         library.forEach { add(SessionPart.Song(it, it, 0.0, 0.0).next) }
+        // 2.13: the cheer pops a grown-up hears with "Say it aloud" on (the step passed lines are shown, never said).
+        com.bigpapituna.sharpears.engine.lessons.CheerLines.spoken(kid = false).forEach(::add)
         // 2.1: the kid skin's words, the Playground's call-outs, the play corner, and Practice today said the kid way.
         kidLines().forEach(::add)
         return lines.toList()
@@ -95,6 +97,7 @@ object SpokenCatalog {
         addAll(com.bigpapituna.sharpears.engine.kid.KidLines.fixed())         // 2.2: the kid home and the finale
         addAll(com.bigpapituna.sharpears.engine.arcade.ArcadeLines.spoken())   // 2.7: the kid arcade's games
         addAll(RetentionLines.fixed())                                        // 2.9: the comeback card and Tomorrow's surprise
+        addAll(com.bigpapituna.sharpears.engine.lessons.CheerLines.spoken(kid = true))   // 2.13: the cheer pops, in the pup's voice
         // 2.2.1: the treat jar the kid home taps, and the noisy-room offer in a kid's words.
         addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
         add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)

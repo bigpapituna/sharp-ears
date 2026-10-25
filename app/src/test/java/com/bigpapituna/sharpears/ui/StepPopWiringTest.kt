@@ -24,7 +24,8 @@ class StepPopWiringTest {
         assertTrue("StepPopRules.outcome(listen = s.kind == StepKind.LISTEN, judged = judged, letGo = letGo, last = last," in ended)
         assertTrue("StepPopRules.mostlyLetGo(report.letGoRounds, report.rounds) || StepPopRules.mostlyLetGo(tally?.letGos ?: 0, report.groups)" in ended)
         // The picture is rolled per lesson step, and the pup's beat goes with it (none with animations off).
-        assertTrue("val pop = if (outcome == StepOutcome.POP) pops.fire(streak, StepPopRules.seedOf(lesson.id, index)) else null" in ended)
+        // 2.13: a step passed hands the cheer pops' line to the pop (its bubble), null with Encouragement off.
+        assertTrue("val pop = if (outcome == StepOutcome.POP) pops.fire(streak, StepPopRules.seedOf(lesson.id, index), line = cheerPops.stepPassed()) else null" in ended)
         assertTrue("StepPopRules.pupBeat(pop.variant)" in ended && "else if (still) PupMood.IDLE" in ended)
         assertEquals("one pop in the lesson", 1, Regex("""pops\.fire\(""").findAll(lesson).count())
         // The pup's line and the high five wait for the chime; a page left early says them first.

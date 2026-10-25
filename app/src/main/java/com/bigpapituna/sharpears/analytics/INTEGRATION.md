@@ -76,6 +76,11 @@ comeback_shown, the share of returns that play; rest_day_used per active profile
 cleanly with another step to come), with `streak` (the run of clean steps in that lesson, 1 and up) only. To judge it: the
 spread of streak lengths, and lesson_finished over lesson_started before and after 2.11.
 
+2.13, the cheer pops (`Tester.cheerPop`, engine/tester/CheerPopEvent.kt): `cheer_pop` each time one shows (and with each step
+pop's bubble), with `trigger` (run, recovery, halfway, hard_passed, steady, focus, nudge, step_passed) and `profile_kind` (kid or
+adult) only: no line, no name, no lesson. To judge it: pops per minute played by family and audience, and lesson_finished over
+lesson_started with Encouragement on against off (the brief logs the setting as `cheer`).
+
 ## Not done / for the integrator
 
 - Nothing ran against PostHog or Brevo (no keys on this PC). Roy's check is in CLAUDE.md.

@@ -179,6 +179,10 @@ private fun settingLine(key: String, value: String): String {
         "noteNames" -> toggle("Note names", were = true)
         "fingerNumbers" -> toggle("Finger numbers", were = true)
         "feedbackLight" -> toggle("The feedback light")
+        // 2.13: Settings > Playing > Encouragement (the cheer pops) and its "Say it aloud".
+        "cheer" -> com.bigpapituna.sharpears.engine.lessons.CheerFrequency.entries.firstOrNull { it.wire == value }
+            ?.let { "Encouragement was set to ${it.title}." } ?: "Encouragement was changed."
+        "cheerAloud" -> toggle("Spoken encouragement")
         "goalMin" -> value.toLongOrNull()?.takeIf { it in 1..600 }?.let { "The daily goal was set to ${count(it, "minute")}." } ?: "The daily goal was changed."
         "micOffsetDb", "sensitivityDb" -> "The microphone sensitivity was changed."
         "hintSeconds" -> "The hint speed was changed."
