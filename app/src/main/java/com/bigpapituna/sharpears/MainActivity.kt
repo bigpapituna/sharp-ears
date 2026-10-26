@@ -1225,7 +1225,7 @@ class MainActivity : ComponentActivity() {
                                 midiScript = s.midiScript, startScene = s.scene,
                                 onStep = {
                                     // 2.14: the comeback opens a lesson left part way at its step (engine/Comeback.kt resume).
-                                    if (!prefs.lessonDone(l.id) || it > 0) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it)
+                                    if (!prefs.lessonDone(l.id)) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it)
                                     if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0)
                                 },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
@@ -1286,7 +1286,7 @@ class MainActivity : ComponentActivity() {
                                     fun backToPlan() { voice.stop(); if (prefs.lessonDone(l.id)) advanceDaily(s, true) else screen = s.copy(between = true, held = true) }
                                     BackHandler { backToPlan() }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
-                                        onStep = { if (!prefs.lessonDone(l.id) || it > 0) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it) },
+                                        onStep = { if (!prefs.lessonDone(l.id)) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it) },
                                         onSong = null,
                                         onDone = { stars -> lessonDone(l, stars) },
                                         onNext = null,

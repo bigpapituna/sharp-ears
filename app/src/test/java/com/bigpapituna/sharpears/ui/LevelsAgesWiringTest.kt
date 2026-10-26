@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.ui
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -77,6 +78,7 @@ class LevelsAgesWiringTest {
         // The skip sheet before Next passes a graded step; a skip makes the finish neutral; "Try for 3 stars" to the first graded step.
         assertTrue("LessonStars.SKIP_TITLE" in lesson && "LessonStars.SKIP_LINE" in lesson && "skippedGraded++" in lesson)
         assertTrue("LessonStars.finish(skippedGraded)" in lesson && "LessonStars.NEUTRAL_TITLE" in lesson)
+        assertTrue("if (skippedGraded == 0) voice.speak(" in lesson)            // a skip says no unrecorded line
         assertTrue("LessonStars.tryForThree(lessonStars, lesson.steps)" in lesson && "onRetry(com.bigpapituna.sharpears.engine.kid.LessonStars.firstGraded(lesson.steps))" in lesson)
         assertTrue("stars = finishStars" in lesson)
         assertTrue("LessonStars.ofRun(report, tally?.letGos ?: 0)" in lesson)
@@ -91,7 +93,9 @@ class LevelsAgesWiringTest {
 
     @Test fun theComebackOpensAStepAndSpeaksToItsAudience() {
         assertTrue("Comeback.resume(com.bigpapituna.sharpears.engine.Comeback.parseLeft(prefs.openStep)" in activity)
-        assertTrue("prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it)" in activity)
+        // Only a lesson not finished keeps its step: a replay of a finished one never overwrites the step left elsewhere.
+        assertEquals(2, activity.split("if (!prefs.lessonDone(l.id)) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it)").size - 1)
+        assertFalse("|| it > 0) prefs.openStep" in activity)
         assertTrue("Comeback.BIG_KID_TITLE" in activity && "Comeback.streakLine(" in activity && "Ages.streakLine(current.audience)" in activity)
         // Never a list: the old fallback to the Songs tab is gone.
         val back = activity.substringAfter("welcomeBack = if (!comebackOpen").substringBefore("knownChords = if")

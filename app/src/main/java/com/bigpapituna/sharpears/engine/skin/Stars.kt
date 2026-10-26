@@ -37,9 +37,6 @@ object Stars {
         recap.accuracy >= CLEAN_FROM || (recap.accuracy >= ALL_FROM && abs(recap.biasMs) < TIGHT_MS)
         else wrongKeys <= 0
 
-    /** What the 3-star rule says, for a finish screen's "Try for 3 stars". */
-    const val THREE_LINE = "Three stars: a clean run, or 98 percent or more, with nothing let go."
-
     fun perform(r: Recap, letGos: Int = 0): Int = when {
         three(r, 0, letGos) -> 3
         r.accuracy >= IN_TIME_FROM -> 2

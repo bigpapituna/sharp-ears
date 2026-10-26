@@ -42,7 +42,6 @@ class StarsTest {
         for (acc in listOf(recap(49, 0, 1, bias = 200), recap(9, 0, 1, bias = 10), recap(97, 0, 3, bias = 10)))
             assertEquals(Stars.three(acc, 0), Stars.perform(acc) == 3)
         for (w in 0..5) assertEquals(Stars.three(null, w), Stars.waitRun(w) == 3)
-        assertEquals(false, Stars.THREE_LINE.contains("%"))
     }
 
     @Test fun ninetyPercentIsTheThirdStar() {

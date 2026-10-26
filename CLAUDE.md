@@ -1775,10 +1775,11 @@ nursery songs, stars were easy to skip and hard to chase, and the comeback opene
 - Stars: the 3-star rule is `Stars.three` (a clean run, or 98 percent or more, nothing let go; 90 with the timing within 80 ms
   still counts); wait-mode notes let go reach it through `LessonStars.ofRun(report, letGos)`. Next over a graded step not passed
   asks "Skip this one? It stays at one star." (Skip it / Keep playing); a lesson with a graded step skipped finishes neutral ("On
-  to the next.", the standing pup's wag, no clip, confetti or fanfare: ui/Celebrate.kt `FinishStars`, one trailing parameter
+  to the next." on screen and nothing said, the standing pup's wag, no clip, confetti or fanfare: ui/Celebrate.kt `FinishStars`, one trailing parameter
   marked "2.14 levels-ages"). "Try for 3 stars" on a lesson's finish under three stars and the kid map's Replay chip on stones
   under three stars open the lesson at its first graded step (`LessonStars.firstGraded`; a new key resets the lesson).
-- The comeback (engine/Comeback.kt resume): the lesson left part way at its step (Prefs.openStep, kept as the steps go by), the
+- The comeback (engine/Comeback.kt resume): the lesson left part way at its step (Prefs.openStep, kept as the steps of a lesson
+  not finished go by; a replay of a finished one never overwrites it), the
   chart or song played last, else the next lesson; never a list. A little kid's card is the pup's as before and opens the lesson
   left, or a stone they know at its first graded step; a big kid's reads "Welcome back." and "Pick up where you left off: <it>.";
   a grown-up's as 2.9. After a week or more away one line names the streak: "Your 12-day streak ended on the 9th. A new one

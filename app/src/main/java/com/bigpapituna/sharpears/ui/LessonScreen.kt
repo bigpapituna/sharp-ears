@@ -273,11 +273,8 @@ fun LessonScreen(
             }
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
-            voice.speak(when {
-                skippedGraded > 0 -> com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE      // 2.14: a skip is never "You did it!"
-                kid -> RunWords.kidLessonLine(who.name)
-                else -> "Lesson complete."
-            })
+            // 2.14: a skip is never "You did it!": the neutral finish says nothing (its words are on screen; no new recorded line).
+            if (skippedGraded == 0) voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
         } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
