@@ -59,7 +59,7 @@ class ProgressionTest {
         assertEquals("Steady Hands", Progression.title(10))
         assertEquals("Chord Builder", Progression.title(15))
         assertEquals("Sight Reader", Progression.title(20))
-        assertEquals("Sight Reader", Progression.title(21))             // between ranks: the one below
+        assertEquals("Virtuoso", Progression.title(41))                 // between ranks: the one below (2.14: every level to 40 is named)
         assertEquals("Performer", Progression.title(30))
         assertEquals("Virtuoso", Progression.title(40))
         assertEquals("Virtuoso", Progression.title(49))

@@ -253,6 +253,15 @@ class Prefs(context: Context, val profileId: String) {
         return true
     }
 
+    /** 2.14: the best two-minute staff drill at [level] (3 to 8): most right, then fewest wrong ("sightDrill:<level>"). */
+    fun sightDrillBest(level: Int) = com.bigpapituna.sharpears.engine.DrillScore.decode(p.getString("sightDrill:$level", null))
+    /** Returns true when [s] beats the saved best. */
+    fun saveSightDrillBest(level: Int, s: com.bigpapituna.sharpears.engine.DrillScore): Boolean {
+        if (!s.beats(sightDrillBest(level))) return false
+        edit { putString("sightDrill:$level", s.encode()) }
+        return true
+    }
+
     /** "Practice today" finished on [day]: the summary row, or null. */
     fun dailySummary(day: java.time.LocalDate): String? = p.getString("daily:$day", null)
     fun saveDailySummary(day: java.time.LocalDate, summary: String) = edit {
@@ -261,7 +270,7 @@ class Prefs(context: Context, val profileId: String) {
     }
 
     fun resetProgress() {
-        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it == "lastPlayed" || it.startsWith("practice:") || it.startsWith("sight:") ||
+        val keys = p.all.keys.filter { it.startsWith("pos:") || it.startsWith("done:") || it.startsWith("best:") || it.startsWith("trouble:") || it.startsWith("auto:") || it.startsWith("hands:") || it.startsWith("handsTip:") || it == "lastSong" || it == "lastPlayed" || it.startsWith("practice:") || it.startsWith("sight:") || it.startsWith("sightDrill:") ||
             it.startsWith("daily:") }      // today's "Done for today: ... 11 min." went on showing the minutes just cleared
         edit { keys.forEach(::remove) }
     }

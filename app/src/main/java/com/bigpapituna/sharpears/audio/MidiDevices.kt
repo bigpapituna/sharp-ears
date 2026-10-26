@@ -12,6 +12,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.engine.MidiOffset
 import com.bigpapituna.sharpears.engine.MidiParser
 import com.bigpapituna.sharpears.engine.NoteEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,6 +37,26 @@ class MidiDevices(context: Context) {
 
     /** Name of the connected keyboard, or null. Compose reads this. */
     val connected = mutableStateOf<String?>(null)
+
+    /** The phone's input setup ("mic", never per profile, carried by a backup): where the MIDI timing offset lives. */
+    private val setup = context.getSharedPreferences("mic", Context.MODE_PRIVATE)
+    /** Bumps when [offsetMs] changes, so Settings shows the new value. */
+    val offsetVersion = mutableStateOf(0)
+
+    /**
+     * 2.14: the MIDI timing offset (engine/MidiOffset.kt), −100..+100 ms, 0 until set: how late this phone hears its keyboard.
+     * Perform's scoring alone moves each MIDI note back by it.
+     */
+    var offsetMs: Int
+        get() = MidiOffset.clamp(setup.getInt(OFFSET_KEY, MidiOffset.DEFAULT))
+        set(v) {
+            val ms = MidiOffset.clamp(v)
+            setup.edit().putInt(OFFSET_KEY, ms).apply()
+            offsetVersion.value++
+            Log.d(TAG, "midi: timing offset $ms ms")
+        }
+
+    companion object { const val OFFSET_KEY = "midiOffsetMs" }
 
     private var device: MidiDevice? = null
     private var port: MidiOutputPort? = null
@@ -67,14 +88,17 @@ class MidiDevices(context: Context) {
      * Debug: plays a script of MIDI input from now: "800:p1 4790:p0 4900:p1 1000:60/40" (ms: pedal down/up, or
      * key/velocity, released 250 ms later), through the same flows as a real keyboard.
      */
-    fun debugPlay(script: String) {
-        Log.d(TAG, "midi: debug script $script")
+    fun debugPlay(script: String, fromUptimeMs: Long? = null) {
+        Log.d(TAG, "midi: debug script $script" + (fromUptimeMs?.let { " from ${it - android.os.SystemClock.uptimeMillis()} ms" } ?: ""))
+        // 2.14: [fromUptimeMs] times the script from a moment already known (the player's first frame, on the same monotonic
+        // clock as the frames), so a busy main thread does not shift the whole script against the song.
+        val base = fromUptimeMs ?: android.os.SystemClock.uptimeMillis()
         script.split(' ', ',').filter { it.isNotBlank() }.forEach { item ->
             val (t, what) = item.split(':').let { it[0].toLong() to it[1] }
-            if (what.startsWith("p")) main.postDelayed({ _pedal.tryEmit(what == "p1"); Log.d(TAG, "midi: pedal ${if (what == "p1") "down" else "up"} (debug)") }, t)
+            if (what.startsWith("p")) main.postAtTime({ _pedal.tryEmit(what == "p1"); Log.d(TAG, "midi: pedal ${if (what == "p1") "down" else "up"} (debug)") }, base + t)
             else what.split('/').let { (k, v) ->
-                main.postDelayed({ _events.tryEmit(NoteEvent.On(k.toInt(), v.toInt())) }, t)
-                main.postDelayed({ _events.tryEmit(NoteEvent.Off(k.toInt())) }, t + 250)
+                main.postAtTime({ _events.tryEmit(NoteEvent.On(k.toInt(), v.toInt())) }, base + t)
+                main.postAtTime({ _events.tryEmit(NoteEvent.Off(k.toInt())) }, base + t + 250)
             }
         }
     }

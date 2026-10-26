@@ -65,12 +65,53 @@ class HitLights(
     private val pulseNanos get() = (PULSE_MS * slow * 1_000_000).toLong()
     private val shatterNanos get() = (SHATTER_MS * slow * 1_000_000).toLong()
 
-    /** A right note on [midi]: the flash in [color] (its hand), sparks, the combo up one, and [grade] if given. */
-    fun hit(midi: Int, color: Color, grade: String? = null, now: Long = System.nanoTime()) {
+    /**
+     * A right note on [midi]: the flash in [color] (its hand), sparks, the combo up one, and [grade] if given. [tickMs] (2.14,
+     * Perform): the hit's offset from its note in song ms, marked under the hit line ([tick]).
+     */
+    fun hit(midi: Int, color: Color, grade: String? = null, now: Long = System.nanoTime(), tickMs: Double? = null) {
         add(Light(midi, now, Kind.HIT, color))
         if (!still) spark(midi, color, now)
         if (grade != null && !still) word(midi, grade, now)
+        tickMs?.let { tick(midi, it, now) }
         setCombo(combo + 1, now)
+    }
+
+    // ---- Timing ticks (2.14): Perform's early or late mark at the hit line ---------------------------------------
+
+    private val tMidi = IntArray(TICKS)
+    private val tStart = LongArray(TICKS)
+    private val tPos = FloatArray(TICKS)               // -1 (as early as the good window) .. 1 (as late)
+    private var tNext = 0
+    private val tickNanos get() = (TICK_MS * slow * 1_000_000).toLong()
+
+    /**
+     * A Perform hit [offsetMs] from its note (song ms): a small mark in the hit line's band at the key's column, left of the
+     * column's centre when early, right when late, a white one on the beat. Never a word, never over the keys or a note to read.
+     */
+    fun tick(midi: Int, offsetMs: Double, now: Long = System.nanoTime()) {
+        val j = tNext; tNext = (tNext + 1) % TICKS
+        tMidi[j] = midi; tStart[j] = now; tPos[j] = com.bigpapituna.sharpears.engine.PerformTiming.tick(offsetMs)
+        added.intValue++
+    }
+
+    private fun DrawScope.drawTicks(keys: KeyboardLayout, hitY: Float, low: Int, high: Int, now: Long) {
+        val life = tickNanos.toFloat()
+        val dp = density
+        for (j in 0 until TICKS) {
+            if (tStart[j] == 0L || tMidi[j] !in low..high) continue
+            val t = ((now - tStart[j]) / life).coerceIn(0f, 1f)
+            val a = if (t < 0.7f) 1f else (1f - t) / 0.3f
+            val k = keys.rect(tMidi[j])
+            val cx = (k.left + k.right) / 2f
+            val y = hitY - 9f * dp
+            // A faint centre notch for the beat, and the mark up to half a white key either side of it.
+            drawLine(Ink.copy(alpha = 0.35f * a), Offset(cx, y - 4f * dp), Offset(cx, y + 4f * dp), strokeWidth = 1f * dp)
+            val p = tPos[j]
+            val colour = when { p < -TICK_ON -> PupGold; p > TICK_ON -> LeftHandColor; else -> Ink }
+            val x = cx + p * keys.whiteWidth * 0.5f
+            drawRoundRect(colour.copy(alpha = 0.9f * a), Offset(x - 1.5f * dp, y - 5f * dp), Size(3f * dp, 10f * dp), CornerRadius(1.5f * dp))
+        }
     }
 
     /**
@@ -159,6 +200,7 @@ class HitLights(
         var alive = items.isNotEmpty()
         for (j in 0 until SPARKS) if (pStart[j] != 0L) { if (now - pStart[j] > sparkNanos) pStart[j] = 0L else alive = true }
         for (j in 0 until WORDS) if (wStart[j] != 0L) { if (now - wStart[j] > wordNanos) wStart[j] = 0L else alive = true }
+        for (j in 0 until TICKS) if (tStart[j] != 0L) { if (now - tStart[j] > tickNanos) tStart[j] = 0L else alive = true }
         if (comboAt != 0L && now - comboAt < pulseNanos) alive = true
         if (shatterAt != 0L) { if (now - shatterAt > shatterNanos) shatterAt = 0L else alive = true }
         return alive
@@ -233,6 +275,7 @@ class HitLights(
             }
         }
         drawSparks(keys, hitY, low, high, now)
+        drawTicks(keys, hitY, low, high, now)
         drawWords(keys, hitY, low, high, now)
         drawCombo(now)
     }
@@ -333,6 +376,10 @@ class HitLights(
         const val GOOD = "Good"
         private const val SPARKS = 64
         private const val WORDS = 6
+        /** 2.14: timing ticks alive at once, how long each shows, and the share of the good window that still reads on the beat. */
+        private const val TICKS = 8
+        const val TICK_MS = 650f
+        private const val TICK_ON = 0.33f
         private const val SHARDS = 9
         private val SHARD_ANGLE = FloatArray(SHARDS) { (it * 2 * PI / SHARDS + 0.3 * sin(it * 1.7)).toFloat() }
         private val SHARD_SPEED = FloatArray(SHARDS) { ((it * 37) % 10) / 10f }

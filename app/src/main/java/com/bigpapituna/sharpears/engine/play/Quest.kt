@@ -148,8 +148,12 @@ class Quest(val day: LocalDate, val kid: Boolean, tasks: List<QuestTask>) {
                     is SessionPart.Lesson -> QuestTask(QuestKind.LESSON, "Finish the lesson ${part.title}", 1, part.lessonId)
                     is SessionPart.Loop -> QuestTask(QuestKind.TROUBLE_BAR, "Smooth out bar ${part.bar} of ${part.title}", 1, part.songId)
                     is SessionPart.Song -> QuestTask(QuestKind.SONG, "Play ${part.title} to the end", 1, part.songId)
+                    // 2.14: a challenge song counts as the song task; a drill has no quest of its own (the top-ups fill in).
+                    is SessionPart.Challenge -> (part.item as? com.bigpapituna.sharpears.engine.nav.Challenge.Perform)?.let {
+                        QuestTask(QuestKind.SONG, "Play ${it.title} to the end", 1, it.songId)
+                    }
                 }
-            }
+            }.filterNotNull()
             val topUps = listOf(
                 QuestTask(QuestKind.PLAY_SONGS, "Play two songs to the end", 2),
                 QuestTask(QuestKind.COPY_PUP, "Copy the pup three times", 3),

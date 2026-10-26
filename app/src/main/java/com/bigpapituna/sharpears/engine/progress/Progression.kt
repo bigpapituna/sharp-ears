@@ -68,14 +68,18 @@ object Progression {
         return if (b > a) LevelUp(a, b) else null
     }
 
-    // The named ranks. A level without its own name takes the rank below it, so the names run on without gaps.
+    // The named ranks. A level without its own name takes the rank below it, so the names run on without gaps. 2.14: every
+    // level to 40 has its own name (21, 23, 25, 27, 29, 31, 32, 34, 35, 37, 38, 39 were added), past the 34 or so a daily
+    // intermediate reaches in a month (ProgressionTest), so each level-up in that month names something new.
     private val TITLES = sortedMapOf(
         1 to "Newcomer", 2 to "Key Finder", 3 to "Note Spotter", 4 to "Beat Keeper", 5 to "Tune Finder",
         6 to "Melody Maker", 7 to "Hand Warmer", 8 to "Scale Climber", 9 to "Rhythm Rider", 10 to "Steady Hands",
         11 to "Pedal Pal", 12 to "Chord Starter", 13 to "Harmony Seeker", 14 to "Key Changer", 15 to "Chord Builder",
         16 to "Ear Opener", 17 to "Phrase Shaper", 18 to "Fluent Fingers", 19 to "Page Turner", 20 to "Sight Reader",
-        22 to "Expressive Player", 24 to "Repertoire Builder", 26 to "Dynamic Player", 28 to "Stage Ready",
-        30 to "Performer", 33 to "Crowd Pleaser", 36 to "Concert Regular", 40 to "Virtuoso",
+        21 to "Tempo Tamer", 22 to "Expressive Player", 23 to "Arpeggio Runner", 24 to "Repertoire Builder", 25 to "Colour Painter",
+        26 to "Dynamic Player", 27 to "Song Weaver", 28 to "Stage Ready", 29 to "Recital Ready", 30 to "Performer",
+        31 to "Duet Partner", 32 to "Solo Voice", 33 to "Crowd Pleaser", 34 to "Encore Earner", 35 to "Spotlight Player",
+        36 to "Concert Regular", 37 to "Headliner", 38 to "Standing Ovation", 39 to "Concert Soloist", 40 to "Virtuoso",
         50 to "Maestro", 60 to "Grand Master", 75 to "Living Legend", 99 to "Golden Keys",
     )
 

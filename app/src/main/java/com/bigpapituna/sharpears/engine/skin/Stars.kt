@@ -34,8 +34,11 @@ object Stars {
         else -> 1
     }
 
-    /** Stars for a recap: a Perform [recap] when there is one, else a wait run with [wrongKeys]. */
-    fun of(recap: Recap?, wrongKeys: Int): Int = recap?.let(::perform) ?: waitRun(wrongKeys)
+    /**
+     * Stars for a song run's recap: a Perform [recap] by the song rule (2.14, engine/PerformScore.kt songStars: no misses and
+     * nine notes in ten in time for three), else a wait run with [wrongKeys]. A lesson step keeps [perform].
+     */
+    fun of(recap: Recap?, wrongKeys: Int): Int = recap?.let { com.bigpapituna.sharpears.engine.songStars(it) } ?: waitRun(wrongKeys)
 
     /** What TalkBack says for the row. */
     fun spoken(stars: Int): String = when (stars.coerceIn(1, MAX)) {

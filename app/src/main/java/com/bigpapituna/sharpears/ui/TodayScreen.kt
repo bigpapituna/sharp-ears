@@ -132,7 +132,8 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 // 2.10: idle only and subtle (a breath, a blink, now and then an ear): no acts, no hops; a tap still wags him.
                 Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
                     bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
-                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null) { greeting(shown.state, goal, fresh, back = welcomeBack != null) }, style = MaterialTheme.typography.bodyLarge,
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null) { greeting(shown.state, goal, fresh, back = welcomeBack != null,
+                    challenge = shown.rows.any { it.kind == TodayRow.Kind.CHALLENGE }) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
             welcomeBack?.invoke()
@@ -243,7 +244,8 @@ private fun TodayCardView(card: TodayCard, goal: GoalState?, a: TodayActions, qu
 @Composable
 private fun PlanRow(r: TodayRow) {
     val c = MaterialTheme.colorScheme
-    val icon = when (r.kind) { TodayRow.Kind.CHORDS -> R.drawable.ic_piano; TodayRow.Kind.LESSON -> R.drawable.ic_school; TodayRow.Kind.SONG -> R.drawable.ic_music_note }
+    val icon = when (r.kind) { TodayRow.Kind.CHORDS -> R.drawable.ic_piano; TodayRow.Kind.LESSON -> R.drawable.ic_school; TodayRow.Kind.SONG -> R.drawable.ic_music_note
+        TodayRow.Kind.CHALLENGE -> R.drawable.ic_flag }
     Row(Modifier.semantics(mergeDescendants = true) { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(36.dp).clip(CircleShape).background(c.surfaceContainerHighest), contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), contentDescription = null, tint = c.primary, modifier = Modifier.size(20.dp))
@@ -334,9 +336,12 @@ private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
  * What the pup says on Today: today done, a first visit, the goal or the streak, or the time of day. 2.9: back after days
  * away ([back]) is a welcome, never a word about the streak; a rest day is said plainly.
  */
-internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false): String = when {
+internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false,
+                      /** 2.14: today's plan holds a next challenge (a player past the first steps): never "an easy song". */
+                      challenge: Boolean = false): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
     back -> "Welcome back. Good to see you."
+    fresh && challenge -> "Hi, I'm your coach. There's a challenge at your level in today's plan."
     fresh -> "Hi, I'm your coach. Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."
     goal != null && goal.atRisk && goal.restYesterday -> "Yesterday was a rest day. Ready when you are."

@@ -494,12 +494,11 @@ private fun PlayerStage(args: PlayerArgs) {
             backingOn -> metro.barMs
             else -> 2 * metro.beatMs
         }
-        if (transport.fresh) { recorder.clear(); touchRun = false; transport.tally.clear(); cheer.began(cheers, song) }
+        if (transport.fresh) { recorder.clear(); touchRun = false; midiRun = false; transport.tally.clear(); cheer.began(cheers, song) }
         transport.tally.open = true
         if (transport.fresh) Log.d(TAG, (if (transport.mode == Mode.PERFORM || backingOn) "count-in" else "lead-in") +
             " ${leadIn.toLong()} ms to the first group at ${transport.anchorMs.toLong()} ms (from ${transport.positionMs.toLong()} ms)")
-        transport.play(leadInMs = leadIn); playing = true
-        if (start.midiScript != null && !scriptStarted) { scriptStarted = true; midi.debugPlay(start.midiScript) }
+        transport.play(leadInMs = leadIn); playing = true; tickNanos = 0L
         Log.d(TAG, "transport play from ${transport.positionMs.toLong()} ms speed=${transport.speed} mode=${transport.mode} hands=${transport.practice}")
     }
     fun setLoop(a: Double?, b: Double?) {
@@ -528,16 +527,19 @@ private fun PlayerStage(args: PlayerArgs) {
         runs.save(r)
     }
     fun keyReleased(midi: Int) { if (transport.playing) recorder.off(midi, transport.positionMs) }
-    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80, riseDb: Double = Juice.DEFAULT_RISE): InputResult {
+    /** [midiOffsetMs] (2.14): the MIDI timing offset, given to Perform's scoring alone (never the recording or Wait mode). */
+    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80, riseDb: Double = Juice.DEFAULT_RISE, midiOffsetMs: Double = 0.0): InputResult {
         // Juice on every note, whatever it was: the pups hop to its pitch, a soft tick (the sampler's sound rule, so it
         // never feeds the mic), a crumb in the treat jar.
         Juice.onStrike(midi, riseDb, sound = soundAllowed())
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         // Perform: a note that raised the "good" count was on time (Perfect), any other right note was OK (Good).
-        val good0 = transport.score?.recap()?.good ?: 0
+        val good0 = transport.score?.goodCount ?: 0
         val expectedBefore = transport.expected.map { it.midi }
-        val result = transport.noteInput(midi, latencyMs)
-        val grade = if (transport.mode == Mode.PERFORM) (if ((transport.score?.recap()?.good ?: 0) > good0) HitLights.PERFECT else HitLights.GOOD) else null
+        // 2.14: in Perform a key is timed between frames too (the transport moves a frame at a time; up to 16 ms early before).
+        val sinceTick = if (transport.mode == Mode.PERFORM && transport.playing && tickNanos != 0L) ((System.nanoTime() - tickNanos) / 1e6).coerceIn(0.0, 250.0) else 0.0
+        val result = transport.noteInput(midi, latencyMs - sinceTick + if (transport.mode == Mode.PERFORM) midiOffsetMs else 0.0)
+        val grade = if (transport.mode == Mode.PERFORM) (if ((transport.score?.goodCount ?: 0) > good0) HitLights.PERFECT else HitLights.GOOD) else null
         Log.d(TAG, "input ${noteName(midi)} -> $result at ${transport.positionMs.toLong()} ms" + (if (latencyMs > 0) " latency=${latencyMs.toInt()}ms" else ""))
         tail("${noteName(midi)} -> $result at ${at(transport.positionMs)}" + (if (latencyMs > 0) " (mic, ${latencyMs.toInt()} ms late)" else ""))
         // Soft and loud: each right note is graded on its velocity, and the light says whether it was in range.
@@ -562,7 +564,9 @@ private fun PlayerStage(args: PlayerArgs) {
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (kid) kidPup.play(com.bigpapituna.sharpears.engine.pup.PupMood.WAG)
                 onRightKey(midi)
-                if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "")) }
+                // 2.14: in Perform the hit's early or late mark goes under the hit line (HitLights.tick).
+                val off = if (grade != null) transport.score?.lastOffset else null
+                if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade, tickMs = off); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "") + (off?.let { " ${it.toInt()} ms" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             }
             // Listen mode, a count-in, a key between groups: no grade, a soft glow up its column.
@@ -610,10 +614,10 @@ private fun PlayerStage(args: PlayerArgs) {
             // A pop song (songs by chords, 2.6) keeps its runs under its own id, like a library song (see popRunEnd).
             val popRun = com.bigpapituna.sharpears.engine.chords.PopPlay.runIdOf(original.id)
             if (popRun != null && embedded == null) {
-                recap = popRunEnd(popRun, transport, run, prefs, progress)?.also { if (touchRun) haptics.success() }
+                recap = popRunEnd(popRun, transport, run, prefs, progress)?.timed(transport, speed, midiRun)?.also { if (touchRun) haptics.success() }
                 return
             }
-            run?.let { recap = RunEnd(it, false, emptyList(), timeMs = transport.runRealMs.toLong()) }
+            run?.let { recap = RunEnd(it, false, emptyList(), timeMs = transport.runRealMs.toLong()).timed(transport, speed, midiRun) }
             Log.d(TAG, "finished ${song.id} mode=${transport.mode} recap=$run")
             return
         }
@@ -653,7 +657,7 @@ private fun PlayerStage(args: PlayerArgs) {
         // The recap shows the XP this run earned and the level bar, as lessons do.
         val xpBefore = progress?.xp
         fun xp(gained: Int?) = gained?.takeIf { it > 0 }
-        fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
+        fun bar() = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp, p.level) } }
         val timeMs = transport.runRealMs.toLong()
         // A run the player played drops a sticker and counts for today's quest.
         val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
@@ -685,7 +689,7 @@ private fun PlayerStage(args: PlayerArgs) {
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
             creditPartner(r.accuracy)
             recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null, timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(),
-                reward = reward, duetLine = duetLine)
+                reward = reward, duetLine = duetLine).timed(transport, speed, midiRun)
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else if (!played) {
@@ -729,7 +733,11 @@ private fun PlayerStage(args: PlayerArgs) {
                         answerKey.key(System.currentTimeMillis(), e.midi, e.midi in transport.listenFor)
                         tail("keyboard ${noteName(e.midi)}")
                     }
-                    else { Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi"); keyStruck(e.midi, velocity = e.velocity, riseDb = Juice.riseOf(e.velocity)) }
+                    else {
+                        Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi")
+                        if (transport.playing) midiRun = true
+                        keyStruck(e.midi, velocity = e.velocity, riseDb = Juice.riseOf(e.velocity), midiOffsetMs = com.bigpapituna.sharpears.engine.MidiOffset.latencyMs(midi.offsetMs))
+                    }
                 }
                 is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
             }
@@ -887,6 +895,9 @@ private fun PlayerStage(args: PlayerArgs) {
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
         var last = withFrameNanos { it }
+        // Debug (`--es midi`): the pretend keyboard starts with the transport's first frame, not at Play, so a slow first
+        // frame (200 ms on a loaded emulator) does not put every scripted note early (2.14).
+        if (start.midiScript != null && !scriptStarted) { scriptStarted = true; midi.debugPlay(start.midiScript, last / 1_000_000) }
         // Frames stop while the app is off screen (Home, the screen locked): the first frame back must not play the song
         // on by the time away (it jumped 40 s) nor count it as practice, so the step leaves out the time away.
         var awayLast = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs()
@@ -917,6 +928,7 @@ private fun PlayerStage(args: PlayerArgs) {
                 if (transport.positionMs < before) Log.d(TAG, "loop wrap ${before.toLong()} -> ${transport.positionMs.toLong()} ms")
                 if (transport.passes != passes) { passes = transport.passes; transport.lastPass?.let(::passEnded) }
                 last = now
+                tickNanos = now
                 position = transport.positionMs
                 if (transport.waiting != wasWaiting) {
                     wasWaiting = transport.waiting
@@ -1364,6 +1376,8 @@ private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android
     var scriptStarted by mutableStateOf(false)
     var recap by mutableStateOf<RunEnd?>(null)      // the end of a run: Perform recap and/or hardest bars
     var touchRun by mutableStateOf(false)             // this run was played on the touch keys
+    var midiRun by mutableStateOf(false)              // 2.14: a MIDI keyboard played in this run (the timing line may name the offset)
+    var tickNanos = 0L                                // 2.14: the frame time the transport was last moved to (a key between frames)
     // The tutorial video opens only when asked for (Video button), as a floating window over the notes.
     var videoOn by mutableStateOf(false)
     val clicks = lazy { com.bigpapituna.sharpears.audio.Clicks(context) }
@@ -1406,7 +1420,26 @@ data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<Troub
                   /** The sticker (and the medal) this run dropped in the pup's world; null outside library songs. */
                   val reward: com.bigpapituna.sharpears.engine.world.Reward? = null,
                   /** A duet's line naming both players ("Mia and Theo, two stars together"). */
-                  val duetLine: String? = null)
+                  val duetLine: String? = null,
+                  /** 2.14: a Perform run's bars and notes against the beat, for the recap's timing panel (engine/PerformTiming.kt). */
+                  val timing: com.bigpapituna.sharpears.engine.TimingReport? = null,
+                  /** The song names black keys as flats (the timing panel's notes). */
+                  val flats: Boolean = false)
+
+/**
+ * 2.14: [e] with its Perform run's timing (null and anything not Perform pass through): every graded note in its bar,
+ * in real ms at the run's [speed]; [midi] when the run came from a MIDI keyboard (the line may point at the offset).
+ */
+private fun RunEnd.timed(transport: Transport, speed: Double, midi: Boolean): RunEnd {
+    val score = transport.score ?: return this
+    if (recap == null || transport.mode != Mode.PERFORM) return this
+    val song = transport.song
+    val t = com.bigpapituna.sharpears.engine.PerformTiming.of(score.timings(), com.bigpapituna.sharpears.engine.barMs(song),
+        song.timeSignature.first, speed, midi)
+    Log.d(TAG, "timing ${song.id}: ${t.line} bias=${t.biasMs} bars=" + t.bars.joinToString(" ") { "${it.bar}:${it.verdict?.name?.first() ?: '-'}" })
+    t.bars.forEach { b -> b.notes.forEach { n -> Log.d(TAG, "timing note bar ${n.bar} beat ${"%.2f".format(java.util.Locale.ROOT, n.beat + 1)} ${n.keys.joinToString("+") { noteName(it) }} ${com.bigpapituna.sharpears.engine.PerformTiming.offsetWords(n.offsetMs)}") } }
+    return copy(timing = t, flats = song.preferFlats)
+}
 
 /**
  * A pop song's run to its end (songs by chords, 2.6; [runId] "pop-<id>", PopPlay.runIdOf). It has no library entry, so no
@@ -1428,7 +1461,7 @@ private fun popRunEnd(runId: String, transport: Transport, run: Recap?, prefs: P
     prefs.markCompleted(runId)
     val xpBefore = progress?.xp
     val earned = progress?.record(ProgressEvent.SongRun(runId, run?.accuracy, newBest = best, firstCompletion = first))
-    val bar = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp) } }
+    val bar = progress?.let { p -> xpBefore?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(it, p.xp, p.level) } }
     Log.d(TAG, "pop: run $runId mode=${transport.mode} accuracy=${run?.accuracy} wrong=${report.wrongKeys} stars=" +
         Stars.of(run, report.wrongKeys) + " newBest=$best first=$first xp=${earned?.xpGained}")
     return RunEnd(run, best, emptyList(), wrongKeys = report.wrongKeys, timeMs = transport.runRealMs.toLong(),

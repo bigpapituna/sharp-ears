@@ -41,6 +41,16 @@ sealed interface SessionPart {
         override val done get() = title
         override val row get() = "$title, with the notes waiting for you"
     }
+    /**
+     * Today's next challenge (2.14, engine/nav/NextChallenge.kt): a song in Perform at a target tempo, a staff sight-reading
+     * drill or a chord-change drill, at the player's level.
+     */
+    data class Challenge(val item: com.bigpapituna.sharpears.engine.nav.Challenge) : SessionPart {
+        override val minutes get() = item.minutes
+        override val next get() = "Next: a challenge. ${item.title}, ${item.target}."
+        override val done get() = "the challenge ${item.title}"
+        override val row get() = "Challenge: ${item.title}, ${item.target}"
+    }
 
     companion object {
         const val CHORD_MIN = 0.75
@@ -66,21 +76,24 @@ data class SessionSong(val id: String, val title: String, val minutes: Double, v
 
 /**
  * The session for today. [dueChordIds]: the Daily queue's chord items, oldest due first. [nextLesson]: id and
- * title of the first Learn lesson not done. [song]: the Continue song.
+ * title of the first Learn lesson not done. [song]: the Continue song. [challenge] (2.14): today's next challenge for a
+ * player past the first steps; it comes last and stands in for the Continue song played whole (its worst bar on a loop stays).
  */
-fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, song: SessionSong?): SessionPlan {
+fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, song: SessionSong?,
+                challenge: com.bigpapituna.sharpears.engine.nav.Challenge? = null): SessionPlan {
     val parts = mutableListOf<SessionPart>()
     if (dueChordIds.isNotEmpty()) parts += SessionPart.Chords(dueChordIds.take(MAX_CHORDS))
     nextLesson?.let { (id, title) -> parts += SessionPart.Lesson(id, title) }
     if (song != null) {
         val bar = song.troubleBar
-        parts += if (bar != null) SessionPart.Loop(song.id, song.title, bar)
-        else {
+        if (bar != null) parts += SessionPart.Loop(song.id, song.title, bar)
+        else if (challenge == null) {
             // The song fills what is left of the target, at least 3 minutes, never more than the song itself takes.
             val left = (TARGET_MIN - parts.sumOf { it.minutes }).coerceAtLeast(3.0)
-            SessionPart.Song(song.id, song.title, song.minutes, minOf(left, song.minutes.coerceAtLeast(1.0)))
+            parts += SessionPart.Song(song.id, song.title, song.minutes, minOf(left, song.minutes.coerceAtLeast(1.0)))
         }
     }
+    challenge?.let { parts += SessionPart.Challenge(it) }
     return SessionPlan(parts)
 }
 
