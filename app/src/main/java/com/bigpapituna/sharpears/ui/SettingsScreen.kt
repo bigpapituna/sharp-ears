@@ -214,7 +214,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 }
                 if (prefs.cheerFrequency != com.bigpapituna.sharpears.engine.lessons.CheerFrequency.OFF && v >= 0)
                     Toggle("Say it aloud", "The pup says the words too, never while the microphone waits for your note.",
-                        com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.isKid, prefs.cheerAloud)) {
+                        com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.kidSkin, prefs.cheerAloud)) {
                         prefs.cheerAloud = it; com.bigpapituna.sharpears.data.Briefs.setting("cheerAloud", it)
                     }
             }

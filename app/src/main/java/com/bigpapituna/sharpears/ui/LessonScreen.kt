@@ -136,9 +136,16 @@ fun LessonScreen(
     holdGoodnight: Boolean = false,
     /** The top bar's back arrow and its label when it goes somewhere other than [onBack] (Practice today: back to the plan). */
     onArrow: (() -> Unit)? = null, arrowLabel: String? = null,
+    /**
+     * 2.14: "Try for 3 stars" on the finish, offered under three stars: the caller opens this lesson again at [step], its first
+     * graded step (engine/kid/LessonStars.firstGraded), not its reading page. Null: not offered.
+     */
+    onRetry: ((step: Int) -> Unit)? = null,
 ) {
     val who = profile()
-    val kid = who.isKid
+    // 2.14: the kid skin (bites, the pup's words, one button) is a little kid's; bedtime and the brief's card are every kid's.
+    val kid = who.kidSkin
+    val anyKid = who.isKid
     val path = remember(who.firstUnitId, who.reader) { com.bigpapituna.sharpears.engine.CoursePath(who.firstUnitId, bigKid = kid && who.reader) }
     val level = path.levelOf(lesson) ?: ALL.first { it.second == lesson }.first
     val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
@@ -181,12 +188,15 @@ fun LessonScreen(
     val bedtime = rememberBedtimeStore()
     val gate = LocalParentGate.current
     val today = remember { com.bigpapituna.sharpears.data.AppClock.today() }
-    var asleep by remember { mutableStateOf(kid && progress != null &&
+    var asleep by remember { mutableStateOf(anyKid && progress != null &&
         !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) }
     var goodnight by remember { mutableStateOf(false) }
     val week = remember(goodnight, asleep) { PawWeek.of(progress?.practiceLog() ?: emptyMap(), today) }
     // A kid's reading step: one scene, then "More?" for the rest.
     var more by remember(index) { mutableStateOf(false) }
+    // 2.14: graded steps passed by with Next (after the sheet): any makes the finish neutral, never "You did it!".
+    var skippedGraded by remember { mutableIntStateOf(0) }
+    var askSkip by remember { mutableStateOf(false) }
     // After today's goodbye the pup is asleep: nothing of the lesson starts (no voice, no player) unless a grown-up says.
     if (asleep) {
         LaunchedEffect(Unit) { deps.voice.stop(); Log.d(TAG, "bedtime: ${lesson.id} asleep") }
@@ -258,12 +268,16 @@ fun LessonScreen(
             reward = onDone(lessonStars)
             Briefs.log { BriefEvent.LessonDone(it, lesson.id, lessonStars, tookSecs * 1000, firstFinish) }
             // A grown-up's "one more" (bedtime on) is spent with this lesson: the next one sleeps again.
-            if (kid && progress != null && Bedtime.oneMoreSpent(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) {
+            if (anyKid && progress != null && Bedtime.oneMoreSpent(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) {
                 bedtime.oneMoreOn = null; Log.d(TAG, "bedtime: one more lesson spent on ${lesson.id}")
             }
             xpAtEnd = progress?.xp ?: 0
             Log.d(TAG, "lesson ${lesson.id} done")
-            voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
+            voice.speak(when {
+                skippedGraded > 0 -> com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE      // 2.14: a skip is never "You did it!"
+                kid -> RunWords.kidLessonLine(who.name)
+                else -> "Lesson complete."
+            })
         } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
@@ -304,7 +318,8 @@ fun LessonScreen(
         if (s.kind != StepKind.LISTEN) reaction = if (judged) Pose.GREAT_JOB else if (kid || letGo) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
         if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text); return }
-        stepStars += if (letGo) com.bigpapituna.sharpears.engine.kid.LessonStars.LET_GO else com.bigpapituna.sharpears.engine.kid.LessonStars.ofRun(report)
+        // 2.14: notes the player let go after three tries keep the third star away too (Stars.three).
+        stepStars += if (letGo) com.bigpapituna.sharpears.engine.kid.LessonStars.LET_GO else com.bigpapituna.sharpears.engine.kid.LessonStars.ofRun(report, tally?.letGos ?: 0)
         // Passing a step that took a few tries earns the high-five (not a step let go).
         val highFive = fails >= 2 && !letGo
         if (highFive) { pops.afterChime { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) }; Log.d(TAG, "pup: high five after $fails tries") }
@@ -453,11 +468,12 @@ fun LessonScreen(
                 last && step.exercise == null -> ChunkyButton(onClick = { complete() }) { Text("Finish") }
                 last -> {}                                            // an exercise as the last step finishes the lesson itself
                 else -> ChunkyButton(onClick = {
-                    // A graded step skipped counts as one star, so Next through every game is not three stars.
-                    // Not a clean step either: the pop's climb starts again (2.11).
-                    if (bar == null) com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it; pops.streak.skipped() }
-                    (step.exercise == null || bar?.first == Cheer.GOOD).let { ok -> Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = ok, skipped = !ok)) }
-                    go(index + 1); run++
+                    // 2.14: Next over a graded step not passed asks first ("Skip this one? It stays at one star.").
+                    if (bar == null && com.bigpapituna.sharpears.engine.kid.LessonStars.graded(step)) { askSkip = true; Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skip asked") }
+                    else {
+                        (step.exercise == null || bar?.first == Cheer.GOOD).let { ok -> Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = ok, skipped = !ok)) }
+                        go(index + 1); run++
+                    }
                 }) {
                     Text("Next")
                     // A pre-reader sees where it goes (QA 2.8.3: "Next" was words only).
@@ -466,6 +482,20 @@ fun LessonScreen(
             }
         }
     }
+    // 2.14: the sheet before Next passes a graded step by. A graded step skipped counts as one star, so Next through every
+    // game is not three stars, nor a clean step: the pop's climb starts again (2.11). The finish is then neutral.
+    if (askSkip) androidx.compose.material3.AlertDialog(onDismissRequest = { askSkip = false },
+        title = { Text(com.bigpapituna.sharpears.engine.kid.LessonStars.SKIP_TITLE) },
+        text = { Text(com.bigpapituna.sharpears.engine.kid.LessonStars.SKIP_LINE) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = {
+            askSkip = false
+            com.bigpapituna.sharpears.engine.kid.LessonStars.ofSkip(step)?.let { stepStars += it; pops.streak.skipped(); skippedGraded++ }
+            Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skipped (it stays at one star)")
+            Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = false, skipped = true))
+            go(index + 1); run++
+        }) { Text(com.bigpapituna.sharpears.engine.kid.LessonStars.SKIP_YES) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { askSkip = false; Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skip: kept playing") }) {
+            Text(com.bigpapituna.sharpears.engine.kid.LessonStars.SKIP_NO) } })
     // The step pop over the part of the step the cheer bar leaves in view (2.11), under the bar; it takes no touches.
     val popArea: () -> Rect? = {
         stepArea.value?.let { a ->
@@ -501,8 +531,17 @@ fun LessonScreen(
     // A kid who reached today's goal with this lesson: the celebration's way on is goodnight, not the next lesson.
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
+    // 2.14: the finish's stars part (ui/Celebrate.kt FinishStars): "Try for 3 stars" straight to the first graded step, and a
+    // neutral finish after a skip. A grown-up offered it sees the stars it is about.
+    val neutral = com.bigpapituna.sharpears.engine.kid.LessonStars.finish(skippedGraded) == com.bigpapituna.sharpears.engine.kid.LessonStars.Finish.NEUTRAL
+    val retry = if (onRetry != null && com.bigpapituna.sharpears.engine.kid.LessonStars.tryForThree(lessonStars, lesson.steps))
+        com.bigpapituna.sharpears.engine.kid.LessonStars.TRY_FOR_THREE to {
+            voice.stop(); Log.d(TAG, "lesson ${lesson.id}: try for 3 stars from step ${com.bigpapituna.sharpears.engine.kid.LessonStars.firstGraded(lesson.steps) + 1}")
+            onRetry(com.bigpapituna.sharpears.engine.kid.LessonStars.firstGraded(lesson.steps))
+        } else null
+    val finishStars = FinishStars(retry, neutral)
     // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
-    val drop: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
+    val drop: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid || retry != null) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
         say = { line -> deps.voice.speak(line) }) } }
     // 2.9: once today's goal is met, Tomorrow's surprise under a kid's drop (the last thing they get), or tomorrow's next
     // thing over a grown-up's (it is where they go next, so it stays in view above the reveals).
@@ -519,10 +558,10 @@ fun LessonScreen(
         else world?.preview(com.bigpapituna.sharpears.engine.kid.KidPages.dropPlace(n.id))
     }
     // Bedtime on and a grown-up's one more spent with this lesson: the next one sleeps, so no way on into its asleep screen.
-    val nextAsleep = kid && finished && progress != null && !holdGoodnight &&
+    val nextAsleep = anyKid && finished && progress != null && !holdGoodnight &&
         !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)
     // The pup's card for the session (the parent brief, 2.4): read while the celebration plays, shown after its button.
-    val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(who, ready = kid && finished)
+    val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(who, ready = anyKid && finished)
     // A kid's finish reads in one order (2.5.0): the stars, the stone's sticker, the drop, something new to wear, then the
     // pup's card (when one is due this session) whichever way they go on, "one more" included.
     val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
@@ -531,26 +570,29 @@ fun LessonScreen(
     if (finished && !goodnight) {
         val kidPrimary = when { bedtimeNow -> "Goodnight, pup"; finishLabel != null -> finishLabel; oneMore != null || nextAsleep -> "Back to the map"; onNext != null -> "Next lesson"; else -> "Done" }
         if (kid) Celebration(
-            RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
+            if (neutral) com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE else RunWords.KID_LESSON_TITLE,
+            if (neutral) com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_LINE else RunWords.kidLessonLine(who.name), emptyList(),
             primary = kidPrimary,
             onPrimary = cardStep.then(kidPrimary) { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
-            clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            clip = if (neutral) null else com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            stars = finishStars,
         ) else Celebration(
-            "Lesson complete!", lesson.summary,
+            if (neutral) com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE else "Lesson complete!", lesson.summary,
             listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(java.util.Locale.ROOT, tookSecs / 60, tookSecs % 60), "Time"),
                 Stat("$retries", if (retries == 1) "Retry" else "Retries")),
             primary = if (oneMore != null) "All lessons" else if (onNext != null) "Next lesson" else "Done",
-            onPrimary = { voice.stop(); if (oneMore != null) onBack() else (onNext ?: onBack)() },
+            onPrimary = cardStep.then(if (oneMore != null) "All lessons" else "Next lesson") { voice.stop(); if (oneMore != null) onBack() else (onNext ?: onBack)() },
             secondary = if (onNext != null && oneMore == null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
             xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
             reward = dropSlot, oneMore = oneMore,
-            clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            clip = if (neutral) null else com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            stars = finishStars,
         )
-        if (kid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })
+        if (anyKid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })
     }
     // The goodbye after the lesson that reached the goal: shown once today.
     if (goodnight) {

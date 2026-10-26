@@ -136,7 +136,7 @@ private fun PupSaysGameScreen(
     people: List<Profile>, mic: MicInput, midi: MidiDevices?, sampler: Sampler?, voice: Voice?, sound: () -> Boolean,
     onExit: () -> Unit, onFinished: (List<PupSaysResult>) -> Unit, onAgain: () -> Unit,
 ) {
-    val kid = people.any { it.isKid }
+    val kid = people.any { it.kidSkin }          // 2.14: a big kid copies on the grown-ups' keys and timing
     val game = remember { PupSaysGame(people.map { PupSaysPlayer(it.id, it.name) }, kid) }
     val context = LocalContext.current
     val stores = remember { people.associate { it.id to PlayStore(context, it.id) } }

@@ -83,7 +83,12 @@ private val factsCache = HashMap<String, Pair<SongFacts, List<Int>>>()
 @Composable
 fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMeta) -> Unit, onBack: () -> Unit,
                    shelf: List<ShelfSong> = emptyList(), duetWith: String? = null, say: ((String) -> Unit)? = null,
-                   onChordSongs: (() -> Unit)? = null, reader: Boolean = true) {
+                   onChordSongs: (() -> Unit)? = null, reader: Boolean = true,
+                   /**
+                    * 2.14: a little kid who reads gets the grown-ups' charts as three packs after the nursery songs (Pop, Greatest
+                    * hits, Rock: engine/kid/KidLevels.kt KidPop), each opening the kid's chord list of that style; null: none.
+                    */
+                   onPopPack: ((com.bigpapituna.sharpears.engine.chords.PopFind.Chip) -> Unit)? = null) {
     val assigned = remember(shelf, songs) { shelf.mapNotNull { s -> songs.firstOrNull { it.id == s.songId && repo.available(it) }?.let { it to s.note } } }
     var list by remember { mutableStateOf<List<KidSong>?>(null) }
     LaunchedEffect(songs) {
@@ -126,6 +131,14 @@ fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMet
             // Not while a grown-up waits for a duet: a chord song has no duet.
             if (onChordSongs != null && duetWith == null) item(key = "chordsongs") { ChordSongsTile(reader, onChordSongs) }
             items(list.orEmpty().filter { s -> assigned.none { it.first.id == s.meta.id } }, key = { it.meta.id }) { s -> SongTile(s) { onSong(s.meta) } }
+            // 2.14: the pop packs, after the nursery songs (and not while a grown-up waits for a duet: chord songs have none).
+            if (onPopPack != null && duetWith == null && list != null) {
+                item(key = "pop-head", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(com.bigpapituna.sharpears.engine.nav.Names.SONGS_BY_CHORDS, style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(top = 12.dp).semantics { heading() })
+                }
+                items(com.bigpapituna.sharpears.engine.kid.KidPop.CHIPS, key = { "pop-" + it.name }) { chip -> PopPackTile(chip) { onPopPack(chip) } }
+            }
         }
     }
 }
@@ -171,6 +184,32 @@ private fun ChordSongsTile(reader: Boolean, onClick: () -> Unit) {
 }
 
 private fun noteLetter(midi: Int) = listOf("C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B")[Math.floorMod(midi, 12)]
+
+/** 2.14: a pack of the grown-ups' charts for a little reader: three chord blocks with their letters, then the pack's name. */
+@Composable
+private fun PopPackTile(chip: com.bigpapituna.sharpears.engine.chords.PopFind.Chip, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val title = com.bigpapituna.sharpears.engine.kid.KidPop.title(chip)
+    // Each pack's first chords in their colours: pop G, D and Em; the hits C, G and Am; rock A, D and E.
+    val roots = when (chip) {
+        com.bigpapituna.sharpears.engine.chords.PopFind.Chip.POP -> listOf(67, 62, 64)
+        com.bigpapituna.sharpears.engine.chords.PopFind.Chip.ROCK -> listOf(69, 62, 64)
+        else -> listOf(60, 67, 69)
+    }
+    Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.tertiaryContainer)
+        .clickable(role = Role.Button, onClickLabel = "Open $title", onClick = onClick).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth().height(52.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            roots.forEach { midi ->
+                val colour = Color(NoteColours.colour(midi))
+                Box(Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(14.dp)).background(colour), contentAlignment = Alignment.Center) {
+                    Text(noteLetter(midi), style = MaterialTheme.typography.titleLarge, color = Color(NoteColours.inkFor(NoteColours.colour(midi))))
+                }
+            }
+        }
+        Text(title, style = MaterialTheme.typography.titleLarge, color = c.onTertiaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
 
 /** One song: its opening notes as coloured balls on a little line, then its name, big. */
 @Composable

@@ -257,15 +257,20 @@ fun KidComebackCard(stone: String?, onPlay: () -> Unit, onLater: () -> Unit) {
 /**
  * The grown-up's "Welcome back" on Today (a return after three days or more): three easy minutes with the last clean song
  * at a slower tempo, or the last clean lesson again; nothing new. [line] from engine/Comeback.grownUpLine.
+ *
+ * 2.14: the button opens a concrete step (Comeback.resume: the lesson left part way, the last chart or song, the next
+ * lesson), never a list; a big kid reads [title] "Welcome back." and "Pick up where you left off."; after a week or more
+ * away [streak] says in one line what became of the streak.
  */
 @Composable
-fun WelcomeBackCard(line: String, onStart: () -> Unit, onLater: () -> Unit) {
+fun WelcomeBackCard(line: String, onStart: () -> Unit, onLater: () -> Unit, title: String = Comeback.GROWN_UP_TITLE, streak: String? = null) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).border(1.5.dp, c.primary.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
         .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // The pup's greeting line just above already says hello: the card is the words and the way in.
-        Text(Comeback.GROWN_UP_TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Text(line, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+        streak?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onLater) { Text("Not now") }
             Spacer(Modifier.size(4.dp))

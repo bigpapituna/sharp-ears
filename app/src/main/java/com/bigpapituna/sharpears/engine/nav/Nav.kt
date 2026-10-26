@@ -42,7 +42,8 @@ object NavGraph {
         // Learn (its chords at the top) and the Play corner; the mic banner opens Microphone setup; the quest opens where
         // each task is done.
         tab(NavTab.TODAY) to setOf("Daily", "Player", "PopSong", "Lesson", "MicSetup", tab(NavTab.SONGS), tab(NavTab.LEARN), "Play", "LearnChords"),
-        tab(NavTab.SONGS) to setOf("Player", "PopSong", "Play"),
+        // 2.14: a big kid's Play corner opens the arcade too.
+        tab(NavTab.SONGS) to setOf("Player", "PopSong", "Play", "Arcade"),
         tab(NavTab.LEARN) to setOf("Lesson", "LearnChords", "ChordGames", "Progressions", "Theory", "EarTraining", "SightRead"),
         tab(NavTab.PRACTICE) to setOf("Player"),
         // You: Settings from the gear; the world card; the family wall opens the app as someone else (the launch again).

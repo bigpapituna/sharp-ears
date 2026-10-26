@@ -397,9 +397,14 @@ private fun ChordTrainer(
     header: @Composable () -> Unit, skip: () -> Unit, onDone: (Chord, Boolean) -> Unit = { _, _ -> },
     /** The pup beside the chord, reacting to each one (the Practice tab; a session shows him in its own header). */
     pup: Boolean = false,
+    /**
+     * 2.14 (engine/nav/DayOne.kt ChordWords): a beginner's words, "Play a C chord" over the keys already lit and "C, E and G
+     * are lit. Any octave counts.", never octave numbers or "any order".
+     */
+    plain: Boolean = false,
 ) {
     var version by remember { mutableIntStateOf(0) }
-    var showNotes by remember { mutableStateOf(false) }
+    var showNotes by remember { mutableStateOf(plain) }
     var micOn by remember { mutableStateOf(micStart && mic.hasPermission() || inject != null) }
     var flash by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     val keyFlash = remember { mutableStateMapOf<Int, Color>() }               // a burst on the keys: green when a chord lands, warm on a slip
@@ -471,8 +476,11 @@ private fun ChordTrainer(
                 else -> Pose.GET_READY
             }, size = 72.dp, onTap = {})
             Column(Modifier.weight(1f)) {
-                Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(current.name, style = MaterialTheme.typography.displayMedium)
+                if (plain) Text(com.bigpapituna.sharpears.engine.nav.ChordWords.ask(current), style = MaterialTheme.typography.headlineMedium)
+                else {
+                    Text("Play", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(current.name, style = MaterialTheme.typography.displayMedium)
+                }
             }
             // The running counts belong to the open-ended Practice tab: a session's drill is one chord, so they read 0 or
             // 1 and went back to 0 on every chord ("1 of 5" says where a session stands).
@@ -490,7 +498,8 @@ private fun ChordTrainer(
             TextButton(onClick = { skip(); version++ }) { Text("Skip") }
         }
         Text(
-            if (micOn) "Play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, in any order. Notes heard turn green."
+            if (plain) com.bigpapituna.sharpears.engine.nav.ChordWords.keysLine(current)
+            else if (micOn) "Play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, in any order. Notes heard turn green."
             else "Any octave, any order. Notes heard so far turn green.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -689,13 +698,16 @@ private fun PackRow(pack: LessonPack, store: LessonStore, unlocked: Boolean, cur
  */
 @Composable
 fun DailyChords(store: LessonStore, sampler: Sampler, midi: MidiDevices, mic: MicInput, micDefault: Boolean, itemIds: List<String>,
-                inject: String?, sound: () -> Boolean = { true }, onEnd: (answered: Int) -> Unit) {
+                inject: String?, sound: () -> Boolean = { true },
+                /** 2.14: a beginner's plain chord words with the keys lit (engine/nav/DayOne.kt plainChords). */
+                plain: Boolean = false,
+                onEnd: (answered: Int) -> Unit) {
     LaunchedEffect(itemIds) {
         val all = store.curriculum().packs.flatMap { it.items }.distinctBy { it.id }.associateBy { it.id }
         store.startSession(itemIds.mapNotNull { all[it] })
     }
     if (store.session.isEmpty()) return
-    Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression = { _, _ -> }, sound = sound,
+    Session(store, sampler, midi, mic, micDefault, inject, onPlayProgression = { _, _ -> }, sound = sound, plain = plain,
         onEnd = { val n = store.sessionIndex; store.endSession(); onEnd(n) })
 }
 
@@ -707,6 +719,7 @@ private fun Session(
     onEnd: (() -> Unit)? = null,
     sound: () -> Boolean,
     songsAfter: SessionSongs? = null,
+    plain: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val item = store.session.getOrNull(store.sessionIndex)
@@ -741,7 +754,7 @@ private fun Session(
             val drill = remember(store.sessionIndex) { ChordDrill(listOf(item.chord), seed = 1) }
             // How the chord went (null until played); the pup's bar then waits on Continue, like a lesson step.
             var result by remember(store.sessionIndex) { mutableStateOf<Boolean?>(null) }
-            ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, sound = sound, header = progress,
+            ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, sound = sound, header = progress, plain = plain,
                 skip = { store.answer(false) },
                 onDone = { _, clean -> if (result == null) result = clean })
             result?.let { clean ->

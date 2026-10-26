@@ -70,9 +70,10 @@ class PupWiringTest {
             assertTrue(f, "pup.play(PupMood.HAPPY)" in s && "pup.mood = PupMood.CHEER" in s)
         }
         assertTrue("pup.playClip(clip, fallback = PupMood.HAPPY, hold = true, then = PupMood.CHEER)" in src("ui/Celebrate.kt"))
-        val celebrate = "clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE"
+        // 2.14: a lesson finished with a graded step skipped gets no celebrate clip (the rig's wag; ui/Celebrate.kt FinishStars).
+        val celebrate = "clip = if (neutral) null else com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE"
         assertEquals("a kid's and a grown-up's lesson", 2, src("ui/LessonScreen.kt").split(celebrate).size - 1)
-        assertEquals("a kid's and a grown-up's Done for today", 2, src("MainActivity.kt").split(celebrate).size - 1)
+        assertEquals("a kid's and a grown-up's Done for today", 2, src("MainActivity.kt").split("clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE").size - 1)
         // Clap along and the finale cheer at the beat; the finale and the concerts' bow hold the clip slot.
         val clap = src("ui/play/ClapAlongScreen.kt")
         assertTrue("PupMood.CHEER" in clap && "bpm = speed.bpm" in clap && "beatAt = along.beatAt(0)" in clap)

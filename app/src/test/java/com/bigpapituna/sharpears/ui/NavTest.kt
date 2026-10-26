@@ -127,7 +127,8 @@ class NavTest {
      * on a launch, a profile switch or a return from the first lesson alike. What's new and the tour wait under the tabs.
      */
     @Test fun theLayoutChooserComesBeforeTodayForAGrownUpWhoNeverChose() {
-        val kidHome = activity.indexOf("is Screen.Home -> if (current.isKid) {")
+        // 2.14: the map is a little kid's home; a big kid gets the tabs, never the chooser (Simple.asks is false for every kid).
+        val kidHome = activity.indexOf("is Screen.Home -> if (current.mapHome) {")
         val chooser = activity.indexOf("} else if (com.bigpapituna.sharpears.engine.nav.Simple.asks(current.isKid, chosenLayout)) {")
         val tabs = activity.indexOf("HomeShell(s.tab,")
         val welcome = activity.indexOf("Welcome.next(current.isKid")

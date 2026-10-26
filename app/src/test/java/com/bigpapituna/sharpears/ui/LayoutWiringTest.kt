@@ -38,7 +38,8 @@ class LayoutWiringTest {
     /** The layout: kept per profile, never a kid's, on Today's header, on You and in Settings; the plan and badge follow it. */
     @Test fun theLayoutIsWhereRoyAskedAndNeverAKids() {
         val activity = src("MainActivity.kt")
-        assertTrue("Simple.layoutOf(current.isKid, chosenLayout, current.level)" in activity)
+        // 2.14: by audience: a little kid is never cut, a big kid starts in Simple (engine/family/Ages.kt, AgesTest).
+        assertTrue("Simple.layoutOf(current.audience, chosenLayout, current.level)" in activity)
         assertTrue("LocalLayout provides layoutMode" in activity)
         // Told to the brief as 2.7's switch was (Briefs.setting), with the layout's name.
         assertTrue("Briefs.setting(\"layout\", l.wire)" in activity)

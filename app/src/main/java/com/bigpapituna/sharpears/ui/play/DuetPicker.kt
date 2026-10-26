@@ -123,7 +123,7 @@ internal fun DuetPickerContent(
             return@Column
         }
         PupSays(Pose.WELCOME, when {
-            partner == null -> if (me.isKid) "Who's playing with you?" else "Who are you playing with?"
+            partner == null -> if (me.kidSkin) "Who's playing with you?" else "Who are you playing with?"
             else -> "One of you plays the left hand, the other the right. You both get the stars."
         })
         PeoplePicker(others, listOfNotNull(partnerId), max = 1, onToggle = onPick)

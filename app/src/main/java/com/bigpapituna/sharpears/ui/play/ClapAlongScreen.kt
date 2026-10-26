@@ -84,7 +84,7 @@ internal enum class ClapMode { TAP, CLAP }
  */
 @Composable
 fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Voice?, sound: () -> Boolean, onExit: () -> Unit) {
-    val kid = LocalProfile.current.isKid
+    val kid = LocalProfile.current.kidSkin      // 2.14: a big kid gets the plain words
     var speed by remember { mutableStateOf(ClapSpeed.SLOW) }
     var mode by remember { mutableStateOf(ClapMode.TAP) }
     val along = remember(speed, mode) { ClapAlong(speed, nowMs() + 1500) }
