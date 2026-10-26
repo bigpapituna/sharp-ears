@@ -12,6 +12,7 @@ object SessionWords {
         is SessionPart.Lesson -> "Lesson"
         is SessionPart.Loop -> "Tricky bit"
         is SessionPart.Song -> "Song"
+        is SessionPart.Challenge -> "Challenge"
     }
 
     fun chip(part: SessionPart): String = when (part) {
@@ -19,6 +20,7 @@ object SessionWords {
         is SessionPart.Lesson -> "Lesson"
         is SessionPart.Loop -> "Bar ${part.bar}"
         is SessionPart.Song -> "Song"
+        is SessionPart.Challenge -> "Challenge"
     }
 
     fun quoted(part: SessionPart, kid: Boolean): String = if (!kid) quoted(part) else when (part) {
@@ -26,6 +28,7 @@ object SessionWords {
         is SessionPart.Lesson -> "Next: a lesson! “${part.title}”"
         is SessionPart.Loop -> "Next: the tricky bit of “${part.title}”"
         is SessionPart.Song -> "Next: “${part.title}”!"
+        is SessionPart.Challenge -> "Next: a challenge! “${part.item.title}”"
     }
 
     /** What the voice says before a kid's part: the [quoted] words without the quotes (a lesson's numerals as words). */
@@ -37,6 +40,7 @@ object SessionWords {
         is SessionPart.Lesson -> "Next: the lesson “${part.title}”"
         is SessionPart.Loop -> "Next: bar ${part.bar} of “${part.title}”"
         is SessionPart.Song -> "Next: “${part.title}”"
+        is SessionPart.Challenge -> "Next challenge: “${part.item.title}”"
     }
 
     /** A kid's line under the pup's: what the part is, never how long it takes. */
@@ -45,6 +49,7 @@ object SessionWords {
         is SessionPart.Lesson -> "Something new with the pup."
         is SessionPart.Loop -> "One tricky bit, nice and slow. The notes wait for you."
         is SessionPart.Song -> "The whole song. The notes wait for you."
+        is SessionPart.Challenge -> "Something a little harder."
     }
 
     /** One line under the pup's: what the part is and about how long it takes. */
@@ -56,6 +61,7 @@ object SessionWords {
             is SessionPart.Lesson -> "The next lesson on your path."
             is SessionPart.Loop -> "One bar on a loop at half speed, the notes waiting for you."
             is SessionPart.Song -> "The whole song, the notes waiting for you."
+            is SessionPart.Challenge -> "At your level, aim for ${part.item.target}."
         } + " About $min min."
     }
 
@@ -114,6 +120,7 @@ object SessionWords {
         is SessionPart.Lesson -> "A lesson: ${part.title}"
         is SessionPart.Loop -> "The tricky bit of ${part.title}"
         is SessionPart.Song -> "${part.title}, the notes wait for you"
+        is SessionPart.Challenge -> part.item.title
     }
 
     /** The Practice today panel's headline for a kid, in place of "About 10 min". */

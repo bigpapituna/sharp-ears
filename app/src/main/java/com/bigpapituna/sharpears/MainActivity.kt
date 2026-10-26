@@ -203,8 +203,8 @@ private sealed interface Screen {
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
     data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null, val scene: Int = 0) : Screen
     data class MicSetup(val back: Screen) : Screen
-    /** The sight-reading drill. [inject] (debug) feeds the mic. */
-    data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null) : Screen
+    /** The sight-reading drill. [inject] (debug) feeds the mic; [midiScript] (debug) plays a pretend keyboard into a staff drill. */
+    data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null, val midiScript: String? = null) : Screen
     /**
      * "Practice today": part [index] of [plan]; [between] shows the one-line interstitial before it ([held]: come back to it
      * from the part, so it waits for Go instead of counting down). [done] and [skipped] (passed over with Skip) decide whether
@@ -299,7 +299,8 @@ private fun routeOf(s: Screen): String = when (s) {
 
 /** The player is always dark, like a video; everything else follows the system. */
 private fun playerShown(s: Screen) = s is Screen.Player ||
-    (s is Screen.Daily && !s.between && s.plan.parts[s.index].let { it is SessionPart.Loop || it is SessionPart.Song })
+    (s is Screen.Daily && !s.between && s.plan.parts[s.index].let { it is SessionPart.Loop || it is SessionPart.Song ||
+        (it is SessionPart.Challenge && it.item !is com.bigpapituna.sharpears.engine.nav.Challenge.SightRead) })
 
 /** The stage: the player, or a Practice today part that runs one. */
 private fun isStage(s: Screen) = s is Screen.Player || (s is Screen.Daily && !s.between)
@@ -326,6 +327,11 @@ class MainActivity : ComponentActivity() {
     private var openVoice: Voice? = null
     private val samplerReady = mutableStateOf(false)
     private lateinit var repo: SongRepository
+    /** 2.14: each library song's tempo and minutes, read once, for Today's next challenge (null: it does not load). */
+    private val songTempos = HashMap<String, Pair<Double, Double>?>()
+    private fun songTempo(m: SongMeta): Pair<Double, Double>? = songTempos.getOrPut(m.id) {
+        runCatching { repo.load(m).let { it.bpm to it.durationMs / 60_000.0 } }.getOrNull()
+    }
     private lateinit var profiles: Profiles
     private lateinit var gate: ParentGateController
     /** The profile the app is open as (null while the picker shows). */
@@ -814,7 +820,7 @@ class MainActivity : ComponentActivity() {
                 else -> intent.getStringExtra("game")?.let(EarKind::byId)?.let { EarStart(it, intent.getIntExtra("level", 0)) }
             })
             route == "theory" -> Screen.Theory(Screen.Home(HomeTab.LEARN))
-            route == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject)
+            route == "sight" -> Screen.SightRead(Screen.Home(HomeTab.LEARN), intent.getIntExtra("level", 1), debugStart.inject, debugStart.midiScript)
             route == "world" -> Screen.World(Screen.Home(HomeTab.YOU),
                 WorldTab.entries.firstOrNull { it.name.equals(intent.getStringExtra("tab"), ignoreCase = true) } ?: WorldTab.WORLD)
             route == "kidsongs" -> Screen.KidSongs(Screen.Home())
@@ -1080,6 +1086,23 @@ class MainActivity : ComponentActivity() {
                     // The chord packs the daily review draws from: until Full only the six beginner chords (Advanced keeps the song
                     // packs whole; engine/nav/Simple.kt).
                     fun chordCurriculum() = lessons.curriculum().let { com.bigpapituna.sharpears.engine.Curriculum(com.bigpapituna.sharpears.engine.nav.Simple.packs(it.packs, layout)) }
+                    /**
+                     * Today's next challenge (2.14) for a grown-up placed at Some or A lot, or whose [next] lesson is past the first
+                     * three units: a song at their level in Perform, a staff drill or chord changes, a kind a day in turn.
+                     */
+                    fun nextChallenge(next: CourseLesson?): com.bigpapituna.sharpears.engine.nav.Challenge? {
+                        val nc = com.bigpapituna.sharpears.engine.nav.NextChallenge
+                        val main = COURSE.filter { !com.bigpapituna.sharpears.engine.playground.isPlaygroundLevel(it.id) }
+                        val unit = next?.let { l -> main.indexOfFirst { lv -> lv.lessons.any { it.id == l.id } } }?.takeIf { it >= 0 } ?: main.size
+                        if (!nc.eligible(current.isKid, current.level, unit)) return null
+                        val tier = nc.tier(current.level, unit)
+                        val pool = songs.filter { it.difficulty == nc.difficulty(tier) && repo.available(it) }.mapNotNull { m ->
+                            songTempo(m)?.let { (bpm, min) -> com.bigpapituna.sharpears.engine.nav.NextChallenge.SongChoice(m.id, m.title, m.difficulty, bpm, min, threeStars = prefs.progress(m.id).bestAccuracy >= 100) }
+                        }
+                        val staff = com.bigpapituna.sharpears.engine.SightLevels.staffOpen(false, current.reader, current.level, layout)
+                        return nc.pick(tier, com.bigpapituna.sharpears.data.AppClock.today().toEpochDay(), current.id.hashCode().toLong(), pool, staff, prefs::sightDrillBest)
+                            .also { Log.d(TAG, "today: challenge (tier $tier, unit $unit, ${current.level}) ${it?.title}, ${it?.target}") }
+                    }
                     fun todayPlan(): SessionPlan {
                         val queue = chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis())
                         // After a kid's goodnight the lessons sleep until tomorrow: no lesson part (songs stay open).
@@ -1099,8 +1122,11 @@ class MainActivity : ComponentActivity() {
                         val played = path.counted.count { prefs.lessonPlayed(it.id) }
                         val chords = if (profile.mapHome) emptyList() else com.bigpapituna.sharpears.engine.nav.DayOne.chordsFor(level, played,
                             queue.filterIsInstance<LessonItem.ChordItem>().map { it.id })
+                        // 2.14 (depth): a grown-up past the first steps gets one thing at their level (engine/nav/NextChallenge.kt);
+                        // no kid, a big kid included (NextChallenge.eligible asks isKid).
+                        val challenge = if (profile.isKid) null else nextChallenge(next)
                         return planSession(chords, next?.let { it.id to it.title }, song,
-                            lessonFirst = !profile.mapHome && com.bigpapituna.sharpears.engine.nav.DayOne.lessonFirst(level))
+                            lessonFirst = !profile.mapHome && com.bigpapituna.sharpears.engine.nav.DayOne.lessonFirst(level), challenge = challenge)
                     }
                     fun startDaily() {
                         val plan = todayPlan()
@@ -1395,12 +1421,52 @@ class MainActivity : ComponentActivity() {
                                             })
                                     }
                                 }
+                                // 2.14: today's next challenge. A song or chord changes in Perform at the target tempo, the recap
+                                // (stars, the timing panel) closing goes on; a staff drill, its two minutes, then on.
+                                is SessionPart.Challenge -> when (val c = part.item) {
+                                    is com.bigpapituna.sharpears.engine.nav.Challenge.SightRead -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                        var drilled by remember(s.index) { mutableStateOf(false) }
+                                        fun back() { voice.stop(); if (drilled) advanceDaily(s, true) else screen = s.copy(between = true, held = true) }
+                                        BackHandler { back() }
+                                        com.bigpapituna.sharpears.ui.SightReadScreen(LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), c.level,
+                                            onBack = ::back, open = listOf(com.bigpapituna.sharpears.engine.SightLevel.of(c.level)), goal = c.goal,
+                                            midiScript = debugStart.midiScript.takeIf { startDaily },
+                                            onDrillDone = { sc -> drilled = true; Log.d(TAG, "daily: challenge ${c.title} ${sc.label} (goal ${c.goal})"); advanceDaily(s, true) })
+                                    }
+                                    else -> {
+                                        val perform = c as? com.bigpapituna.sharpears.engine.nav.Challenge.Perform
+                                        val chords = c as? com.bigpapituna.sharpears.engine.nav.Challenge.ChordChange
+                                        val m = perform?.let { p -> songs.first { it.id == p.songId } }
+                                        val song = remember(s.index) {
+                                            if (m != null) repo.load(m)
+                                            else progressionSong(PROGRESSIONS[chords!!.progression], chords.key, chords.bpm.toDouble())
+                                        }
+                                        if (m != null) LaunchedEffect(m.id) { prefs.lastSongId = m.id; prefs.lastPlayed = com.bigpapituna.sharpears.engine.nav.ContinueWith.encode(com.bigpapituna.sharpears.engine.nav.ContinueWith.Song(m.id)) }
+                                        val partStart = remember(s.index) { System.currentTimeMillis() }
+                                        var ranToEnd by remember(s.index) { mutableStateOf(false) }
+                                        androidx.compose.runtime.key(s.index) {
+                                            PlayerScreen(song, m, sampler, midi, mic, voice, prefs, samplerReady.value, 0.0,
+                                                dump, PlayerStart(Mode.PERFORM, mic = prefs.micDefault && mic.hasPermission(), speed = perform?.speed,
+                                                    midiScript = debugStart.midiScript.takeIf { startDaily }),
+                                                onBack = { advanceDaily(s, completed = ranToEnd || System.currentTimeMillis() - partStart >= 60_000) },
+                                                onFinished = { r ->
+                                                    ranToEnd = true
+                                                    val stars = r.recap?.let { com.bigpapituna.sharpears.engine.songStars(it) }
+                                                    Log.d(TAG, "daily: challenge ${c.title}, ${c.target}: ${stars ?: "no"} stars" + if (stars == 3) ", met" else "")
+                                                },
+                                                onRecapClosed = { if (ranToEnd) advanceDaily(s, completed = true) },
+                                                chordTrack = m?.let { lessons.songChords.value[it.id] })
+                                        }
+                                    }
+                                }
                             }
                         }
                         is Screen.SightRead -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { voice.stop(); screen = s.back }
                             com.bigpapituna.sharpears.ui.SightReadScreen(LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.level, s.inject,
-                                onBack = { screen = s.back })
+                                onBack = { screen = s.back }, midiScript = s.midiScript,
+                                // 2.14: the staff levels for Advanced and Full, Some and A lot, and kids who read and have had lessons.
+                                open = com.bigpapituna.sharpears.engine.SightLevels.open(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid))
                         }
                         is Screen.EarTraining -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             QuietWrongKeys(mic)
@@ -1467,6 +1533,7 @@ class MainActivity : ComponentActivity() {
                                 onBack = { screen = s.back },
                                 onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
                                 family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic,
+                                midiTiming = { com.bigpapituna.sharpears.ui.MidiTimingSetting(midi, debugScript = debugStart.midiScript) },
                                 scroll = settingsScroll, showAllState = settingsShowAll)
                             }
                             }
@@ -1762,7 +1829,7 @@ class MainActivity : ComponentActivity() {
                                                 rest = st.restInStreak, restYesterday = st.atRisk && com.bigpapituna.sharpears.data.AppClock.today().minusDays(1) in st.restDays)
                                         }
                                         // Continue: the song, song by chords or lesson played last; on a fresh install an easy first song.
-                                        val cont = remember(songs, pv) {
+                                        val cont = remember(songs, pv, plan) {
                                             val with = com.bigpapituna.sharpears.engine.nav.ContinueWith.of(prefs.lastPlayed, prefs.lastSongId) { c ->
                                                 when (c) {
                                                     is com.bigpapituna.sharpears.engine.nav.ContinueWith.Song -> songs.any { it.id == c.id && repo.available(it) }
@@ -1778,9 +1845,11 @@ class MainActivity : ComponentActivity() {
                                                 is com.bigpapituna.sharpears.engine.nav.ContinueWith.Lesson -> path.lesson(with.id)!!.let { l ->
                                                     com.bigpapituna.sharpears.ui.ContinueTile.Lesson(l, path.levelOf(l)?.title, prefs.lessonPlayed(l.id))
                                                 }
-                                                // A fresh install: an easy first song for a beginner; a song by chords for some, a lot and a big kid
-                                                // (2.14, engine/nav/DayOne.kt), the easiest of them.
-                                                null -> if (easyFirstSong()) songs.firstOrNull { it.difficulty == "easy" && repo.available(it) }?.let { com.bigpapituna.sharpears.ui.ContinueTile.Song(entry(it), fresh = true) }
+                                                // A fresh install: a challenge in today's plan wins (2.14 depth: no "Start here" beside it); else an
+                                                // easy first song for a beginner; a song by chords for some, a lot and a big kid (2.14 levels-ages,
+                                                // engine/nav/DayOne.kt), the easiest of them.
+                                                null -> if (plan.parts.any { it is SessionPart.Challenge }) null
+                                                    else if (easyFirstSong()) songs.firstOrNull { it.difficulty == "easy" && repo.available(it) }?.let { com.bigpapituna.sharpears.ui.ContinueTile.Song(entry(it), fresh = true) }
                                                     else com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.sortedWith(PopFind.easiest).firstOrNull()
                                                         ?.let { com.bigpapituna.sharpears.ui.ContinueTile.PopSong(it, fresh = true) }
                                             }
@@ -1935,6 +2004,7 @@ class MainActivity : ComponentActivity() {
                                             pinned = remember(pv, kv) { kidStore.pace().pin?.let(path::lesson) },
                                             onSightRead = { screen = Screen.SightRead(s) },
                                             sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
+                                            sightStaff = com.bigpapituna.sharpears.engine.SightLevels.staffOpen(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid),
                                             onEar = { screen = Screen.EarTraining(s) },
                                             theory = { m -> com.bigpapituna.sharpears.ui.theory.TheoryCard(theory, onOpen = { screen = Screen.Theory(s) }, modifier = m) },
                                             earStreak = remember { earStore.workoutStreak() },

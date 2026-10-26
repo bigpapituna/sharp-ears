@@ -10,7 +10,8 @@ import com.bigpapituna.sharpears.engine.plural
  * is tested on the JVM (TodayTest); ui/TodayScreen.kt draws it.
  */
 data class TodayRow(val kind: Kind, val title: String, val detail: String) {
-    enum class Kind { CHORDS, LESSON, SONG }
+    /** CHALLENGE (2.14): today's next challenge, engine/nav/NextChallenge.kt. */
+    enum class Kind { CHORDS, LESSON, SONG, CHALLENGE }
 }
 
 data class TodayCard(val state: State, val about: String, val rows: List<TodayRow>, val summary: String?) {
@@ -32,6 +33,7 @@ data class TodayCard(val state: State, val about: String, val rows: List<TodayRo
             is SessionPart.Lesson -> TodayRow(TodayRow.Kind.LESSON, p.title, "Your next lesson")
             is SessionPart.Loop -> TodayRow(TodayRow.Kind.SONG, p.title, "Bar ${p.bar}, two minutes on a loop")
             is SessionPart.Song -> TodayRow(TodayRow.Kind.SONG, p.title, "With the notes waiting for you")
+            is SessionPart.Challenge -> TodayRow(TodayRow.Kind.CHALLENGE, p.item.title, "Next challenge: ${p.item.target}")
         }
     }
 }

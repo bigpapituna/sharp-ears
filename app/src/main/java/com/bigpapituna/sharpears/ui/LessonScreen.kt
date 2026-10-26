@@ -549,8 +549,17 @@ fun LessonScreen(
     val drop: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
         say = { line -> deps.voice.speak(line) }, reader = !pictures) } }
     // 2.14 (merge, levels-ages): a grown-up or big kid offered "Try for 3 stars" sees the stars it is about; the calm finish has
-    // no drop slot (its rewards are in the sheet), so the stars stand alone in the reward slot.
-    val grownStars: (@Composable () -> Unit)? = if (!kid && retry != null && lessonStars > 0) { { com.bigpapituna.sharpears.ui.skin.StarRow(lessonStars, size = 40.dp) } } else null
+    // no drop slot (its rewards are in the sheet), so the stars stand alone in the reward slot, with the lesson's 3-star rule
+    // under them as the song recap has its own (Stars.LESSON_RULE beside depth's SongStars.RULE).
+    val grownStars: (@Composable () -> Unit)? = if (!kid && retry != null && lessonStars > 0) { {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.bigpapituna.sharpears.ui.skin.StarRow(lessonStars, size = 40.dp)
+            com.bigpapituna.sharpears.engine.skin.Stars.lessonLines(stepStars.toList()).forEach {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 420.dp))
+            }
+        }
+    } } else null
     // 2.9: once today's goal is met, Tomorrow's surprise under a kid's drop (the last thing they get); a grown-up's tomorrow line
     // rides in their calm finish (it is where they go next).
     val dropSlot: @Composable () -> Unit = {

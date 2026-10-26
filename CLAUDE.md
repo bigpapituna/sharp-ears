@@ -1909,3 +1909,95 @@ nursery songs, stars were easy to skip and hard to chase, and the comeback opene
   Leo's plain card, Mila's card opening a stone at step 2). Screenshots app/build/screens/la-*.png (not committed).
 - Open: the plain chord words were checked by tests only (no beginner reached the chord review on the walk); the neutral finish
   for a little kid by tests only; whether Lots should start at the hall rather than the workshop is Roy's call.
+
+## 2.14 depth
+Branch `depth`, 2026-10-26; version not bumped (the merger does); emulator Fold_DP on 5564, a wiped copy of Fold_QA_GU. For strong
+players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 stars", "sight-read has two levels and no staff",
+"Level 1, Newcomer"; -adults.md, Marc). Six parts, the rules Android-free in engine/ with JVM tests.
+- Perform timing (engine/PerformTiming.kt): `PerformScore.timings()` keeps every graded note (its time, keys, offset in song ms,
+  null for a miss; `Recap` itself is unchanged, it is logged and built on every key). `PerformTiming.of(notes, barMs, beats, speed,
+  midi)` puts each note in its bar (`TroubleSpots.barIndex`, so "bar 3" is the recap's "Loop bar 3") in real ms (divided by the
+  speed), gives each bar a verdict (`OFF_MS` 60, between RunWords' 25 and 80: messy with a miss or early and late together,
+  rushed when a quarter of its notes or more came early and none late, dragged the other way, clean otherwise; a bar with nothing
+  to play has none) and one plain line, strongest first: one beat early or late in two bars or more ("You rush the first beat of
+  bars 3 and 7.", only notes within 0.1 beat of a whole beat name it), nearly every note to one side on a MIDI keyboard (points at
+  the offset), rushed or dragged bars, a lean over the whole run, uneven bars, "Your timing was steady all the way through."
+  (A run with no note in time says so instead: "No notes came in time, so there is no timing to show yet.")
+- The recap (ui/player/TimingPanel.kt, placed by ui/RunRecap.kt in its kid and grown-up branches; branch `polish` owns the recap's
+  layout): `RunEnd.timing` (and `flats`), set by `RunEnd.timed(...)` at all three Perform ends in ui/PlayerScreen.kt (library
+  song, generated song, pop run). A grown-up sees "Timing", the star rule against the run, a strip on a small stage (one cell a
+  bar in Good, PupGold, LeftHandColor or WrongGlow, its number in it, a key), the line in the accent, "Tap a bar to see its notes"
+  and a tapped bar's notes ("Beat 2 and", the keys, "120 ms early", "on the beat", "missed"). A kid sees only the strip, a face per
+  bar and never a sad one (clean grins, rushed and dragged an "oh", messy a wavy grin), no number, no words, no taps.
+- Live tick (ui/HitLights.kt `tick`, pooled like the grade words): a Perform hit puts a short mark in the hit line's band at its
+  key's column, left of a faint centre notch when early, right when late, up to half a white key at the good window's edge (amber
+  early, blue late, white on the beat), for 650 ms. Never a word. Keys are now timed between frames in Perform
+  (`PlayerVars.tickNanos`, up to 250 ms past the last frame): the transport moves a frame at a time, so a key read up to a frame
+  early before.
+- The song's star rule (engine/PerformScore.kt `songStars`, `SongStars`): 3 = 98% or more played (the recap ring's accuracy, so
+  one miss in fifty at most) and at least 9 of 10 notes in the good window; 2 = two misses at most, or at least 3 of 4 in time;
+  1 = reached the end. `Stars.of` (the song recap, a kid's words and
+  party, the brief's song stars, the duet line) uses it; `Stars.perform` (a lesson step, LessonStars, Bites) is untouched for
+  branch `levels-ages`. The recap shows "3 stars: 98% or more, and 9 of 10 notes in time." and "This run: 1 miss, 40 of 42 notes
+  in time." (the 2-star rule as well under one star). Decision: the brief said "3 = no misses and 90% in time" and "98% gives 3",
+  which cannot both hold for Sam's run (98% accuracy counts good plus OK, so a 98% run has a miss: 40, 1, 1). "No misses" became
+  "98% or more" (the number the ring shows; levels-ages' lesson rule also gives 98% its third star) and the timing half stays, so
+  a run with every note played but few of them in time never gets three. Sam's exact run is 3 stars; so is one with nothing missed
+  and 41 of 42 in time, every note early (bias -132; the old average-timing test gave 2). Both walked.
+- MIDI timing offset (engine/MidiOffset.kt, audio/MidiDevices.kt `offsetMs`, ui/MidiTiming.kt): -100 to +100 ms in steps of 5, 0
+  by default, kept per phone in the "mic" prefs file (`midiOffsetMs`, carried by a backup). Settings > Microphone > "MIDI keyboard"
+  (a Sub, so SettingsWiringTest's `Section("Microphone")` stands): a slider snapped to 5 ms, "Back to 0", and "Tap along to
+  measure", a dialog with four count-in clicks and eight to tap (750 ms apart, about ten seconds). The offset is the median of tap
+  minus click over taps within 250 ms of a click (taps past 80 ms of the first median left out, at least 5, else "Try again").
+  Applied to Perform's scoring only: `keyStruck(midiOffsetMs)` adds it to the latency `Transport.noteInput` gets, for MIDI
+  note-ons only; the recording, Wait mode and the lights are untouched. Positive: the keyboard is heard late, its notes move earlier.
+- Staff sight-reading (engine/SightStaff.kt, ui/sight/StaffDrill.kt, ui/SightReadScreen.kt): eight levels. The old pieces are 1
+  and 2 (best `sight:<n>`, time, lower is better); 3 to 8 are a two-minute drill on a drawn staff (the theory glyphs of
+  ui/theory/Draw.kt, engine/theory/Music.kt): treble C to G, the treble staff (C4 to A5), the bass staff (E2 to C4), both staves
+  (middle C on either), sharps and flats (two notes in five altered, never E or B sharp, F or C flat), rhythm (a 4/4 bar at 72 bpm
+  with clicks and one bar to count in, the next bar dimmed beside it, a cursor, each note graded by PerformScore, a note let pass
+  counts as wrong). A note level takes the right key (touch, MIDI or the mic); any other key counts wrong and the note stays. Best
+  per level `sightDrill:<n>` (most right, then fewest wrong; cleared by Reset progress). Who has 3 to 8 (`SightLevels`): a
+  grown-up in Advanced or Full, or placed at Some or A lot; a kid who reads (CoursePath's big kid) with a parent's "Has had
+  lessons". ponytail: levels-ages' 9 to 13 shape should open them too. Learn's row then says "Four new bars, then notes on the
+  staff. Eight levels." Eighths have flags, not beams.
+- Today's next challenge (engine/nav/NextChallenge.kt, `SessionPart.Challenge`): a grown-up placed at Some or A lot, or whose next
+  lesson is past the first three units (Basics, Beginner, Rhythm; "level" read as course unit, decided), gets one item at their
+  level, a kind a day in turn (`(epochDay + profile id hash) mod 3`): a library song in Perform at a target tempo (medium songs at
+  85% of their tempo at tier 1, hard songs at all of it at tier 2 = A lot or Keys and on; never above the song's own tempo; the
+  next song not three-starred each time the kind comes round), a staff drill (level 4 or 6, one up once a best there reaches 20
+  right, goal one more than the best and at least 15) or chord changes (I-V-vi-IV or I-vi-IV-V at 80 bpm, ii-V-I or the blues at
+  100, keys in turn). `planSession(..., challenge)`: it comes last and stands in for the Continue song played whole (a worst bar on
+  a loop stays). Today's row ("Next challenge: 3 stars at 90 bpm", the flag icon), the interstitial, the chips, the quest (a
+  challenge song is the song task), and no "Start here" easy song or "Let's start with an easy song." beside it ("Hi, I'm your
+  coach. There's a challenge at your level in today's plan."). Practice today walks it: the player in Perform at the target speed
+  (closing the recap goes on; `daily: challenge ... met` in the log), or the drill at its level with its goal ("7 of 15 right",
+  "Challenge met!", "Go on").
+- Levels: names to level 40 (21, 23, 25, 27, 29, 31, 32, 34, 35, 37, 38, 39 added). LevelLadderTest works out a daily
+  intermediate's month (about level 34) from the XP table and asks every level to it plus five to have its own name. You reads
+  `ProgressStore.level`, and the recap's bar caption takes the store's level (`xpBarFor(before, after, level)`), so the level that
+  branch `levels-ages` seeds from placement shows on both. Nothing is seeded here: an A lot player reads "Newcomer" until that
+  branch merges.
+- Debug: `--es screen sight --ei level 1-8 [--es midi "<ms>:<key>/<vel>,..."]` (a script fixes the seed at 1 and plays from the
+  drill's Start; the drill logs its notes, `sight drill: notes ...`, and level 8 its bars with beats); `--es screen settings --es
+  midi ...` (from the calibration's Start); `--ez daily true --es midi ...` reaches a challenge part too. A script into a song now
+  starts with the transport's first frame, on the frames' clock (`MidiDevices.debugPlay(script, fromUptimeMs)`), so a slow first
+  frame no longer puts every scripted note early; a loaded emulator still wanders 30 to 50 ms run to run, so script early or late
+  notes at 100 ms or more.
+- Tests: PerformTimingTest (11), MidiOffsetTest (4), SightStaffTest (7), NextChallengeTest (5), LevelLadderTest (2),
+  DepthWiringTest (6); ProgressionTest (level 41 between ranks) and KidWordsTest (a song's kid words follow the song rule) adjusted.
+- Emulator walk (Fold_DP, emulator-5564, fresh data: onboarding "A lot", Full, keys or MIDI; `--es midi` scripts): Today with the
+  challenge and the new greeting (dp-01); Practice today to the challenge, the level 6 drill, 20 right and 1 wrong for a goal of
+  15, "Done for today" (dp-02 to dp-06); Twinkle in Perform with the first beat of bars 3 and 7 120 ms early: the live ticks
+  (dp-07, dp-07b), the panel's "You rush the first beat of bars 3 and 7." and bar 3's notes (dp-08, dp-09, dp-09b); 41 of 42 in
+  time with nothing missed at bias -132: 3 stars and the line pointing at the offset (dp-10); Sam's 40, 1, 1 at 98%: 3 stars with
+  the rule and the run beside them (dp-11, dp-11b); the kid strip (skin demo, dp-17); levels 3 to 8 (dp-18, dp-18b, dp-19 to dp-22; the rhythm level 115 right
+  and 7 wrong over two minutes); the offset row, the calibration's three states and 50 ms saved (dp-12 to dp-16); Learn's row
+  (dp-23); You at level 4 (dp-24); a sharp on the bass staff (dp-18-sight-level-7-sharp) and a level 7 challenge, "Challenge
+  met!" (dp-04b, dp-05). The other two challenge kinds on a re-made Fold_DP (`--es today 2026-10-27` and `2026-10-28` with
+  `--ez daily true`): ii-V-I in F at 100 bpm and Rondo alla Turca at 100 bpm (its own tempo at tier 2), each in Perform to its
+  recap with the timing panel, Close going on to "Done for today" (dp-25 to dp-30). A slower target (tier 1, speed under 1)
+  rides PlayerStart.speed, the comeback's, and was not walked. Screenshots in app/build/screens/dp-*.png (not committed).
+- For Roy, on the Fold with the Yamaha: whether 60 ms is the right line for rushed and dragged; the tick's size at 120 Hz; the
+  calibration with real taps (the scripted run found 50 ms for taps scripted about 40 ms late); the drill's keyboard on the cover
+  screen; whether a challenge should replace the plan's whole-song part or sit beside it.

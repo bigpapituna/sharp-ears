@@ -115,6 +115,7 @@ private fun SessionPart.icon() = when (this) {
     is SessionPart.Lesson -> R.drawable.ic_school
     is SessionPart.Loop -> R.drawable.ic_repeat
     is SessionPart.Song -> R.drawable.ic_music_note
+    is SessionPart.Challenge -> R.drawable.ic_flag
 }
 
 /** The session as a row of chips: done ones ticked, this one raised in the accent, the rest outlined. */

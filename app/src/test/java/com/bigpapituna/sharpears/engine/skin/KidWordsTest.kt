@@ -23,7 +23,9 @@ class KidWordsTest {
 
     @Test fun kidHeadlinesFollowTheStars() {
         assertTrue(RunWords.KID_TITLES[2].contains(RunWords.headline(ProfileKind.KID, recap(10, 0, 0), 0, newBest = true)))
-        assertTrue(RunWords.KID_TITLES[1].contains(RunWords.headline(ProfileKind.KID, recap(7, 0, 3), 0, newBest = false)))
+        // 2.14: a song's stars are the song rule (two misses at most for two; three misses at 70% in time are one).
+        assertTrue(RunWords.KID_TITLES[1].contains(RunWords.headline(ProfileKind.KID, recap(8, 0, 2), 0, newBest = false)))
+        assertTrue(RunWords.KID_TITLES[0].contains(RunWords.headline(ProfileKind.KID, recap(7, 0, 3), 0, newBest = false)))
         assertTrue(RunWords.KID_TITLES[0].contains(RunWords.headline(ProfileKind.KID, recap(1, 0, 9), 0, newBest = true)))
         assertTrue(RunWords.KID_TITLES[2].contains(RunWords.headline(ProfileKind.KID, null, 0, false)))
         assertTrue(RunWords.KID_TITLES[0].contains(RunWords.headline(ProfileKind.KID, null, 12, false)))

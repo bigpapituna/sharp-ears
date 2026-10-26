@@ -84,7 +84,8 @@ private class ProfileData(val store: ProgressStore, val prefs: Prefs, val today:
     val streak = store.streak(today)
     val secondsToday = log[today] ?: 0
     val xp = store.xp
-    val level = Progression.levelFor(xp)
+    /** The store's level (2.14): whatever it counts in (placement's seed, branch levels-ages), the You tab shows the same. */
+    val level = store.level
     val days30 = (29 downTo 0).map { today.minusDays(it.toLong()).let { d -> d to (log[d] ?: 0) } }
     val practicedDays = log.filterValues { it > 0 }.keys
     /** Minutes this week, Monday to today, beside the week's dots (2.7: the home's "This week" line moved here). */

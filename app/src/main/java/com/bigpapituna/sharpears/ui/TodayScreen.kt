@@ -144,7 +144,9 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 // 2.10: idle only and subtle (a breath, a blink, now and then an ear): no acts, no hops; a tap still wags him.
                 Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (taps - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
                     bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
-                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name, freshChart) { greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name, easy = !freshChart) }, style = MaterialTheme.typography.bodyLarge,
+                val challenge = shown.rows.any { it.kind == TodayRow.Kind.CHALLENGE }
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name, freshChart, challenge) {
+                    greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name, easy = !freshChart, challenge = challenge) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
             welcomeBack?.invoke()
@@ -258,7 +260,8 @@ private fun TodayCardView(card: TodayCard, goal: GoalState?, a: TodayActions, qu
 @Composable
 private fun PlanRow(r: TodayRow) {
     val c = MaterialTheme.colorScheme
-    val icon = when (r.kind) { TodayRow.Kind.CHORDS -> R.drawable.ic_piano; TodayRow.Kind.LESSON -> R.drawable.ic_school; TodayRow.Kind.SONG -> R.drawable.ic_music_note }
+    val icon = when (r.kind) { TodayRow.Kind.CHORDS -> R.drawable.ic_piano; TodayRow.Kind.LESSON -> R.drawable.ic_school; TodayRow.Kind.SONG -> R.drawable.ic_music_note
+        TodayRow.Kind.CHALLENGE -> R.drawable.ic_flag }
     Row(Modifier.semantics(mergeDescendants = true) { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(36.dp).clip(CircleShape).background(c.surfaceContainerHighest), contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), contentDescription = null, tint = c.primary, modifier = Modifier.size(20.dp))
@@ -352,9 +355,12 @@ private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
 internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false,
                        /** 2.14: the grown-up's name (Greeting): "Good evening, Dana." with one, "Good evening." without. */ name: String? = null,
                        /** 2.14: the first song offered is the easy one (a beginner); false: a song by chords (some, a lot). */
-                       easy: Boolean = true): String = when {
+                       easy: Boolean = true,
+                       /** 2.14: today's plan holds a next challenge (a player past the first steps): never "an easy song". */
+                       challenge: Boolean = false): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
     back -> "${Greeting.welcomeBack(name)} Good to see you."
+    fresh && challenge -> "${Greeting.hi(name)} I'm your coach. There's a challenge at your level in today's plan."
     fresh && !easy -> "${Greeting.hi(name)} I'm your coach. Let's start with a song by chords."
     fresh -> "${Greeting.hi(name)} I'm your coach. Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."

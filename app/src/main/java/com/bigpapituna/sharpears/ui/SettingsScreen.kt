@@ -72,7 +72,9 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                     * Licences or Mic setup (2.8.4, QA D14: the screen is left there and came back at the top).
                     */
                    scroll: androidx.compose.foundation.ScrollState = rememberScrollState(),
-                   showAllState: androidx.compose.runtime.MutableState<Boolean>? = null) {
+                   showAllState: androidx.compose.runtime.MutableState<Boolean>? = null,
+                   /** 2.14: the MIDI keyboard's timing offset (ui/MidiTiming.kt), under Microphone; null hides it. */
+                   midiTiming: (@Composable () -> Unit)? = null) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30): its 12 or 24-hour setting, as the picker uses.
     val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
@@ -265,6 +267,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                     keep = it; mic.keepRecordings = it; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic keepRecordings=$it (Settings)")
                 }
             }
+            midiTiming?.let { Sub("MIDI keyboard"); it() }
 
             if (shows(Simple.SettingsPart.ABOUT)) {
             Section("About")

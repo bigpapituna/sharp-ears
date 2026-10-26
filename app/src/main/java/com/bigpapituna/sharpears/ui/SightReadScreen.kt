@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.ui
 
 import android.util.Log
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,9 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,71 +36,95 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.engine.DrillScore
 import com.bigpapituna.sharpears.engine.Mode
+import com.bigpapituna.sharpears.engine.SightLevel
 import com.bigpapituna.sharpears.engine.SightScore
 import com.bigpapituna.sharpears.engine.sightPiece
 import com.bigpapituna.sharpears.engine.toSong
 import com.bigpapituna.sharpears.ui.pup.Pose
 
 /**
- * Sight-reading: four bars never seen before, played once in wait mode with note names and fingers hidden.
- * Scored on time to the end plus wrong notes; the best per level is kept.
+ * Sight-reading, eight levels (2.14). Levels 1 and 2: four bars never seen before, played once in wait mode with note names
+ * and fingers hidden, scored on time to the end plus wrong notes. Levels 3 to 8: the two-minute staff drill
+ * (ui/sight/StaffDrill.kt), scored on notes right. The best per level is kept either way. [open] are the levels this person
+ * has (engine/SightStaff.kt SightLevels: the staff levels for Advanced and Full, Some and A lot, and kids who read and have had
+ * lessons). [goal] and [onDrillDone]: Practice today's challenge, one drill at [startLevel], then on.
  */
 @Composable
-fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = null, onBack: () -> Unit) {
-    var level by remember { mutableIntStateOf(startLevel.coerceIn(1, 2)) }
+fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = null, onBack: () -> Unit,
+                    open: List<SightLevel> = listOf(SightLevel.PIECE_1, SightLevel.PIECE_2),
+                    /** Debug: a pretend keyboard for the staff drill, from its start (`--es midi`). */
+                    midiScript: String? = null,
+                    goal: Int? = null, onDrillDone: ((DrillScore) -> Unit)? = null) {
+    val levels = open.map { it.n }.ifEmpty { listOf(1, 2) }
+    var level by remember { mutableIntStateOf(startLevel.coerceIn(1, SightLevel.MAX).let { if (it in levels) it else levels.first() }) }
+    val lv = SightLevel.of(level)
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
-    // Injected (debug) runs use a fixed seed so the notes are known in advance.
-    var seed by remember { mutableLongStateOf(if (inject != null) 1L else System.nanoTime()) }
-    val piece = remember(level, seed) { sightPiece(level, seed).also { Log.d(TAG, "sight: level $level ${it.keyName}: ${it.exercise.right} | ${it.exercise.left}") } }
+    // Injected or scripted (debug) runs use a fixed seed so the notes are known in advance.
+    var seed by remember { mutableLongStateOf(if (inject != null || midiScript != null) 1L else System.nanoTime()) }
+    val piece = remember(level, seed) { if (lv.staff) null else sightPiece(level, seed).also { Log.d(TAG, "sight: level $level ${it.keyName}: ${it.exercise.right} | ${it.exercise.left}") } }
     var result by remember(level, seed) { mutableStateOf<Pair<SightScore, Boolean>?>(null) }
+    var drilled by remember(level, seed) { mutableStateOf<Pair<DrillScore, Boolean>?>(null) }
     val prefs = deps.prefs
-    val best = remember(level, prefs.version.intValue) { prefs.sightBest(level) }
+    val best = remember(level, prefs.version.intValue) { if (lv.staff) prefs.sightDrillBest(level)?.label else prefs.sightBest(level)?.label }
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { deps.voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to lessons") }
+                IconButton(onClick = { deps.voice.stop(); onBack() }) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = if (goal != null) "Back to your plan" else "Back to lessons") }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text("Sight-read", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                    Text(best?.let { "Best: ${it.label}" } ?: "No best yet at this level", style = MaterialTheme.typography.bodySmall,
+                    Text(if (lv.staff) "Sight-read, ${lv.title.replaceFirstChar { it.lowercase() }}" else "Sight-read", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                    Text(best?.let { "Best: $it" } ?: "No best yet at this level", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Row(Modifier.padding(start = 12.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(level == 1, { level = 1 }, label = { Text("Level 1") })
-                FilterChip(level == 2, { level = 2 }, label = { Text("Level 2") })
+            // The levels this person has, in a row that scrolls (a challenge keeps its own level).
+            if (goal == null) Row(Modifier.padding(start = 12.dp, top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                levels.forEach { n -> FilterChip(level == n, { level = n; Log.d(TAG, "sight: level $n chosen") }, label = { Text(SightLevel.of(n).chip) }) }
             }
-            // The pup says what this level reads, over the piece.
-            PupSays(Pose.GET_READY,
-                if (level == 1) "C major, right hand, quarter and half notes."
-                else "${piece.keyName}, eighth notes too, and a bass note in the left hand.",
-                Modifier.padding(horizontal = 4.dp, vertical = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge)
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                SharpEarsTheme(dark = true) {
-                    key(level, seed) {
-                        PlayerScreen(piece.exercise.toSong("sight-$level-$seed", "Sight-read"), null, deps.sampler, deps.midi, deps.mic, deps.voice, prefs,
-                            deps.ready, 0.0, false,
-                            PlayerStart(Mode.WAIT, piece.exercise.practice, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
-                            onBack = onBack,
-                            onFinished = { r ->
-                                val s = SightScore.of(r.realMs, r.wrongKeys)
-                                val newBest = prefs.saveSightBest(level, s)
-                                progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
-                                Log.d(TAG, "sight: level $level done in ${s.seconds} s, ${s.wrong} wrong, points ${s.points}, newBest=$newBest")
-                                deps.voice.speak((if (newBest) "A new best: " else "Done: ") + "${s.seconds} seconds" +
-                                    if (s.wrong == 0) ", no wrong notes." else ", ${s.wrong} wrong.")
-                                result = s to newBest
-                            },
-                            embedded = Embedded("Names hidden, the notes wait", labels = false, autoStart = false),
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
-                        )
+            if (lv.staff) key(level, seed) {
+                com.bigpapituna.sharpears.ui.sight.StaffDrill(level, deps, seed, midiScript = midiScript, goal = goal,
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp),
+                    onDone = { s ->
+                        val newBest = prefs.saveSightDrillBest(level, s)
+                        progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
+                        Log.d(TAG, "sight: drill level $level ${s.label}, newBest=$newBest" + (goal?.let { ", goal $it ${if (s.right >= it) "met" else "not met"}" } ?: ""))
+                        deps.voice.speak((if (newBest) "A new best: " else "Done: ") + s.label + ".")
+                        drilled = s to newBest
+                    })
+            } else {
+                // The pup says what this level reads, over the piece.
+                PupSays(Pose.GET_READY,
+                    if (level == 1) "C major, right hand, quarter and half notes."
+                    else "${piece!!.keyName}, eighth notes too, and a bass note in the left hand.",
+                    Modifier.padding(horizontal = 4.dp, vertical = 10.dp), size = 56.dp, style = MaterialTheme.typography.bodyLarge)
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    SharpEarsTheme(dark = true) {
+                        key(level, seed) {
+                            PlayerScreen(piece!!.exercise.toSong("sight-$level-$seed", "Sight-read"), null, deps.sampler, deps.midi, deps.mic, deps.voice, prefs,
+                                deps.ready, 0.0, false,
+                                PlayerStart(Mode.WAIT, piece.exercise.practice, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
+                                onBack = onBack,
+                                onFinished = { r ->
+                                    val s = SightScore.of(r.realMs, r.wrongKeys)
+                                    val newBest = prefs.saveSightBest(level, s)
+                                    progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
+                                    Log.d(TAG, "sight: level $level done in ${s.seconds} s, ${s.wrong} wrong, points ${s.points}, newBest=$newBest")
+                                    deps.voice.speak((if (newBest) "A new best: " else "Done: ") + "${s.seconds} seconds" +
+                                        if (s.wrong == 0) ", no wrong notes." else ", ${s.wrong} wrong.")
+                                    result = s to newBest
+                                },
+                                embedded = Embedded("Names hidden, the notes wait", labels = false, autoStart = false),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).fillMaxHeight().clip(MaterialTheme.shapes.medium),
+                            )
+                        }
                     }
                 }
             }
         }
-        Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!lv.staff) Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             ChunkyButton(onClick = { seed = System.nanoTime() }) { Text("New piece") }
         }
@@ -112,6 +136,17 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
             when { newBest -> "New best!"; good -> cheerTitle(seed.toInt()); else -> "Keep reading" },
             // The title already says "New best!" (it read "New best! New best: 0:20, no wrong notes.").
             (if (newBest) "" else "Done: ") + sc.label + ".", "New piece", Modifier.align(Alignment.BottomCenter)) { seed = System.nanoTime() }
+    }
+    // The drill's two minutes are up: the score, and again (or on, in Practice today).
+    drilled?.let { (sc, newBest) ->
+        val met = goal == null || sc.right >= goal
+        CheerBar(if (met || newBest) Cheer.GOOD else Cheer.MISS,
+            when { goal != null && met -> "Challenge met!"; newBest -> "New best!"; goal != null -> "Good reading"; else -> cheerTitle(seed.toInt()) },
+            sc.label.replaceFirstChar { it.uppercase() } + "." + (goal?.let { if (met) "" else " The goal was $it." } ?: "") +
+                (if (goal != null && met && newBest) " A new best." else ""),
+            if (onDrillDone != null) "Go on" else "Again", Modifier.align(Alignment.BottomCenter)) {
+            if (onDrillDone != null) onDrillDone(sc) else seed = System.nanoTime()
+        }
     }
     }
 }

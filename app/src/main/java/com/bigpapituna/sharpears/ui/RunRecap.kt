@@ -124,11 +124,14 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val haptic = LocalHapticFeedback.current
     val m = remember(e) { RecapMotion(still) }
     val who = profile()
-    val kid = who.kind == ProfileKind.KID
+    // 2.14 merge: the kid recap (no numbers, the pup's words, the reveals one at a time) is the kid skin's, a little kid's; a big
+    // kid reads the grown-up recap as the rest of the player (levels-ages). The words follow the skin too.
+    val kid = who.kidSkin
+    val wordsKind = if (kid) ProfileKind.KID else ProfileKind.ADULT
     val stars = Stars.of(e.recap, e.wrongKeys)
     val seed = remember(e) { e.hashCode() }
     // The sunburst, confetti, trophy and flourish: grown-ups on a best worth it (RunWords.CELEBRATE_FROM), kids on three stars.
-    val party = RunWords.party(who.kind, e.recap, e.wrongKeys, e.newBest)
+    val party = RunWords.party(wordsKind, e.recap, e.wrongKeys, e.newBest)
     // 2.10: three stars (a best for a grown-up) and he lands in a jump for joy, then cheers; a good run, a wag.
     val pup = rememberPupController(idle = false)
     // 2.14, tap the pup to play it again: his jump (the clip, for a kid's stars) then the cheer on a party, a tiny sparkle, a kid's
@@ -166,8 +169,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         if (party) { pup.play(PupMood.HAPPY); delay(PupMotion.HAPPY_MS.toLong()); pup.mood = PupMood.CHEER }
         else if (pose == Pose.GREAT_JOB) pup.play(PupMood.WAG)
     }
-    val title = RunWords.headline(who.kind, r, e.wrongKeys, e.newBest, seed)
-    val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed)
+    val title = RunWords.headline(wordsKind, r, e.wrongKeys, e.newBest, seed)
+    val line = RunWords.coaching(wordsKind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed)
     // The pup says it, name and all (made on the phone, since names are never recorded): kids every time, grown-ups on a best.
     LaunchedEffect(e) {
         if (say == null) return@LaunchedEffect
@@ -238,7 +241,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) (if (short) 56.dp else 72.dp) else 48.dp,
                     sampler = sampler, startDelayMs = if (still) 0L else 420L)
             }
-            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); drop(); TomorrowSlot(Modifier.slideIn(m.rest, 2)) } } else { {
+            val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); com.bigpapituna.sharpears.ui.player.TimingPanel(e.timing, r, kid = true, Modifier.slideIn(m.rest, 1)); drop(); TomorrowSlot(Modifier.slideIn(m.rest, 2)) } } else { {
                 if (!short) starRow()
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.slideIn(m.rest, 0)) {
@@ -250,6 +253,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                         stats.forEachIndexed { i, st -> StatChip(st, m.count, delay = i * 0.1f, Modifier.slideIn(m.rest, i + 1)) }
                     }
                 }
+                // 2.14 (depth): the star rule against this run and the bars' timing (ui/player/TimingPanel.kt), Perform only;
+                // under the numbers, over the calm rewards (the merge keeps polish's layout: the XP line, the drop and Tomorrow
+                // live in the calm line, its chip and its sheet).
+                com.bigpapituna.sharpears.ui.player.TimingPanel(e.timing, r, kid = false, Modifier.slideIn(m.rest, stats.size), flats = e.flats)
                 // 2.14, calm: ONE reward line ("A sticker for your trail." or "+40 XP, level 3 in 120."), a small "See rewards (3)"
                 // chip for the one sheet (the sticker, a rare one, something to wear, an egg, the new level), and under it, once
                 // today's goal is met, tomorrow's next thing (2.9).

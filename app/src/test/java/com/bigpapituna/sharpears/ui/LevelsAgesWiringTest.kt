@@ -82,6 +82,9 @@ class LevelsAgesWiringTest {
         assertTrue("if (skippedGraded == 0) voice.speak(" in lesson)            // a skip says no unrecorded line
         assertTrue("LessonStars.tryForThree(lessonStars, lesson.steps)" in lesson && "onRetry(com.bigpapituna.sharpears.engine.kid.LessonStars.firstGraded(lesson.steps))" in lesson)
         assertTrue("stars = finishStars" in lesson)
+        // 2.14 merge: under a grown-up's stars, the lesson's own 3-star rule (the song recap says the song's: depth's TimingPanel).
+        assertTrue("Stars.lessonLines(stepStars.toList())" in lesson && "reward = grownStars" in lesson)
+        assertTrue("SongStars.ruleLines(recap)" in src("ui/player/TimingPanel.kt"))
         assertTrue("LessonStars.ofRun(report, tally?.letGos ?: 0)" in lesson)
         // (2.14 merge: both first ask parents' daily time, KidDoors; a capped kid gets the goodbye instead.)
         assertTrue("navCount.intValue++; screen = Screen.Lesson(l, s.back, step)" in activity && "onRetry = { step ->" in activity)

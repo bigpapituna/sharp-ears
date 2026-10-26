@@ -8,11 +8,65 @@ const val OK_MS = 300.0
 
 enum class Grade { GOOD, OK, MISS }
 
-/** What the recap shows after a Perform run. */
+/**
+ * One graded note of a Perform run (2.14): its group's song time, the keys it wanted, and how far from it the key came, in
+ * song ms (negative early); null when it was missed. [PerformTiming] turns these into bars and the timing panel.
+ */
+data class NoteTiming(val startMs: Long, val keys: List<Int>, val offsetMs: Double?) {
+    val missed get() = offsetMs == null
+    val good get() = offsetMs != null && abs(offsetMs) <= GOOD_MS
+}
+
+/**
+ * What the recap shows after a Perform run. The notes one by one are [PerformScore.timings] (2.14), kept out of here: a
+ * recap is logged, compared and built on every key.
+ */
 data class Recap(val good: Int, val ok: Int, val miss: Int, val biasMs: Int, val longestStreak: Int) {
     val total get() = good + ok + miss
     /** Good plus ok over all groups, 0..100. */
     val accuracy get() = if (total == 0) 0 else ((good + ok) * 100.0 / total).roundToInt()
+    /** Notes in the good window over all notes, 0..100: the star rule's "in time". */
+    val inTime get() = if (total == 0) 0 else (good * 100.0 / total).roundToInt()
+}
+
+/**
+ * The stars of a song's Perform run (2.14, Sam: "98% gives 2 stars" with no way to see why), the one rule for a song or a
+ * song by chords played in Perform; shown on its recap with [SongStars.ruleLines]. Three: 98% or more of the notes played
+ * (the accuracy the recap's ring shows, so no more than one miss in fifty) and at least nine notes in ten in time (the good
+ * window, ±150 ms): a run with no misses and nine in ten in time always has it, and Sam's 98% (40 good, 1 OK, 1 missed) does
+ * too. Two: two misses at most, or at least three notes in four in time. One: the run reached its end. The old rule's
+ * average-timing test is gone: good notes all a little early (Sam's -126 ms) no longer lose the third star to the average.
+ * A lesson step's stars stay engine/skin/Stars.perform (branch levels-ages).
+ */
+fun songStars(r: Recap): Int = when {
+    r.total == 0 -> 1
+    r.accuracy >= SongStars.THREE_PLAYED && r.good * 100 >= SongStars.THREE_IN_TIME * r.total -> 3
+    r.miss <= SongStars.TWO_MISSES || r.good * 100 >= SongStars.TWO_IN_TIME * r.total -> 2
+    else -> 1
+}
+
+/** The song rule's numbers and its words for the recap. */
+object SongStars {
+    /** Percent of the notes played (the recap's accuracy) for three stars. */
+    const val THREE_PLAYED = 98
+    /** Percent of the notes in time for three stars, and for two. */
+    const val THREE_IN_TIME = 90
+    const val TWO_IN_TIME = 75
+    /** Misses two stars allow. */
+    const val TWO_MISSES = 2
+
+    /** The rule, always the three-star one: "3 stars: 98% or more, and 9 of 10 notes in time." */
+    const val RULE = "3 stars: 98% or more, and 9 of 10 notes in time."
+
+    /** What two stars need, for a run below them: "2 stars: 2 misses at most, or 3 of 4 notes in time." */
+    const val RULE_TWO = "2 stars: 2 misses at most, or 3 of 4 notes in time."
+
+    /** The run against the rule: "This run: no misses, 41 of 42 notes in time." */
+    fun runLine(r: Recap): String =
+        "This run: ${if (r.miss == 0) "no misses" else plural(r.miss, "miss", "misses")}, ${r.good} of ${r.total} notes in time."
+
+    /** The lines under the stars: the three-star rule, the two-star one too for a one-star run, then this run. */
+    fun ruleLines(r: Recap): List<String> = listOfNotNull(RULE, RULE_TWO.takeIf { songStars(r) == 1 }, runLine(r))
 }
 
 /**
@@ -25,7 +79,7 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
                    private val onHit: (Long, Double) -> Unit = { _, _ -> },
                    /** Called with a group's start time when it is graded a miss. */
                    private val onMiss: (Long) -> Unit = {}) {
-    private class Target(val startMs: Long, val keys: Set<Int>) { var grade: Grade? = null }
+    private class Target(val startMs: Long, val keys: Set<Int>) { var grade: Grade? = null; var offset: Double? = null }
     private val targets = groups.filter { it.startMs >= fromMs }
         .map { g -> Target(g.startMs, g.notes.filter(required).map { it.midi }.toSet()) }
         .filter { it.keys.isNotEmpty() }
@@ -35,6 +89,11 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
     private var firstOpen = 0       // targets before this one are graded
 
     val streakNow get() = streak
+    /** Notes graded good so far (the lights' "Perfect"), without building a recap. */
+    val goodCount get() = good
+    /** The last hit's offset from its note (song ms, negative early): the live tick under the hit line. */
+    var lastOffset = 0.0
+        private set
 
     /** Keys to listen for at [atMs]: required notes of ungraded groups inside the ok window. */
     fun listening(atMs: Double): Set<Int> = buildSet {
@@ -58,6 +117,8 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
         val off = atMs - t.startMs
         val g = if (abs(off) <= GOOD_MS) Grade.GOOD else Grade.OK
         t.grade = g
+        t.offset = off
+        lastOffset = off
         if (g == Grade.GOOD) good++ else ok++
         offsetSum += off; offsets++
         streak++; longest = maxOf(longest, streak)
@@ -74,6 +135,9 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
         }
         return missed
     }
+
+    /** The graded notes so far, in song order (a note still open is not in it). */
+    fun timings(): List<NoteTiming> = targets.filter { it.grade != null }.map { NoteTiming(it.startMs, it.keys.sorted(), it.offset) }
 
     fun recap() = Recap(good, ok, miss, if (offsets == 0) 0 else (offsetSum / offsets).roundToInt(), longest)
 }

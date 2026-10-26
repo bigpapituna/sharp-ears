@@ -19,6 +19,10 @@ import kotlin.math.abs
  * [CLEAN_FROM] percent or more in Perform, with nothing let go (no note the app played after the third try, no round the
  * pup let go); 90 percent with the timing within [TIGHT_MS] still counts. Sam played Twinkle at 98 percent with his timing
  * 126 ms ahead and got two stars: he gets three now.
+ *
+ * 2.14 merge, two rules, each in its place (never or-ed): a lesson step's stars are [three] and [perform] (said on the
+ * lesson's finish as [LESSON_RULE]); a song's Perform run is engine/PerformScore.kt songStars through [of] (said on the
+ * recap as SongStars.RULE).
  */
 object Stars {
     const val MAX = 3
@@ -49,8 +53,28 @@ object Stars {
         else -> 1
     }
 
-    /** Stars for a recap: a Perform [recap] when there is one, else a wait run with [wrongKeys]; [letGos] as in [three]. */
-    fun of(recap: Recap?, wrongKeys: Int, letGos: Int = 0): Int = recap?.let { perform(it, letGos) } ?: waitRun(wrongKeys, letGos)
+    /**
+     * Stars for a song run's recap: a Perform [recap] by the song rule (2.14 depth, engine/PerformScore.kt songStars: 98
+     * percent or more played and nine notes in ten in time for three), else a wait run with [wrongKeys]; [letGos] as in
+     * [three] (2.14 levels-ages: anything let go keeps it at two at most). A lesson step keeps [perform] and [three]: the two
+     * rules are scoped, never or-ed (2.14 merge).
+     */
+    fun of(recap: Recap?, wrongKeys: Int, letGos: Int = 0): Int =
+        recap?.let { com.bigpapituna.sharpears.engine.songStars(it).let { s -> if (letGos > 0) minOf(s, 2) else s } } ?: waitRun(wrongKeys, letGos)
+
+    /**
+     * 2.14 merge: a lesson's three-star rule ([three], a step at a time) as its finish says it, in the song recap's frame
+     * (engine/PerformScore.kt SongStars.RULE: "3 stars: 98% or more, and 9 of 10 notes in time."). Grown-ups and big kids only:
+     * a little kid's finish has no numbers.
+     */
+    const val LESSON_RULE = "3 stars: steps played clean or at 98% or more (90% with the timing within 80 ms), and nothing let go."
+
+    /** The lesson against the rule, as the recap's "This run:" line: "This lesson: 1 of 3 steps at 3 stars." */
+    fun lessonLine(steps: List<Int>): String =
+        "This lesson: ${steps.count { it >= MAX }} of ${steps.size} ${if (steps.size == 1) "step" else "steps"} at 3 stars."
+
+    /** The lines under a lesson finish's stars: the rule, then this lesson. */
+    fun lessonLines(steps: List<Int>): List<String> = listOf(LESSON_RULE, lessonLine(steps))
 
     /** What TalkBack says for the row. */
     fun spoken(stars: Int): String = when (stars.coerceIn(1, MAX)) {

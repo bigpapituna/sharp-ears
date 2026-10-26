@@ -116,9 +116,16 @@ private fun LaneDemo(intent: Intent, kid: Boolean, tone: String?) {
 
 @Composable
 private fun RecapDemo(stars: Int, sampler: Sampler?) {
-    val r = when (stars) { 3 -> Recap(19, 1, 0, 22, 20); 2 -> Recap(12, 3, 5, 60, 9); else -> Recap(5, 2, 13, 140, 3) }
+    // 2.14: the song rule (two misses at most for two stars), and a timing strip with a bar of each kind.
+    val r = when (stars) { 3 -> Recap(19, 1, 0, 22, 20); 2 -> Recap(15, 3, 2, 60, 9); else -> Recap(5, 2, 13, 140, 3) }
+    val timing = com.bigpapituna.sharpears.engine.PerformTiming.of((0 until 32).map { i ->
+        val bar = i / 4 + 1; val beat = i % 4
+        com.bigpapituna.sharpears.engine.NoteTiming((i * 500).toLong(), listOf(60 + beat), when {
+            bar == 3 && beat == 0 -> -120.0; bar == 6 && beat == 2 -> 110.0; bar == 7 && beat == 1 -> if (stars < 3) null else 20.0; else -> 10.0
+        })
+    }, 2000.0, 4)
     val e = RunEnd(r, newBest = stars == 3, spots = if (stars < 3) listOf(TroubleSpot(3, 4800.0, 7200.0, 4.0)) else emptyList(),
-        canReplay = true, timeMs = 48_000, xpGained = 15, xpBar = XpBar(0.42f, 0.58f, "Level 3"))
+        canReplay = true, timeMs = 48_000, xpGained = 15, xpBar = XpBar(0.42f, 0.58f, "Level 3"), timing = timing)
     RunRecap(e, 1.0, sampler, onAgain = {}, onLoop = {}, onClose = {}, onReplay = {})
 }
 

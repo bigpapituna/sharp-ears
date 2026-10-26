@@ -113,6 +113,8 @@ private val SWING = 72.dp
  */
 @Composable
 fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null,
+                /** 2.14: this person has the staff levels of Sight-read (engine/SightStaff.kt SightLevels). */
+                sightStaff: Boolean = false,
                 onEar: () -> Unit = {}, earStreak: Int = 0,
                 /** The Theory Academy's row (TheoryCard), drawn first beside the course. */
                 theory: (@Composable (Modifier) -> Unit)? = null,
@@ -202,7 +204,8 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                     theory?.invoke(Modifier.pressScale())
                     SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
                         earStreak.takeIf { it > 0 }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
-                    SideRow("Sight-read", sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
+                    SideRow("Sight-read", if (sightStaff) "Four new bars, then notes on the staff. Eight levels." else
+                        sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
                         null, R.drawable.ic_play_arrow, onSightRead)
                 }
                 if (!kid) LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true }, edge = 0.dp)
