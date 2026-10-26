@@ -108,7 +108,7 @@ fun ArcadeHub(state: ArcadeState, sparkles: Int, onGame: (ArcadeGame) -> Unit, o
                     tileArt(next)
                     present(toward)
                 }
-                Text(ArcadeLines.MORE_SOON, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 1,
+                Text(ArcadeLines.MORE_SOON, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 2,
                     color = c.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
             }

@@ -70,8 +70,8 @@ fun SkinDemo(intent: Intent, sampler: Sampler, midi: MidiDevices, mic: MicInput,
             when (view) {
                 "lane", "wrong" -> LaneDemo(intent, kid, if (view == "wrong") intent.getStringExtra("tone") ?: "both" else null)
                 "recap" -> RecapDemo(intent.getIntExtra("stars", 3), sampler.takeIf { prefs.sound })
-                "goodbye" -> Goodbye(who.name, demoWeek(), onSongs = {}, onClose = {}, onJam = {}, say = { voice.speak(it) })
-                "asleep" -> Goodbye(who.name, demoWeek(), onSongs = {}, onClose = {}, onJam = {}, onOneMore = {}, asleep = true)
+                "goodbye" -> Goodbye(who.name, demoWeek(), onSongs = {}, onClose = {}, onJam = {}, say = { voice.speak(it) }, picture = kid && !reader)
+                "asleep" -> Goodbye(who.name, demoWeek(), onSongs = {}, onClose = {}, onJam = {}, onOneMore = {}, asleep = true, picture = kid && !reader)
                 "paws" -> PawsDemo()
                 "bite" -> androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                     val lesson = COURSE.flatMap { it.lessons }.firstOrNull { it.id == intent.getStringExtra("lesson") } ?: COURSE.first().lessons.first()

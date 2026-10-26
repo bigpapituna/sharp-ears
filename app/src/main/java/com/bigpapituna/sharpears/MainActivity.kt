@@ -452,6 +452,7 @@ class MainActivity : ComponentActivity() {
         // keeps them for as long as it lives, so a recreate (a theme or font change, the process coming back) read `--es profile`,
         // `--es today`, the seeds and the rest again; DebugRoutes.oneShot says they are used up, and they are dropped here.
         debugRoutes = routesAllowed(intent) && com.bigpapituna.sharpears.engine.DebugRoutes.oneShot(recreated = savedInstanceState != null)
+        if (savedInstanceState != null && routesAllowed(intent)) Log.d(TAG, "debug routes: extras already used by this launch (recreate), not applied again")
         if (!debugRoutes) intent = withoutDebugExtras(intent)
         debugToday(intent, debugRoutes)
         smallestWidthDp = resources.configuration.smallestScreenWidthDp

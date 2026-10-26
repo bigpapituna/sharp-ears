@@ -1733,3 +1733,55 @@ This repo is Roy's private build (keeps personal music, debug build). The public
 - `secrets.properties` keys (all gitignored, all optional): `AI_KEY`, `AI_MODEL`, `AI_BASE_URL`, `EMAIL_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `EMAIL_BASE_URL`, `EMAIL_IMAGE_BASE`, `POSTHOG_KEY`, `POSTHOG_HOST`, `DIARY_TO`, `PRIVATE_BUILD` (default false) and `DEBUG_ROUTE_KEY` (2.10.1, "Debug routes" above; `scripts/set-debug-key.ps1`). `scripts/set-private-build.ps1` writes `PRIVATE_BUILD=true` (`-Off` for false).
 - `PopSong.privateOnly` marks a chart that must never ship publicly. `engine/chords/PopSongsTemp.kt` holds six (Michael Jackson, chords only, all SKETCH). They are in `ALL_POP_SONGS` but not in `POP_SONGS`; `ui/chords/PopCatalogue.songs` (the screens' one list) adds them only when `BuildConfig.PRIVATE_BUILD` is true, via `PopFind.visible`. The engine never reads BuildConfig.
 - Before any release: delete `PopSongsTemp.kt` and its `TEMP_SONGS` term in `PopSongs.kt`. `PopSongsTest.privateSongsMustNotShipPublic` fails in any build without PRIVATE_BUILD=true while a privateOnly song exists, so a public build fails CI until then.
+
+## 2.14 polish (2026-10-26, branch `polish`; emulator-5558 Fold_QA_GU only; version and What's new left to the merger)
+The "polish" part of 2.14, from docs/PERSONA-PLAN-2026-10-26.md and the persona walks (adults, kids, family, more; untracked).
+- Owner's name: `Profile.named` (saved as "named"); a fresh owner is `Profile.UNSET_NAME` ("Grown-up") and unnamed. Onboarding's first card asks
+  "What should we call you?" (optional, owner only: `askName`/`onName`, `Profiles.nameOwner`). A phone from before 2.14 has an owner "Roy" that
+  nobody chose (no flag saved: `Profile.fromMap` reads it as unnamed; any other name, and every non-owner, as named): asked ONCE on the next launch
+  (`OwnerName.askDue`, `OwnerNameAsk` dialog over Today before What's new and the tour; `Profiles.ownerNameAsked` is kept in the profiles file;
+  a rename in Settings answers it too). Every greeting reads `Profile.greetName` through `engine/family/OwnerName.kt` `Greeting`: "Hi, Dana." or
+  "Hi there." (layout chooser), Today ("Good evening, Dana."), the tour's first card, "My week" (card line and the page's first line), RunRecap.
+- Copy: step feedback `Feedback.text` writes the note (`writtenNote`: "C3", "F sharp", "B flat"), `spoken` keeps "C three"; one Start on Today
+  (`TodayCardView(showStart = welcomeBack == null)`: the comeback card's Start replaces the plan's); My songs titles lower their little words
+  (`MySongs.lowerSmallWords`: "Canon in D"; never "A", it may be a key); the arcade's locked games are ONE "More games soon!" tile
+  (`ArcadeHub`); Balloon pop starts readers at level 1 (`ArcadeStart.level`; `ArcadeBook.record` now moves on from the level played); the arcade
+  finish says what each star needs under it (`ArcadeLines.starMeaning`); the locked "Alicia" row waits for its file (`myShelf`); the chord drill says
+  "Play C, E and G, in any order and any octave" (`chordPrompt`); the player's "High five!" bubble is "Nice playing." for grown-ups
+  (`CheerLines.highFive`); "Show Mum" is "Show a grown-up"; a zero streak says "A fresh start. Play today and a new streak begins."
+- Calmer grown-up finish: `Celebration(calm = CalmFinish(line, items, say, onLeave, below))` and the song recap show ONE reward line
+  (`RewardQueue.line`: "A sticker for your trail." / "A rare sticker for your trail." / "Something new for the pup to wear." / "A mystery egg for your
+  trail." / "+40 XP, level 3 in 120.") and a small "See rewards (3)" chip (`RewardsChip`) that opens ONE `RewardsSheet` (a reward at a time, Next
+  reward / Done): the stone's sticker, stickers, a rare one, something to wear, an egg, the house, a record and the level-up (`RewardItem`, built
+  by `RewardQueue.of`; a pending level-up is folded in and consumed in `onLeave`, so no second screen follows). One Next button; no XP bar, no
+  OneMore card (the recap's Play again is a plain button for grown-ups). Kids keep the reveals one at a time (`KidRewardStage`, each for
+  `dwellMs`, a tap goes on), the big button stays pinned.
+- Non-readers (kid, `!reader`): `Celebration(picture = true)` is the pup, the stars, the sticker(s) and ONE arrow button (no title, line, stats,
+  "Next:" card or text rows; TalkBack still hears them; the one spoken line is the lesson's); "Done for today" the same; `Goodbye(picture = true)` is the
+  sleepy pup and one play button (Back closes it); the wrapped gift, the drop cards and the wardrobe reveal come without captions
+  (`captions = reader`).
+- Day 1: `World.lessonComplete(starter = true)` on a kid's very first finished lesson (empty wardrobe, no lessons yet) opens `Starter.ITEM` (the
+  bandana; its practice set at 22 keeps only the cowboy hat) and sticks the first sticker (the stone's own, else the drop) in `Starter.slot(place)`
+  (the first slot of the place's scene); `Reward.starter/placedAt`; the reveal keeps the bandana on without asking (`autoKeep`). Dress up opens on a
+  slot with something to wear and shows what is open plus ONE "More soon!" tile (a present) instead of padlocks (`MoreSoonTile`).
+- Tap the pup to replay (Roy): `ui/pup/PupReplay.kt` (`rememberPupReplay`, `ReplayPup`, `TapSparkle`, `LocalPupVoice`; `engine/pup/PupTap.kt`).
+  On Celebrate, the song recap, the arcade finish, the sticker reveal (`DropRevealOverlay`), the wardrobe reveal, the opened surprise (`GiftOpening`)
+  and the kid finale (`PupClip(replay, onTap)`), a tap plays the clip again from its first frame (`PupController.playClip`; the clip cue now cancels and
+  rewinds the held or playing drawable) or the rig's HAPPY (then CHEER on a party), a 6-star sparkle for 500 ms, and a kid's recorded line
+  ("Woof woof! Amazing!") the first tap only (grown-ups hear nothing); unlimited; the pup alone takes the touch, never the buttons; reduced motion is
+  the 150 ms fade (`PupMotion.CALM_MS`). PupReplayWiringTest: every finish screen's pup is a `ReplayPup` with a replay.
+- Debug extras are one-shot: `DebugRoutes.oneShot(recreated)`; onCreate drops a launch's extras once the activity is recreated (a font or theme
+  change, the process coming back), logging `debug routes: extras already used by this launch (recreate), not applied again`. They used to be read
+  again (`--es profile`, `--es today`, the seeds). Checked on 5558: two recreates by font scale kept p2, extras not applied.
+- Tests: RewardQueueTest, ArcadeFinishHubTest, PupTapTest, PupReplayWiringTest, PolishWiringTest; ProfilesStoreTest, ProfileTest, RosterTest,
+  FeedbackTest, MySongsWiringTest, PupWiringTest updated. Emulator walk (screens in app/build/screens/po-*.png, contact sheets po-contact-*.png, not
+  committed): onboarding with "Dana" and without a name (layout chooser, Today, tour), a grown-up's lesson finish with the rewards chip and sheet
+  (cushion, watering can, level 2), the kid's first lesson (the bandana, `first sticker stuck at garden:sky`), Dress up on day 1, the arcade hub
+  and finish (stars, meanings), the non-reader goodbye, and taps on the pup on Celebrate, the arcade finish and the kid recap (log `pup replay #n`).
+- Decisions: the unset owner's stored name is "Grown-up" (never "You": the picker and duets print names); the written note keeps "sharp" and
+  "flat" as words (no glyphs), only a C gets its octave digit; a grown-up's finish drops the secondary "All lessons" (Back still goes there);
+  the starter is the bandana (free, no new art); the arcade star captions are shown, never spoken (no new recordings); the tap-replay voice line is
+  an existing recorded kid cheer.
+- Expected conflicts: `levels-ages` (Celebrate and LessonScreen's finish: stars, skip, "Try for 3 stars", `RunWords`; ui/Retention's comeback card
+  and `Comeback` copy; TodayScreen's greeting), `parents` (TodayScreen's card; the gate, Settings > Family rename now sets the owner's `named`),
+  `depth` (RunRecap's numbers where the timing panel goes: the XP line and `drop()` became `CalmRewards`/`KidRewardStage`).
