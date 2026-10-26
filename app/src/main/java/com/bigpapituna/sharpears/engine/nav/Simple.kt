@@ -31,6 +31,16 @@ object Simple {
     /** The layout a person sees: a kid's is Full (nothing cut); a grown-up's is their choice, or the default from their level. */
     fun layoutOf(kid: Boolean, chosen: Layout?, level: Level): Layout = if (kid) Layout.FULL else chosen ?: default(level)
 
+    /**
+     * 2.14, by who is playing: a little kid is Full (nothing cut, their home is the simple one); a big kid starts in Simple
+     * (the tabs' first steps) and is never asked; a grown-up as [layoutOf] above.
+     */
+    fun layoutOf(audience: com.bigpapituna.sharpears.engine.family.Audience, chosen: Layout?, level: Level): Layout = when (audience) {
+        com.bigpapituna.sharpears.engine.family.Audience.LITTLE_KID -> Layout.FULL
+        com.bigpapituna.sharpears.engine.family.Audience.BIG_KID -> chosen ?: Layout.SIMPLE
+        com.bigpapituna.sharpears.engine.family.Audience.GROWN_UP -> layoutOf(false, chosen, level)
+    }
+
     /** The launch asks a grown-up who never chose (2.7's switch counts as a choice, see Prefs.layout); a kid never. */
     fun asks(kid: Boolean, chosen: Layout?): Boolean = !kid && chosen == null
 
@@ -114,6 +124,10 @@ object Simple {
      */
     fun popSongs(all: List<PopSong>, layout: Layout): List<PopSong> =
         if (layout == Layout.SIMPLE) all.filter { it.difficulty <= 2 && easyKey(it) } else all
+
+    /** 2.14: a big kid gets every song by chords in any layout (the songs their friends play are the way in). */
+    fun popSongs(all: List<PopSong>, layout: Layout, audience: com.bigpapituna.sharpears.engine.family.Audience): List<PopSong> =
+        if (com.bigpapituna.sharpears.engine.family.Ages.allPopSongs(audience)) all else popSongs(all, layout)
 
     // ---- My songs ----
 

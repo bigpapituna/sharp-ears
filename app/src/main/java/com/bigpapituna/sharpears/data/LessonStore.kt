@@ -70,6 +70,23 @@ class LessonStore(private val context: Context, profileId: String) {
      * Debug (`--es known C,F,G,Am` with `--es screen popsongs`): those chords as played cleanly [box] times running, due in
      * four days, so songs by chords has songs "you can play" and "one new chord away" to show.
      */
+    /**
+     * 2.14, "I know these chords" (engine/chords/KnownChords.kt): each of [chords] is written at the known box, due in four
+     * days, never lowering a box practice already took higher. Returns how many changed.
+     */
+    fun know(chords: Collection<com.bigpapituna.sharpears.engine.Chord>, now: Long = System.currentTimeMillis()): Int {
+        val m = mastery()
+        val changed = chords.mapNotNull { c ->
+            val id = com.bigpapituna.sharpears.engine.chords.KnownChords.id(c)
+            val seeded = com.bigpapituna.sharpears.engine.chords.KnownChords.seed(m[id], now)
+            if (seeded == m[id]) null else id to seeded
+        }
+        if (changed.isNotEmpty()) prefs.edit { changed.forEach { (id, s) -> putString(id, "${s.box},${s.dueAt}") } }
+        Log.d(TAG, "lessons: known chords picked ${chords.joinToString { it.name }}, ${changed.size} written")
+        version.intValue++
+        return changed.size
+    }
+
     fun debugKnow(names: List<String>, box: Int, now: Long = System.currentTimeMillis()) {
         prefs.edit { names.forEach { putString("chord:$it", "$box,${now + 4 * 86_400_000L}") } }
         Log.d(TAG, "lessons: debug known ${names.joinToString()} at box $box")

@@ -16,6 +16,9 @@ enum class ProfileKind { ADULT, KID }
  * [micOffsetDb] makes the microphone that much easier to trigger for this person (kids strike lighter).
  * [level] is how much piano they have played already (engine/family/Placement.kt): where the course starts for them. A
  * profile made before 2.6 has none and reads as [Level.NEVER], so nothing changes for it.
+ * [band] (2.14, engine/family/Ages.kt) is a kid's age band: little (the pup's world) or big (the tabs). A kid made before
+ * 2.14 has none and reads as [AgeBand.LITTLE]; a grown-up's is never read. [isKid] stays true for both bands: the gate, the
+ * brief, bedtime and the mic offset treat a big kid as a kid; [audience] says which world they see.
  */
 data class Profile(
     val id: String,
@@ -29,15 +32,25 @@ data class Profile(
     val micOffsetDb: Double,
     val createdAt: Long,
     val level: Level = Level.NEVER,
+    val band: AgeBand = AgeBand.LITTLE,
 ) {
     val isKid: Boolean get() = kind == ProfileKind.KID
     val isOwner: Boolean get() = id == OWNER_ID
 
+    /** 2.14: a little kid, a big kid or a grown-up ([Ages] routes each screen by it). */
+    val audience: Audience get() = Audience.of(kind, band)
+    /** The pup's world is their home (a little kid): the map, the sticker trail, the kid songs, no tabs. */
+    val mapHome: Boolean get() = Ages.mapHome(audience)
+    /** The kid skin in lessons, the player and the finish screens (a little kid). */
+    val kidSkin: Boolean get() = Ages.kidSkin(audience)
+    /** A big kid (8 to 13): the tabs in Simple, still a kid for the gate. */
+    val bigKid: Boolean get() = audience == Audience.BIG_KID
+
     /**
-     * The course unit this person starts on: the Playground for kids, Basics for grown-ups. Only the id; the
-     * Playground team adds the unit with this id to engine/Course.kt.
+     * The course unit this person starts on: the Playground for a little kid, Basics for a big kid and a grown-up. Only the
+     * id; the Playground team adds the unit with this id to engine/Course.kt.
      */
-    val firstUnitId: String get() = firstUnitId(kind)
+    val firstUnitId: String get() = Ages.firstUnitId(audience)
 
     /**
      * The same person as [newKind], with that kind's defaults for goal, hints, colour notes and mic offset. The piano level
@@ -45,14 +58,23 @@ data class Profile(
      * (Family > Piano level sets it again).
      */
     fun withKind(newKind: ProfileKind): Profile = if (newKind == kind) this else {
-        val d = defaults(newKind, reader)
+        val d = defaults(newKind, reader, band)
         copy(kind = newKind, dailyGoalMin = d.dailyGoalMin, hintSeconds = d.hintSeconds, colourNotes = d.colourNotes, micOffsetDb = d.micOffsetDb, level = Level.NEVER)
+    }
+
+    /**
+     * The same kid in [newBand] (2.14, Family > the kid > Little or Big kid): the band's colour notes and hints; the piano
+     * level stays (Placement re-plans it on the band's own course).
+     */
+    fun withBand(newBand: AgeBand): Profile = if (newBand == band) this else {
+        val d = defaults(kind, reader, newBand)
+        copy(band = newBand, hintSeconds = d.hintSeconds, colourNotes = d.colourNotes)
     }
 
     fun toMap(): Map<String, Any?> = linkedMapOf(
         "id" to id, "name" to name, "avatar" to avatar, "kind" to kind.name, "reader" to reader,
         "dailyGoalMin" to dailyGoalMin, "hintSeconds" to hintSeconds, "colourNotes" to colourNotes,
-        "micOffsetDb" to micOffsetDb, "createdAt" to createdAt, "level" to level.name,
+        "micOffsetDb" to micOffsetDb, "createdAt" to createdAt, "level" to level.name, "band" to band.name,
     )
 
     fun encode(): String = MiniJson.write(toMap())
@@ -68,6 +90,8 @@ data class Profile(
 
         const val KID_GOAL_PRE_READER = 5
         const val KID_GOAL_READER = 8
+        /** A big kid's goal (2.14): a grown-up's ten minutes. */
+        const val KID_GOAL_BIG = 10
         const val ADULT_GOAL = 10
         val KID_HINTS = listOf(4, 8, 12)
         val ADULT_HINTS = listOf(6, 12, 18)
@@ -79,9 +103,12 @@ data class Profile(
 
         fun firstUnitId(kind: ProfileKind) = if (kind == ProfileKind.KID) "playground" else "basics"
 
-        /** A new kid: goal 5 minutes before they read, 8 after; hints at 4, 8 and 12 s; colour notes on; mic +3 dB. */
-        fun kid(name: String, avatar: Int, reader: Boolean, id: String = "", createdAt: Long = 0L): Profile =
-            defaults(ProfileKind.KID, reader).copy(id = id, name = cleanName(name), avatar = avatar.coerceIn(0, AVATARS - 1), createdAt = createdAt)
+        /**
+         * A new kid: goal 5 minutes before they read, 8 after; hints at 4, 8 and 12 s; colour notes on; mic +3 dB. A big kid
+         * (2.14): goal 10 minutes, a grown-up's hints, colour notes off (the letters on the keys read better at 8 to 13), mic +3 dB.
+         */
+        fun kid(name: String, avatar: Int, reader: Boolean, id: String = "", createdAt: Long = 0L, band: AgeBand = AgeBand.LITTLE): Profile =
+            defaults(ProfileKind.KID, reader, band).copy(id = id, name = cleanName(name), avatar = avatar.coerceIn(0, AVATARS - 1), createdAt = createdAt)
 
         /** A new grown-up: goal 10 minutes, hints at 6, 12 and 18 s, colour notes off, no mic offset. */
         fun adult(name: String, avatar: Int, id: String = "", createdAt: Long = 0L): Profile =
@@ -90,10 +117,12 @@ data class Profile(
         /** The owner, made when the phone has no profiles yet (everyone who used the app before 2.1). */
         fun owner(createdAt: Long = 0L) = adult(OWNER_NAME, 0, OWNER_ID, createdAt)
 
-        private fun defaults(kind: ProfileKind, reader: Boolean) = when (kind) {
-            ProfileKind.KID -> Profile("", "", 0, kind, reader, if (reader) KID_GOAL_READER else KID_GOAL_PRE_READER,
+        private fun defaults(kind: ProfileKind, reader: Boolean, band: AgeBand = AgeBand.LITTLE) = when {
+            kind == ProfileKind.KID && band == AgeBand.BIG -> Profile("", "", 0, kind, reader, KID_GOAL_BIG,
+                ADULT_HINTS, colourNotes = false, micOffsetDb = KID_MIC_OFFSET_DB, createdAt = 0L, band = band)
+            kind == ProfileKind.KID -> Profile("", "", 0, kind, reader, if (reader) KID_GOAL_READER else KID_GOAL_PRE_READER,
                 KID_HINTS, colourNotes = true, micOffsetDb = KID_MIC_OFFSET_DB, createdAt = 0L)
-            ProfileKind.ADULT -> Profile("", "", 0, kind, true, ADULT_GOAL, ADULT_HINTS, colourNotes = false, micOffsetDb = 0.0, createdAt = 0L)
+            else -> Profile("", "", 0, kind, true, ADULT_GOAL, ADULT_HINTS, colourNotes = false, micOffsetDb = 0.0, createdAt = 0L, band = band)
         }
 
         /** Trimmed, inner runs of spaces made one, at most [MAX_NAME] characters (never half an emoji). */
@@ -108,7 +137,9 @@ data class Profile(
             val id = (m["id"] as? String)?.takeIf { ID.matches(it) } ?: return null
             val kind = ProfileKind.entries.firstOrNull { it.name == m["kind"] } ?: ProfileKind.ADULT
             val reader = m["reader"] as? Boolean ?: true
-            val d = defaults(kind, reader)
+            // 2.14: a kid saved before the age band is a little kid (the pup's world, as they had it).
+            val band = AgeBand.parse(m["band"] as? String)
+            val d = defaults(kind, reader, band)
             val hints = (m["hintSeconds"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.takeIf { it.size == 3 } ?: d.hintSeconds
             return d.copy(
                 id = id,
@@ -121,6 +152,7 @@ data class Profile(
                 micOffsetDb = (m["micOffsetDb"] as? Number)?.toDouble() ?: d.micOffsetDb,
                 createdAt = (m["createdAt"] as? Number)?.toLong() ?: 0L,
                 level = Level.parse(m["level"] as? String),
+                band = band,
             )
         }
 

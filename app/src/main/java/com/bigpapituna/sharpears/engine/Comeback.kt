@@ -88,6 +88,92 @@ object Comeback {
         else -> "Three easy minutes to warm up. Play “$title” a little slower, and the notes wait for you."
     }
 
+    // ---- 2.14: a concrete step, and words for each audience --------------------------------------------------------------
+
+    /**
+     * Where the comeback's button goes (2.14): never a list. Marc came back after a week, tapped Start and landed on the Songs
+     * list ("Pick a song you know"), because he had no clean song to replay.
+     */
+    sealed interface Resume {
+        /** A lesson left part way, opened at the step it was left on. */
+        data class LessonStep(val id: String, val step: Int) : Resume
+        /** The song by chords played last, on its page. */
+        data class PopChart(val id: String) : Resume
+        /** The library song played last, in the player: a little slower, the notes waiting, three minutes. */
+        data class Song(val id: String) : Resume
+        /** Nothing left open: the next lesson on the path, from its first step. */
+        data class NextLesson(val id: String) : Resume
+    }
+
+    /**
+     * The step a comeback opens: the lesson [left] part way (its id and step, kept as the steps go by; null once it was
+     * finished) while it still exists and is not done, else what was played last ([last]: a chart's page, a song, a lesson not
+     * finished), else the path's [next] lesson. [exists] says the thing is still there; [done] that a lesson is finished.
+     * Null only when there is nothing at all (no course left and nothing played).
+     */
+    fun resume(left: Pair<String, Int>?, last: com.bigpapituna.sharpears.engine.nav.ContinueWith?, next: String?,
+               done: (String) -> Boolean, exists: (com.bigpapituna.sharpears.engine.nav.ContinueWith) -> Boolean): Resume? {
+        left?.takeIf { (id, _) -> !done(id) && exists(com.bigpapituna.sharpears.engine.nav.ContinueWith.Lesson(id)) }
+            ?.let { (id, step) -> return Resume.LessonStep(id, step.coerceAtLeast(0)) }
+        when (last) {
+            is com.bigpapituna.sharpears.engine.nav.ContinueWith.PopSong -> if (exists(last)) return Resume.PopChart(last.id)
+            is com.bigpapituna.sharpears.engine.nav.ContinueWith.Song -> if (exists(last)) return Resume.Song(last.id)
+            is com.bigpapituna.sharpears.engine.nav.ContinueWith.Lesson -> if (exists(last) && !done(last.id)) return Resume.LessonStep(last.id, 0)
+            null -> {}
+        }
+        return next?.let(Resume::NextLesson)
+    }
+
+    /** The left lesson as Prefs keeps it ("lessonId:step"), or null. */
+    fun parseLeft(s: String?): Pair<String, Int>? {
+        val id = s?.substringBeforeLast(':', "")?.takeIf { it.isNotEmpty() } ?: return null
+        return id to (s.substringAfterLast(':').toIntOrNull() ?: 0)
+    }
+
+    fun encodeLeft(id: String, step: Int): String = "$id:$step"
+
+    /** A big kid's card (2.14): plain, the tabs' words, no pup voice. */
+    const val BIG_KID_TITLE = "Welcome back."
+    const val BIG_KID_LINE = "Pick up where you left off."
+
+    /** The grown-up's line for a [Resume] with its [title] ("as today", 2.9's three easy minutes). */
+    fun grownUpLine(r: Resume, title: String?): String = when (r) {
+        is Resume.LessonStep -> if (title == null) grownUpLine(null, true) else "Three easy minutes to warm up. Pick up “$title” where you left off."
+        is Resume.NextLesson -> if (title == null) grownUpLine(null, true) else "Three easy minutes to warm up. Start “$title”."
+        is Resume.PopChart -> if (title == null) grownUpLine(null, false) else "Three easy minutes to warm up. Play “$title” with the band."
+        is Resume.Song -> grownUpLine(title, false)
+    }
+
+    /** A gap of this many days or more (the last practice a week or more ago) and the card says what became of the streak. */
+    const val STREAK_LINE_DAYS = 7
+
+    /**
+     * After a gap of [STREAK_LINE_DAYS] days or more since the last practice ([practised], back [today]: Marc's 26 October to
+     * 2 November is a week), one line about the streak:
+     * "Your 12-day streak ended on the 9th. A new one starts today." The day it ended is the first missed day neither a rest
+     * day nor a freeze could keep (engine/progress Streaks). A streak of one day or none: "A new streak starts today." Null
+     * for a shorter gap or a first day. Grown-ups and big kids only (Ages.streakLine: a little kid sees no numbers).
+     */
+    fun streakLine(practised: Set<LocalDate>, today: LocalDate): String? {
+        val last = practised.filter { it.isBefore(today) }.maxOrNull() ?: return null
+        if (ChronoUnit.DAYS.between(last, today) < STREAK_LINE_DAYS) return null
+        val upToLast = practised.filter { !it.isAfter(last) }.toSet()
+        val run = com.bigpapituna.sharpears.engine.progress.Streaks.compute(upToLast, last).streak
+        if (run < 2) return "A new streak starts today."
+        var ended = last.plusDays(1)
+        while (ended.isBefore(today) && com.bigpapituna.sharpears.engine.progress.Streaks.compute(upToLast, ended.plusDays(1)).streak > 0) ended = ended.plusDays(1)
+        return "Your $run-day streak ended on the ${ordinal(ended.dayOfMonth)}. A new one starts today."
+    }
+
+    /** "1st", "2nd", "3rd", "11th", "22nd". */
+    fun ordinal(n: Int): String = "$n" + when {
+        n % 100 in 11..13 -> "th"
+        n % 10 == 1 -> "st"
+        n % 10 == 2 -> "nd"
+        n % 10 == 3 -> "rd"
+        else -> "th"
+    }
+
     /** The kid's card: what the pup says (said aloud, no numbers). */
     const val KID_TITLE = "You're back!"
     const val KID_LINE = "Yay! Let's play one you know."

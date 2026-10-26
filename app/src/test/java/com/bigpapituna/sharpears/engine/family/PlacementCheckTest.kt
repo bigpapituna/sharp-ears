@@ -10,11 +10,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlacementCheckTest {
-    @Test fun tasksPerLevelAreTwoForALittleThreeForSomeAndALotNoneForNever() {
+    @Test fun tasksPerLevelAreTwoForALittleTwoForSomeOneForALotNoneForNever() {
         assertTrue(PlacementCheck.tasksFor(Level.NEVER).isEmpty()); assertFalse(PlacementCheck.offered(Level.NEVER))
         assertEquals(listOf(Task.FIND_C, Task.FIVE_NOTES), PlacementCheck.tasksFor(Level.A_LITTLE))
-        assertEquals(listOf(Task.FIND_C, Task.FIVE_NOTES, Task.TWINKLE), PlacementCheck.tasksFor(Level.SOME))
-        assertEquals(PlacementCheck.tasksFor(Level.SOME), PlacementCheck.tasksFor(Level.A_LOT))
+        // 2.14: "Find a C" is gone for some, and a lot plays Twinkle with the band only.
+        assertEquals(listOf(Task.FIVE_NOTES, Task.TWINKLE), PlacementCheck.tasksFor(Level.SOME))
+        assertEquals(listOf(Task.TWINKLE), PlacementCheck.tasksFor(Level.A_LOT))
+        assertEquals(listOf(0, 0, 1, 2), Level.entries.map(PlacementCheck::leftOut))
     }
 
     @Test fun theExercisesAreWhatTheBriefAsksFor() {
@@ -31,11 +33,12 @@ class PlacementCheckTest {
     }
 
     @Test fun theSuggestionMatrixForGrownUps() {
-        // (said, score) -> start level. Three things asked for some and a lot, two for a little.
+        // (said, score) -> start level. Two things asked for a little and some, one for a lot (2.14); what the check leaves
+        // out (Find a C, then the five notes) counts as played, so the gentler start is the one 2.13 gave.
         val m = listOf(
             Triple(Level.A_LITTLE, 2, Level.A_LITTLE), Triple(Level.A_LITTLE, 1, Level.NEVER), Triple(Level.A_LITTLE, 0, Level.NEVER),
-            Triple(Level.SOME, 3, Level.SOME), Triple(Level.SOME, 2, Level.A_LITTLE), Triple(Level.SOME, 1, Level.NEVER), Triple(Level.SOME, 0, Level.NEVER),
-            Triple(Level.A_LOT, 3, Level.A_LOT), Triple(Level.A_LOT, 2, Level.A_LITTLE), Triple(Level.A_LOT, 1, Level.NEVER), Triple(Level.A_LOT, 0, Level.NEVER),
+            Triple(Level.SOME, 2, Level.SOME), Triple(Level.SOME, 1, Level.A_LITTLE), Triple(Level.SOME, 0, Level.NEVER),
+            Triple(Level.A_LOT, 1, Level.A_LOT), Triple(Level.A_LOT, 0, Level.A_LITTLE),
         )
         for ((said, score, want) in m) assertEquals("$said with $score", want, PlacementCheck.suggest(said, score).level)
     }
@@ -51,9 +54,9 @@ class PlacementCheckTest {
     }
 
     @Test fun theGentlerLineNamesTheStartAndWhatStaysOpen() {
-        assertEquals("Let's begin at Beginner; Basics stays open.", PlacementCheck.suggest(Level.SOME, 2).line)
+        assertEquals("Let's begin at Beginner; Basics stays open.", PlacementCheck.suggest(Level.SOME, 1).line)
         assertEquals("Let's begin at Basics.", PlacementCheck.suggest(Level.A_LITTLE, 0).line)
-        assertTrue(PlacementCheck.suggest(Level.SOME, 3).line.startsWith("Lovely playing."))
+        assertTrue(PlacementCheck.suggest(Level.SOME, 2).line.startsWith("Lovely playing."))
         val words = listOf("wrong", "fail", "pass", "score", "/", "mark")
         for (said in Level.entries) for (score in listOf(null) + (0..3)) {
             val line = PlacementCheck.suggest(said, score).line.lowercase()
