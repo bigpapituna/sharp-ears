@@ -86,6 +86,8 @@ object PerformTiming {
     }
 
     const val STEADY = "Your timing was steady all the way through."
+    /** A run where no note came in time: nothing to say about timing (the recap's own line says what to try). */
+    const val NOTHING = "No notes came in time, so there is no timing to show yet."
 
     /**
      * The one plain line, the strongest pattern first: one beat early (late) in two bars or more ("You rush the first beat of
@@ -95,6 +97,7 @@ object PerformTiming {
     fun line(bars: List<BarTiming>, midi: Boolean = false): String {
         val notes = bars.flatMap { it.notes }
         val hits = notes.filter { !it.missed }
+        if (hits.isEmpty()) return NOTHING
         // 1. The same beat early (or late) in two bars or more: name the beat, only for notes that sit on it.
         val pattern = listOf(true, false).flatMap { early ->
             hits.filter { if (early) it.early else it.late }.mapNotNull { n -> n.onBeat?.let { b -> Triple(early, b, n.bar) } }

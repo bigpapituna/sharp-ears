@@ -1746,6 +1746,7 @@ players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 st
   to play has none) and one plain line, strongest first: one beat early or late in two bars or more ("You rush the first beat of
   bars 3 and 7.", only notes within 0.1 beat of a whole beat name it), nearly every note to one side on a MIDI keyboard (points at
   the offset), rushed or dragged bars, a lean over the whole run, uneven bars, "Your timing was steady all the way through."
+  (A run with no note in time says so instead: "No notes came in time, so there is no timing to show yet.")
 - The recap (ui/player/TimingPanel.kt, placed by ui/RunRecap.kt in its kid and grown-up branches; branch `polish` owns the recap's
   layout): `RunEnd.timing` (and `flats`), set by `RunEnd.timed(...)` at all three Perform ends in ui/PlayerScreen.kt (library
   song, generated song, pop run). A grown-up sees "Timing", the star rule against the run, a strip on a small stage (one cell a
@@ -1816,7 +1817,11 @@ players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 st
   time with nothing missed at bias -132: 3 stars and the line pointing at the offset (dp-10); Sam's 40, 1, 1 at 98%: 3 stars with
   the rule and the run beside them (dp-11, dp-11b); the kid strip (skin demo, dp-17); levels 3 to 8 (dp-18, dp-18b, dp-19 to dp-22; the rhythm level 115 right
   and 7 wrong over two minutes); the offset row, the calibration's three states and 50 ms saved (dp-12 to dp-16); Learn's row
-  (dp-23); You at level 4 (dp-24). Screenshots in app/build/screens/dp-*.png (not committed).
+  (dp-23); You at level 4 (dp-24); a sharp on the bass staff (dp-18-sight-level-7-sharp) and a level 7 challenge, "Challenge
+  met!" (dp-04b, dp-05). The other two challenge kinds on a re-made Fold_DP (`--es today 2026-10-27` and `2026-10-28` with
+  `--ez daily true`): ii-V-I in F at 100 bpm and Rondo alla Turca at 100 bpm (its own tempo at tier 2), each in Perform to its
+  recap with the timing panel, Close going on to "Done for today" (dp-25 to dp-30). A slower target (tier 1, speed under 1)
+  rides PlayerStart.speed, the comeback's, and was not walked. Screenshots in app/build/screens/dp-*.png (not committed).
 - For Roy, on the Fold with the Yamaha: whether 60 ms is the right line for rushed and dragged; the tick's size at 120 Hz; the
   calibration with real taps (the scripted run found 50 ms for taps scripted about 40 ms late); the drill's keyboard on the cover
   screen; whether a challenge should replace the plan's whole-song part or sit beside it.

@@ -41,6 +41,8 @@ class PerformTimingTest {
     }
 
     @Test fun messyBarsAndSteadyRuns() {
+        // Nothing played in time: no bar list of "uneven", one plain line (walked on a chord-change challenge left alone).
+        assertEquals(PerformTiming.NOTHING, PerformTiming.of(eightBars { _, _ -> null }, barMs, 4).line)
         val messy = PerformTiming.of(eightBars { bar, beat -> if (bar == 5 && beat == 2) null else 0.0 }, barMs, 4)
         assertEquals(BarVerdict.MESSY, messy.bars[4].verdict)
         assertEquals("Bar 5 was uneven. Try it on a loop.", messy.line)
