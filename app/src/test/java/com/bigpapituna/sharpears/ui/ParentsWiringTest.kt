@@ -20,6 +20,7 @@ class ParentsWiringTest {
         for (f in listOf("ui/PlayerScreen.kt", "ui/playground/PlaygroundStage.kt", "ui/arcade/ArcadeGameScreen.kt", "MainActivity.kt"))
             assertTrue("$f flushes its practice before a checkpoint and an end", "Briefs.addFlusher(f)" in src(f) && "Briefs.removeFlusher(f)" in src(f))
         assertTrue("the email job's start closes a killed session too", "Briefs.init(app)" in src("reminder/EmailJob.kt"))
+        assertTrue("so does the weekly brief's alarm (a cold process read an empty log before 2.14)", "Briefs.init(app)" in src("reminder/BriefReminder.kt"))
     }
 
     @Test fun everyKidDoorAsksTheDay() {

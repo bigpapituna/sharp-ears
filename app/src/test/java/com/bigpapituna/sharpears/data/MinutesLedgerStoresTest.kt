@@ -118,6 +118,10 @@ class MinutesLedgerStoresTest {
         assertEquals(PracticeStats.weekMinutes(stores, day), week.stats.totals.practiceMinutes)
         assertEquals(MinutesLedger.minutes(240L + 285), week.stats.totals.practiceMinutes)
         assertEquals(PracticeStats.weekMinutes(MinutesLedger.practiceByDay(events, now, zone), day), PracticeStats.weekMinutes(stores, day))
+        // The email's "In one minute" line reads the same week.
+        val email = com.bigpapituna.sharpears.engine.brief.email.EmailWords("Mia", com.bigpapituna.sharpears.engine.brief.email.EmailPeriod.WEEK,
+            com.bigpapituna.sharpears.engine.brief.IdTitles).preheader(week, 0)
+        assertTrue(email, email.startsWith("In one minute: 8 minutes on 2 days"))
         // The strip's days are the stores' days.
         assertEquals(stores.keys.filter { (stores[it] ?: 0) > 0 }.toSet(), MinutesLedger.practiceByDay(events, now, zone).keys)
     }

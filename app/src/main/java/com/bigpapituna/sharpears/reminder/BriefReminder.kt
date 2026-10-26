@@ -12,6 +12,7 @@ import com.bigpapituna.sharpears.MainActivity
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.data.BriefLoader
+import com.bigpapituna.sharpears.data.Briefs
 import com.bigpapituna.sharpears.data.BriefStore
 import com.bigpapituna.sharpears.data.Profiles
 import com.bigpapituna.sharpears.engine.brief.BriefNotice
@@ -110,6 +111,9 @@ class BriefReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
+                // The alarm may wake a process with no screen: the logs are read from the files folder (2.14: and a session the
+                // app never ended is closed first, so the week counts it). Before 2.14 a cold process read an empty log here.
+                Briefs.init(app)
                 val profile = Profiles(app).all.firstOrNull { it.id == id }
                 if (profile != null) BriefReminder.post(app, profile)
                 BriefReminder.schedule(app, profile, id)
