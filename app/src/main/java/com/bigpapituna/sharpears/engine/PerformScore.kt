@@ -31,28 +31,32 @@ data class Recap(val good: Int, val ok: Int, val miss: Int, val biasMs: Int, val
 
 /**
  * The stars of a song's Perform run (2.14, Sam: "98% gives 2 stars" with no way to see why), the one rule for a song or a
- * song by chords played in Perform; shown on its recap with [SongStars.ruleLine]. Three: no misses and at least nine notes
- * in ten in time (the good window, ±150 ms). Two: two misses at most, or at least three notes in four in time. One: the run
- * reached its end. The old rule's average-timing test is gone: a run of good notes all a little early (Sam's −126 ms) no
- * longer loses its third star to the average. A lesson step's stars stay engine/skin/Stars.perform (branch levels-ages).
+ * song by chords played in Perform; shown on its recap with [SongStars.ruleLines]. Three: 98% or more of the notes played
+ * (the accuracy the recap's ring shows, so no more than one miss in fifty) and at least nine notes in ten in time (the good
+ * window, ±150 ms): a run with no misses and nine in ten in time always has it, and Sam's 98% (40 good, 1 OK, 1 missed) does
+ * too. Two: two misses at most, or at least three notes in four in time. One: the run reached its end. The old rule's
+ * average-timing test is gone: good notes all a little early (Sam's -126 ms) no longer lose the third star to the average.
+ * A lesson step's stars stay engine/skin/Stars.perform (branch levels-ages).
  */
 fun songStars(r: Recap): Int = when {
     r.total == 0 -> 1
-    r.miss == 0 && r.good * 100 >= SongStars.THREE_IN_TIME * r.total -> 3
+    r.accuracy >= SongStars.THREE_PLAYED && r.good * 100 >= SongStars.THREE_IN_TIME * r.total -> 3
     r.miss <= SongStars.TWO_MISSES || r.good * 100 >= SongStars.TWO_IN_TIME * r.total -> 2
     else -> 1
 }
 
 /** The song rule's numbers and its words for the recap. */
 object SongStars {
-    /** Percent of the notes in time for three stars (with no misses), and for two. */
+    /** Percent of the notes played (the recap's accuracy) for three stars. */
+    const val THREE_PLAYED = 98
+    /** Percent of the notes in time for three stars, and for two. */
     const val THREE_IN_TIME = 90
     const val TWO_IN_TIME = 75
     /** Misses two stars allow. */
     const val TWO_MISSES = 2
 
-    /** The rule, always the three-star one: "3 stars: no misses, 9 of 10 notes in time." */
-    const val RULE = "3 stars: no misses, 9 of 10 notes in time."
+    /** The rule, always the three-star one: "3 stars: 98% or more, and 9 of 10 notes in time." */
+    const val RULE = "3 stars: 98% or more, and 9 of 10 notes in time."
 
     /** What two stars need, for a run below them: "2 stars: 2 misses at most, or 3 of 4 notes in time." */
     const val RULE_TWO = "2 stars: 2 misses at most, or 3 of 4 notes in time."

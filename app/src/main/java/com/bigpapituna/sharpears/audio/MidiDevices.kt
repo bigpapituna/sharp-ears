@@ -10,7 +10,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.MidiOffset
 import com.bigpapituna.sharpears.engine.MidiParser
@@ -41,7 +43,7 @@ class MidiDevices(context: Context) {
     /** The phone's input setup ("mic", never per profile, carried by a backup): where the MIDI timing offset lives. */
     private val setup = context.getSharedPreferences("mic", Context.MODE_PRIVATE)
     /** Bumps when [offsetMs] changes, so Settings shows the new value. */
-    val offsetVersion = mutableStateOf(0)
+    val offsetVersion = mutableIntStateOf(0)
 
     /**
      * 2.14: the MIDI timing offset (engine/MidiOffset.kt), −100..+100 ms, 0 until set: how late this phone hears its keyboard.
@@ -51,8 +53,8 @@ class MidiDevices(context: Context) {
         get() = MidiOffset.clamp(setup.getInt(OFFSET_KEY, MidiOffset.DEFAULT))
         set(v) {
             val ms = MidiOffset.clamp(v)
-            setup.edit().putInt(OFFSET_KEY, ms).apply()
-            offsetVersion.value++
+            setup.edit { putInt(OFFSET_KEY, ms) }
+            offsetVersion.intValue++
             Log.d(TAG, "midi: timing offset $ms ms")
         }
 

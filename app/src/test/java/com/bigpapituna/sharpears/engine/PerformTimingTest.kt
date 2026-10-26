@@ -109,15 +109,14 @@ class PerformTimingTest {
     private fun recap(good: Int, ok: Int, miss: Int, bias: Int = 0) = Recap(good, ok, miss, bias, good)
 
     @Test fun samsRunsUnderTheSongRule() {
-        // Sam's walk: 40 good, 1 OK, 1 missed, 98% accuracy, bias -126. The miss keeps it at two, and the recap now says so.
+        // Sam's walk: 40 good, 1 OK, 1 missed, 98% accuracy, bias -126 gave two stars. 98% gives three now, and says why.
         val sam = recap(40, 1, 1, bias = -126)
         assertEquals(98, sam.accuracy)
-        assertEquals(2, songStars(sam))
+        assertEquals(3, songStars(sam))
         assertEquals("This run: 1 miss, 40 of 42 notes in time.", SongStars.runLine(sam))
-        // 98% in time, nothing missed, every note a little early: three stars now (the old average-timing rule gave two).
+        // 98% in time, nothing missed, every note a little early: three (the old average-timing rule gave two).
         val early = recap(49, 1, 0, bias = -126)
         assertEquals(98, early.inTime)
-        assertEquals(2, Stars.perform(early))
         assertEquals(3, songStars(early))
         assertEquals(3, Stars.of(early, 0))                       // the song recap's stars are the song rule
         assertEquals("This run: no misses, 49 of 50 notes in time.", SongStars.runLine(early))
@@ -126,6 +125,10 @@ class PerformTimingTest {
     @Test fun theSongRuleAtItsEdges() {
         assertEquals(3, songStars(recap(9, 1, 0)))                // 9 of 10 in time, no misses
         assertEquals(2, songStars(recap(8, 2, 0)))                // 8 of 10: no misses, too few in time
+        assertEquals(3, songStars(recap(45, 4, 1)))               // one miss in 50 (98%), 9 of 10 in time
+        assertEquals(2, songStars(recap(44, 5, 1)))               // 98% played, 88% in time
+        assertEquals(2, songStars(recap(40, 0, 2)))               // 95% played: two misses
+        assertEquals(2, songStars(recap(0, 20, 0)))               // everything played, nothing in time: never three
         assertEquals(2, songStars(recap(10, 0, 2)))               // two misses
         assertEquals(2, songStars(recap(30, 2, 3)))               // three misses but 30 of 35 (86%) in time
         assertEquals(1, songStars(recap(20, 5, 5)))               // five misses, 67% in time

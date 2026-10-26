@@ -1757,14 +1757,16 @@ players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 st
   early, blue late, white on the beat), for 650 ms. Never a word. Keys are now timed between frames in Perform
   (`PlayerVars.tickNanos`, up to 250 ms past the last frame): the transport moves a frame at a time, so a key read up to a frame
   early before.
-- The song's star rule (engine/PerformScore.kt `songStars`, `SongStars`): 3 = no misses and at least 9 of 10 notes in the good
-  window; 2 = two misses at most, or at least 3 of 4 in time; 1 = reached the end. `Stars.of` (the song recap, a kid's words and
+- The song's star rule (engine/PerformScore.kt `songStars`, `SongStars`): 3 = 98% or more played (the recap ring's accuracy, so
+  one miss in fifty at most) and at least 9 of 10 notes in the good window; 2 = two misses at most, or at least 3 of 4 in time;
+  1 = reached the end. `Stars.of` (the song recap, a kid's words and
   party, the brief's song stars, the duet line) uses it; `Stars.perform` (a lesson step, LessonStars, Bites) is untouched for
-  branch `levels-ages`. The recap shows "3 stars: no misses, 9 of 10 notes in time." and "This run: 1 miss, 40 of 42 notes in
-  time." (the 2-star rule as well under one star). Decision: the brief's rule and its "98% gives 3" cannot both hold for Sam's run
-  (98% accuracy counts good plus OK, so a 98% run has a miss: 40, 1, 1). The rule as written stands and 98% is read as notes in
-  time: Sam's exact run stays at 2 stars and now says why; a run with nothing missed and 41 of 42 in time, every note early (bias
-  -132), is 3 stars (the old average-timing test gave 2). Both walked.
+  branch `levels-ages`. The recap shows "3 stars: 98% or more, and 9 of 10 notes in time." and "This run: 1 miss, 40 of 42 notes
+  in time." (the 2-star rule as well under one star). Decision: the brief said "3 = no misses and 90% in time" and "98% gives 3",
+  which cannot both hold for Sam's run (98% accuracy counts good plus OK, so a 98% run has a miss: 40, 1, 1). "No misses" became
+  "98% or more" (the number the ring shows; levels-ages' lesson rule also gives 98% its third star) and the timing half stays, so
+  a run with every note played but few of them in time never gets three. Sam's exact run is 3 stars; so is one with nothing missed
+  and 41 of 42 in time, every note early (bias -132; the old average-timing test gave 2). Both walked.
 - MIDI timing offset (engine/MidiOffset.kt, audio/MidiDevices.kt `offsetMs`, ui/MidiTiming.kt): -100 to +100 ms in steps of 5, 0
   by default, kept per phone in the "mic" prefs file (`midiOffsetMs`, carried by a backup). Settings > Microphone > "MIDI keyboard"
   (a Sub, so SettingsWiringTest's `Section("Microphone")` stands): a slider snapped to 5 ms, "Back to 0", and "Tap along to
@@ -1811,8 +1813,8 @@ players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 st
   challenge and the new greeting (dp-01); Practice today to the challenge, the level 6 drill, 20 right and 1 wrong for a goal of
   15, "Done for today" (dp-02 to dp-06); Twinkle in Perform with the first beat of bars 3 and 7 120 ms early: the live ticks
   (dp-07, dp-07b), the panel's "You rush the first beat of bars 3 and 7." and bar 3's notes (dp-08, dp-09, dp-09b); 41 of 42 in
-  time with nothing missed at bias -132: 3 stars and the line pointing at the offset (dp-10); Sam's 40, 1, 1 at 98%: 2 stars and
-  why (dp-11, dp-11b); the kid strip (skin demo, dp-17); levels 3 to 8 (dp-18, dp-18b, dp-19 to dp-22; the rhythm level 115 right
+  time with nothing missed at bias -132: 3 stars and the line pointing at the offset (dp-10); Sam's 40, 1, 1 at 98%: 3 stars with
+  the rule and the run beside them (dp-11, dp-11b); the kid strip (skin demo, dp-17); levels 3 to 8 (dp-18, dp-18b, dp-19 to dp-22; the rhythm level 115 right
   and 7 wrong over two minutes); the offset row, the calibration's three states and 50 ms saved (dp-12 to dp-16); Learn's row
   (dp-23); You at level 4 (dp-24). Screenshots in app/build/screens/dp-*.png (not committed).
 - For Roy, on the Fold with the Yamaha: whether 60 ms is the right line for rushed and dragged; the tick's size at 120 Hz; the

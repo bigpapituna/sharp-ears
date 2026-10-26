@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -20,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -103,7 +103,7 @@ fun StaffDrill(level: Int, deps: LessonDeps, seed: Long, onDone: (DrillScore) ->
     val starts = remember(level, seed) { SightStaff.rhythmStarts(cards) }
     var card by remember(level, seed) { mutableStateOf(if (rhythm) cards.first() else SightStaff.card(level, rnd)) }
     var bar by remember(level, seed) { mutableIntStateOf(-1) }               // level 8: the bar being played (-1 the count-in)
-    var beatNow by remember(level, seed) { mutableStateOf(-1f) }             // level 8: where the cursor is, in beats of the bar
+    var beatNow by remember(level, seed) { mutableFloatStateOf(-1f) }             // level 8: where the cursor is, in beats of the bar
     val results = remember(level, seed) { mutableStateMapOf<Long, Color>() } // level 8: each note's colour once graded
     val flash = remember { mutableStateMapOf<Int, Color>() }
     val touched = remember { mutableStateMapOf<Int, Color>() }
@@ -218,8 +218,9 @@ fun StaffDrill(level: Int, deps: LessonDeps, seed: Long, onDone: (DrillScore) ->
             Text("%d:%02d".format(java.util.Locale.ROOT, leftMs / 60_000, (leftMs / 1000) % 60), style = Numeric.merge(MaterialTheme.typography.titleLarge),
                 modifier = Modifier.semantics { contentDescription = "${leftMs / 1000} seconds left" })
             Spacer(Modifier.weight(1f))
-            // A challenge counts toward its goal: "7 of 15 right".
-            Text((if (goal != null) "$right of $goal right" else "$right right") + if (wrong > 0) ", $wrong wrong" else "", style = Numeric.merge(MaterialTheme.typography.titleMedium),
+            // A challenge counts toward its goal: "7 of 15 right", then "18 right, goal met".
+            Text((if (goal == null) "$right right" else if (right >= goal) "$right right, goal met" else "$right of $goal right") +
+                if (wrong > 0) ", $wrong wrong" else "", style = Numeric.merge(MaterialTheme.typography.titleMedium),
                 color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         }
         // The staff on its stage.

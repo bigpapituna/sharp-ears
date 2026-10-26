@@ -48,7 +48,7 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun MidiTimingSetting(midi: MidiDevices, debugScript: String? = null) {
-    val v = midi.offsetVersion.value
+    val v = midi.offsetVersion.intValue
     var shown by remember(v) { mutableIntStateOf(midi.offsetMs) }
     var calibrating by remember { mutableStateOf(false) }
     val dim = MaterialTheme.colorScheme.onSurfaceVariant
