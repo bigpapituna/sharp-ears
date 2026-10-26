@@ -54,6 +54,11 @@ object Welcome {
         "2.13.0" to listOf(
             "While you play, the pup now pops up with a few kind words when you're on a roll. Change how often in Settings.",
         ),
+        "2.14.0" to listOf(
+            "Big kids from 8 to 13 get their own tabs with pop songs first, and day one starts at a level that fits you.",
+            "Parents get a family card on Today, a daily time limit for each child, and Lock now to close the grown-ups' corner at once.",
+            "Tap the pup to see him cheer again, and after a song in Perform see your timing bar by bar.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

@@ -98,6 +98,17 @@ class WelcomeTest {
         assertTrue(lines.single().let { "pops up" in it && "kind words" in it && "Settings" in it })
     }
 
+    /** 2.14.0, three lines: levels and ages, the parents' part, the pup and the timing panel. */
+    @Test fun whatsNew2140IsLevelsParentsAndThePup() {
+        val lines = Welcome.whatsNew("2.14.0")
+        assertEquals(3, lines.size)
+        assertTrue(lines.size <= Welcome.MAX_LINES)
+        assertTrue(lines[0].let { "Big kids" in it && "level" in it })
+        assertTrue(lines[1].let { "family card" in it && "daily time" in it && "Lock now" in it })
+        assertTrue(lines[2].let { "Tap the pup" in it && "timing" in it })
+        lines.forEach { assertTrue(it, it.first().isUpperCase() && it.endsWith(".") && '!' !in it) }
+    }
+
     @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
         assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
         assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })
