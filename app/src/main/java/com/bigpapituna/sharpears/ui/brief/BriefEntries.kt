@@ -51,12 +51,18 @@ import com.bigpapituna.sharpears.ui.family.PupAvatar
 @Composable
 fun ParentBriefDialog(
     env: BriefEnv, children: List<Profile>, onClose: () -> Unit, initial: String? = null, period: Period = Period.WEEK,
+    /**
+     * 2.14: false from the family card on a grown-up's own Today (Priya's P8, "one tap"): reading opens at once; every action
+     * in it still asks the gate ([guardBrief]).
+     */
+    gated: Boolean = true,
 ) {
     OneBriefAtATime(onClose)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogBarsFollowTheme()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Gated(onCancel = onClose) { ParentBriefScreen(env, children, onBack = onClose, initialChild = initial, initialPeriod = period) }
+            if (gated) Gated(onCancel = onClose) { ParentBriefScreen(env, children, onBack = onClose, initialChild = initial, initialPeriod = period) }
+            else ParentBriefScreen(env, children, onBack = onClose, initialChild = initial, initialPeriod = period)
             // An action card asks the gate again once it has shut: drawn in this window, over the brief (not under it).
             ParentGateHost()
         }

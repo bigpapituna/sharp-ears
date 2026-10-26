@@ -61,7 +61,8 @@ class InsightsTest {
         })
         val days = f.trend(TrendKind.DAYS)!!
         assertEquals(5.0, days.now, 0.0); assertEquals(2.0, days.before, 0.0)
-        assertEquals(Direction.UP, days.direction); assertEquals(true, days.good); assertEquals(2, days.periods)
+        // 2.14: the week two back began on d(1), before this child's first day (d(2)): part empty, so not a baseline for days.
+        assertEquals(Direction.UP, days.direction); assertEquals(true, days.good); assertEquals(1, days.periods)
         assertEquals(Direction.UP, f.trend(TrendKind.MINUTES)!!.direction)
         assertNotNull(f.praise(PraiseKind.CONSISTENT))
     }

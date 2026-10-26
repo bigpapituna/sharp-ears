@@ -112,7 +112,9 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 /** 2.9: back after three days or more: "Welcome back" and three easy minutes, over the plan (once per return). */
                 welcomeBack: (@Composable () -> Unit)? = null,
                 /** 2.14: the grown-up's name for the greeting ("Good evening, Dana."), null when none was given ("Hi there"). */
-                name: String? = null) {
+                name: String? = null,
+                /** 2.14: Family today (ui/family/FamilyTodayCard.kt) under the card, when the family has kids; null: none. */
+                family: (@Composable () -> Unit)? = null) {
     val shown = if (emptyPlan && card.state == TodayCard.State.PLAN) card.copy(state = TodayCard.State.NOTHING_DUE, rows = emptyList()) else card
     var tapLine by remember { mutableStateOf<String?>(null) }
     var playCorner by remember { mutableStateOf(false) }
@@ -141,6 +143,7 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
             TodayCardView(shown, goal, a, quest, showStart = welcomeBack == null)
+            family?.invoke()
             when (cont) {
                 null -> {}
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

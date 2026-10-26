@@ -416,7 +416,11 @@ private fun ArcadePractice(deps: LessonDeps, game: ArcadeGame, keys: MutableList
         Log.d(TAG, "arcade: practice +$secs s (${game.id})")
     }
     if (onScreen()) {
-        DisposableEffect(Unit) { from[0] = System.currentTimeMillis(); onDispose { flush() } }
+        DisposableEffect(Unit) {
+            from[0] = System.currentTimeMillis()
+            val f = ::flush; com.bigpapituna.sharpears.data.Briefs.addFlusher(f)        // 2.14: the session's checkpoint and end ask too
+            onDispose { com.bigpapituna.sharpears.data.Briefs.removeFlusher(f); flush() }
+        }
         LaunchedEffect(Unit) { while (true) { delay(StageTime.FLUSH_MS); flush() } }
     }
 }

@@ -167,7 +167,11 @@ private fun settingLine(key: String, value: String): String {
     return when (key) {
         "reader" -> toggle("Reader mode")
         "colourNotes" -> toggle("Colour notes", were = true)
-        "bedtime" -> toggle("Bedtime")
+        // 2.14: the setting's honest name, its Songs switch and the daily time.
+        "bedtime" -> toggle("Wind down after the goal")
+        "bedtimeSongs" -> if (on == false) "Songs and the Jam stay open after the goal again." else "Songs and the Jam now close after the goal too."
+        "capMin" -> value.toLongOrNull()?.let { if (it <= 0) "The daily time was turned off." else "The daily time was set to ${count(it, "minute")}." }
+            ?: "The daily time was changed."
         "wrongFlash" -> toggle("Red key flashes", were = true)
         "reminderOn" -> toggle("The practice reminder")
         "sound" -> toggle("App sound")

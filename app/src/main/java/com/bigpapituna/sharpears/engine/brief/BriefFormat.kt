@@ -120,7 +120,7 @@ object BriefFormat {
         val on = p["value"] != "false"
         return when (SettingId.of(p["setting"])) {
             SettingId.READER -> if (on) "You switched the keys to letters." else "You switched the keys to animals."
-            SettingId.BEDTIME -> if (on) "You turned bedtime on." else "You turned bedtime off."
+            SettingId.BEDTIME -> if (on) "You turned on wind down after the goal." else "You turned off wind down after the goal."
             SettingId.COLOUR_NOTES -> if (on) "You turned colour notes on." else "You turned colour notes off."
             SettingId.MIC_EASIER -> "You made the microphone a little easier."
             SettingId.QUIET_ROOM -> "You quieted the wrong key lights."

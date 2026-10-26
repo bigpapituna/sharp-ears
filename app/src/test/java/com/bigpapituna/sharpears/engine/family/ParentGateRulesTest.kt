@@ -8,32 +8,58 @@ import org.junit.Test
 import kotlin.random.Random
 
 class ParentGateRulesTest {
-    @Test fun sumsUseTwoToNine() {
+    /**
+     * 2.14 (Priya's P3: an 8 year old reader passed "8 plus 9" in seconds): every question is a sum of two two-digit numbers
+     * with a carry, or a times table from 4, 6, 7, 8 and 9; never a one-digit sum; both kinds come up; every answer fits the
+     * two-digit pad.
+     */
+    @Test fun questionsAreTwoDigitSumsWithACarryOrTimesTables() {
         val r = Random(7)
-        val seen = mutableSetOf<Int>()
-        repeat(500) {
-            val s = ParentGateRules.nextSum(r)
-            assertTrue(s.a in 2..9 && s.b in 2..9)
-            seen += s.a
+        var sums = 0; var times = 0
+        val factors = mutableSetOf<Int>()
+        repeat(2000) {
+            when (val q = ParentGateRules.nextQuestion(r)) {
+                is ParentGateRules.Sum -> {
+                    sums++
+                    assertTrue(q.spoken, q.a >= 10 && q.b >= 10)                 // never a one-digit number
+                    assertTrue(q.spoken, q.a % 10 != 0 && q.b % 10 != 0)
+                    assertTrue("a carry: " + q.spoken, q.a % 10 + q.b % 10 >= 10)
+                    assertTrue(q.spoken, q.answer in 10..99)
+                    assertTrue(ParentGateRules.fair(q))
+                }
+                is ParentGateRules.Times -> {
+                    times++
+                    assertTrue(q.spoken, q.a in ParentGateRules.FACTORS && q.b in ParentGateRules.FACTORS)
+                    assertTrue(q.spoken, q.answer in 16..81)
+                    factors += q.a
+                }
+            }
         }
-        assertEquals((2..9).toSet(), seen)
+        assertTrue("both kinds, rolled: $sums sums, $times times", sums in 700..1300 && times in 700..1300)
+        assertEquals(ParentGateRules.FACTORS.toSet(), factors)
+        for (bad in listOf(ParentGateRules.Sum(8, 9), ParentGateRules.Sum(23, 41), ParentGateRules.Sum(20, 48), ParentGateRules.Sum(57, 68)))
+            assertFalse("not asked: " + bad.spoken, ParentGateRules.fair(bad))
+        assertTrue(ParentGateRules.fair(ParentGateRules.Sum(23, 48)))
     }
 
-    @Test fun aWrongAnswerBringsADifferentSum() {
+    @Test fun aWrongAnswerBringsADifferentQuestion() {
         val r = Random(1)
-        var s = ParentGateRules.nextSum(r)
-        repeat(200) { val n = ParentGateRules.nextSum(r, s); assertNotEquals(s, n); s = n }
+        var q = ParentGateRules.nextQuestion(r)
+        repeat(300) { val n = ParentGateRules.nextQuestion(r, q); assertNotEquals(q, n); q = n }
     }
 
-    @Test fun answersAreCheckedAsTyped() {
-        val s = ParentGateRules.Sum(7, 5)
-        assertEquals("7 plus 5", s.spoken)
-        assertTrue(s.isRight("12"))
-        assertFalse(s.isRight("13"))
+    @Test fun answersAreCheckedAsTypedAndSaidInWords() {
+        val s = ParentGateRules.Sum(23, 48)
+        assertEquals("23 plus 48", s.spoken)
+        assertTrue(s.isRight("71"))
+        assertFalse(s.isRight("72"))
         assertFalse(s.isRight(""))
-        assertFalse(s.isRight("012"))
-        assertTrue(ParentGateRules.Sum(2, 2).isRight("4"))
-        assertFalse(ParentGateRules.Sum(2, 2).isRight("04"))
+        assertFalse(s.isRight("071"))
+        val t = ParentGateRules.Times(6, 7)
+        assertEquals("6 times 7", t.spoken)                  // words, never a symbol
+        assertTrue(t.isRight("42"))
+        assertFalse(t.isRight("13"))
+        assertFalse(t.isRight("042"))
     }
 
     @Test fun theNumberPadTypesTwoDigitsAndDeletes() {
@@ -45,13 +71,43 @@ class ParentGateRulesTest {
         assertEquals("1", ParentGateRules.type("1", 'x'))
     }
 
-    @Test fun theGateStaysOpenTenMinutes() {
+    /** 2.14 (Priya's P4): two minutes, not ten; each thing done behind it starts the two minutes again. */
+    @Test fun theGateStaysOpenTwoMinutesFromTheLastUse() {
         val at = 1_000_000L
         assertFalse(ParentGateRules.isOpen(0, at))
         assertTrue(ParentGateRules.isOpen(at, at))
-        assertTrue(ParentGateRules.isOpen(at, at + 9 * 60_000))
-        assertFalse(ParentGateRules.isOpen(at, at + 10 * 60_000))
+        assertTrue(ParentGateRules.isOpen(at, at + 119_000))
+        assertFalse(ParentGateRules.isOpen(at, at + 2 * 60_000))
+        assertFalse("the old ten minutes", ParentGateRules.isOpen(at, at + 9 * 60_000))
         assertFalse(ParentGateRules.isOpen(at, at - 1))                     // a clock turned back does not open it
+        assertEquals(at + 120_000, ParentGateRules.closesAt(at, at + 5_000))
+        assertEquals(0L, ParentGateRules.closesAt(at, at + 120_000))
+        // A setting changed a minute and a half in: open for two more minutes from then.
+        val used = ParentGateRules.used(at, at + 90_000)
+        assertEquals(at + 90_000, used)
+        assertTrue(ParentGateRules.isOpen(used, at + 200_000))
+        assertFalse(ParentGateRules.isOpen(used, at + 211_000))
+        assertEquals("a closed gate stays closed", at, ParentGateRules.used(at, at + 130_000))
+        assertEquals(0L, ParentGateRules.used(0, at))
+    }
+
+    /** 2.14: the app away (in the background) for more than 30 seconds closes the gate; a short look elsewhere does not. */
+    @Test fun theGateClosesAfterThirtySecondsAway() {
+        val away = 5_000_000L
+        assertFalse("never away", ParentGateRules.closesAfterAway(0, away))
+        assertFalse(ParentGateRules.closesAfterAway(away, away + 30_000))
+        assertTrue(ParentGateRules.closesAfterAway(away, away + 30_001))
+        assertTrue("a clock turned back", ParentGateRules.closesAfterAway(away, away - 1))
+    }
+
+    /** 2.14 (Priya's P4): every switch of player and a fresh start close the gate; a fold, rotation or dark mode does not. */
+    @Test fun theGateClosesOnEveryProfileSwitchButNotOnARecreate() {
+        assertTrue("a fresh start", ParentGateRules.closesOnOpen(null, "owner", recreated = false))
+        assertFalse("a recreate opens the same person again", ParentGateRules.closesOnOpen(null, "owner", recreated = true))
+        assertTrue("to a kid", ParentGateRules.closesOnOpen("owner", "p1", recreated = false))
+        assertTrue("to a grown-up", ParentGateRules.closesOnOpen("p1", "owner", recreated = false))
+        assertTrue(ParentGateRules.closesOnOpen("p1", "p2", recreated = true))
+        assertFalse("the same person, a new kind or reader", ParentGateRules.closesOnOpen("p1", "p1", recreated = false))
     }
 
     /** QA 2.8.3: three wrong sums in a row make the gate wait 30 s, then 60 s, 120 s, doubling, never more than ten minutes. */

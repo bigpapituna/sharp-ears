@@ -129,6 +129,8 @@ class EventLog(
 
         private val onIoThread = ThreadLocal<Boolean>()
         private val ID = Regex("[A-Za-z0-9_-]{1,32}")
+        /** What a profile id looks like (2.14: a session record from a file is checked against it). */
+        val ID_PATTERN: Regex get() = ID
 
         /** [profileId]'s log file under the app's [filesDir] (an id that could not be a profile's is refused). */
         fun fileFor(filesDir: File, profileId: String): File {

@@ -52,6 +52,7 @@ fun FamilyDialog(profiles: Profiles, onClose: () -> Unit) {
                     }
                     Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LockNowRow(onLocked = onClose)          // 2.14: Lock now shuts the gate and Family with it
                         FamilySettings(profiles)
                     }
                 }

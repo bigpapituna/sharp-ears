@@ -38,6 +38,8 @@ class BackupRulesTest {
             // Tester analytics (analytics/Tester.kt): the switches, the device id and the tester log belong to this phone.
             assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"${com.bigpapituna.sharpears.analytics.Tester.FILE}.xml\" />"))
             assertTrue(name, text.contains("<exclude domain=\"file\" path=\"${com.bigpapituna.sharpears.analytics.Tester.DIR}\" />"))
+            // 2.14: the open session's checkpoint (data/Briefs.kt) belongs to this phone's process, never to a restored one.
+            assertTrue(name, text.contains("<exclude domain=\"sharedpref\" path=\"${Briefs.SESSION_FILE}.xml\" />"))
         }
         assertEquals(2, Regex("<(cloud-backup|device-transfer)>").findAll(extraction).count())
     }

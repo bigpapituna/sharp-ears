@@ -185,12 +185,15 @@ fun LessonScreen(
         !Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.oneMoreOn, today, bedtime.bedtime)) }
     var goodnight by remember { mutableStateOf(false) }
     val week = remember(goodnight, asleep) { PawWeek.of(progress?.practiceLog() ?: emptyMap(), today) }
+    // 2.14: wind down's "Close Songs and the Jam too": the goodbye then offers only the goodbye.
+    val songsOpen = !kid || progress == null || Bedtime.songsOpen(true, progress.secondsToday(today), progress.goalMinutes, bedtime.bedtime, bedtime.closeSongs)
     // A kid's reading step: one scene, then "More?" for the rest.
     var more by remember(index) { mutableStateOf(false) }
     // After today's goodbye the pup is asleep: nothing of the lesson starts (no voice, no player) unless a grown-up says.
     if (asleep) {
         LaunchedEffect(Unit) { deps.voice.stop(); Log.d(TAG, "bedtime: ${lesson.id} asleep") }
         Goodbye(who.name, week, onSongs = { (onSongs ?: onBack)() }, onClose = onBack, onJam = onJam, asleep = true, picture = kid && !who.reader,
+            songsOpen = songsOpen,
             onOneMore = { gate.guard { bedtime.oneMoreOn = today; asleep = false; Log.d(TAG, "bedtime: a grown-up allowed one more lesson") } },
             say = { deps.voice.speak(it, interrupt = true) })
         return
@@ -570,7 +573,8 @@ fun LessonScreen(
     if (goodnight) {
         LaunchedEffect(Unit) { voice.stop(); bedtime.goodnightOn = today; Log.d(TAG, "bedtime: goodnight after ${lesson.id}") }
         Goodbye(who.name, week, onSongs = { voice.stop(); (onSongs ?: onBack)() }, onClose = { voice.stop(); onBack() },
-            onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) }, picture = kid && !who.reader)
+            onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) }, picture = kid && !who.reader,
+            songsOpen = songsOpen)
     }
     }
 }

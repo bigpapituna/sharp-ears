@@ -82,7 +82,7 @@ internal object RecBank {
             l("Turn on reader mode so the keys show letters instead of animals."),
         )
         r("SETTING/bedtime",
-            l("Turn on bedtime: a soft goodnight once the daily goal is done."),
+            l("Turn on wind down after the goal: a soft goodnight once the daily goal is done, and lessons close for the day."),
             l("Switch on the goodnight after the daily goal, so long days end on a calm note."),
         )
         r("SETTING/colourNotes",

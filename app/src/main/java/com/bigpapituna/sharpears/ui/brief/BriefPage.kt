@@ -93,6 +93,13 @@ fun BriefPage(
                 // 2.14: a grown-up's own week opens with their name ("Dana, here is your week.") or none ("Here is your week.").
                 if (page.profile.kind != ProfileKind.KID && page.period == Period.WEEK)
                     Text(com.bigpapituna.sharpears.engine.family.Greeting.myWeek(page.profile.greetName), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                // 2.14 (Priya's P8 and P10): what they can now do, and time playing against time on screen, first.
+                com.bigpapituna.sharpears.engine.brief.CanDoWords.line(f.canDo, env.titles)?.let {
+                    Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                }
+                com.bigpapituna.sharpears.engine.brief.CanDoWords.minutesLine(f.stats.totals.practiceMinutes, f.stats.totals.minutes)?.let {
+                    Text(it, style = com.bigpapituna.sharpears.ui.Numeric.merge(MaterialTheme.typography.bodyMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Text(brief.headline, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 4.dp).semantics { heading() })
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

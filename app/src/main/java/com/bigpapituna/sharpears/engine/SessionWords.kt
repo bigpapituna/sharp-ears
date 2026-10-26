@@ -82,6 +82,15 @@ object SessionWords {
     /** Under the goodnight: what is still open. */
     const val STILL_OPEN = "Songs and the Jam are still open."
 
+    /** 2.14: under the goodnight when wind down's "Close Songs and the Jam too" is on. */
+    const val SONGS_CLOSED = "Songs and the Jam are asleep too."
+
+    /** 2.14: under the daily time's goodbye: nothing more today. */
+    const val ALL_TOMORROW = "Lessons, songs and games wait for tomorrow."
+
+    /** 2.14: the kid Songs screen while songs are asleep (the daily time is up, or wind down closed them). */
+    const val SONGS_ASLEEP = "The songs are asleep. See you tomorrow!"
+
     /** When a kid opens a new lesson after the goodbye: the pup is asleep, lessons are for tomorrow. */
     fun lessonsAsleep(name: String?): String = RunWords.named("Shh{name}, the pup is asleep. New lessons tomorrow!", name)
 

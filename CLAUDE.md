@@ -1785,3 +1785,63 @@ The "polish" part of 2.14, from docs/PERSONA-PLAN-2026-10-26.md and the persona 
 - Expected conflicts: `levels-ages` (Celebrate and LessonScreen's finish: stars, skip, "Try for 3 stars", `RunWords`; ui/Retention's comeback card
   and `Comeback` copy; TodayScreen's greeting), `parents` (TodayScreen's card; the gate, Settings > Family rename now sets the owner's `named`),
   `depth` (RunRecap's numbers where the timing panel goes: the XP line and `drop()` became `CalmRewards`/`KidRewardStage`).
+
+## 2.14 parents
+Branch `parents` (2026-10-26, from 2.13.0 063a6422; version not bumped, What's new untouched: the merger does both).
+Priya's family walk (docs/PERSONA-WALK-family.md, not committed): a family card on Today, one minutes ledger, a real
+daily time, an honest bedtime, a harder and shorter gate. Emulator Fold_PA (a copy of Fold_QA_GU) on port 5562.
+- One minutes ledger (engine/brief/MinutesLedger.kt, data/Briefs.kt): the brief's Session, Today and Week, the paw strip,
+  the email, Family today and a kid's daily time all read the event log's sessions; one rounding for every minute a
+  person reads (counted down, any time at all is at least 1, as PracticeStats always counted). The open session is
+  checkpointed every 30 s (MainActivity, repeatOnLifecycle STARTED) and in onPause into one record (prefs "session", out of
+  both backup rule files); the first Briefs.init in a process (MainActivity or the email job's alarm) writes the end a
+  killed session never got: on screen to its last checkpoint, practice = the profile's ProgressStore totalSeconds now less
+  at its start. The practice counters (PlayerScreen, the Playground stage, the arcade, the chords part) register with
+  Briefs.addFlusher, so a checkpoint and an end come after their last seconds are written. A checkpoint after midnight
+  ends the session first and starts the next; sessions never merge across midnight (Sessions.of with a zone), so a day's
+  minutes match the stores' day. Briefs.screenMsToday gives today's screen time. The 2.4 open item ("a process killed
+  mid-session loses that session's practice") is closed. MinutesLedgerStoresTest proves it on the real stores.
+- Family today (engine/family/FamilyToday.kt, ui/family/FamilyTodayCard.kt): under the Today card on a grown-up's Today when
+  the family has kids, one row per child: avatar, name, "14 min playing of 22 min on screen. 2 lessons, 5 stars.", today's
+  paw (played, rest day, nothing yet) with the streak. A tap opens that child's brief on Today without the gate (it is the
+  grown-up's own Today; every action inside still asks, guardBrief; ParentBriefDialog(gated = false)).
+- The brief's first lines (ui/brief/BriefPage.kt): "Can play Twinkle, Twinkle, Little Star with the right hand and find C on
+  the keyboard." (Findings.canDo: lessons and songs at two stars or more in 28 days, ids only, written to the wire only when
+  there are some and named for the AI's titles; engine/brief/CanDoWords.kt has a skill per Playground lesson, never more than a
+  finish shows, other lessons by title, at most 140 characters) and "4 min playing of 8 min on screen."
+- Daily time (engine/skin/TimeCap.kt, KidDoors; ui/family/KidTime.kt): off, 10, 15, 20, 30 or 45 min of screen time per
+  child (BedtimeStore.capMin, setting "capMin"), in the grown-ups' corner itself and in Family, behind the gate, with what is
+  left today. Once reached: a lesson ends at its next step (onStep) or after the next lesson, a song 4 s into its recap, either
+  at the latest 2 min on (GRACE_MS); a toy, the arcade or a chord song at once; anything opened afterwards closes at once.
+  The goodbye says "That's all for today, Mia. See you tomorrow!" (named, so made on the phone) with "Lessons, songs and
+  games wait for tomorrow." and only a Goodbye button; the pup sleeps on his stone and a stone brings the goodbye back; the Play
+  sheet's toys and Games and every Songs tile say "Tomorrow" (a tap: the pup says why). My stickers stays open (looking,
+  not playing). The cap counts screen time, so the Jam and the games count.
+- Wind down (was "Bedtime after the goal"): "After the goal: wind down" with "Lessons close for the day; Songs and the Jam stay
+  open.", and when on, "Close Songs and the Jam too" (BedtimeStore.closeSongs, setting "bedtimeSongs";
+  Bedtime.songsOpen). With it, the goodnight offers only the goodbye ("Songs and the Jam are asleep too.") and Songs, the Jam
+  and the games say "Tomorrow". The brief, the email, Recs and the action card use the new name; "What you did" names
+  capMin and bedtimeSongs.
+- The gate (engine/family/ParentGateRules.kt): a two-digit sum with a carry and an answer under 100 ("23 plus 48"), or a times
+  table from 4, 6, 7, 8 and 9 ("6 times 7"), rolled; open 2 minutes from the last thing done behind it (was 10 from the pass);
+  "Lock now" (ui/family/LockNow.kt) heads the kids' corner, Family, the parent brief, Settings and Microphone setup while it is
+  open, and leaves a kid's screen with it; it closes on every switch of player and at a fresh start but not on a recreate
+  (closesOnOpen), and after more than 30 s in the background (Profiles.gateAwayAt, survives the process). Each close bumps
+  ParentGateController.closings: the corner, its Family and brief, and a kid's Settings and Mic setup close with it; the
+  corner's Settings, Mic setup and player rows ask the gate again. The three-wrong lockout is unchanged. Show Mum's hold-only
+  light gate is unchanged (it only reads the session note; every action in it asks).
+- Priya's other findings: P10 fixed (a three-star headline always names its lesson; a day's or a session's brief steps on each
+  day, so "A request to hear it is the best praise" no longer comes back every evening; time and day trends only compare whole
+  periods, so a first week is never "grew from about zero"; the can-do line). Skipped: P1 (tester switch default on) and P18
+  (the onboarding's AI privacy line), both onboarding copy for `polish`; P2 ("Hi, Roy", polish's onboarding name); the
+  Low and Info ones.
+- Debug (keyless builds): `--es family "Mia:0,Theo:1"` adds kids (name, 1 when they read); `--ei cap <min>`, `--ez winddown
+  true|false`, `--ez closesongs true|false`; `--ei onscreen <min>` adds screen time today; `--ei practice` and `--ez sleepy`
+  now go through the ledger too (Briefs.debugSession). Walk a capped day: `--es today <next day> --es profile p1 --ei cap 10
+  --ei onscreen 9`, then a minute in a lesson.
+- Tests: 1757 JVM (1724 before; ParentsWiringTest, MinutesLedgerTest, MinutesLedgerStoresTest, CanDoTest, FamilyTodayTest,
+  TimeCapTest, ParentsWordsTest, ParentGateRulesTest and BedtimeTest rewritten), green but PopPrivateTest on this keyless
+  worktree. Lint 0 errors. Screenshots: app/build/screens/pa-*.png (not committed).
+- Not proven: a kid on a real phone; the 30 s checkpoint's cost on the Fold (one prefs write); force-stop from the recents
+  screen on the Fold (on the emulator a force-stop mid-step kept every second of practice the stores had and lost the 11 s of screen time since the last checkpoint); the grown-up's Settings for a
+  kid profile closes after the gate's 2 minutes only on an explicit close, not on silent expiry.

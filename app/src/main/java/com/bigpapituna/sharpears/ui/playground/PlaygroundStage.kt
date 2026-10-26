@@ -93,7 +93,11 @@ private fun CountsAsPractice(step: Step, deps: LessonDeps) {
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "playground: practice +$secs s (${step.game})")
     }
     if (com.bigpapituna.sharpears.ui.onScreen()) {
-        androidx.compose.runtime.DisposableEffect(Unit) { from[0] = System.currentTimeMillis(); onDispose { flush() } }
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            from[0] = System.currentTimeMillis()
+            val f = ::flush; com.bigpapituna.sharpears.data.Briefs.addFlusher(f)        // 2.14: the session's checkpoint and end ask too
+            onDispose { com.bigpapituna.sharpears.data.Briefs.removeFlusher(f); flush() }
+        }
         androidx.compose.runtime.LaunchedEffect(Unit) {
             while (true) { kotlinx.coroutines.delay(com.bigpapituna.sharpears.engine.playground.StageTime.FLUSH_MS); flush() }
         }

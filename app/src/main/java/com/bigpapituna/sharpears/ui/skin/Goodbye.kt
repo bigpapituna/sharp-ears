@@ -112,12 +112,20 @@ fun Goodbye(
     asleep: Boolean = false,
     /**
      * 2.14 (Mila): for a child who cannot read yet, one picture and one spoken line: the sleepy pup, and one big button (play a
-     * song). No bubble, no sentence, no paws, no Jam or Close pills; Back closes it, TalkBack still hears the line.
+     * song, or the goodbye once songs are closed or the day's time is up). No bubble, no sentence, no paws, no Jam or Close
+     * pills; Back closes it, TalkBack still hears the line.
      */
     picture: Boolean = false,
+    /** 2.14: Songs and the Jam are open (wind down's "Close Songs and the Jam too" off): their buttons show. */
+    songsOpen: Boolean = true,
+    /** 2.14: today's time is up (engine/skin/TimeCap.kt): "That's all for today. See you tomorrow!" and only the goodbye. */
+    capped: Boolean = false,
 ) {
     if (picture) androidx.activity.compose.BackHandler(onBack = onClose)
-    val line = remember(name, seed, asleep) { if (asleep) SessionWords.lessonsAsleep(name) else SessionWords.goodnight(name, seed) }
+    val line = remember(name, seed, asleep, capped) {
+        when { capped -> com.bigpapituna.sharpears.engine.skin.TimeCap.line(name); asleep -> SessionWords.lessonsAsleep(name); else -> SessionWords.goodnight(name, seed) }
+    }
+    val songs = songsOpen && !capped
     LaunchedEffect(line) { say(line) }
     val still = reducedMotion()
     val rise = remember { Animatable(if (still) 1f else 0f) }     // the pup coming up, then the words
@@ -139,29 +147,34 @@ fun Goodbye(
             }
             val words: @Composable ColumnScope.() -> Unit = if (picture) { {
                 Spacer(Modifier.size(1.dp).semantics { heading(); liveRegion = LiveRegionMode.Polite; contentDescription = line })
-                ChunkyButton(onClick = onSongs, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Play a song" }) {
-                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(34.dp))
+                // Songs closed (wind down) or the day's time up: the one button is the goodbye.
+                ChunkyButton(onClick = if (songs) onSongs else onClose,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = if (songs) "Play a song" else "Goodbye" }) {
+                    Icon(painterResource(if (songs) R.drawable.ic_play_arrow else R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(34.dp))
                 }
-                if (onOneMore != null) TextButton(onClick = onOneMore) {
+                if (onOneMore != null && !capped) TextButton(onClick = onOneMore) {
                     Text("Grown-ups: one more lesson", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } } else { {
                 SpeechBubble(line, Modifier.widthIn(max = 460.dp).graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) }
                     .semantics { heading(); liveRegion = LiveRegionMode.Polite }, MaterialTheme.typography.titleLarge)
-                Text(SessionWords.STILL_OPEN, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(if (capped) SessionWords.ALL_TOMORROW else if (songs) SessionWords.STILL_OPEN else SessionWords.SONGS_CLOSED,
+                    style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp))
                 PawWeekRow(week, 34.dp, stamp = true, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
                 Spacer(Modifier.size(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                     itemVerticalAlignment = Alignment.CenterVertically) {
-                    ChunkyButton(onClick = onSongs, modifier = Modifier.widthIn(min = 180.dp)) {
-                        Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.size(6.dp)); Text("Play a song")
-                    }
-                    if (onJam != null) OutlinedButton(onClick = onJam) { Text("Jam with the pup") }
-                    TextButton(onClick = onClose) { Text("Close") }
+                    if (songs) {
+                        ChunkyButton(onClick = onSongs, modifier = Modifier.widthIn(min = 180.dp)) {
+                            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.size(6.dp)); Text("Play a song")
+                        }
+                        if (onJam != null) OutlinedButton(onClick = onJam) { Text("Jam with the pup") }
+                        TextButton(onClick = onClose) { Text("Close") }
+                    } else ChunkyButton(onClick = onClose, modifier = Modifier.widthIn(min = 180.dp)) { Text("Goodbye") }    // only the goodbye
                 }
-                if (onOneMore != null) TextButton(onClick = onOneMore) {
+                if (onOneMore != null && !capped) TextButton(onClick = onOneMore) {
                     Text("Grown-ups: one more lesson", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } }
