@@ -490,8 +490,8 @@ private fun ChordTrainer(
             TextButton(onClick = { skip(); version++ }) { Text("Skip") }
         }
         Text(
-            if (micOn) "Play it between ${noteName(micNotes.first())} and ${noteName(micNotes.last())}, in any order. Notes heard turn green."
-            else "Any octave, any order. Notes heard so far turn green.",
+            // 2.14 (Dana): the notes by name, not "between C3 and G4": which keys make the chord, in any order and any octave.
+            com.bigpapituna.sharpears.engine.chordPrompt(voicing.map(current::toneName).distinct(), micOn),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val lit = buildMap {

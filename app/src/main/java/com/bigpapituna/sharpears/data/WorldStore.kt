@@ -75,9 +75,9 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
      * the egg hatching or laid, the stone's own sticker on its first finish, and anything the ledger opened. Show the
      * returned [Reward] (ui/world DropReveal, RewardExtras).
      */
-    fun lessonComplete(lessonId: String, place: Place? = null): Reward {
+    fun lessonComplete(lessonId: String, place: Place? = null, starter: Boolean = false): Reward {
         sync()
-        val o = World.lessonComplete(state, place, lessonId)
+        val o = World.lessonComplete(state, place, lessonId, starter)
         set(o.state)
         brief(o.reward)
         log("world: lesson $lessonId -> " + describe(o.reward) + ", album ${o.state.unique}/${Stickers.ALL.size}, lessons ${o.state.lessons}")
@@ -243,7 +243,8 @@ class WorldStore(context: Context, val profileId: String, private val log: (Stri
     private fun describe(r: Reward) = r.drops.joinToString { "${it.sticker.id} ${it.rarity.label.lowercase()} ${it.source.name.lowercase()}${if (it.isNew) " new" else " double"}" } +
         (if (r.eggLaid) ", egg laid" else "") + (if (r.houseUp) ", house ${r.houseAfter}" else "") +
         (if (r.unlocked.isNotEmpty()) ", unlocked ${r.unlocked.joinToString { it.id }}" else "") +
-        (r.level?.let { ", level sticker ${it.key}" } ?: "")
+        (r.level?.let { ", level sticker ${it.key}" } ?: "") +
+        (r.placedAt?.let { ", first sticker stuck at ${it.id}" } ?: "")
 
     companion object {
         /** The file name; the integrator adds it to ProgressFiles.NAMES so backup, import and profile deletion cover it. */

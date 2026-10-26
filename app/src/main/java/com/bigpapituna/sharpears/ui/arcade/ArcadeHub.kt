@@ -79,29 +79,38 @@ fun ArcadeHub(state: ArcadeState, sparkles: Int, onGame: (ArcadeGame) -> Unit, o
                     onTap = { say(if (newGame != null) ArcadeLines.NEW_GAME else ArcadeLines.HUB) })
             }
         }
-        items(ArcadeGame.entries, key = { it.id }) { g ->
-            val isOpen = g.ordinal < open
+        items(ArcadeGame.entries.take(open), key = { it.id }) { g ->
             val best = state.of(g).best
             Column(Modifier.pressScale().clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh)
                 .then(if (g == newGame) Modifier.border(3.dp, PupGold, RoundedCornerShape(24.dp)) else Modifier)
-                .clickable(role = Role.Button, onClickLabel = if (isOpen) "Play ${g.title}" else "Not open yet") {
-                    if (isOpen) onGame(g) else say(ArcadeLines.LOCKED)
-                }
-                .semantics(mergeDescendants = true) { contentDescription = if (isOpen) "${g.title}, ${starWords(best)}" else "${g.title}, opens later" }
+                .clickable(role = Role.Button, onClickLabel = "Play ${g.title}") { onGame(g) }
+                .semantics(mergeDescendants = true) { contentDescription = "${g.title}, ${starWords(best)}" }
                 .padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Canvas(Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(16.dp))) {
-                    tileArt(g)
-                    if (!isOpen) present(if (g.ordinal == open) toward else null)
-                }
-                Text(g.title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 1,
-                    color = if (isOpen) c.onSurface else c.onSurfaceVariant)
-                if (isOpen) Canvas(Modifier.size(width = 66.dp, height = 20.dp)) {
+                Canvas(Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(16.dp))) { tileArt(g) }
+                Text(g.title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 1, color = c.onSurface)
+                Canvas(Modifier.size(width = 66.dp, height = 20.dp)) {
                     for (i in 0 until 3) {
                         val cc = Offset(size.height / 2 + i * size.width / 3f + 1f, size.height / 2)
                         if (i < best) drawPath(star(cc, size.height * 0.46f), PupGold)
                         else drawPath(star(cc, size.height * 0.46f), c.onSurfaceVariant.copy(alpha = 0.5f), style = Stroke(1.5.dp.toPx()))
                     }
-                } else Spacer(Modifier.height(20.dp))
+                }
+            }
+        }
+        // 2.14 (Mila): the games not open yet are one wrapped present, not a wall of identical boxes a pre-reader taps for nothing.
+        if (open < ArcadeGame.entries.size) item(key = "more-soon") {
+            val next = ArcadeGame.entries[open]
+            Column(Modifier.pressScale().clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh)
+                .clickable(role = Role.Button, onClickLabel = ArcadeLines.MORE_SOON_LABEL) { say(ArcadeLines.LOCKED) }
+                .semantics(mergeDescendants = true) { contentDescription = ArcadeLines.MORE_SOON_LABEL }
+                .padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Canvas(Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(16.dp))) {
+                    tileArt(next)
+                    present(toward)
+                }
+                Text(ArcadeLines.MORE_SOON, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 1,
+                    color = c.onSurfaceVariant)
+                Spacer(Modifier.height(20.dp))
             }
         }
     }

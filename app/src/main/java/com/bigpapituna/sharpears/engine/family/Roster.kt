@@ -35,7 +35,7 @@ data class Roster(val profiles: List<Profile>, val currentId: String) {
 
     fun rename(id: String, name: String): Roster {
         val clean = Profile.cleanName(name).takeIf { it.isNotEmpty() } ?: return this
-        return update(id) { it.copy(name = clean) }
+        return update(id) { it.copy(name = clean, named = true) }
     }
 
     /** Replaces the profile with [id] by [change] applied to it (the id never changes). The owner stays a grown-up. */

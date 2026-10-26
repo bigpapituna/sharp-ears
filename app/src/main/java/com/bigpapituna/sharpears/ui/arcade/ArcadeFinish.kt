@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -56,7 +57,9 @@ import com.bigpapituna.sharpears.ui.world.WorldSounds
 import kotlinx.coroutines.delay
 import com.bigpapituna.sharpears.engine.pup.PupMood
 import com.bigpapituna.sharpears.ui.pup.mood
-import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.ReplayPup
+import com.bigpapituna.sharpears.ui.pup.rememberPupController
+import com.bigpapituna.sharpears.ui.pup.rememberPupReplay
 
 /**
  * A round's end over its playfield: the stars landing one by one with a chime each (the mic is off by now), the pup, his
@@ -85,18 +88,26 @@ internal fun ArcadeFinish(game: ArcadeGame, result: RoundResult, end: RoundEnd?,
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.semantics(mergeDescendants = true) {
                 contentDescription = when (stars) { 3 -> "Every star"; 2 -> "Two stars"; else -> "One star" }
             }) {
-                for (i in 0 until 3) Canvas(Modifier.size(64.dp).graphicsLayer {
-                    val s = if (i < stars) drops[i].value else 1f
-                    scaleX = s; scaleY = s
-                }) {
-                    val c = Offset(size.width / 2, size.height / 2)
-                    if (i < stars) drawPath(star(c, size.width * 0.46f), PupGold)
-                    else drawPath(star(c, size.width * 0.46f), Ink.copy(alpha = 0.35f), style = Stroke(3.dp.toPx()))
+                for (i in 0 until 3) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(96.dp)) {
+                    Canvas(Modifier.size(64.dp).graphicsLayer {
+                        val s = if (i < stars) drops[i].value else 1f
+                        scaleX = s; scaleY = s
+                    }) {
+                        val c = Offset(size.width / 2, size.height / 2)
+                        if (i < stars) drawPath(star(c, size.width * 0.46f), PupGold)
+                        else drawPath(star(c, size.width * 0.46f), Ink.copy(alpha = 0.35f), style = Stroke(3.dp.toPx()))
+                    }
+                    // 2.14 (Mila: "1 of 3 stars and no sign of what a star needs"): what each star is for, in a few words.
+                    Text(ArcadeLines.starMeaning(game, i + 1), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center,
+                        color = if (i < stars) Ink else Ink.copy(alpha = 0.55f), modifier = Modifier.padding(top = 2.dp))
                 }
             }
             // Three stars: a jump for joy (2.10: the jump clip where the app has it), then he holds his crown; two, a dance.
+            // 2.14: a tap on him plays it again, with a tiny sparkle.
             val pose = when (stars) { 3 -> Pose.CROWN; 2 -> Pose.DANCING; else -> Pose.GREAT_JOB }
-            Pup(pose, if (stars == 3) PupMood.HAPPY else pose.mood, size = 132.dp, idle = false, clips = stars == 3)
+            val ctl = rememberPupController(idle = false)
+            val replay = rememberPupReplay(ctl, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(kid = true))
+            ReplayPup(pose, replay, ctl, 132.dp, mood = if (stars == 3) PupMood.HAPPY else pose.mood, clips = stars == 3)
             Text(ArcadeLines.finish(stars), style = MaterialTheme.typography.titleLarge, color = Ink, textAlign = TextAlign.Center)
             if (sticker != null) {
                 StickerImage(sticker, Modifier.size(128.dp).graphicsLayer { rotationY = 180f * (1f - stickerIn.value); alpha = stickerIn.value })

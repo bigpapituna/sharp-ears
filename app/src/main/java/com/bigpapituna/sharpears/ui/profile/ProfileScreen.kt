@@ -278,7 +278,7 @@ private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit, kid: Boolean = fa
 internal fun streakNote(s: com.bigpapituna.sharpears.engine.progress.StreakResult, today: LocalDate): String {
     val rest = if (s.streak > 0 && s.restInStreak > 0) com.bigpapituna.sharpears.engine.PracticeStats.streakWords(s.streak, s.restInStreak) + ". " else ""
     return rest + when {
-        s.streak == 0 -> "Practise today to start one."
+        s.streak == 0 -> "A fresh start. Play today and a new streak begins."
         s.atRisk && today.minusDays(1) in s.restDays -> "Yesterday was a rest day. Play today to keep it going."
         s.atRisk -> "Play today to keep it going."
         else -> "Kept for today."

@@ -84,7 +84,7 @@ fun WhatsNewSheet(version: String, lines: List<String>, onDone: () -> Unit) {
  * it ([onDone] with whether it was skipped); it never shows again for this profile.
  */
 @Composable
-fun TourDialog(onCard: (NavTab) -> Unit, onDone: (skipped: Boolean) -> Unit) {
+fun TourDialog(onCard: (NavTab) -> Unit, onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null) {
     val cards = Welcome.TOUR
     var i by rememberSaveable { mutableIntStateOf(0) }
     androidx.compose.runtime.LaunchedEffect(i) { onCard(cards[i].tab) }
@@ -97,6 +97,7 @@ fun TourDialog(onCard: (NavTab) -> Unit, onDone: (skipped: Boolean) -> Unit) {
                     val c = cards[n]
                     Column(Modifier.fillMaxWidth().heightIn(min = 250.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Pup(when (n) { 0 -> Pose.POINTING; 1 -> Pose.DANCING; else -> Pose.LEARNING }, size = 120.dp, idle = false)
+                        if (n == 0) Text(com.bigpapituna.sharpears.engine.family.Greeting.hi(name), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Text(c.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
                         Text(c.line, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

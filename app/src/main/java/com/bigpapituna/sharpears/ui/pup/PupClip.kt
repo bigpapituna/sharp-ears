@@ -18,6 +18,7 @@ import com.bigpapituna.sharpears.engine.pup.PupMotion
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.LocalContext
@@ -112,7 +114,7 @@ object PupClips {
 }
 
 /** A clip shown in a pup's place, and how much its view scales him ([PupClips.scale]). */
-internal class ShownClip(val drawable: AnimatedImageDrawable, val scale: Float)
+internal class ShownClip(val drawable: AnimatedImageDrawable, val scale: Float, val name: String = "")
 
 private sealed interface ClipState {
     data object Loading : ClipState
@@ -154,7 +156,8 @@ internal suspend fun playClip(context: Context, name: String, loops: Int, now: M
     Log.d(TAG, "pup clip $name: playing x$times" + if (hold) ", holding its last frame" else "")
     var kept = false
     try {
-        now.value = ShownClip(d, PupClips.scale(name))
+        now.value = ShownClip(d, PupClips.scale(name), name)
+        d.stop()                    // a clip played again (a tap on the pup) starts from its first frame
         d.start()
         fade.animateTo(1f, tween(PupMotion.SWAP_MS))
         withTimeoutOrNull(PupClips.MAX_LOOP_MS * times) { done.await() }
@@ -180,7 +183,9 @@ internal suspend fun playClip(context: Context, name: String, loops: Int, now: M
 @Composable
 fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fallback: Pose = Pose.GREAT_JOB,
             then: PupMood = fallback.mood, bpm: Int? = null, jump: Boolean = true, ground: Boolean = true,
-            scale: Float = PupClips.scale(name), once: Boolean = PupClips.oneShot(name)) {
+            scale: Float = PupClips.scale(name), once: Boolean = PupClips.oneShot(name),
+            /** 2.14, tap the pup to play it again: each change of [replay] plays the clip again from its first frame (the rig: his HAPPY beat); [onTap] takes the touch, if any. */
+            replay: Int = 0, onTap: (() -> Unit)? = null) {
     val context = LocalContext.current
     val still = reducedMotion()
     val state by produceState<ClipState>(ClipState.Loading, name, still) {
@@ -195,14 +200,17 @@ fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fall
                 d.start()
                 onDispose { d.stop() }
             }
+            androidx.compose.runtime.LaunchedEffect(replay) { if (replay > 0) { d.stop(); d.start() } }
+            val tap = if (onTap == null) Modifier else Modifier.pointerInput(Unit) { detectTapGestures { onTap() } }
             val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
             // He stands in the same glow, over the same shadow, and at the same size as the rig's pup.
-            ClipView(d, size, if (ground) modifier.drawBehind { pupGround(dark) } else modifier, scale)
+            ClipView(d, size, (if (ground) modifier.drawBehind { pupGround(dark) } else modifier).then(tap), scale)
         }
         else -> {
             val pup = rememberPupController(idle = false)
             if (s == ClipState.Missing && jump) LaunchedEffect(Unit) { pup.play(PupMood.HAPPY) }
-            Pup(fallback, mood = then, modifier = modifier, size = size, controller = pup, idle = false, bpm = bpm, ground = ground,
+            if (replay > 0) LaunchedEffect(replay) { pup.play(PupMood.HAPPY) }
+            Pup(fallback, mood = then, modifier = modifier, size = size, controller = pup, idle = false, bpm = bpm, ground = ground, onTap = onTap,
                 bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
         }
     }

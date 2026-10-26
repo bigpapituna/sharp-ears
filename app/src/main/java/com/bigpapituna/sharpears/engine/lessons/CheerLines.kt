@@ -155,6 +155,9 @@ object CheerLines {
     fun all(kid: Boolean): List<String> = (CheerTrigger.entries.flatMap { family(it, kid) } +
         RUN_MILESTONES.flatMap { runNumbered(it, kid) } + FOCUS_MINUTES.flatMap { focusMinutes(it, kid) }).distinct()
 
+    /** The bubble on the lane at a long run of right notes (the player's old "High five!"): a kid's own word, a grown-up's calm one (Dana: it had an exclamation mark in the quiet register). Shown, never said. */
+    fun highFive(kid: Boolean): String = if (kid) "High five!" else "Nice playing."
+
     /** The lines that can be said aloud (every family but the step passed one, which the step pop shows without a word). */
     fun spoken(kid: Boolean): List<String> = all(kid) - family(CheerTrigger.STEP_PASSED, kid).toSet()
 }

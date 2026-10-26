@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.engine.family.OwnerName
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileFiles
 import com.bigpapituna.sharpears.engine.family.ProfileKind
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Everyone on the phone (docs/KIDS-PLAN.md section 2), in its own SharedPreferences file "profiles": the roster as one
  * JSON string ("roster", engine/family/Roster.kt holds the rules) and when the parent gate was last passed ("gateAt").
  *
- * [current] is never null: a phone that never had profiles gets the owner's ("Roy", id "owner"), who keeps the
+ * [current] is never null: a phone that never had profiles gets the owner's (no name yet, id "owner"), who keeps the
  * unsuffixed progress files. [currentFlow] and [rosterFlow] change on every write so the UI follows a switch. Deleting
  * a profile deletes its progress files; the UI asks twice first, the store just deletes.
  */
@@ -67,7 +68,28 @@ class Profiles(
         return added
     }
 
-    fun rename(id: String, name: String) = save(state.value.rename(id, name), "renamed $id")
+    /**
+     * 2.14: the owner's name asked (the first-run flow, or the one-time question on a phone from before 2.14). Kept apart from
+     * the roster so asking "once" survives a deleted or rewritten roster.
+     */
+    var ownerNameAsked: Boolean
+        get() = p.getBoolean(KEY_NAME_ASKED, false)
+        set(v) = p.edit().putBoolean(KEY_NAME_ASKED, v).apply()
+
+    /** Whether the one-time "What should we call you?" is due for [current] (OwnerName.askDue). */
+    fun ownerNameDue(onboardingDone: Boolean): Boolean = OwnerName.askDue(current, ownerNameAsked, onboardingDone)
+
+    /** The owner's answer ([typed] blank: none). The question is never asked again. */
+    fun nameOwner(typed: String?) {
+        val owner = state.value[Profile.OWNER_ID] ?: return
+        ownerNameAsked = true
+        save(state.value.update(owner.id) { OwnerName.apply(it, typed) }, "named ${owner.id}")
+    }
+
+    fun rename(id: String, name: String) {
+        if (id == Profile.OWNER_ID) ownerNameAsked = true          // a name typed in Settings answers the question
+        save(state.value.rename(id, name), "renamed $id")
+    }
 
     /** Changes anything but the id (avatar, reader, hint speed, colour notes, mic offset). */
     fun update(id: String, change: (Profile) -> Profile) {
@@ -126,6 +148,7 @@ class Profiles(
     companion object {
         const val KEY_ROSTER = "roster"
         const val KEY_GATE = "gateAt"
+        const val KEY_NAME_ASKED = "ownerNameAsked"
         const val GATE_FILE = "gate"
         const val KEY_LOCKOUT = "lockout"
     }

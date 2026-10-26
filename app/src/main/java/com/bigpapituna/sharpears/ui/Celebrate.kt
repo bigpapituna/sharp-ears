@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +59,8 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -130,6 +133,16 @@ fun Celebration(
      * today"); null, or without the clip or with animations off: the rig's jump for joy, then the cheer.
      */
     clip: String? = null,
+    /**
+     * 2.14, a grown-up's calm finish: ONE reward line and a small "See rewards (3)" chip that opens one sheet with the queue, then one
+     * Next button. No XP bar, no stacked reveals, no second button (Back is still the secondary action).
+     */
+    calm: CalmFinish? = null,
+    /**
+     * 2.14, a child who cannot read yet: the pup, the stars and the sticker in [reward], and one big button with an arrow; no
+     * title, no sentences, no stat chips on screen (TalkBack still hears them, and the voice says the one line).
+     */
+    picture: Boolean = false,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
     // The buttons fade in where the keys were: a tap meant for the keys does nothing (SettleTaps).
@@ -137,7 +150,8 @@ fun Celebration(
     val secondaryTap = settledTap { onSecondary?.invoke() }
     val compact = reward != null || oneMore != null
     val pupSize = if (compact) 120.dp else 200.dp
-    androidx.compose.runtime.DisposableEffect(Unit) { celebrationsShowing.intValue++; onDispose { celebrationsShowing.intValue-- } }
+    val calmNow = androidx.compose.runtime.rememberUpdatedState(calm)
+    androidx.compose.runtime.DisposableEffect(Unit) { celebrationsShowing.intValue++; onDispose { celebrationsShowing.intValue--; calmNow.value?.onLeave?.invoke() } }
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     fun anim() = Animatable(if (still) 1f else 0f)
@@ -151,6 +165,10 @@ fun Celebration(
     // 2.10: he lands in a jump for joy, then cheers on the beat until Continue; with a clip, he lands into it (laughing,
     // arms up, clapping) and stays on its last frame. Neither holds up the buttons.
     val pup = rememberPupController(idle = false)
+    // 2.14, tap the pup to play it again: the clip from its first frame (the rig's jump and cheer without one), a tiny sparkle, a kid's
+    // line the first time only. It never waits on the buttons.
+    val replay = com.bigpapituna.sharpears.ui.pup.rememberPupReplay(pup, clip = clip, hold = clip != null, then = PupMood.CHEER,
+        voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid))
     LaunchedEffect(Unit) {
         if (clip != null) pup.prepare(clip)
         snapshotFlow { rise.value }.first { it >= 0.97f }
@@ -184,20 +202,25 @@ fun Celebration(
     val px = with(LocalDensity.current) { 320.dp.toPx() }
     val head: @Composable ColumnScope.(pupSize: androidx.compose.ui.unit.Dp) -> Unit = { pupSize ->
         Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
-            Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, clips = clip != null, modifier = Modifier.graphicsLayer {
+            com.bigpapituna.sharpears.ui.pup.ReplayPup(pose, replay, pup, pupSize, mood = PupMood.IDLE, clips = clip != null, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
                 val s = 0.4f + 0.6f * rise.value
                 scaleX = s; scaleY = s; alpha = rise.value.coerceIn(0f, 1f)
                 transformOrigin = TransformOrigin(0.5f, 1f)
             })
         }
+        if (picture) {
+            // Pictures only: TalkBack still gets the headline and the line, in one stop.
+            Spacer(Modifier.size(1.dp).semantics { heading(); liveRegion = LiveRegionMode.Polite; contentDescription = "$title $line" })
+        } else {
         Text(title, style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center,
             modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite }.graphicsLayer {
                 val s = 0.6f + 0.4f * pop.value; scaleX = s; scaleY = s; alpha = pop.value.coerceIn(0f, 1f)
             })
         Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
             modifier = Modifier.graphicsLayer { alpha = pop.value.coerceIn(0f, 1f) })
-        if (stats.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        }
+        if (stats.isNotEmpty() && !picture) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             stats.forEachIndexed { i, st ->
                 // Each one in turn, sliding up, its number counting as it lands.
                 Column(Modifier.graphicsLayer {
@@ -212,7 +235,11 @@ fun Celebration(
                 }
             }
         }
-        if (xpGained != null) XpRow(xpGained, xpBar, xp, Modifier.graphicsLayer {
+        if (xpGained != null && calm == null) XpRow(xpGained, xpBar, xp, Modifier.graphicsLayer {
+            val k = ((rest.value - 0.4f) / 0.6f).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 30f
+        })
+        // 2.14: the grown-up's one reward line, and the chip to the one sheet that holds the rest.
+        if (calm != null) CalmRewards(calm, Modifier.graphicsLayer {
             val k = ((rest.value - 0.4f) / 0.6f).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 30f
         })
     }
@@ -222,11 +249,17 @@ fun Celebration(
     val middle: @Composable ColumnScope.() -> Unit = { head(pupSize); drop() }
     val bottom: @Composable ColumnScope.() -> Unit = {
         // "One more" brings its own big button; then the way out is the quieter one.
-        if (oneMore != null) {
+        if (picture) {
+            // A child who cannot read yet: one big button, an arrow on it (2.14).
+            ChunkyButton(onClick = primaryTap, modifier = Modifier.fillMaxWidth().semantics { contentDescription = primary }) {
+                Icon(painterResource(com.bigpapituna.sharpears.R.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(30.dp))
+            }
+        } else if (oneMore != null) {
             oneMore()
             TextButton(onClick = primaryTap, modifier = Modifier.padding(top = 6.dp)) { Text(primary) }
         } else ChunkyButton(onClick = primaryTap, modifier = Modifier.fillMaxWidth()) { Text(primary) }
-        if (secondary != null && onSecondary != null) TextButton(onClick = secondaryTap, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
+        // A grown-up's calm finish has the one Next button; a picture finish has the one arrow.
+        if (secondary != null && onSecondary != null && calm == null && !picture) TextButton(onClick = secondaryTap, modifier = Modifier.padding(top = 6.dp)) { Text(secondary) }
     }
     val bottomMotion = Modifier.graphicsLayer { val k = ((rest.value - 0.5f) * 2).coerceIn(0f, 1f); alpha = k; translationY = (1 - k) * 60f }
     // A pane of its own: it takes the taps and, as a pane, hides the screen under it from TalkBack (its buttons were
@@ -464,3 +497,26 @@ private fun TypedText(text: String, typed: State<Int>, style: TextStyle, color: 
 
 /** Short, varied words for a passed step, so the bar does not say the same thing every time. */
 fun cheerTitle(seed: Int) = com.bigpapituna.sharpears.engine.CHEER_TITLES.let { it[Math.floorMod(seed, it.size)] }
+
+/**
+ * A grown-up's calm finish (2.14): [line] is the one reward line ("A sticker for your trail.", "+40 XP, level 3 in 120."; null
+ * for none), [items] the queue behind the "See rewards (3)" chip, [say] the pup's voice for the sheet's lines, and [onLeave]
+ * runs when the finish goes away, seen or not (a level-up that was folded into the queue is consumed there, so no second
+ * screen comes after it).
+ */
+class CalmFinish(val line: String?, val items: List<com.bigpapituna.sharpears.engine.world.RewardItem>, val say: ((String) -> Unit)? = null,
+                 val onLeave: () -> Unit = {},
+                 /** Under the chip: tomorrow's next thing, when the day's goal is met (Retention.TomorrowSlot). */ val below: (@Composable () -> Unit)? = null)
+
+/** The reward line and its chip, under a calm finish's numbers; the chip opens the one rewards sheet. */
+@Composable
+internal fun CalmRewards(calm: CalmFinish, modifier: Modifier = Modifier) {
+    val open = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val chip = com.bigpapituna.sharpears.engine.world.RewardQueue.chip(calm.items)
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        calm.line?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center) }
+        chip?.let { com.bigpapituna.sharpears.ui.world.RewardsChip(it, onClick = { open.value = true }) }
+        calm.below?.invoke()
+    }
+    if (open.value) com.bigpapituna.sharpears.ui.world.RewardsSheet(calm.items, onClose = { open.value = false }, say = calm.say)
+}

@@ -45,7 +45,9 @@ import com.bigpapituna.sharpears.engine.world.WearItem
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.Confetti
 import com.bigpapituna.sharpears.ui.pup.Pose
-import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.pup.ReplayPup
+import com.bigpapituna.sharpears.ui.pup.rememberPupReplay
+import com.bigpapituna.sharpears.engine.pup.PupMood
 import com.bigpapituna.sharpears.ui.motion.BounceSize
 import com.bigpapituna.sharpears.ui.reducedMotion
 import com.bigpapituna.sharpears.ui.pup.rememberPupController
@@ -58,16 +60,19 @@ import kotlinx.coroutines.launch
  * he asks "Keep it on?". Yes keeps it; No puts back what he wore before. Without a world (a demo) it only shows.
  */
 @Composable
-fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((String) -> Unit)? = null) {
+fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((String) -> Unit)? = null,
+                   /** 2.14: false for a child who cannot read yet: the pup in the new thing alone. */ captions: Boolean = true,
+                   /** 2.14: the pup keeps it on without asking (a first lesson's starter piece; a child who cannot read). */ autoKeep: Boolean = false) {
     if (items.isEmpty()) return
     val world = LocalWorld.current
     val sounds = rememberWorldSounds()
     val still = reducedMotion()
     val pup = rememberPupController(idle = false)
+    val replay = rememberPupReplay(pup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid))
     val rarity = items.maxOf { it.rarity }
     // What he wore before, kept for "No"; the new items go on at once.
     val before = rememberSaveable(items.map { it.id }) { mutableStateOf(world?.state?.outfit?.items?.map { it.id }.orEmpty()) }
-    var answered by rememberSaveable(items.map { it.id }) { mutableStateOf<Boolean?>(null) }
+    var answered by rememberSaveable(items.map { it.id }) { mutableStateOf<Boolean?>(if (autoKeep) true else null) }
     val flip = remember(items) { Animatable(if (still) 1f else 0f) }
     val enter = remember(items) { Animatable(if (still) 1f else 0f) }
     // On a finish screen the reveal comes last, often under the fold of a scrolling column: it scrolls itself into view so
@@ -76,7 +81,7 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
     val inView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     val scrollsItself = com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid
     LaunchedEffect(items) {
-        world?.let { w -> if (answered == null) w.dress(items.fold(w.state.outfit) { o, i -> o.with(i) }) }
+        world?.let { w -> if (answered == null || autoKeep) w.dress(items.fold(w.state.outfit) { o, i -> o.with(i) }) }
         if (!still) {
             if (scrollsItself) launch { delay(120); runCatching { inView.bringIntoView() } }
             enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 260f))
@@ -86,7 +91,7 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
         } else if (scrollsItself) runCatching { inView.bringIntoView() }
         sounds.jingle(rarity)
         pup.react(if (rarity.special) PupReaction.SURPRISED else PupReaction.DANCE)
-        say?.invoke(Wardrobe.revealLine(items))
+        say?.invoke(Wardrobe.revealLine(items, ask = !autoKeep))
         Log.d(TAG, "wardrobe: reveal ${items.joinToString { it.id }}")
     }
     val c = MaterialTheme.colorScheme
@@ -99,7 +104,7 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
                 contentDescription = Wardrobe.revealLine(items) + " " + items.joinToString { "${it.nickname}, ${it.label.lowercase()}" }
             },
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (items.size > 1) "A whole new outfit!" else "Something new to wear!", style = MaterialTheme.typography.titleLarge,
+            if (captions) Text(if (items.size > 1) "A whole new outfit!" else "Something new to wear!", style = MaterialTheme.typography.titleLarge,
                 color = c.primary, textAlign = TextAlign.Center)
             Box(Modifier.padding(top = 26.dp).graphicsLayer {
                 cameraDistance = 14f * density
@@ -111,12 +116,15 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
                 // Turned away (the card's back), he is still his plain self; turned round, he wears it.
                 val now = world?.state?.outfit ?: Outfit.NONE
                 val wearing = if (flip.value < 0.5f) Outfit.NONE else if (answered == false) now else items.fold(now) { o, i -> o.with(i) }
-                Pup(Pose.WEAR_BASE, size = 170.dp, controller = pup, idle = false, outfit = wearing, bounce = BounceSize.NONE)
+                // 2.14: a tap on him plays his dance again in what he wears, with a tiny sparkle.
+                ReplayPup(Pose.WEAR_BASE, replay, pup, 170.dp, idle = false, outfit = wearing, bounce = BounceSize.NONE, mood = PupMood.IDLE)
             }
-            Text(items.map { it.nickname }.distinct().joinToString(" and "), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-            Text(items.first().line, style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
-            if (rarity.special) Text(rarity.label, style = MaterialTheme.typography.labelLarge, color = rarity.colour())
-            when (answered) {
+            if (captions) {
+                Text(items.map { it.nickname }.distinct().joinToString(" and "), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Text(items.first().line, style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
+                if (rarity.special) Text(rarity.label, style = MaterialTheme.typography.labelLarge, color = rarity.colour())
+            }
+            if (captions || answered == null) when (answered) {
                 null -> if (world != null) {
                     Text("Keep it on?", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -129,7 +137,7 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
                         }) { Text("Not now") }
                     }
                 }
-                true -> Text("Looking good! Change it any time in Dress up.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                true -> if (captions) Text(if (autoKeep) "He is wearing it now! Change it any time in Dress up." else "Looking good! Change it any time in Dress up.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                 false -> Text("It waits for you in Dress up.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
             }
         }

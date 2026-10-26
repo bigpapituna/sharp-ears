@@ -61,8 +61,10 @@ import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.progress.DailyGoal
 import com.bigpapituna.sharpears.engine.family.HomeFirst
 import com.bigpapituna.sharpears.engine.family.Level
+import com.bigpapituna.sharpears.engine.family.OwnerName
 import com.bigpapituna.sharpears.engine.family.Placement
 import com.bigpapituna.sharpears.engine.family.PlacementCheck
+import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
 import com.bigpapituna.sharpears.reminder.Reminder
 import com.bigpapituna.sharpears.ui.Celebration
@@ -90,6 +92,8 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                      onLevel: (Level) -> Unit = {},
                      /** Offered after the questions to anyone above "never": the short listen ("Let's hear you play", ui/family/PlacementCheckScreen.kt). Null: not offered. */
                      onCheck: ((Level) -> Unit)? = null,
+                     /** 2.14: ask the grown-up's name on the welcome card (the phone owner only, like the reminder); [onName] gets what was typed, blank when nothing was. */
+                     askName: Boolean = askReminder, onName: (String) -> Unit = {},
                      onDone: (startLessonId: String?) -> Unit) {
     val context = LocalContext.current
     val still = reducedMotion()
@@ -101,9 +105,11 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
     var useMic by rememberSaveable { mutableStateOf(false) }
     var finished by rememberSaveable { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
 
     fun finish(notifyOk: Boolean) {
         Level.entries.getOrNull(experience)?.let(onLevel)
+        if (askName) onName(name)
         store.goalMinutes = goal
         store.useMic = useMic
         prefs.micDefault = useMic
@@ -168,7 +174,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                         }
                     }
                 }
-                TextButton(onClick = { store.onboardingDone = true; onDone(null) }) { Text("Skip") }
+                TextButton(onClick = { if (askName) onName(name); store.onboardingDone = true; onDone(null) }) { Text("Skip") }
             }
             AnimatedContent(
                 step, Modifier.weight(1f),
@@ -182,7 +188,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
             ) { s ->
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     when (s) {
-                        0 -> WelcomeStep()
+                        0 -> WelcomeStep(if (askName) name else null) { name = it }
                         1 -> ExperienceStep(experience) { experience = it }
                         2 -> GoalStep(goal) { goal = it }
                         else -> HabitStep(
@@ -223,11 +229,20 @@ private fun StepTitle(text: String) =
     Text(text, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
 
 @Composable
-private fun WelcomeStep() {
+private fun WelcomeStep(name: String?, onName: (String) -> Unit) {
     PupSays(Pose.WELCOME, "Hi, I'm your coach. I'll help you learn piano, a few minutes a day.", Modifier.fillMaxWidth(), size = 132.dp)
     StepTitle("Welcome to Sharp Ears")
     Text("Lessons that start from the very first key, songs that fall onto the keyboard, chords, ear training and theory. " +
         "It listens as you play and tells you how it went.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // 2.14: the grown-up's first name, optional: every greeting reads it, and none is "Hi there" (engine/family/OwnerName.kt).
+    if (name != null) {
+        val focus = androidx.compose.ui.platform.LocalFocusManager.current
+        androidx.compose.material3.OutlinedTextField(name, { onName(it.take(Profile.MAX_NAME)) }, label = { Text(OwnerName.QUESTION) },
+            supportingText = { Text(OwnerName.HINT) }, singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focus.clearFocus() }), modifier = Modifier.fillMaxWidth())
+    }
     // True on every build: one with an AI key sends the parent brief's numbers (never a name or a sound), and says so.
     val ai = com.bigpapituna.sharpears.data.BriefAi.hasKey
     val email = com.bigpapituna.sharpears.data.BriefEmail.hasKey

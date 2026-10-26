@@ -76,6 +76,7 @@ import com.bigpapituna.sharpears.ui.world.drawOutfit
 import com.bigpapituna.sharpears.ui.world.drawOutfitBehind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -270,15 +271,23 @@ fun Pup(
     // A clip asked for by name: played in his place (a held one stays on its last frame), or its fallback beat where there
     // is none, then the mood it hands over to.
     LaunchedEffect(ctl, still) {
+        var job: Job? = null
         snapshotFlow { ctl.clipCue }.collect { cue ->
             if (cue == null || cue.seq <= ctl.clipsTaken) return@collect
             ctl.clipsTaken = cue.seq
-            if (!still && clipsOk && playClip(context, cue.name, cue.loops, clipNow, clipFade, ready.remove(cue.name), cue.hold)) {
-                if (!cue.hold && cue.name in ctl.ahead) decodeAhead(cue.name)
-                return@collect
+            // 2.14, tap the pup to play it again: a clip asked for while the same one plays, or holds its last frame, starts over
+            // from its first frame (the drawable shown is rewound; no second decode). Another clip takes the place of the first.
+            val shown = clipNow.value
+            job?.cancelAndJoin()
+            job = launch {
+                val again = shown?.takeIf { it.name == cue.name }?.drawable
+                if (!still && clipsOk && playClip(context, cue.name, cue.loops, clipNow, clipFade, ready.remove(cue.name) ?: again, cue.hold)) {
+                    if (!cue.hold && cue.name in ctl.ahead) decodeAhead(cue.name)
+                    return@launch
+                }
+                ctl.play(cue.fallback)
+                cue.then?.let { m -> launch { delay(PupMotion.beatMs(cue.fallback).toLong()); ctl.mood = m } }
             }
-            ctl.play(cue.fallback)
-            cue.then?.let { m -> launch { delay(PupMotion.beatMs(cue.fallback).toLong()); ctl.mood = m } }
         }
     }
 

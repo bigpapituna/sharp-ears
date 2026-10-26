@@ -190,7 +190,7 @@ fun LessonScreen(
     // After today's goodbye the pup is asleep: nothing of the lesson starts (no voice, no player) unless a grown-up says.
     if (asleep) {
         LaunchedEffect(Unit) { deps.voice.stop(); Log.d(TAG, "bedtime: ${lesson.id} asleep") }
-        Goodbye(who.name, week, onSongs = { (onSongs ?: onBack)() }, onClose = onBack, onJam = onJam, asleep = true,
+        Goodbye(who.name, week, onSongs = { (onSongs ?: onBack)() }, onClose = onBack, onJam = onJam, asleep = true, picture = kid && !who.reader,
             onOneMore = { gate.guard { bedtime.oneMoreOn = today; asleep = false; Log.d(TAG, "bedtime: a grown-up allowed one more lesson") } },
             say = { deps.voice.speak(it, interrupt = true) })
         return
@@ -502,15 +502,17 @@ fun LessonScreen(
     val bedtimeNow = kid && finished && progress != null && !holdGoodnight &&
         Bedtime.sayGoodnight(true, progress.secondsToday(today), progress.goalMinutes, bedtime.goodnightOn, today, bedtime.bedtime)
     // The world's slots on the finish: the sticker (and the egg) flipping in, and "one more" with a peek at its drop.
+    // 2.14: a child who cannot read yet gets pictures (the pup, the stars, the sticker) and one spoken line; a reader the same
+    // reveals with their words. Either way one at a time (ui/world/RewardViews.kt KidRewardStage).
+    val pictures = kid && !who.reader
     val drop: (@Composable () -> Unit)? = reward?.let { rw -> { LessonDrop(rw, stars = if (kid) lessonStars else null, sampler = deps.sampler.takeIf { deps.prefs.sound },
-        say = { line -> deps.voice.speak(line) }) } }
-    // 2.9: once today's goal is met, Tomorrow's surprise under a kid's drop (the last thing they get), or tomorrow's next
-    // thing over a grown-up's (it is where they go next, so it stays in view above the reveals).
+        say = { line -> deps.voice.speak(line) }, reader = !pictures) } }
+    // 2.9: once today's goal is met, Tomorrow's surprise under a kid's drop (the last thing they get); a grown-up's tomorrow line
+    // rides in their calm finish (it is where they go next).
     val dropSlot: @Composable () -> Unit = {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!kid) com.bigpapituna.sharpears.ui.TomorrowSlot()
             drop?.invoke()
-            if (kid) com.bigpapituna.sharpears.ui.TomorrowSlot()
+            com.bigpapituna.sharpears.ui.TomorrowSlot()
         }
     }
     val nextDrop = remember(reward, next) {
@@ -525,7 +527,7 @@ fun LessonScreen(
     val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(who, ready = kid && finished)
     // A kid's finish reads in one order (2.5.0): the stars, the stone's sticker, the drop, something new to wear, then the
     // pup's card (when one is due this session) whichever way they go on, "one more" included.
-    val oneMore: (@Composable () -> Unit)? = if (next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
+    val oneMore: (@Composable () -> Unit)? = if (kid && !pictures && next != null && onNext != null && nextDrop != null && !bedtimeNow && !nextAsleep) {
         { com.bigpapituna.sharpears.ui.world.OneMoreButton(nextDrop, onClick = cardStep.then("One more") { voice.stop(); onNext() }, title = next.title) }
     } else null
     if (finished && !goodnight) {
@@ -533,30 +535,42 @@ fun LessonScreen(
         if (kid) Celebration(
             RunWords.KID_LESSON_TITLE, RunWords.kidLessonLine(who.name), emptyList(),
             primary = kidPrimary,
-            onPrimary = cardStep.then(kidPrimary) { voice.stop(); if (bedtimeNow) goodnight = true else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)() },
+            // A child who cannot read yet has one big arrow: on to the next stone when there is one, else the map (2.14).
+            onPrimary = cardStep.then(kidPrimary) {
+                voice.stop()
+                if (bedtimeNow) goodnight = true
+                else if (pictures && !nextAsleep && onNext != null) onNext()
+                else if (oneMore != null || nextAsleep) onBack() else (onNext ?: onBack)()
+            },
             sampler = deps.sampler.takeIf { deps.prefs.sound },
-            reward = dropSlot, oneMore = oneMore,
+            reward = dropSlot, oneMore = oneMore, picture = pictures,
             clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
-        ) else Celebration(
-            "Lesson complete!", lesson.summary,
-            listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(java.util.Locale.ROOT, tookSecs / 60, tookSecs % 60), "Time"),
-                Stat("$retries", if (retries == 1) "Retry" else "Retries")),
-            primary = if (oneMore != null) "All lessons" else if (onNext != null) "Next lesson" else "Done",
-            onPrimary = { voice.stop(); if (oneMore != null) onBack() else (onNext ?: onBack)() },
-            secondary = if (onNext != null && oneMore == null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
-            sampler = deps.sampler.takeIf { deps.prefs.sound },
-            xpGained = progress?.let { (xpAtEnd - xpAtOpen).takeIf { it > 0 } },
-            xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
-            reward = dropSlot, oneMore = oneMore,
-            clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
-        )
+        ) else {
+            // 2.14, a grown-up's calm finish: one reward line, a "See rewards (3)" chip for the one sheet, one Next button. A
+            // level-up joins the sheet's queue (and is consumed when the finish goes, so no second screen follows).
+            val items = remember(reward, finished) { com.bigpapituna.sharpears.engine.world.RewardQueue.of(reward, progress?.levelUp?.value) }
+            val calm = com.bigpapituna.sharpears.ui.CalmFinish(
+                com.bigpapituna.sharpears.engine.world.RewardQueue.line(items, (xpAtEnd - xpAtOpen).takeIf { it > 0 }, xpAtEnd),
+                items, say = { line -> deps.voice.speak(line) }, onLeave = { progress?.consumeLevelUp() },
+                below = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
+            Celebration(
+                "Lesson complete!", lesson.summary,
+                listOf(Stat("${lesson.steps.size}", "Steps"), Stat("%d:%02d".format(java.util.Locale.ROOT, tookSecs / 60, tookSecs % 60), "Time"),
+                    Stat("$retries", if (retries == 1) "Retry" else "Retries")),
+                primary = if (onNext != null) "Next lesson" else "Done",
+                onPrimary = { voice.stop(); (onNext ?: onBack)() },
+                secondary = if (onNext != null) "All lessons" else null, onSecondary = { voice.stop(); onBack() },
+                sampler = deps.sampler.takeIf { deps.prefs.sound },
+                clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE, calm = calm,
+            )
+        }
         if (kid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })
     }
     // The goodbye after the lesson that reached the goal: shown once today.
     if (goodnight) {
         LaunchedEffect(Unit) { voice.stop(); bedtime.goodnightOn = today; Log.d(TAG, "bedtime: goodnight after ${lesson.id}") }
         Goodbye(who.name, week, onSongs = { voice.stop(); (onSongs ?: onBack)() }, onClose = { voice.stop(); onBack() },
-            onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) })
+            onJam = onJam?.let { j -> { voice.stop(); j() } }, say = { voice.speak(it, interrupt = true) }, picture = kid && !who.reader)
     }
     }
 }
@@ -566,15 +580,14 @@ fun LessonScreen(
  * sees the lesson's [stars] first (2.2: the same stars land on its stone on the map).
  */
 @Composable
-internal fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null) {
-    // In order (2.5.0): the stars, the stone's own sticker (its shape turning into the sticker), the drop flipping in, and
-    // once it has landed the rest, something new to wear last.
-    var dropped by remember(reward) { mutableStateOf(reward.drops.isEmpty()) }
+internal fun LessonDrop(reward: com.bigpapituna.sharpears.engine.world.Reward, stars: Int? = null, sampler: Sampler? = null, say: ((String) -> Unit)? = null,
+                        /** False for a child who cannot read yet: pictures only (2.14). */ reader: Boolean = true) {
+    // In order (2.14: one at a time, the same place): the stars stay, then the stone's own sticker (its shape turning into the
+    // sticker; on a first lesson already stuck on the map), the drop flipping in, an egg, and something new to wear last.
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        stars?.takeIf { it > 0 }?.let { com.bigpapituna.sharpears.ui.skin.StarRow(it, size = 44.dp, sampler = sampler) }
-        reward.level?.let { com.bigpapituna.sharpears.ui.world.LevelStickerEarned(it, say = say) }
-        if (reward.drops.isNotEmpty()) com.bigpapituna.sharpears.ui.world.DropReveal(reward, cardWidth = 120.dp, onDone = { dropped = true })
-        if (dropped) com.bigpapituna.sharpears.ui.world.RewardExtras(reward, say = say, level = false)
+        stars?.takeIf { it > 0 }?.let { com.bigpapituna.sharpears.ui.skin.StarRow(it, size = if (reader) 44.dp else 64.dp, sampler = sampler) }
+        val items = remember(reward) { com.bigpapituna.sharpears.engine.world.RewardQueue.of(reward, null, starter = reward.starter, placedAt = reward.placedAt) }
+        com.bigpapituna.sharpears.ui.world.KidRewardStage(items, reader, say)
     }
 }
 

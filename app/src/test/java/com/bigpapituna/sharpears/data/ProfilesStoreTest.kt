@@ -65,7 +65,8 @@ class ProfilesStoreTest {
         Prefs(phone, "owner").markLessonDone("find-c")
         val p = profiles()
         assertEquals("owner", p.current.id)
-        assertEquals("Roy", p.current.name)
+        assertEquals(Profile.UNSET_NAME, p.current.name)          // 2.14: nobody named them, so no name is made up
+        assertFalse(p.current.named)
         assertTrue(Prefs(phone, p.current.id).lessonDone("find-c"))
         assertTrue("progress" in phone.files)
         assertFalse(phone.files.keys.any { it.startsWith("progress.") })
@@ -92,12 +93,48 @@ class ProfilesStoreTest {
         assertTrue(listOf("progress.p1", "profile.p1", "practice.p1").all { it in phone.files })
     }
 
+    /** 2.14: the owner's name is asked once, the answer kept, and a name typed in Settings answers it too. */
+    @Test fun theOwnersNameIsAskedOnceAndKept() {
+        var p = profiles()
+        assertTrue("a fresh phone asks after the first-run flow", p.ownerNameDue(onboardingDone = true))
+        assertFalse("not before it", p.ownerNameDue(onboardingDone = false))
+        p.nameOwner("  Dana  ")
+        assertEquals("Dana", p.current.name); assertEquals("Dana", p.current.greetName)
+        assertFalse(p.ownerNameDue(onboardingDone = true))
+        p = profiles()
+        assertEquals("Dana", p.current.greetName)               // kept across a restart
+        // None given: unnamed, greeted "Hi there", and never asked again.
+        val q = Profiles(PhoneContext(), clock = { 1L }, log = {})
+        q.nameOwner("")
+        assertNull(q.current.greetName); assertEquals(Profile.UNSET_NAME, q.current.name)
+        assertFalse(q.ownerNameDue(onboardingDone = true))
+        // A name typed in Settings (Family > rename) answers the question too.
+        val r = Profiles(PhoneContext(), clock = { 1L }, log = {})
+        r.rename("owner", "Marc")
+        assertEquals("Marc", r.current.greetName); assertFalse(r.ownerNameDue(onboardingDone = true))
+    }
+
+    /** 2.14: a phone from before 2.14 has an owner "Roy" nobody chose: asked once; a name someone typed is left alone. */
+    @Test fun anUpgradedOwnerCalledRoyIsAskedOnceAndAnyOtherNameIsKept() {
+        val old = PhoneContext()
+        old.getSharedPreferences("profiles", 0).edit().putString("roster", """{"current":"owner","profiles":[{"id":"owner","name":"Roy","kind":"ADULT"}]}""").apply()
+        val p = Profiles(old, clock = { 1L }, log = {})
+        assertEquals("Roy", p.current.name); assertNull(p.current.greetName)
+        assertTrue(p.ownerNameDue(onboardingDone = true))
+        p.nameOwner("Roy")                                         // he is Roy after all: now it is a name he gave
+        assertEquals("Roy", p.current.greetName); assertFalse(p.ownerNameDue(onboardingDone = true))
+        val named = PhoneContext()
+        named.getSharedPreferences("profiles", 0).edit().putString("roster", """{"current":"owner","profiles":[{"id":"owner","name":"Priya","kind":"ADULT"}]}""").apply()
+        val q = Profiles(named, clock = { 1L }, log = {})
+        assertEquals("Priya", q.current.greetName); assertFalse(q.ownerNameDue(onboardingDone = true))
+    }
+
     @Test fun theRosterSurvivesARestart() {
         val p = profiles()
         p.create(Profile.kid("Mia", 1, reader = false))
         p.create(Profile.adult("Sam", 2), switch = false)
         val again = profiles()
-        assertEquals(listOf("Roy", "Mia", "Sam"), again.all.map { it.name })
+        assertEquals(listOf(Profile.UNSET_NAME, "Mia", "Sam"), again.all.map { it.name })
         assertEquals("p1", again.current.id)
         assertTrue(again.roster.needsPicker)
     }

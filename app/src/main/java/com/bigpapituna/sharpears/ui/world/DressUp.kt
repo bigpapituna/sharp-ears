@@ -100,7 +100,8 @@ fun DressUp(world: WorldStore, modifier: Modifier = Modifier, reader: Boolean = 
     val sounds = rememberWorldSounds()
     val pup = rememberPupController(idle = false)
     var said by remember { mutableStateOf<String?>(null) }
-    var slot by remember { mutableStateOf(WearSlot.HEAD) }
+    // 2.14: it opens on a slot with something to wear (the first lesson gives the bandana), not on a row of padlocks.
+    var slot by remember { mutableStateOf(WearSlot.entries.firstOrNull { sl -> s.unlocked.any { it.slot == sl } } ?: WearSlot.HEAD) }
     Column(modifier.widthIn(max = 640.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SpeechBubble(said ?: wardrobeLine(s.outfit, s.wardrobe.size))
         // Room above him for a hat (or a halo).
@@ -117,9 +118,12 @@ fun DressUp(world: WorldStore, modifier: Modifier = Modifier, reader: Boolean = 
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val cols = if (maxWidth >= 520.dp) 5 else 3
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                WearItem.entries.filter { it.slot == slot }.sortedBy { if (it in s.wardrobe) 0 else 1 }.chunked(cols).forEach { row ->
+                // 2.14 (Mila): what is open, then ONE "More soon" tile for everything still locked in this slot, not a wall of padlocks.
+                WearItem.entries.filter { it.slot == slot }.let { all -> all.filter { it in s.wardrobe } + (if (all.any { it !in s.wardrobe }) listOf(null) else emptyList()) }
+                    .chunked(cols).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { item ->
+                            if (item == null) { MoreSoonTile(Modifier.weight(1f)) { said = Wardrobe.MORE_SOON_LINE; sounds.pop(0.7f) }; return@forEach }
                             WearTile(item, worn = item in s.outfit.items, unlocked = item in s.wardrobe, modifier = Modifier.weight(1f)) {
                                 if (item !in s.wardrobe) { said = Wardrobe.how(item); sounds.pop(0.7f); return@WearTile }
                                 val on = item !in s.outfit.items
@@ -257,5 +261,21 @@ fun ProgressRing(share: Float, size: Dp, modifier: Modifier = Modifier, content:
                 Size(this.size.width - w, this.size.height - w), style = Stroke(w, cap = StrokeCap.Round))
         }
         content()
+    }
+}
+
+/** The one tile for every item still to earn in a slot (2.14): a wrapped present and "More soon!", a tap has the pup say to keep playing. */
+@Composable
+private fun MoreSoonTile(modifier: Modifier, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(18.dp)
+    Column(modifier.pressScale().clip(shape).background(c.surfaceContainerHigh)
+        .clickable(role = Role.Button, onClickLabel = Wardrobe.MORE_SOON, onClick = onClick)
+        .semantics(mergeDescendants = true) { contentDescription = "${Wardrobe.MORE_SOON} ${Wardrobe.MORE_SOON_LINE}" }
+        .padding(vertical = 10.dp, horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1.2f), contentAlignment = Alignment.Center) {
+            com.bigpapituna.sharpears.ui.GiftBox(Modifier.fillMaxSize().padding(6.dp), sway = true)
+        }
+        Text(Wardrobe.MORE_SOON, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 2, color = c.onSurfaceVariant)
     }
 }

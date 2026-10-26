@@ -33,10 +33,48 @@ class ProfileTest {
         assertEquals("playground", Profile.firstUnitId(ProfileKind.KID))
     }
 
-    @Test fun theOwnerIsRoyWithTheRedBand() {
+    @Test fun theOwnerHasNoNameUntilGivenOneAndTheRedBand() {
         val o = Profile.owner()
-        assertEquals("owner", o.id); assertEquals("Roy", o.name); assertEquals(0, o.avatar)
+        assertEquals("owner", o.id); assertEquals(Profile.UNSET_NAME, o.name); assertEquals(0, o.avatar)
         assertTrue(o.isOwner); assertFalse(o.isKid)
+        assertFalse(o.named); assertNull(o.greetName)
+        assertEquals("Dana", OwnerName.apply(o, "  Dana ").greetName)
+        assertNull(OwnerName.apply(OwnerName.apply(o, "Dana"), "   ").greetName)
+        assertEquals(Profile.UNSET_NAME, OwnerName.apply(OwnerName.apply(o, "Dana"), "").name)
+    }
+
+    @Test fun theNameFlagRoundTripsAndOldTextIsReadFairly() {
+        val dana = OwnerName.apply(Profile.owner(5), "Dana")
+        assertEquals(dana, Profile.decode(dana.encode()))
+        assertEquals(Profile.owner(5), Profile.decode(Profile.owner(5).encode()))
+        // From before 2.14 (no flag): the owner called Roy never chose it; any other name, and every other profile, was typed.
+        assertFalse(Profile.decode("""{"id":"owner","name":"Roy","kind":"ADULT"}""")!!.named)
+        assertFalse(Profile.decode("""{"id":"owner","kind":"ADULT"}""")!!.named)
+        assertTrue(Profile.decode("""{"id":"owner","name":"Priya","kind":"ADULT"}""")!!.named)
+        assertTrue(Profile.decode("""{"id":"p2","name":"Roy","kind":"ADULT"}""")!!.named)
+        assertTrue(Profile.decode("""{"id":"p3","name":"Mia","kind":"KID"}""")!!.named)
+        // The owner is asked once, after the first-run flow, and a kid never.
+        val roy = Profile.decode("""{"id":"owner","name":"Roy","kind":"ADULT"}""")!!
+        assertTrue(OwnerName.askDue(roy, asked = false, onboardingDone = true))
+        assertFalse(OwnerName.askDue(roy, asked = true, onboardingDone = true))
+        assertFalse(OwnerName.askDue(roy, asked = false, onboardingDone = false))
+        assertFalse(OwnerName.askDue(Profile.kid("Mia", 1, true, id = "p2"), asked = false, onboardingDone = true))
+    }
+
+    /** 2.14: every greeting reads the name, and none is "Hi there", never a name nobody typed. */
+    @Test fun greetingsReadTheNameOrSayHiThere() {
+        assertEquals("Hi, Dana.", Greeting.hi("Dana")); assertEquals("Hi there.", Greeting.hi(null)); assertEquals("Hi there.", Greeting.hi("  "))
+        assertEquals("Welcome back, Dana.", Greeting.welcomeBack("Dana")); assertEquals("Welcome back.", Greeting.welcomeBack(null))
+        assertEquals("Hi, Dana.", Greeting.layout("Dana", returning = false)); assertEquals("Welcome back, Dana.", Greeting.layout("Dana", returning = true))
+        assertEquals("Hi there.", Greeting.layout(null, returning = false)); assertEquals("Welcome back.", Greeting.layout(null, returning = true))
+        assertEquals("Good evening, Dana.", Greeting.timeOfDay("Good evening", "Dana")); assertEquals("Good evening.", Greeting.timeOfDay("Good evening", null))
+        assertEquals("Hi there. One card.", Greeting.tour(null, "One card."))
+        assertEquals("Dana, here is your week.", Greeting.myWeek("Dana")); assertEquals("Here is your week.", Greeting.myWeek(null))
+        assertEquals("Dana, here is how your playing went, with one or two things to try.", Greeting.myWeekCard("Dana"))
+        assertEquals("Here is how your playing went, with one or two things to try.", Greeting.myWeekCard(null))
+        // Copy rules: sentence case, no dashes, every line ends with a stop.
+        for (l in listOf(Greeting.hi(null), Greeting.welcomeBack(null), Greeting.myWeek(null), Greeting.myWeekCard(null), Greeting.myWeek("Dana")))
+            assertTrue(l, l.endsWith(".") && "—" !in l && "–" !in l)
     }
 
     @Test fun namesAreTidiedAndAvatarsKeptInRange() {

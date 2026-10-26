@@ -129,7 +129,7 @@ fun TomorrowSlot(modifier: Modifier = Modifier, onDark: Boolean = false) {
             }
         } else if (line == null) line = withContext(Dispatchers.IO) { runCatching { r.tomorrow() }.getOrNull() }
     }
-    if (r.kid) { if (gift) WrappedGift(modifier) }
+    if (r.kid) { if (gift) WrappedGift(modifier, captions = com.bigpapituna.sharpears.ui.family.profile().reader) }
     else line?.let { l ->
         Text(l, style = MaterialTheme.typography.titleMedium, color = if (onDark) PupGold else MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().semantics { contentDescription = l })
@@ -138,8 +138,13 @@ fun TomorrowSlot(modifier: Modifier = Modifier, onDark: Boolean = false) {
 
 /** The wrapped gift on a kid's finish screen: a present that sways a little, "Something for tomorrow". */
 @Composable
-fun WrappedGift(modifier: Modifier = Modifier) {
+fun WrappedGift(modifier: Modifier = Modifier, /** 2.14: false for a child who cannot read yet: the present alone. */ captions: Boolean = true) {
     val c = MaterialTheme.colorScheme
+    if (!captions) {
+        Box(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = Surprise.WRAPPED_TITLE + ". " + Surprise.WRAPPED_LINE },
+            contentAlignment = Alignment.Center) { GiftBox(Modifier.size(84.dp), sway = true) }
+        return
+    }
     Row(modifier.widthIn(max = 420.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
         .border(2.dp, PupGold.copy(alpha = 0.7f), RoundedCornerShape(20.dp)).padding(horizontal = 16.dp, vertical = 12.dp)
         .semantics(mergeDescendants = true) { contentDescription = Surprise.WRAPPED_TITLE + ". " + Surprise.WRAPPED_LINE },
@@ -210,7 +215,12 @@ fun GiftOpening(opened: GiftOpened, reader: Boolean, say: (String) -> Unit, onCl
                         Text(Surprise.line(opened.kind), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
                         // 2.10: the pup jumps for joy (the jump clip where the app has it); an outfit has its own pup putting it on.
-                        if (opened.kind != GiftKind.OUTFIT) Pup(Pose.GREAT_JOB, PupMood.HAPPY, size = 120.dp, idle = false, clips = true)
+                        // 2.14: a tap on him plays the jump again, with a tiny sparkle.
+                        if (opened.kind != GiftKind.OUTFIT) {
+                            val giftPup = com.bigpapituna.sharpears.ui.pup.rememberPupController(idle = false)
+                            val replay = com.bigpapituna.sharpears.ui.pup.rememberPupReplay(giftPup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(kid = true))
+                            com.bigpapituna.sharpears.ui.pup.ReplayPup(Pose.GREAT_JOB, replay, giftPup, 120.dp, mood = PupMood.HAPPY, clips = true)
+                        }
                         when (opened.kind) {
                             GiftKind.STICKER -> com.bigpapituna.sharpears.ui.world.DropReveal(opened.reward, cardWidth = 140.dp)
                             GiftKind.OUTFIT -> com.bigpapituna.sharpears.ui.world.RewardExtras(opened.reward, say = say)

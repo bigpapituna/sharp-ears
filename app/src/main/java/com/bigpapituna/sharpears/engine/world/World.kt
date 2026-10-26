@@ -178,6 +178,10 @@ data class Reward(
     val record: RecordUp? = null,
     /** 2.5: the stone's own sticker, earned on its first finish. */
     val level: LevelSticker? = null,
+    /** 2.14: a kid's first lesson gave the free first wearable ([Starter.ITEM], in [unlocked]) and stuck the first sticker on the map. */
+    val starter: Boolean = false,
+    /** 2.14: where the first sticker was stuck for them ([starter]). */
+    val placedAt: SceneSlot? = null,
 ) {
     val houseUp: Boolean get() = houseAfter > houseBefore
     /** The rarest drop (the one the jingle and the pup react to). */
@@ -213,7 +217,7 @@ object World {
      * its own sticker ([lessonId], [LevelStickers]) earns it into the tray, and items the ledger opened since the last
      * finish screen are announced ([Reward.unlocked]).
      */
-    fun lessonComplete(s: WorldState, place: Place? = null, lessonId: String? = null): Outcome {
+    fun lessonComplete(s: WorldState, place: Place? = null, lessonId: String? = null, starter: Boolean = false): Outcome {
         val drop = Drops.roll(s.seed, s.history, DropSource.LESSON, place)
         var h = s.history.after(drop)
         val drops = mutableListOf(drop)
@@ -225,9 +229,20 @@ object World {
         val lessons = s.lessons + 1
         val lay = lessons % EGG_EVERY == 0
         val level = LevelStickers.byLesson(lessonId)?.takeIf { it.lessonId !in s.levels }
-        val after = s.copy(history = h, lessons = lessons, egg = lay, levels = level?.let { s.levels + it.lessonId } ?: s.levels,
+        var after = s.copy(history = h, lessons = lessons, egg = lay, levels = level?.let { s.levels + it.lessonId } ?: s.levels,
             earned = s.earned + listOfNotNull(level?.key))
-        return finish(s, after, drops, eggLaid = lay, eggHatched = s.egg, level = level)
+        // 2.14, a kid's very first lesson: the free first wearable, and the first sticker stuck on the map for them (the stone's own, else
+        // the lesson's drop). The ledger's practice track skips the piece once it is open.
+        val first = starter && s.lessons == 0 && s.wardrobe.isEmpty()
+        var slot: SceneSlot? = null
+        if (first) {
+            val key = level?.key ?: drop.sticker.key
+            slot = Starter.slot(place)
+            after = after.copy(wardrobe = after.wardrobe + Starter.ITEM, fresh = after.fresh + Starter.ITEM,
+                placements = after.placements.put(key, slot.id), earned = if (key in after.earned) after.earned else after.earned + key)
+        }
+        val out = finish(s, after, drops, eggLaid = lay, eggHatched = s.egg, level = level)
+        return if (!first) out else out.copy(reward = out.reward.copy(starter = true, placedAt = slot))
     }
 
     /**

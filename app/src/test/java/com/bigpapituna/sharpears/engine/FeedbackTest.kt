@@ -38,6 +38,21 @@ class FeedbackTest {
         assertEquals("You missed F sharp three times. Try that bar slowly.", feedbackLine(r, perform = false).text)
     }
 
+    /** 2.14 (persona walk, Dana): the line on screen writes a note as the falling notes do, the voice says it as words. */
+    @Test fun theScreenWritesTheNoteAndTheVoiceSaysIt() {
+        val r = Report(listOf(48 to 5, 60 to 1), retries = 5, wrongKeys = 6, recap = null)
+        val f = feedbackLine(r, perform = false)
+        assertEquals("You missed C3 five times. Try that bar slowly.", f.text)
+        assertEquals("You missed C three five times. Try that bar slowly.", f.spoken)
+        assertEquals("C3", writtenNote(48)); assertEquals("C4", writtenNote(60)); assertEquals("D", writtenNote(62))
+        assertEquals("F sharp", writtenNote(66)); assertEquals("B flat", writtenNote(70, flats = true))
+        // Nothing but a note's name differs between the two forms, and no line shows "three five".
+        assertFalse(f.text.contains("three five"))
+        val slip = feedbackLine(Report(listOf(48 to 1), 1, 1, null), perform = false)
+        assertEquals("Nearly clean: one slip, on C3. On to the next step.", slip.text)
+        assertEquals("Nearly clean: one slip, on C three. On to the next step.", slip.spoken)
+    }
+
     @Test fun oneOffSlips() {
         assertEquals("Nearly clean: one slip, on B flat. On to the next step.",
             feedbackLine(Report(listOf(70 to 1), 1, 1, null), perform = false).text)
@@ -54,8 +69,10 @@ class FeedbackTest {
     }
 
     @Test fun performBelowThePassMark() {
-        assertEquals("70 percent, and you need 80. You missed C four twice. Play it again.",
-            feedbackLine(Report(listOf(60 to 2), 2, 2, recap(7, miss = 3)), perform = true, pass = 80).text)
+        val f = feedbackLine(Report(listOf(60 to 2), 2, 2, recap(7, miss = 3)), perform = true, pass = 80)
+        // 2.14 (Dana: "You missed C three five times" read like a typo): the screen writes the C with its octave, the voice says it.
+        assertEquals("70 percent, and you need 80. You missed C4 twice. Play it again.", f.text)
+        assertEquals("70 percent, and you need 80. You missed C four twice. Play it again.", f.spoken)
         assertEquals("0 percent, and you need 80. No notes were heard in time. Play it again.",
             feedbackLine(Report(emptyList(), 0, 0, recap(0, miss = 9)), perform = true).text)
     }

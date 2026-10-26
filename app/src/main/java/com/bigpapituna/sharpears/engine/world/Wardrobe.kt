@@ -336,8 +336,13 @@ object Wardrobe {
         else -> error("no words for $n")
     }
 
+    /** 2.14: the tile that stands for every locked item in a slot, and what the pup says when it is tapped (kid words, no numbers). */
+    const val MORE_SOON = "More soon!"
+    const val MORE_SOON_LINE = "Keep playing, and more things to wear come!"
+
     /** What the pup says when an item opens at a finish screen. */
-    fun revealLine(items: List<WearItem>): String = if (items.size > 1) "A whole new outfit! Keep it on?" else "Something new to wear! Keep it on?"
+    fun revealLine(items: List<WearItem>, ask: Boolean = true): String =
+        (if (items.size > 1) "A whole new outfit!" else "Something new to wear!") + if (ask) " Keep it on?" else ""
 }
 
 /**

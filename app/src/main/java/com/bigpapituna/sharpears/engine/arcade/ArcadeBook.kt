@@ -53,7 +53,7 @@ object ArcadeBook {
         val r = state.of(g)
         val stars = result.stars
         val firstThree = stars >= 3 && !r.sticker
-        val level = ArcadeLevels.next(g, r.level, result)
+        val level = ArcadeLevels.next(g, result.level, result)      // from the level the round was played at (a reader's first Balloon pop is level 1)
         val song = if (g == ArcadeGame.PAINTER && stars >= 2) ArcadeSongs.of(result.level).id else null
         val paintedNew = song != null && song !in state.painted
         val next = r.copy(best = maxOf(r.best, stars), level = level, rounds = r.rounds + 1, sticker = r.sticker || stars >= 3, last = stars)
@@ -102,4 +102,14 @@ object ArcadeQuest {
 
     /** The quest task's words: "Play Balloon pop". */
     fun title(game: ArcadeGame) = "Play ${game.title}"
+}
+
+/**
+ * Where a kid's game starts (2.14, Theo and Leo: a reader began Balloon pop with three animal keys and slow balloons, "half
+ * asleep"). A reader's first Balloon pop is level 1: the five keys of the C position, each balloon its letter; later rounds
+ * follow the book. Everyone else, and every other game, starts where the record says.
+ */
+object ArcadeStart {
+    fun level(game: ArcadeGame, record: GameRecord, reader: Boolean): Int =
+        if (reader && game == ArcadeGame.BALLOONS && record.rounds == 0 && record.level == 0) 1 else record.level
 }

@@ -45,7 +45,7 @@ object KidCardWords {
     }
 
     /** The button that opens the parent's note. */
-    const val SHOW_MUM = "Show Mum"
+    const val SHOW_MUM = "Show a grown-up"
 
     /**
      * A card is due when the session had real playing in it ([practisedSeconds] at least [MIN_SECONDS]) and none was shown for

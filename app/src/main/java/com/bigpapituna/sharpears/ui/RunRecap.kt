@@ -131,6 +131,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val party = RunWords.party(who.kind, e.recap, e.wrongKeys, e.newBest)
     // 2.10: three stars (a best for a grown-up) and he lands in a jump for joy, then cheers; a good run, a wag.
     val pup = rememberPupController(idle = false)
+    // 2.14, tap the pup to play it again: his jump (the clip, for a kid's stars) then the cheer on a party, a tiny sparkle, a kid's
+    // line the first time only.
+    val replay = com.bigpapituna.sharpears.ui.pup.rememberPupReplay(pup, then = if (party) PupMood.CHEER else null,
+        voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(kid))
     LaunchedEffect(e) {
         if (party && sampler != null) launch { flourish(sampler) }
         if (still) return@LaunchedEffect
@@ -163,14 +167,22 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         else if (pose == Pose.GREAT_JOB) pup.play(PupMood.WAG)
     }
     val title = RunWords.headline(who.kind, r, e.wrongKeys, e.newBest, seed)
-    val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.name, seed = seed)
+    val line = RunWords.coaching(who.kind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed)
     // The pup says it, name and all (made on the phone, since names are never recorded): kids every time, grown-ups on a best.
     LaunchedEffect(e) {
         if (say == null) return@LaunchedEffect
         delay(if (still) 200 else 700)
-        if (kid) say("$title $line") else if (party) say("${title.trimEnd('!', '.')}, ${who.name}!")
+        if (kid) say("$title $line") else if (party) say("${title.trimEnd('!', '.')}${who.greetName?.let { ", $it" }.orEmpty()}!")
     }
     val stickerRes = e.reward?.drops?.firstOrNull()?.sticker?.let { com.bigpapituna.sharpears.data.WorldStore.stickerRes(it) }
+    // 2.14, a grown-up's calm recap: the reward line and the chip's queue (a level-up joins it and is consumed when the recap goes).
+    val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
+    val calmItems = remember(e) { com.bigpapituna.sharpears.engine.world.RewardQueue.of(e.reward, progress?.levelUp?.value) }
+    val calm = com.bigpapituna.sharpears.ui.CalmFinish(
+        com.bigpapituna.sharpears.engine.world.RewardQueue.line(calmItems, e.xpGained, progress?.xp), calmItems, say = say,
+        onLeave = { progress?.consumeLevelUp() }, below = { TomorrowSlot() })
+    val calmNow = androidx.compose.runtime.rememberUpdatedState(calm)
+    if (!kid) androidx.compose.runtime.DisposableEffect(e) { onDispose { calmNow.value.onLeave() } }
     val stats = buildList {
         if (r != null) { add(Stat("${r.good}", "Good")); add(Stat("${r.ok}", "OK")); add(Stat("${r.miss}", "Missed")); add(Stat("${r.longestStreak}", "Streak")) }
         else add(Stat("${e.wrongKeys}", if (e.wrongKeys == 1) "Wrong note" else "Wrong notes"))
@@ -190,7 +202,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val head: @Composable ColumnScope.() -> Unit = {
                 Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     // Held in the run's pose (as on a lesson's celebration): left alone he dozed off on the recap.
-                    Pup(pose, PupMood.IDLE, size = pupSize, onTap = {}, idle = false, controller = pup, clips = kid, modifier = Modifier.graphicsLayer {
+                    com.bigpapituna.sharpears.ui.pup.ReplayPup(pose, replay, pup, pupSize, mood = PupMood.IDLE, clips = kid, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
                         val s = 0.5f + 0.5f * m.rise.value; scaleX = s; scaleY = s; alpha = m.rise.value.coerceIn(0f, 1f)
                         transformOrigin = TransformOrigin(0.5f, 1f)
@@ -215,8 +227,9 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val drop: @Composable ColumnScope.() -> Unit = {
                 e.reward?.let { rw ->
                     Column(Modifier.fillMaxWidth().bringIntoViewRequester(dropInView).slideIn(m.rest, 1), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        com.bigpapituna.sharpears.ui.world.DropReveal(rw, cardWidth = if (short) 84.dp else if (kid) 132.dp else 116.dp)
-                        com.bigpapituna.sharpears.ui.world.RewardExtras(rw, songTitle = { songTitle }, say = say)
+                        // 2.14: a kid's reveals one at a time (a grown-up's are one line and a chip, below).
+                        com.bigpapituna.sharpears.ui.world.KidRewardStage(com.bigpapituna.sharpears.engine.world.RewardQueue.of(rw), reader = who.reader, say = say,
+                            songTitle = { songTitle })
                     }
                 }
             }
@@ -237,10 +250,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                         stats.forEachIndexed { i, st -> StatChip(st, m.count, delay = i * 0.1f, Modifier.slideIn(m.rest, i + 1)) }
                     }
                 }
-                if (e.xpGained != null) XpLine(e.xpGained, e.xpBar, m.xp, Modifier.slideIn(m.rest, stats.size + 1))
-                // 2.9: once today's goal is met, tomorrow's next thing (over the drop, so it stays in view).
-                TomorrowSlot(Modifier.slideIn(m.rest, stats.size + 1))
-                drop()
+                // 2.14, calm: ONE reward line ("A sticker for your trail." or "+40 XP, level 3 in 120."), a small "See rewards (3)"
+                // chip for the one sheet (the sticker, a rare one, something to wear, an egg, the new level), and under it, once
+                // today's goal is met, tomorrow's next thing (2.9).
+                com.bigpapituna.sharpears.ui.CalmRewards(calm, Modifier.slideIn(m.rest, stats.size + 1))
                 // The quieter way on: a hard bar on a loop.
                 TroubleSpots.line(e.spots)?.let { loops ->
                     Column(Modifier.slideIn(m.rest, stats.size + 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -255,7 +268,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val actions: @Composable () -> Unit = {
                 Column(Modifier.slideIn(m.rest, stats.size + 3), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // No room on a short screen for the peek at the next drop: Play it again is a plain button there.
-                    val peek = nextDrop.takeIf { !short }
+                    val peek = nextDrop.takeIf { !short && kid }          // a grown-up has one Play again, not a card about the next sticker (2.14)
                     // The song just played is not "Next" (QA nit 15): it is the same song again.
                     if (peek != null) com.bigpapituna.sharpears.ui.world.OneMoreButton(peek, onClick = onAgain, title = songTitle, label = "Play it again",
                         heading = songTitle?.let { "Once more: $it" },

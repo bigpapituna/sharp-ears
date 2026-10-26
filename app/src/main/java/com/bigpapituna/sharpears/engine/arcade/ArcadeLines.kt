@@ -10,6 +10,9 @@ object ArcadeLines {
     const val HUB = "Pick a game!"
     const val LOCKED = "Keep playing, and this one opens!"
     const val NEW_GAME = "A new game is ready!"
+    /** 2.14: the games not open yet are one wrapped tile with this name (shown, and the words TalkBack reads). */
+    const val MORE_SOON = "More games soon!"
+    const val MORE_SOON_LABEL = "More games soon. Keep playing and the next one opens."
 
     /** Said as a round starts (over the demo's lead). */
     fun intro(game: ArcadeGame, reader: Boolean, level: Int = 0): String = when (game) {
@@ -64,6 +67,17 @@ object ArcadeLines {
         stars == 2 -> "Great playing! Shall we go again?"
         else -> "Good playing! Let's play again!"
     }
+    /**
+     * What each star on the finish means (2.14, Mila: "1 of 3 stars and no sign of what a star needs"): a few words under each
+     * star, no numbers, the same rule as [ArcadeStars] (a tower counts blocks to the clouds, a song game the song, the rest the
+     * share of notes played). [star] is 1..3.
+     */
+    fun starMeaning(game: ArcadeGame, star: Int): String = when {
+        game == ArcadeGame.TOWER -> listOf("You started!", "Halfway up!", "The clouds!")
+        game.skill == Skill.SONGS -> listOf("You played!", "Most of the song!", "The whole song!")
+        else -> listOf("You played!", "Most of them!", "Nearly all!")
+    }[star.coerceIn(1, 3) - 1]
+
     const val STICKER = "A new sticker for your album!"
     const val PAINTED = "This picture is yours!"
     const val HARDER = "Next time, something new!"
@@ -80,6 +94,7 @@ object ArcadeLines {
     }.distinct()
 
     /** Every line the arcade shows or says (the copy test reads these). */
-    fun all(): List<String> = (spoken() + STREAK + listOf(HELP, SLIP, WATCH, GO, CLOUDS, HIGHER) + ArcadeGame.entries.map { it.title } +
+    fun all(): List<String> = (spoken() + STREAK + listOf(HELP, SLIP, WATCH, GO, CLOUDS, HIGHER, MORE_SOON) + ArcadeGame.entries.map { it.title } +
+        ArcadeGame.entries.flatMap { g -> (1..3).map { starMeaning(g, it) } } +
         ArcadeGame.entries.map(ArcadeQuest::title)).distinct()
 }

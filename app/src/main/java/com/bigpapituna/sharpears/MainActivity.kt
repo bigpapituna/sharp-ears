@@ -448,7 +448,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Debug routes (security review 2026-10-22, finding 1): this launch's extras act only when DebugRoutes allows them
         // (a keyed build wants `--es dk <key>`); any other launch loses them here, before anything reads them.
-        debugRoutes = routesAllowed(intent)
+        // 2.14 (persona walk, Theo: "profiles: switched to owner" at "One more"): a launch's extras act once. The activity's intent
+        // keeps them for as long as it lives, so a recreate (a theme or font change, the process coming back) read `--es profile`,
+        // `--es today`, the seeds and the rest again; DebugRoutes.oneShot says they are used up, and they are dropped here.
+        debugRoutes = routesAllowed(intent) && com.bigpapituna.sharpears.engine.DebugRoutes.oneShot(recreated = savedInstanceState != null)
         if (!debugRoutes) intent = withoutDebugExtras(intent)
         debugToday(intent, debugRoutes)
         smallestWidthDp = resources.configuration.smallestScreenWidthDp
@@ -861,7 +864,10 @@ class MainActivity : ComponentActivity() {
             }
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
             // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
+            // 2.14: the pup's voice for his tap-to-replay line on a finish screen (a kid's; said once per screen).
+            val pupVoice = remember(voice) { { line: String -> voice.speak(line, interrupt = true) } }
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
+                com.bigpapituna.sharpears.ui.pup.LocalPupVoice provides pupVoice,
                 LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
                 com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
@@ -966,7 +972,7 @@ class MainActivity : ComponentActivity() {
                             pendingFinale = page.id
                             Log.d(TAG, "kid: ${l.id} ends ${page.id}, its finale is next")
                         }
-                        return world.lessonComplete(l.id, KidPages.dropPlace(l.id))
+                        return world.lessonComplete(l.id, KidPages.dropPlace(l.id), starter = profile.isKid)      // 2.14: a kid's first lesson gives the starter wearable and a placed sticker
                     }
                     // The next lesson to suggest: a kid's next stone on the map, a grown-up's Learn path; a lesson a grown-up pinned
                     // from the parent brief comes first while its day lasts (engine/kid/Pace.kt).
@@ -1284,6 +1290,8 @@ class MainActivity : ComponentActivity() {
                         Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
                                 askReminder = profile.isOwner,
+                                // 2.14: the owner is asked their name on the first card (optional); anyone else was named when they were added.
+                                askName = profile.isOwner, onName = { n -> profiles.nameOwner(n) },
                                 // How much they have played (2.6): the profile keeps it and the flow below re-plans the marks in place.
                                 onLevel = { l -> profiles.update(profile.id) { it.copy(level = l) } },
                                 onCheck = { l -> screen = Screen.Placement(l) }) { lessonId ->
@@ -1398,7 +1406,8 @@ class MainActivity : ComponentActivity() {
                         is Screen.ArcadeRound -> Box(Modifier.fillMaxSize()) {
                             BackHandler { voice.stop(); screen = s.back }
                             TimedOnScreen(s) { ms -> Briefs.log { BriefEvent.ToyOpened(it, ToyKind.ARCADE, ms) } }
-                            val level = remember(s) { s.level ?: arcadeStore.state.of(s.game).level }
+                            // 2.14: a reader's first Balloon pop starts at level 1 (five keys, letter names), not three animal keys.
+                            val level = remember(s) { s.level ?: com.bigpapituna.sharpears.engine.arcade.ArcadeStart.level(s.game, arcadeStore.state.of(s.game), current.reader) }
                             // 2.8: a game's first round keeps C D E at level 0; later rounds roll their three keys.
                             val firstRound = remember(s) { arcadeStore.state.of(s.game).rounds == 0 }
                             val stickerId = com.bigpapituna.sharpears.engine.world.LevelStickers.arcade(s.game.id)
@@ -1546,7 +1555,7 @@ class MainActivity : ComponentActivity() {
                             // 2.8, the launch chooser: a grown-up who never chose a layout picks one before the tabs (Today); a
                             // tap saves it and the home opens under it. Kids never see it; 2.7's Simple switch counts as chosen.
                             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                                com.bigpapituna.sharpears.ui.LayoutChooser(current.name, returning = progress.practiceLog().keys.any { it.isBefore(com.bigpapituna.sharpears.data.AppClock.today()) }) { l ->
+                                com.bigpapituna.sharpears.ui.LayoutChooser(current.greetName, returning = progress.practiceLog().keys.any { it.isBefore(com.bigpapituna.sharpears.data.AppClock.today()) }) { l ->
                                     Log.d(TAG, "layout: chosen at launch")
                                     layoutMode.set(l)
                                 }
@@ -1628,6 +1637,7 @@ class MainActivity : ComponentActivity() {
                                             },
                                             emptyPlan = routes && intent.getBooleanExtra("emptyToday", false),
                                             // 2.9: back after three days or more: three easy minutes with something already known.
+                                            name = current.greetName,
                                             welcomeBack = if (!comebackOpen || comeback == null || progress.secondsToday() > 0) null else { {
                                                 val piece by androidx.compose.runtime.produceState<com.bigpapituna.sharpears.engine.Comeback.Piece?>(null) {
                                                     value = withContext(Dispatchers.IO) {
@@ -1758,7 +1768,11 @@ class MainActivity : ComponentActivity() {
                             }
                             // 2.7 (engine/nav/Welcome.kt): What's new once per version, then the tour once per profile, over the tabs.
                             val wv = prefs.version.intValue
-                            when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion)) {
+                            // 2.14: a phone from before 2.14 has an owner nobody named (the app called them "Roy"): asked once, before the sheets.
+                            var nameAnswered by remember { mutableStateOf(false) }
+                            val nameDue = !nameAnswered && current.isOwner && profiles.ownerNameDue(progress.onboardingDone)
+                            if (nameDue) com.bigpapituna.sharpears.ui.onboarding.OwnerNameAsk { typed -> nameAnswered = true; profiles.nameOwner(typed); Log.d(TAG, "profiles: owner name asked, ${if (typed.isBlank()) "none given" else "given"}") }
+                            else                             when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion)) {
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.WHATS_NEW -> com.bigpapituna.sharpears.ui.WhatsNewSheet(appVersion,
                                     com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew(appVersion)) {
                                     prefs.whatsNewSeen = appVersion; Log.d(TAG, "welcome: what's new $appVersion seen")
@@ -1766,6 +1780,7 @@ class MainActivity : ComponentActivity() {
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.TOUR -> {
                                     val from = remember { s.tab }
                                     com.bigpapituna.sharpears.ui.TourDialog(onCard = { t -> screen = s.copy(tab = HomeTab.entries.first { it.nav == t }) },
+                                        name = current.greetName,
                                         onDone = { skipped ->
                                             prefs.tourDone = true; screen = s.copy(tab = from)
                                             Log.d(TAG, "welcome: tour ${if (skipped) "skipped" else "done"}")
@@ -1871,7 +1886,7 @@ class MainActivity : ComponentActivity() {
                             onSongs = { voice.stop(); goodbye = false; dailyDone = null; screen = songsScreen() },
                             onClose = { voice.stop(); goodbye = false; dailyDone = null },
                             onJam = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Play(Toy.JAM, Screen.Home()) },
-                            say = { voice.speak(it, interrupt = true) })
+                            say = { voice.speak(it, interrupt = true) }, picture = current.isKid && !current.reader)
                     }
                     if (!goodbye) dailyDone?.let { (parts, min, streak) -> androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.LocalRetention provides retention) {
                         // A kid's session ends on the pup, not on numbers.
@@ -1879,7 +1894,8 @@ class MainActivity : ComponentActivity() {
                             com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(current.name), emptyList(),
                             primary = "Continue", onPrimary = { dailyDone = null },
                             pose = com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound },
-                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE)
+                            reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+                            picture = !current.reader)           // 2.14: a child who cannot read yet sees the pup and one arrow
                         else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
                             if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
                             // The minutes the session added, whole as the goal line counts them; under one, no chip (not "0 min").

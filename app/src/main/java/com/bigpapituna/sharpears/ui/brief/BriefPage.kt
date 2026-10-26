@@ -90,6 +90,9 @@ fun BriefPage(
                 val f = page.findings ?: return@Column
                 Meta(page, brief, f, env, onRefresh = { gate.guardBrief(page.profile) { controller.refresh(page) } },
                     onSend = { gate.guardBrief(page.profile) { onSend(brief, f) } })
+                // 2.14: a grown-up's own week opens with their name ("Dana, here is your week.") or none ("Here is your week.").
+                if (page.profile.kind != ProfileKind.KID && page.period == Period.WEEK)
+                    Text(com.bigpapituna.sharpears.engine.family.Greeting.myWeek(page.profile.greetName), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(brief.headline, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 4.dp).semantics { heading() })
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

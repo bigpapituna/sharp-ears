@@ -118,7 +118,7 @@ fun MyWeekCard(env: BriefEnv, me: Profile, modifier: Modifier = Modifier) {
         PupAvatar(me.avatar, size = 44.dp)
         Column(Modifier.weight(1f)) {
             Text("My week", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            Text("How your playing went, and one or two things to try.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+            Text(com.bigpapituna.sharpears.engine.family.Greeting.myWeekCard(me.greetName), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
         }
         Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp).rotate(-90f))
     }

@@ -18,7 +18,7 @@ class RosterTest {
     @Test fun anEmptyPhoneHasTheOwnerAlone() {
         val r = Roster.decode(null)
         assertEquals(listOf("owner"), r.profiles.map { it.id })
-        assertEquals("Roy", r.current.name)
+        assertEquals(Profile.UNSET_NAME, r.current.name)
         assertFalse(r.needsPicker)
     }
 

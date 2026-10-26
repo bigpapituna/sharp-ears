@@ -39,14 +39,15 @@ import com.bigpapituna.sharpears.ui.pup.Pose
  * someone who had 2.7's Simple switch set is never asked (Prefs.layout carries it over).
  */
 @Composable
-fun LayoutChooser(name: String, returning: Boolean, onPick: (Layout) -> Unit) {
+fun LayoutChooser(name: String?, returning: Boolean, onPick: (Layout) -> Unit) {
     // Centred on a tall screen (the unfolded Fold), scrolling when the font is large or the phone is held sideways.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val tall = maxHeight
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).heightIn(min = tall).padding(horizontal = 20.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val hello = if (name.isBlank()) (if (returning) "Welcome back." else "Hi.") else if (returning) "Welcome back, $name." else "Hi, $name."
+            // 2.14: the owner's own name ("Hi, Dana."), or "Hi there." when none was given; never a name nobody typed.
+            val hello = com.bigpapituna.sharpears.engine.family.Greeting.layout(name, returning)
             PupSays(Pose.WELCOME, "$hello One quick choice and we can start.", Modifier.fillMaxWidth(), size = 96.dp)
             Text(Layout.QUESTION, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp).semantics { heading() })
             Layout.entries.forEach { l -> LayoutCard(l, onClick = { onPick(l) }) }

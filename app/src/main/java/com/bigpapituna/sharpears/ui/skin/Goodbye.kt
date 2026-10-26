@@ -110,7 +110,13 @@ fun Goodbye(
     seed: Int = com.bigpapituna.sharpears.data.AppClock.today().dayOfYear,
     /** A lesson opened after today's goodbye: the pup is asleep already ("New lessons tomorrow!"). */
     asleep: Boolean = false,
+    /**
+     * 2.14 (Mila): for a child who cannot read yet, one picture and one spoken line: the sleepy pup, and one big button (play a
+     * song). No bubble, no sentence, no paws, no Jam or Close pills; Back closes it, TalkBack still hears the line.
+     */
+    picture: Boolean = false,
 ) {
+    if (picture) androidx.activity.compose.BackHandler(onBack = onClose)
     val line = remember(name, seed, asleep) { if (asleep) SessionWords.lessonsAsleep(name) else SessionWords.goodnight(name, seed) }
     LaunchedEffect(line) { say(line) }
     val still = reducedMotion()
@@ -131,7 +137,15 @@ fun Goodbye(
             val pup: @Composable () -> Unit = {
                 SleepyPup(pupSize, still, rise, yawn, breathe?.let { { it.value } })
             }
-            val words: @Composable ColumnScope.() -> Unit = {
+            val words: @Composable ColumnScope.() -> Unit = if (picture) { {
+                Spacer(Modifier.size(1.dp).semantics { heading(); liveRegion = LiveRegionMode.Polite; contentDescription = line })
+                ChunkyButton(onClick = onSongs, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Play a song" }) {
+                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(34.dp))
+                }
+                if (onOneMore != null) TextButton(onClick = onOneMore) {
+                    Text("Grown-ups: one more lesson", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } } else { {
                 SpeechBubble(line, Modifier.widthIn(max = 460.dp).graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) }
                     .semantics { heading(); liveRegion = LiveRegionMode.Polite }, MaterialTheme.typography.titleLarge)
                 Text(SessionWords.STILL_OPEN, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -150,7 +164,7 @@ fun Goodbye(
                 if (onOneMore != null) TextButton(onClick = onOneMore) {
                     Text("Grown-ups: one more lesson", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
+            } }
             if (wide) Row(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 Box(Modifier.weight(0.45f), contentAlignment = Alignment.Center) { pup() }

@@ -35,7 +35,7 @@ class MySongsWiringTest {
     @Test fun theSongsTabShowsMySongsWithItsMenu() {
         val library = src("ui/LibraryScreen.kt")
         assertTrue("MySongs.Words.SECTION" in library && "MySongs.Words.ADD" in library)
-        assertTrue("entries.filter { it.meta.mine } + entries.filter { it.meta.user }" in library)
+        assertTrue("val mine = myShelf(entries)" in library && "entries.filter { it.meta.mine } + entries.filter { it.meta.user && it.available }" in library)
         // Rename and Delete from the overflow or a long press; Delete asks once.
         assertTrue("combinedClickable(onLongClick = if (ownMenu) ({ menu = true }) else null" in library)
         assertTrue("|| m.mine" in library && "MySongs.Words.DELETE_LINE" in library)

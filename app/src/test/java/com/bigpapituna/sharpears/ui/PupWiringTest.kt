@@ -83,8 +83,8 @@ class PupWiringTest {
         assertTrue("remember { PupClips.has(context, PupClips.BOW) }" in src("ui/pup/PupClip.kt"))
         // The jump clip on three stars (the arcade, a kid's song), a sticker revealed or placed on the map, the surprise opened.
         assertTrue("clips = stars == 3" in src("ui/arcade/ArcadeFinish.kt") && "clips = kid" in src("ui/RunRecap.kt"))
-        assertTrue("Pup(Pose.STICKER, controller = pup, size = 128.dp, clips = true)" in src("ui/world/DropReveal.kt"))
-        assertTrue("PupMood.HAPPY, size = 120.dp, idle = false, clips = true" in src("ui/Retention.kt"))
+        assertTrue("ReplayPup(Pose.STICKER, replay, pup, 128.dp, clips = true, idle = true)" in src("ui/world/DropReveal.kt"))
+        assertTrue("Pose.GREAT_JOB, replay, giftPup, 120.dp, mood = PupMood.HAPPY, clips = true" in src("ui/Retention.kt"))
         assertTrue("PupReaction.DANCE" in home && "bounce = BounceSize.SMALL, clips = true" in home)
         // Pup says leans in to listen on the kid's turn.
         assertTrue("Phase.LISTEN -> PupMood.LISTEN" in src("ui/play/PupSaysScreen.kt"))

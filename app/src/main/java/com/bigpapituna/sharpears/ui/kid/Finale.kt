@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -98,6 +99,10 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
     val rise = remember { Animatable(if (still) 1f else 0f) }
     // 2.5.0: dressed up, he bows first in his outfit (only the sitting base pose wears it), then crown, dance and sticker.
     val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
+    var replays by remember { mutableIntStateOf(0) }
+    var spoke by remember { mutableStateOf(false) }
+    val tapVoice = com.bigpapituna.sharpears.ui.pup.LocalPupVoice.current
+    val tapLine = com.bigpapituna.sharpears.engine.pup.PupTap.line(kid = true)         // the finale is a kid's
     val bow = remember(dressed) { if (dressed) listOf(Pose.WEAR_BASE) + BOW else BOW }
     var pose by remember { mutableStateOf(bow.first()) }
     val sayNow by rememberUpdatedState(say)
@@ -133,9 +138,15 @@ fun FinaleScreen(page: PlaygroundPage, name: String, album: AlbumPage,
                 Box(Modifier.size(pupSize), contentAlignment = Alignment.BottomCenter) {
                     // 2.10: the pup's dance clip when the app has it; else the rig: a jump for joy, then he cheers on the beat
                     // through his bow (crown, dance, sticker), each pose fading into the next.
-                    PupClip(PupClips.DANCE, size = pupSize, fallback = pose, then = PupMood.CHEER, modifier = Modifier.graphicsLayer {
+                    // 2.14: a tap on him plays the dance again from its first frame, with a tiny sparkle; his line the first time only.
+                    PupClip(PupClips.DANCE, size = pupSize, fallback = pose, then = PupMood.CHEER, replay = replays, onTap = {
+                        replays++
+                        if (com.bigpapituna.sharpears.engine.pup.PupTap.speaks(spoke, tapLine)) { spoke = true; tapVoice?.invoke(tapLine!!) }
+                        Log.d(TAG, "finale: pup replayed ($replays)")
+                    }, modifier = Modifier.graphicsLayer {
                         val k = 0.6f + 0.4f * rise.value; scaleX = k; scaleY = k; alpha = rise.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                     })
+                    com.bigpapituna.sharpears.ui.pup.TapSparkle(replays, Modifier.fillMaxSize())
                 }
                 Text(headline, style = MaterialTheme.typography.displaySmall, color = PupGold, textAlign = TextAlign.Center,
                     modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite }.graphicsLayer { alpha = rise.value })

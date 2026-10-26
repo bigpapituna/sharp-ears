@@ -67,18 +67,28 @@ fun times(n: Int) = when (n) { 1 -> "once"; 2 -> "twice"; in 3..10 -> "${WORDS[n
 /** "1 day", "3 days": a count and its noun, singular for one. */
 fun plural(n: Int, one: String, many: String = one + "s") = "$n " + if (kotlin.math.abs(n) == 1) one else many
 
-/** Millisecond figures read out as words by the voice. */
-private fun spoken(text: String) = Feedback(text, text.replace(Regex("(\\d+) ms"), "$1 milliseconds"))
+/**
+ * A note as it is written on screen (2.14, Dana: "You missed C three five times" read like a typo): the name as the keys and
+ * the falling notes write it, a C with its octave ("C3") and a black key with its sharp or flat ("F#", "Bb"). The voice keeps
+ * [spokenNote] ("C three", "F sharp"), which sounds right aloud; [Feedback.text] gets this one.
+ */
+fun writtenNote(midi: Int, flats: Boolean = false): String =
+    (if (flats) SPOKEN_FLATS else SPOKEN_PC)[midi % 12] + if (midi % 12 == 0) (midi / 12 - 1).toString() else ""
 
 /**
  * The one feedback line after a Play or Perform run. [perform]: the step was scored against [pass] (percent).
  * [next]: another step follows, so a clean run says so. Order of concerns: failing the pass mark, a note
- * missed again and again, timing, then a few one-off slips.
+ * missed again and again, timing, then a few one-off slips. The text shows notes as they are written ([writtenNote]); the
+ * spoken form names them as words ([spokenNote]) and reads milliseconds out.
  */
-fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = true, flats: Boolean = false): Feedback {
+fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = true, flats: Boolean = false): Feedback =
+    Feedback(feedbackText(r, perform, pass, next, flats, ::writtenNote),
+        feedbackText(r, perform, pass, next, flats, ::spokenNote).replace(Regex("(\\d+) ms"), "$1 milliseconds"))
+
+private fun feedbackText(r: Report, perform: Boolean, pass: Int, next: Boolean, flats: Boolean, note: (Int, Boolean) -> String): String {
     val onward = if (next) " On to the next step." else ""
     val (worst, count) = r.missed.firstOrNull() ?: (0 to 0)
-    val missedLine = if (count >= 2) "You missed ${spokenNote(worst, flats)} ${times(count)}." else null
+    val missedLine = if (count >= 2) "You missed ${note(worst, flats)} ${times(count)}." else null
     val recap = r.recap
     if (perform && recap != null) {
         val bias = recap.biasMs
@@ -90,16 +100,16 @@ fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = tr
         }
         if (recap.accuracy < pass) {
             val why = missedLine ?: timing ?: if (recap.good + recap.ok == 0) "No notes were heard in time." else "${plural(recap.miss, "note")} came late or not at all."
-            return spoken("${recap.accuracy} percent, and you need $pass. $why Play it again.")
+            return "${recap.accuracy} percent, and you need $pass. $why Play it again."
         }
-        if (missedLine != null) return spoken("$missedLine Try that bar slowly.")
-        if (timing != null) return spoken(timing)
-        return spoken(if (r.clean) "Clean.$onward" else "${recap.accuracy} percent. Passed.$onward")
+        if (missedLine != null) return "$missedLine Try that bar slowly."
+        if (timing != null) return timing
+        return if (r.clean) "Clean.$onward" else "${recap.accuracy} percent. Passed.$onward"
     }
     return when {
-        r.wrongKeys == 0 -> spoken("Clean.$onward")
-        missedLine != null -> spoken("$missedLine Try that bar slowly.")
-        r.retries == 1 && r.missed.isNotEmpty() -> spoken("Nearly clean: one slip, on ${spokenNote(worst, flats)}.$onward")
-        else -> spoken("Nearly clean: ${plural(r.retries, "note")} needed a second try.$onward")
+        r.wrongKeys == 0 -> "Clean.$onward"
+        missedLine != null -> "$missedLine Try that bar slowly."
+        r.retries == 1 && r.missed.isNotEmpty() -> "Nearly clean: one slip, on ${note(worst, flats)}.$onward"
+        else -> "Nearly clean: ${plural(r.retries, "note")} needed a second try.$onward"
     }
 }

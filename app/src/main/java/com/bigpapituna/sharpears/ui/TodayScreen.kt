@@ -55,6 +55,7 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.CourseLesson
 import com.bigpapituna.sharpears.engine.SongArt
+import com.bigpapituna.sharpears.engine.family.Greeting
 import com.bigpapituna.sharpears.engine.nav.Names
 import com.bigpapituna.sharpears.engine.nav.TodayCard
 import com.bigpapituna.sharpears.engine.nav.TodayRow
@@ -109,7 +110,9 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 /** Debug (--ez emptyToday true): the card with nothing due, for screenshots. */
                 emptyPlan: Boolean = false,
                 /** 2.9: back after three days or more: "Welcome back" and three easy minutes, over the plan (once per return). */
-                welcomeBack: (@Composable () -> Unit)? = null) {
+                welcomeBack: (@Composable () -> Unit)? = null,
+                /** 2.14: the grown-up's name for the greeting ("Good evening, Dana."), null when none was given ("Hi there"). */
+                name: String? = null) {
     val shown = if (emptyPlan && card.state == TodayCard.State.PLAN) card.copy(state = TodayCard.State.NOTHING_DUE, rows = emptyList()) else card
     var tapLine by remember { mutableStateOf<String?>(null) }
     var playCorner by remember { mutableStateOf(false) }
@@ -132,12 +135,12 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 // 2.10: idle only and subtle (a breath, a blink, now and then an ear): no acts, no hops; a tap still wags him.
                 Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
                     bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
-                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null) { greeting(shown.state, goal, fresh, back = welcomeBack != null) }, style = MaterialTheme.typography.bodyLarge,
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name) { greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
             welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
-            TodayCardView(shown, goal, a, quest)
+            TodayCardView(shown, goal, a, quest, showStart = welcomeBack == null)
             when (cont) {
                 null -> {}
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -205,7 +208,7 @@ private fun MicBanner(onMic: () -> Unit, onClose: () -> Unit) {
 
 /** The Today card, the screen's one raised panel: the plan and Start, the quest's stars, the goal line. */
 @Composable
-private fun TodayCardView(card: TodayCard, goal: GoalState?, a: TodayActions, quest: (@Composable () -> Unit)?) {
+private fun TodayCardView(card: TodayCard, goal: GoalState?, a: TodayActions, quest: (@Composable () -> Unit)?, showStart: Boolean = true) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(c.surfaceContainerHigh)
         .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -226,7 +229,8 @@ private fun TodayCardView(card: TodayCard, goal: GoalState?, a: TodayActions, qu
             }
             TodayCard.State.PLAN -> {
                 card.rows.forEach { PlanRow(it) }
-                ChunkyButton(onClick = a.onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                // 2.14 (Dana, Joan): one Start. While the comeback card shows, its Start is the way in and this one waits.
+                if (showStart) ChunkyButton(onClick = a.onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.size(6.dp))
                     Text("Start")
@@ -334,16 +338,17 @@ private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
  * What the pup says on Today: today done, a first visit, the goal or the streak, or the time of day. 2.9: back after days
  * away ([back]) is a welcome, never a word about the streak; a rest day is said plainly.
  */
-internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false): String = when {
+internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false,
+                       /** 2.14: the grown-up's name (Greeting): "Good evening, Dana." with one, "Good evening." without. */ name: String? = null): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
-    back -> "Welcome back. Good to see you."
-    fresh -> "Hi, I'm your coach. Let's start with an easy song."
+    back -> "${Greeting.welcomeBack(name)} Good to see you."
+    fresh -> "${Greeting.hi(name)} I'm your coach. Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."
     goal != null && goal.atRisk && goal.restYesterday -> "Yesterday was a rest day. Ready when you are."
     goal != null && goal.atRisk -> "Your ${goal.streak} day streak is waiting. ${goal.line.replaceFirstChar { it.uppercase() }}."
     goal != null && goal.streak >= 2 && goal.rest > 0 -> "${com.bigpapituna.sharpears.engine.PracticeStats.streakWords(goal.streak, goal.rest)}. Let's keep it going."
     goal != null && goal.streak >= 2 -> "${goal.streak} days in a row. Let's keep it going."
-    hour < 12 -> "Good morning. A few minutes at the keys?"
-    hour < 18 -> "Good afternoon. Ready when you are."
-    else -> "Good evening. A short session before the day ends?"
+    hour < 12 -> "${Greeting.timeOfDay("Good morning", name)} A few minutes at the keys?"
+    hour < 18 -> "${Greeting.timeOfDay("Good afternoon", name)} Ready when you are."
+    else -> "${Greeting.timeOfDay("Good evening", name)} A short session before the day ends?"
 }

@@ -1084,7 +1084,7 @@ private fun PlayerStage(args: PlayerArgs) {
         if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
             BeatCounter(metro.beatsPerBar, metro.beatInBar(position), Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
         // The pup: ready during the count-in, a high-five after a hard passage comes good.
-        if (showHighFive) PupSays(Pose.GREAT_JOB, "High five!", Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
+        if (showHighFive) PupSays(Pose.GREAT_JOB, com.bigpapituna.sharpears.engine.lessons.CheerLines.highFive(kid), Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
         else if (hintLine != null) PupSays(Pose.LEARNING, hintLine!!, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).widthIn(max = 420.dp), idle = false)
         else if (playing && mode == Mode.PERFORM && position < transport.anchorMs)
             Pup(Pose.GET_READY, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), size = 72.dp, idle = false)

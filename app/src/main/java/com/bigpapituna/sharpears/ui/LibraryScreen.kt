@@ -71,6 +71,14 @@ class LibraryActions(
     val onAdd: () -> Unit = {},
 )
 
+/**
+ * My songs' rows (2.14): the songs added from files, newest first, then the older imports. A bundled entry that names a file
+ * the learner has not brought ("Alicia (Clair Obscur)", Roy's own, locked on every fresh install) is not listed until that
+ * file exists (Dana, Joan: a locked soundtrack row on a stranger's phone).
+ */
+internal fun myShelf(entries: List<LibraryEntry>): List<LibraryEntry> =
+    entries.filter { it.meta.mine } + entries.filter { it.meta.user && it.available }
+
 private val GROUPS = listOf("easy" to "Easy", "medium" to "Medium", "hard" to "Hard")
 
 /** The Songs tab's two sections (2.7): the library, and songs by chords (the Chords tab's Songs before). */
@@ -132,7 +140,7 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
         first?.let { e -> item(key = "start") { StartHereRow(e, a, arts[e.meta.id]) } }
         // My songs (2.8.1): the songs the learner added from files (and the older imports), in every layout.
         if (Simple.songsShows(Simple.SongsPart.MY_SONGS, layout)) {
-            val mine = entries.filter { it.meta.mine } + entries.filter { it.meta.user }      // newest added first, then older imports
+            val mine = myShelf(entries)
             item(key = "h-mine") { GroupHeader(MySongs.Words.SECTION, mine, stars = 0) }
             if (mine.none { it.available }) item(key = "mine-empty") {
                 Text(MySongs.Words.EMPTY, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,

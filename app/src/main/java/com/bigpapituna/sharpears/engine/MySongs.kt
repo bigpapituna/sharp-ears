@@ -244,10 +244,27 @@ object MySongs {
             if (' ' !in s) s = s.replace('-', ' ')
             s = s.replace(Regex("\\s*[\u2014\u2013]\\s*|\\s+-\\s+"), ", ").replace(Regex("\\s+"), " ").trim(' ', '-', '.', ',')
             if (s.none { it.isUpperCase() }) s = s.split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.titlecase(Locale.ROOT) } }
-            return s.take(60).trim(' ', '-', ',')
+            return lowerSmallWords(s.take(60).trim(' ', '-', ','))
         }
         fun reads(s: String) = s.count { it.isLetter() } >= 2 && !GENERIC.matches(s) && !NOT_A_TITLE.containsMatchIn(s) && s.none { it.isISOControl() }
         return listOfNotNull(sequenceName, fileName).map(::clean).firstOrNull(::reads) ?: DEFAULT_TITLE
+    }
+
+    /** Words a title leaves lower case in the middle, as English titles do ("Canon in D", "Songs of the Sea"). */
+    private val SMALL_WORDS = setOf("an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to")
+
+    /**
+     * 2.14 (Marc: "Canon In D"): a title made of capitalised words keeps the file's own casing, but its little words in the middle
+     * (in, of, the, ...; never "A", which may be a key) are lower case. The first word, the last word and the first word after a comma keep their capital; a
+     * title with a lower case word already (the file's own style) is left exactly as it is.
+     */
+    internal fun lowerSmallWords(title: String): String {
+        val words = title.split(' ')
+        if (words.size < 3 || words.any { it.firstOrNull()?.isLowerCase() == true }) return title
+        return words.mapIndexed { i, w ->
+            val edge = i == 0 || i == words.lastIndex || words[i - 1].endsWith(',')
+            if (!edge && w.lowercase(Locale.ROOT) in SMALL_WORDS) w.lowercase(Locale.ROOT) else w
+        }.joinToString(" ")
     }
 
     /**

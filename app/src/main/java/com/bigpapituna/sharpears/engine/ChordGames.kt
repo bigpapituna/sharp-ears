@@ -207,3 +207,17 @@ class ChordGame(override val kind: GameKind, override val level: Int, seed: Long
         if (!finished) { target = draw(target); startRound() }
     }
 }
+
+/**
+ * What the chord drill says under the keys (2.14, Dana: "Play it between C3 and G4" meant nothing to someone who has not met
+ * octave numbers): the chord's notes by name, in any order and any octave. With the microphone listening, "Notes heard turn
+ * green"; on the screen's keys, "Notes you play turn green".
+ */
+fun chordPrompt(names: List<String>, mic: Boolean): String {
+    val list = when (names.size) {
+        0 -> ""
+        1 -> names[0]
+        else -> names.dropLast(1).joinToString(", ") + " and " + names.last()
+    }
+    return "Play $list, in any order and any octave. " + if (mic) "Notes heard turn green." else "Notes you play turn green."
+}

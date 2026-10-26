@@ -33,6 +33,14 @@ object DebugRoutes {
         else -> Verdict.WRONG_KEY
     }
 
+    /**
+     * Whether a launch's debug extras may act on this create: the first one only (2.14). After a recreate ([savedInstanceState]
+     * was handed back: a theme or font change, the process coming back) the activity's intent still holds them, and acting again
+     * switched the profile, moved the clock and re-seeded the stores (persona walk: "profiles: switched to owner" after a lesson).
+     * A route that arrives later comes in through onNewIntent and acts there, once.
+     */
+    fun oneShot(recreated: Boolean): Boolean = !recreated
+
     fun allowed(buildKey: String, intentKey: String?, action: String?, fromLauncher: Boolean = false): Boolean =
         verdict(buildKey, intentKey, action, fromLauncher) == Verdict.ALLOWED
 
