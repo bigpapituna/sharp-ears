@@ -577,6 +577,7 @@ fun LessonScreen(
             sampler = deps.sampler.takeIf { deps.prefs.sound },
             reward = dropSlot, oneMore = oneMore,
             clip = if (neutral) null else com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            pose = if (neutral) Pose.STANDING else Pose.LEVEL_UP,      // 2.14: no trophy for a skip
             stars = finishStars,
         ) else Celebration(
             if (neutral) com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE else "Lesson complete!", lesson.summary,
@@ -590,6 +591,7 @@ fun LessonScreen(
             xpBar = progress?.let { com.bigpapituna.sharpears.ui.profile.xpBarFor(xpAtOpen, xpAtEnd) },
             reward = dropSlot, oneMore = oneMore,
             clip = if (neutral) null else com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
+            pose = if (neutral) Pose.STANDING else Pose.LEVEL_UP,      // 2.14: no trophy for a skip
             stars = finishStars,
         )
         if (anyKid) com.bigpapituna.sharpears.ui.brief.KidCardStepHost(cardStep, who, say = { voice.speak(it, interrupt = true) })

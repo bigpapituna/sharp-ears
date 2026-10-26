@@ -1631,6 +1631,9 @@ class MainActivity : ComponentActivity() {
                             }
                         } else {
                             BackHandler(enabled = s.tab != HomeTab.TODAY) { screen = Screen.Home() }
+                            // 2.14: the level the answer starts at, once the first-run questions are done (the onboarding's answer
+                            // arrives before its last step marks it done, so the tabs seed it too; a floor, so it runs once).
+                            LaunchedEffect(current.level, current.band) { seedLevel(current, progress) }
                             val lv = lessons.version.intValue
                             val due = remember(lv, lessons.songPacks.value, layout) {
                                 chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
@@ -2136,7 +2139,8 @@ class MainActivity : ComponentActivity() {
 
     private fun kidDebugSeed(intent: android.content.Intent, prefs: Prefs, kid: KidStore, progress: ProgressStore,
                              bedtime: com.bigpapituna.sharpears.ui.skin.BedtimeStore) {
-        val stars = intArrayOf(3, 2, 3, 1, 3, 2, 2, 3, 1, 3, 2, 3)
+        // 2.14: --ei kidstars 1..3 seeds every stone at that many stars (Skip the garden wants three in a row).
+        val stars = intent.getIntExtra("kidstars", 0).takeIf { it in 1..3 }?.let { s -> IntArray(12) { s } } ?: intArrayOf(3, 2, 3, 1, 3, 2, 2, 3, 1, 3, 2, 3)
         intent.getStringExtra("kidseed")?.let { spec ->
             val all = PLAYGROUND_PAGES.flatMap { it.lessonIds }
             when (spec) {
