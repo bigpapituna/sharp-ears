@@ -106,7 +106,11 @@ class GrownUpCorner(val profiles: List<Profile>, val currentId: String, val onSe
                     /** The parent brief (2.4): each child's session, day and week (null: no row). */
                     val onBrief: (() -> Unit)? = null,
                     /** Family (2.4.1): everyone on the phone, each with rename and "Read the brief" (null: no row). */
-                    val onFamily: (() -> Unit)? = null)
+                    val onFamily: (() -> Unit)? = null,
+                    /** 2.14: the kid playing, whose daily time and wind down show here (null: none). */
+                    val kid: Profile? = null,
+                    /** 2.14: the kid's time or wind down changed (the app reads the kid's day again). */
+                    val onTimeChanged: () -> Unit = {})
 
 /** Said once a day per kid when the home first shows (a pre-reader hears what the bubble says). */
 private val greeted = HashSet<String>()
@@ -142,6 +146,8 @@ fun KidHome(
     onGames: (() -> Unit)? = null,
     /** 2.9: Tomorrow's surprise, ready to open (ui/Retention.kt ReadyGift), floating over the buttons; null: none waiting. */
     gift: (@Composable () -> Unit)? = null,
+    /** 2.14: the Play sheet's toys and games wait for tomorrow (today's time is up, or wind down closed them); a tap calls [onClosed]. */
+    playClosed: Boolean = false, onClosed: () -> Unit = {},
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
@@ -273,7 +279,7 @@ fun KidHome(
         DragGhost(decorate, tray, placed = { k -> com.bigpapituna.sharpears.engine.world.Decal.byKey(k) }, origin = origin)
     }
     if (playOpen) KidPlaySheet(onToy = { t -> playOpen = false; onToy(t) }, onDismiss = { playOpen = false },
-        onGames = onGames?.let { open -> { playOpen = false; open() } })
+        onGames = onGames?.let { open -> { playOpen = false; open() } }, closed = playClosed, onClosed = onClosed)
     if (questOpen) QuestSheet(quest, onTask = { t -> questOpen = false; onQuestTask(t) }, onDismiss = { questOpen = false })
     grownUps?.let { GrownUpsSheet(it, onDismiss = onGrownUpsClosed) }
 }
@@ -487,6 +493,8 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
         Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().align(Alignment.CenterHorizontally).navigationBarsPadding()
             .verticalScroll(androidx.compose.foundation.rememberScrollState()).testerMask()
             .padding(start = 24.dp, end = 24.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // 2.14 (Priya's P4): the gate is open while this shows; Lock now shuts it and the corner with it.
+            com.bigpapituna.sharpears.ui.family.LockNowRow(onLocked = onDismiss)
             Text("For grown-ups", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             Text("Who's playing?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp))
             // Up to eight people: the row scrolls (on the cover screen a fifth one was squeezed to nothing).
@@ -501,6 +509,8 @@ private fun GrownUpsSheet(corner: GrownUpCorner, onDismiss: () -> Unit) {
                     }
                 }
             }
+            // 2.14: this kid's daily time and "After the goal: wind down" (Priya's P6), right here.
+            corner.kid?.let { k -> com.bigpapituna.sharpears.ui.family.KidTimeControls(k, Modifier.padding(vertical = 6.dp), onChanged = corner.onTimeChanged) }
             corner.onBrief?.let { CornerRow("Parent brief", R.drawable.ic_book, it) }
             corner.onFamily?.let { CornerRow("Family", R.drawable.ic_person, it) }
             CornerRow("Settings", R.drawable.ic_settings, corner.onSettings)

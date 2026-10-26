@@ -80,20 +80,28 @@ import com.bigpapituna.sharpears.ui.pup.Pose
 /**
  * The parent gate for actions (docs/KIDS-PLAN.md section 2): wrap what only a grown-up should reach in [guard] (always
  * asks: profile management, the report token, grown-up mode) or [guardForKids] (asks only while a kid is playing:
- * Settings, Microphone setup). A pass keeps the gate open for ten minutes ([ParentGateRules.OPEN_MS]); the time is
- * kept in [Profiles] so it survives the app closing. [ParentGateHost] at the root draws the gate while one is asked.
+ * Settings, Microphone setup). 2.14 (Priya's P3 and P4): a pass keeps the gate open for two minutes from the last thing
+ * done behind it ([ParentGateRules.OPEN_MS]); "Lock now" ([LockNowRow]) closes it at once, and so do a switch of player
+ * and more than 30 s in the background (MainActivity). The time is kept in [Profiles] so it survives the app closing.
+ * [ParentGateHost] at the root draws the gate while one is asked.
  */
 @Stable
 class ParentGateController(private val profiles: Profiles?, private val clock: () -> Long = System::currentTimeMillis) {
     /** What runs once the gate is passed, while it is showing. */
     var pending by mutableStateOf<(() -> Unit)?>(null)
         private set
-    private var passedAt = 0L                          // in memory when there is no store (previews)
+    /** When it was passed or last used (epoch ms, 0 closed): Compose state, so "Lock now" shows and goes with it. */
+    private var passedAt by androidx.compose.runtime.mutableLongStateOf(profiles?.gatePassedAt ?: 0L)
     /** Wrong answers in a row and the wait they started (QA 2.8.3), kept in [Profiles] so a recreate does not end a wait. */
     var lockout by mutableStateOf(ParentGateRules.Lockout.decode(profiles?.gateLockout))
         private set
 
-    val isOpen: Boolean get() = ParentGateRules.isOpen(profiles?.gatePassedAt ?: passedAt, clock())
+    val isOpen: Boolean get() = ParentGateRules.isOpen(passedAt, clock())
+
+    /** When the open gate closes by itself (epoch ms), 0 when closed: the Lock now row hides itself then. */
+    fun closesAt(): Long = ParentGateRules.closesAt(passedAt, clock())
+
+    private fun store(at: Long) { passedAt = at; profiles?.gatePassedAt = at }
 
     /** The gate's clock (the sum pad counts a wait down on it). */
     fun now(): Long = clock()
@@ -107,9 +115,12 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
         else Log.d(TAG, "gate: wrong answer, new sum")
     }
 
-    /** Runs [action] now when the gate is open, otherwise after the gate is passed (and not at all when it is left). */
+    /**
+     * Runs [action] now when the gate is open (its two minutes start again from now), otherwise after the gate is passed
+     * (and not at all when it is left).
+     */
     fun guard(action: () -> Unit) {
-        if (isOpen) action() else { pending = action; Log.d(TAG, "gate: asked") }
+        if (isOpen) { store(ParentGateRules.used(passedAt, clock())); action() } else { pending = action; Log.d(TAG, "gate: asked") }
     }
 
     /** Like [guard] while a kid is playing; for a grown-up [action] runs at once. */
@@ -117,12 +128,11 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
         if (profiles?.current?.isKid == true) guard(action) else action()
     }
 
-    /** Called by the gate screen when the sum was right. */
+    /** Called by the gate screen when the answer was right. */
     fun passed() {
-        val now = clock()
-        if (profiles != null) profiles.gatePassedAt = now else passedAt = now
+        store(clock())
         if (lockout != ParentGateRules.Lockout()) { lockout = ParentGateRules.Lockout(); profiles?.gateLockout = null }
-        Log.d(TAG, "gate: passed, open for ${ParentGateRules.OPEN_MS / 60_000} min")
+        Log.d(TAG, "gate: passed, open for ${ParentGateRules.OPEN_MS / 60_000} min from the last use")
         val a = pending
         pending = null
         a?.invoke()
@@ -130,8 +140,30 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
 
     fun cancel() { pending = null; Log.d(TAG, "gate: left") }
 
-    /** Closes the gate at once (after a grown-up hands the phone back, say). */
-    fun close() { if (profiles != null) profiles.gatePassedAt = 0L else passedAt = 0L }
+    /**
+     * Bumps each time an open gate is closed (Lock now, a switch of player, the app away, a corner shut): grown-ups' screens
+     * a kid could otherwise keep using (the corner, a kid's Settings) close when it changes.
+     */
+    var closings by androidx.compose.runtime.mutableIntStateOf(0)
+        private set
+
+    /** Closes the gate at once (after a grown-up hands the phone back, say, or "Lock now"). */
+    fun close() {
+        if (passedAt == 0L && (profiles?.gatePassedAt ?: 0L) == 0L) return
+        val wasOpen = isOpen
+        store(0L)
+        if (wasOpen) closings++
+    }
+
+    /** The app went to the background now (MainActivity.onStop): kept, so the next start knows how long it was away. */
+    fun away() { profiles?.gateAwayAt = clock() }
+
+    /** The app is back on screen (onStart, or a fresh start): more than 30 s away closes the gate (ParentGateRules.closesAfterAway). */
+    fun back() {
+        val awayAt = profiles?.gateAwayAt ?: 0L
+        profiles?.gateAwayAt = 0L
+        if (ParentGateRules.closesAfterAway(awayAt, clock()) && isOpen) { close(); Log.d(TAG, "gate: closed, the app was away ${(clock() - awayAt) / 1000} s") }
+    }
 }
 
 /** The app's gate, provided by MainActivity next to [LocalProfile]. Without a provider the gate keeps its pass in memory. */
@@ -156,9 +188,10 @@ fun Gated(onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.cur
 }
 
 /**
- * "Grown-ups only": hold the pup for three seconds while a ring fills, then answer a sum of two numbers from 2 to 9 on
- * a number pad. A wrong answer brings a new sum; the third in a row makes [gate] wait ("Try again in 30 seconds.", the
- * pad off meanwhile). [onPass] after the right answer; [onCancel] on Back or "Not now".
+ * "Grown-ups only": hold the pup for three seconds while a ring fills, then answer a question on a number pad (2.14: a
+ * two-digit sum with a carry or a times table, "23 plus 48", "6 times 7"). A wrong answer brings a new one; the third in a
+ * row makes [gate] wait ("Try again in 30 seconds.", the pad off meanwhile). [onPass] after the right answer; [onCancel] on
+ * Back or "Not now".
  */
 @Composable
 fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.current) {
@@ -215,7 +248,7 @@ internal fun HoldThePup(onHeld: () -> Unit) {
 }
 
 /**
- * Step two: "What is 7 plus 5?" typed on a number pad. A wrong answer gives a new sum and a little shake; while [gate]
+ * Step two: "What is 23 plus 48?" typed on a number pad. A wrong answer gives a new question and a little shake; while [gate]
  * waits after three in a row, the pup says how long ("Try again in 30 seconds.", counting down) and the pad is off.
  */
 @Composable

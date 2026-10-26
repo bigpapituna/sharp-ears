@@ -79,11 +79,14 @@ private val factsCache = HashMap<String, Pair<SongFacts, List<Int>>>()
  *
  * 2.6, songs by chords: [onChordSongs] puts one more tile after the shelf, "Songs by chords", that opens the kids' chord
  * songs (ui/chords, the kid page: colour blocks, letters for a [reader], animals for a child who cannot read yet).
+ *
+ * 2.14: [closed] (today's time is up, or wind down closed Songs and the Jam): every tile says "Tomorrow" and a tap only
+ * calls [onClosed] (the pup says why).
  */
 @Composable
 fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMeta) -> Unit, onBack: () -> Unit,
                    shelf: List<ShelfSong> = emptyList(), duetWith: String? = null, say: ((String) -> Unit)? = null,
-                   onChordSongs: (() -> Unit)? = null, reader: Boolean = true) {
+                   onChordSongs: (() -> Unit)? = null, reader: Boolean = true, closed: Boolean = false, onClosed: () -> Unit = {}) {
     val assigned = remember(shelf, songs) { shelf.mapNotNull { s -> songs.firstOrNull { it.id == s.songId && repo.available(it) }?.let { it to s.note } } }
     var list by remember { mutableStateOf<List<KidSong>?>(null) }
     LaunchedEffect(songs) {
@@ -116,28 +119,30 @@ fun KidSongsScreen(songs: List<SongMeta>, repo: SongRepository, onSong: (SongMet
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp, top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                PupSays(Pose.PRACTICING, when {
+                PupSays(if (closed) Pose.SLEEPING else Pose.PRACTICING, when {
+                    closed -> com.bigpapituna.sharpears.engine.SessionWords.SONGS_ASLEEP
                     duetWith != null -> "Pick a song to play with $duetWith!"
                     list?.isEmpty() == true && assigned.isEmpty() -> "No colour songs on this phone yet."
                     else -> "Pick a song! Follow the colours."
                 }, Modifier.widthIn(max = 560.dp).padding(bottom = 4.dp), size = 84.dp)
             }
-            items(assigned, key = { "shelf:" + it.first.id }) { (m, note) -> ShelfTile(m, note, say) { onSong(m) } }
+            items(assigned, key = { "shelf:" + it.first.id }) { (m, note) -> ShelfTile(m, note, say, closed) { if (closed) onClosed() else onSong(m) } }
             // Not while a grown-up waits for a duet: a chord song has no duet.
-            if (onChordSongs != null && duetWith == null) item(key = "chordsongs") { ChordSongsTile(reader, onChordSongs) }
-            items(list.orEmpty().filter { s -> assigned.none { it.first.id == s.meta.id } }, key = { it.meta.id }) { s -> SongTile(s) { onSong(s.meta) } }
+            if (onChordSongs != null && duetWith == null) item(key = "chordsongs") { ChordSongsTile(reader, closed, if (closed) onClosed else onChordSongs) }
+            items(list.orEmpty().filter { s -> assigned.none { it.first.id == s.meta.id } }, key = { it.meta.id }) { s -> SongTile(s, closed) { if (closed) onClosed() else onSong(s.meta) } }
         }
     }
 }
 
 /** A song a grown-up put on the shelf: "From your grown-up", its name, big, and their note (tap to hear it). */
 @Composable
-private fun ShelfTile(meta: SongMeta, note: String, say: ((String) -> Unit)?, onClick: () -> Unit) {
+private fun ShelfTile(meta: SongMeta, note: String, say: ((String) -> Unit)?, closed: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.primaryContainer)
-        .clickable(role = Role.Button, onClickLabel = "Play ${meta.title}", onClick = onClick).padding(18.dp),
+        .clickable(role = Role.Button, onClickLabel = if (closed) "${meta.title}, tomorrow" else "Play ${meta.title}", onClick = onClick).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("From your grown-up", style = MaterialTheme.typography.labelLarge, color = c.onPrimaryContainer.copy(alpha = 0.8f))
+        Text(if (closed) com.bigpapituna.sharpears.engine.skin.KidDoors.TOMORROW else "From your grown-up", style = MaterialTheme.typography.labelLarge,
+            color = c.onPrimaryContainer.copy(alpha = 0.8f))
         Text(meta.title, style = MaterialTheme.typography.titleLarge, color = c.onPrimaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodyLarge, color = c.onPrimaryContainer, maxLines = 4, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.clip(RoundedCornerShape(12.dp)).then(if (say != null) Modifier.clickable(role = Role.Button, onClickLabel = "Hear the note") { say(note) } else Modifier)
@@ -150,10 +155,10 @@ private fun ShelfTile(meta: SongMeta, note: String, say: ((String) -> Unit)?, on
  * with the letters for a reader and the animals for a child who cannot read yet, then the name.
  */
 @Composable
-private fun ChordSongsTile(reader: Boolean, onClick: () -> Unit) {
+private fun ChordSongsTile(reader: Boolean, closed: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.secondaryContainer)
-        .clickable(role = Role.Button, onClickLabel = "Open songs by chords", onClick = onClick).padding(18.dp),
+        .clickable(role = Role.Button, onClickLabel = if (closed) "Songs by chords, tomorrow" else "Open songs by chords", onClick = onClick).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().height(52.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(60, 65, 67).forEach { midi ->
@@ -167,6 +172,7 @@ private fun ChordSongsTile(reader: Boolean, onClick: () -> Unit) {
             }
         }
         Text("Songs by chords", style = MaterialTheme.typography.titleLarge, color = c.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (closed) Text(com.bigpapituna.sharpears.engine.skin.KidDoors.TOMORROW, style = MaterialTheme.typography.labelLarge, color = c.primary)
     }
 }
 
@@ -174,13 +180,15 @@ private fun noteLetter(midi: Int) = listOf("C", "C", "D", "D", "E", "F", "F", "G
 
 /** One song: its opening notes as coloured balls on a little line, then its name, big. */
 @Composable
-private fun SongTile(song: KidSong, onClick: () -> Unit) {
+private fun SongTile(song: KidSong, closed: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh)
-        .clickable(role = Role.Button, onClickLabel = "Play ${song.meta.title}", onClick = onClick).padding(18.dp),
+    Column(Modifier.fillMaxWidth().heightIn(min = 148.dp).pressScale().clip(RoundedCornerShape(24.dp))
+        .background(if (closed) c.surfaceContainer else c.surfaceContainerHigh)
+        .clickable(role = Role.Button, onClickLabel = if (closed) "${song.meta.title}, tomorrow" else "Play ${song.meta.title}", onClick = onClick).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.fillMaxWidth().clearAndSetSemantics { }) { OpeningBalls(song.opening) }
         Text(song.meta.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (closed) Text(com.bigpapituna.sharpears.engine.skin.KidDoors.TOMORROW, style = MaterialTheme.typography.labelLarge, color = c.primary)
     }
 }
 

@@ -123,6 +123,9 @@ fun ParentBriefScreen(
             // The brief by email (2.8): Settings > Briefs and email, the one form, as a dialog over the brief (the gate already passed).
             if (showChildren && child?.kind == ProfileKind.KID) TextButton(onClick = { gate.guardBrief(child) { emailOpen = true } }) { Text("Email") }
         }
+        // 2.14 (Priya's P4): while the gate is open, Lock now shuts it (and a kid's brief with it).
+        com.bigpapituna.sharpears.ui.family.LockNowRow(Modifier.widthIn(max = 640.dp).padding(horizontal = 20.dp, vertical = 4.dp),
+            onLocked = { if (showChildren) onBack() })
         if (child == null) {
             PupSays(Pose.WELCOME, "Add a child in Family to see how their week goes.", Modifier.padding(24.dp), size = 96.dp)
             return@Column

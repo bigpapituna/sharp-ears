@@ -354,7 +354,8 @@ private fun PlayerStage(args: PlayerArgs) {
         progress?.record(ProgressEvent.Practice(com.bigpapituna.sharpears.data.AppClock.now(), secs))      // after Prefs: the goal reads both
         Log.d(TAG, "practice +$secs s")
     }
-    DisposableEffect(Unit) { onDispose { flushPractice() } }
+    // 2.14: also asked by the session's checkpoint and end (data/Briefs.kt), so the brief's minutes and the goal's agree.
+    DisposableEffect(Unit) { val f = ::flushPractice; com.bigpapituna.sharpears.data.Briefs.addFlusher(f); onDispose { com.bigpapituna.sharpears.data.Briefs.removeFlusher(f); flushPractice() } }
 
     fun seek(ms: Double) { apply(transport.seek(ms)); position = transport.positionMs; lights.resetCombo() }
     // The last minute or so of inputs and waits, for a "that wasn't right" report.

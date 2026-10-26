@@ -138,6 +138,7 @@ import com.bigpapituna.sharpears.ui.family.ProfilePicker
 import com.bigpapituna.sharpears.ui.family.familyWallEntries
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
@@ -332,6 +333,10 @@ class MainActivity : ComponentActivity() {
     private var openLevel: com.bigpapituna.sharpears.engine.family.Level? = null
     /** Launches of this activity's content ([openApp] with fromLaunch), so a new one forgets the last one's screen. */
     private var launches = 0
+    /** 2.14: this onCreate is a recreate (a fold, a rotation, dark mode): its first [openApp] is the same person, the gate stays. */
+    private var recreated = false
+    /** 2.14: the child whose brief Family today opened (one tap, on a grown-up's Today), or null. */
+    private val familyBrief = mutableStateOf<String?>(null)
     /** The open screen as [routeOf] writes it, kept in the instance state; [restoreRoute] is the one a recreate reopens. */
     private var shownRoute: String? = null
     /** The arcade round (its seed) that has ended: a recreate on its finish reopens the games, not a new round (QA 2.8.3). */
@@ -453,6 +458,7 @@ class MainActivity : ComponentActivity() {
         debugToday(intent, debugRoutes)
         smallestWidthDp = resources.configuration.smallestScreenWidthDp
         restoreRoute = savedInstanceState?.getString(ROUTE)
+        recreated = savedInstanceState != null
         // The weekly brief's notification (all builds): that person's brief opens over whatever shows first. After a recreate,
         // only what was still open then (the launch intent keeps its extras, and the brief may have been closed since).
         briefRequest.value = if (savedInstanceState != null) savedInstanceState.getString(BRIEF)?.let(::briefOf) else briefFrom(intent)
@@ -467,6 +473,14 @@ class MainActivity : ComponentActivity() {
         // Tester analytics (analytics/Tester.kt): PostHog starts only on a build with a key and "Help Roy test" on.
         com.bigpapituna.sharpears.analytics.Tester.init(this)
         Briefs.tap = com.bigpapituna.sharpears.analytics.Tester::briefEvent
+        // 2.14, debug walks: --es family "Mia:0,Theo:1" adds those kids (name, then 1 when they read) unless someone has the name.
+        intent.getStringExtra("family")?.takeIf { debugRoutes }?.split(",")?.forEachIndexed { i, spec ->
+            val name = spec.substringBefore(":").trim()
+            if (name.isNotEmpty() && profiles.all.none { it.name == name }) {
+                profiles.create(com.bigpapituna.sharpears.engine.family.Profile.kid(name, 1 + i, reader = spec.substringAfter(":", "0") == "1"), switch = false)
+                    ?.let { Log.d(TAG, "profiles: debug family added ${it.id} ($name)") }
+            }
+        }
         // --es profile <id> (debug): open as that profile, no picker.
         val debugProfile = intent.getStringExtra("profile")?.takeIf { debugRoutes }?.also(profiles::switchTo)
         // Review pipeline (private build): crashes are kept, a weekly summary is written, and whatever waits goes out.
@@ -508,6 +522,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // 2.14, the one minutes ledger (data/Briefs.kt): the open session is checkpointed every 30 s while the app is on screen
+        // (and in onPause), so a session killed mid-step keeps its minutes.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (true) { kotlinx.coroutines.delay(Briefs.CHECKPOINT_MS); Briefs.checkpoint() }
+            }
+        }
         // Two or more people: "Who's playing today?" first, unless a debug route or a recreate (rotation, import) opened us;
         // a recreate while it still asked (the process stopped in the background) asks again rather than open as the last player.
         val debugRoute = debugRoutes && (listOf("screen", "song", "lesson").any { intent.getStringExtra(it) != null } || intent.getBooleanExtra("daily", false))
@@ -520,6 +541,7 @@ class MainActivity : ComponentActivity() {
     /** The launch picker; picking (or adding someone) opens the app as them. */
     private fun showPicker() {
         Briefs.sessionEnd(); Briefs.currentId = null        // no one is playing yet: nothing is logged
+        recreated = false                                   // a pick is a switch of player: the gate closes (ParentGateRules.closesOnOpen)
         setContent {
             SharpEarsTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -558,8 +580,12 @@ class MainActivity : ComponentActivity() {
     private fun openApp(fromLaunch: Boolean) {
         val profile = profiles.current
         val newPlayer = openId != profile.id
-        // The phone handed to a kid: a gate a grown-up passed a minute ago does not stay open for them.
-        if (profile.isKid && newPlayer) gate.close()
+        // 2.14 (Priya's P4): every switch of player closes the gate, and so does a fresh start; a recreate keeps it.
+        if (com.bigpapituna.sharpears.engine.family.ParentGateRules.closesOnOpen(openId, profile.id, recreated)) {
+            gate.close(); Log.d(TAG, "gate: closed, ${profile.id} opens")
+        }
+        recreated = false
+        if (newPlayer) familyBrief.value = null
         openId = profile.id
         openKind = profile.kind
         openReader = profile.reader
@@ -936,6 +962,38 @@ class MainActivity : ComponentActivity() {
                     var goodbye by remember { mutableStateOf(false) }
                     // A kid who finished Beginner is offered grown-up mode once, on their Learn path.
                     var grownUpOffered by remember { mutableStateOf(bedtime.grownUpOffered) }
+                    // 2.14, a kid's daily time (engine/skin/TimeCap.kt) and wind down's "Close Songs and the Jam too" (Priya's P6):
+                    // once either closes the day, what was running ends kindly (a lesson at its next step, a song at its end, at
+                    // the latest TimeCap.GRACE_MS on; a toy or a game at once), the pup says goodbye, and the doors say
+                    // "Tomorrow" (engine/skin/KidDoors). The time is screen time today, from the one minutes ledger.
+                    var timeVersion by remember { mutableIntStateOf(0) }
+                    var capSince by remember { androidx.compose.runtime.mutableLongStateOf(-1L) }    // ForegroundClock ms the time ran out
+                    var songsSince by remember { androidx.compose.runtime.mutableLongStateOf(-1L) }  // ... and the songs closed
+                    var capGoodbye by remember { mutableStateOf(false) }
+                    if (profile.isKid) LaunchedEffect(profile.id, timeVersion) {
+                        while (true) {
+                            val cap = bedtime.capMin
+                            val ms = if (cap > 0) withContext(Dispatchers.IO) { runCatching { Briefs.screenMsToday(profile.id) }.getOrDefault(0L) } else 0L
+                            val reached = com.bigpapituna.sharpears.engine.skin.TimeCap.reached(cap, ms)
+                            if (reached && capSince < 0) { capSince = com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs(); Log.d(TAG, "time: ${profile.id}'s daily time is up (${ms / 1000} s on screen of $cap min)") }
+                            else if (!reached && capSince >= 0) { capSince = -1L; Log.d(TAG, "time: ${profile.id}'s daily time is open again") }
+                            kotlinx.coroutines.delay(if (cap > 0) 5_000L else 30_000L)
+                        }
+                    }
+                    val songsAsleep = profile.isKid && timeVersion >= 0 && progress.version.intValue >= 0 && !com.bigpapituna.sharpears.engine.skin.Bedtime.songsOpen(true,
+                        progress.secondsToday(com.bigpapituna.sharpears.data.AppClock.today()), progress.goalMinutes, bedtime.bedtime, bedtime.closeSongs)
+                    LaunchedEffect(songsAsleep) { songsSince = if (songsAsleep) com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() else -1L }
+                    val kidDay = com.bigpapituna.sharpears.engine.skin.KidDay(capReached = capSince >= 0, songsAsleep = songsAsleep)
+                    /** The day is closed for this kid: home, and the goodbye (today's time, or wind down's goodnight). */
+                    fun closedForToday(why: String) {
+                        voice.stop()
+                        screen = Screen.Home()
+                        if (capSince >= 0) { capGoodbye = true; bedtime.capShownOn = com.bigpapituna.sharpears.data.AppClock.today() } else goodbye = true
+                        Log.d(TAG, "time: $why, ${profile.id}'s day ends on the goodbye")
+                    }
+                    /** What the pup says at a door that waits for tomorrow. */
+                    fun sayTomorrow() = voice.speak(if (capSince >= 0) com.bigpapituna.sharpears.engine.skin.TimeCap.line(current.name)
+                        else com.bigpapituna.sharpears.engine.SessionWords.SONGS_ASLEEP, interrupt = true)
                     fun maybeGoodnight(after: String): Boolean {
                         val today = com.bigpapituna.sharpears.data.AppClock.today()
                         val sec = progress.secondsToday(today)
@@ -1151,6 +1209,10 @@ class MainActivity : ComponentActivity() {
                             // A kid leaving a library song (or a pop song, 2.6) played to its end: the pup's card first (the parent brief, 2.4).
                             val cardStep = com.bigpapituna.sharpears.ui.brief.rememberKidCardStep(current, ready = profile.isKid && ranToEnd && (s.meta != null || s.band != null))
                             Box(Modifier.fillMaxSize()) {
+                                // 2.14: a kid's song that ends after today's time ran out: its recap a moment, then the goodbye.
+                                if (profile.isKid) LaunchedEffect(ranToEnd, capSince) {
+                                    if (ranToEnd && capSince >= 0) { kotlinx.coroutines.delay(4_000L); closedForToday("a song ended") }
+                                }
                                 PlayerScreen(s.song, s.meta, sampler, midi, mic, voice, prefs, samplerReady.value,
                                     s.startMs, dump, s.start, onBack = cardStep.then("All done!") { screen = s.back; if (ranToEnd) maybeGoodnight("a song") },
                                     onFinished = { ranToEnd = true },
@@ -1178,10 +1240,11 @@ class MainActivity : ComponentActivity() {
                             BackHandler { voice.stop(); leave() }
                             androidx.compose.runtime.key(l.id, navCount.intValue) { LessonScreen(l, s.step, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), s.inject,
                                 midiScript = s.midiScript, startScene = s.scene,
-                                onStep = { if (it != s.step) screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) },
+                                // 2.14: today's time ran out: the lesson ends kindly at its next step (KidDoors, TimeCap).
+                                onStep = { if (it != s.step) { if (profile.isKid && capSince >= 0) closedForToday("a lesson step ended") else screen = s.copy(step = it, inject = null, midiScript = null, scene = 0) } },
                                 onSong = l.songId?.let { id -> { songs.firstOrNull { it.id == id && repo.available(it) }?.let { openSong(it, back = s) } } },
                                 onDone = { stars -> lessonDone(l, stars) },
-                                onNext = if (finaleAhead) leave else next?.let { n -> { screen = Screen.Lesson(n, s.back) } },
+                                onNext = if (finaleAhead) leave else next?.let { n -> { if (profile.isKid && capSince >= 0) closedForToday("a lesson ended") else screen = Screen.Lesson(n, s.back) } },
                                 onBack = leave,
                                 onSongs = { voice.stop(); screen = songsScreen() },
                                 onJam = { voice.stop(); screen = Screen.Play(Toy.JAM, Screen.Home()) },
@@ -1217,7 +1280,10 @@ class MainActivity : ComponentActivity() {
                                         advanceDaily(s, completed = n > 0, part.copy(itemIds = part.itemIds.take(n)), skip = n == 0)
                                     }
                                     BackHandler { val n = lessons.sessionIndex; lessons.endSession(); endChords(n) }
-                                    androidx.compose.runtime.DisposableEffect(s.index) { onDispose { creditChords() } }
+                                    androidx.compose.runtime.DisposableEffect(s.index) {
+                                        val f = ::creditChords; Briefs.addFlusher(f)        // 2.14: the session's checkpoint and end ask too
+                                        onDispose { Briefs.removeFlusher(f); creditChords() }
+                                    }
                                     QuietWrongKeys(mic)
                                     androidx.compose.foundation.layout.Column {
                                         Text("Your plan: chords", style = MaterialTheme.typography.titleLarge,
@@ -1322,6 +1388,13 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.Settings -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
+                            androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                            // 2.14 (Priya's P4): while the gate is open, Lock now shuts it; a kid's Settings closes with it.
+                            com.bigpapituna.sharpears.ui.family.LockNowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), onLocked = { if (profile.isKid) screen = s.back })
+                            // A kid's Settings closes when the gate does (away 30 s, a switch).
+                            val closings0 = remember { gate.closings }
+                            if (profile.isKid) LaunchedEffect(gate.closings) { if (gate.closings != closings0) screen = s.back }
+                            Box(Modifier.weight(1f)) {
                             SettingsScreen(prefs, songs, packageManager.getPackageInfo(packageName, 0).versionName ?: "", voice = voice,
                                 onReminder = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
                                 onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } },
@@ -1330,6 +1403,8 @@ class MainActivity : ComponentActivity() {
                                 onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
                                 family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic,
                                 scroll = settingsScroll, showAllState = settingsShowAll)
+                            }
+                            }
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
@@ -1432,9 +1507,17 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         is Screen.MicSetup -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                            androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                            // 2.14: Lock now, as on every grown-ups' screen; a kid's Microphone setup closes with it.
+                            com.bigpapituna.sharpears.ui.family.LockNowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), onLocked = { if (profile.isKid) screen = s.back })
+                            val closings0 = remember { gate.closings }
+                            if (profile.isKid) LaunchedEffect(gate.closings) { if (gate.closings != closings0) screen = s.back }
+                            Box(Modifier.weight(1f)) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
                                 onBack = { screen = s.back }, guardToken = gate::guard)
+                            }
+                            }
                         }
                         is Screen.Home -> if (current.isKid) {
                             // A kid's home (2.2) is the pup's world: one screen, no tabs (ui/kid/KidHome.kt).
@@ -1443,8 +1526,14 @@ class MainActivity : ComponentActivity() {
                             val kv = kidStore.version.intValue
                             val model = remember(pv, kv) { KidMap.build(path, prefs::lessonDone, kidStore::stars, kidStore.finales(), pace = kidStore.pace(), skipped = prefs::lessonSkipped) }
                             val today = remember { com.bigpapituna.sharpears.data.AppClock.today() }
-                            val asleep = !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
+                            // 2.14: today's time up, the pup sleeps on his stone too (and the goodbye shows once).
+                            val asleep = capSince >= 0 || !com.bigpapituna.sharpears.engine.skin.Bedtime.lessonOpen(true, progress.secondsToday(today), progress.goalMinutes,
                                 bedtime.oneMoreOn, today, bedtime.bedtime)
+                            LaunchedEffect(capSince) {
+                                if (capSince >= 0 && bedtime.capShownOn != com.bigpapituna.sharpears.data.AppClock.today()) {
+                                    capGoodbye = true; bedtime.capShownOn = com.bigpapituna.sharpears.data.AppClock.today()
+                                }
+                            }
                             val quest = remember(pv, kv) { playStore.quest(kid = true, plan = null, game = questGame()) }
                             var corner by remember { mutableStateOf(false) }
                             // 2.9, Tomorrow's surprise: ready to open on the map, then the opening.
@@ -1455,6 +1544,9 @@ class MainActivity : ComponentActivity() {
                             var briefOpen by remember { mutableStateOf(false) }
                             // Family (2.4.1): grown-ups corner > Family > Mia > Read the brief.
                             var familyOpen by remember { mutableStateOf(false) }
+                            // 2.14: the gate closed (Lock now, away 30 s): the corner and what it opened close with it.
+                            val closings0 = remember { gate.closings }
+                            LaunchedEffect(gate.closings) { if (gate.closings != closings0) { corner = false; familyOpen = false; briefOpen = false } }
                             // Back on the kid's map, a grown-up is done (Settings, a share, one more lesson): the gate shuts, so
                             // the whistle cannot hand the kid Settings or another player for the rest of its ten minutes.
                             LaunchedEffect(Unit) { if (gate.isOpen) { gate.close(); Log.d(TAG, "gate: closed, back on the kid's map") } }
@@ -1465,7 +1557,9 @@ class MainActivity : ComponentActivity() {
                                 (pendingFinale ?: Finale.owed(prefs::lessonPlayed, kidStore.finales())?.id)?.let { pendingFinale = null; screen = Screen.Finale(it) }
                             }
                             com.bigpapituna.sharpears.ui.kid.KidHome(model, world.state, current.name, current.avatar, asleep, quest,
-                                onStone = { st -> path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
+                                onStone = { st -> if (capSince >= 0) { capGoodbye = true; sayTomorrow() } else path.lesson(st.lessonId)?.let { voice.stop(); screen = Screen.Lesson(it, home) } },
+                                playClosed = !com.bigpapituna.sharpears.engine.skin.KidDoors.open(com.bigpapituna.sharpears.engine.skin.KidDoor.TOYS, kidDay),
+                                onClosed = ::sayTomorrow,
                                 onToy = { t -> screen = Screen.Play(t, home) },
                                 onGames = { voice.stop(); screen = Screen.Arcade(home) },
                                 // 2.9: Tomorrow's surprise, ready from the day after it was wrapped.
@@ -1498,11 +1592,15 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onEgg = { voice.speak(com.bigpapituna.sharpears.engine.kid.KidLines.EGG, interrupt = true) },
                                 grownUps = if (!corner) null else com.bigpapituna.sharpears.ui.kid.GrownUpCorner(roster.profiles, current.id,
-                                    onSettings = { corner = false; openSettings(home) },
-                                    onMicSetup = { corner = false; screen = Screen.MicSetup(home) },
-                                    onSwitch = { id -> corner = false; profiles.switchTo(id) },
+                                    // 2.14: each asks the gate again (open, it runs at once and keeps it open two more minutes; run
+                                    // out while the corner stayed open, it asks).
+                                    onSettings = { gate.guard { corner = false; openSettings(home) } },
+                                    onMicSetup = { gate.guard { corner = false; screen = Screen.MicSetup(home) } },
+                                    onSwitch = { id -> gate.guard { corner = false; profiles.switchTo(id) } },
                                     onBrief = { corner = false; briefOpen = true; Log.d(TAG, "kid home: grown-ups opened the parent brief") },
-                                    onFamily = { corner = false; familyOpen = true; Log.d(TAG, "kid home: grown-ups opened Family") }),
+                                    onFamily = { corner = false; familyOpen = true; Log.d(TAG, "kid home: grown-ups opened Family") },
+                                    // 2.14: this kid's daily time and wind down, in the corner itself.
+                                    kid = current, onTimeChanged = { timeVersion++ }),
                                 onGrownUpsClosed = { corner = false; gate.close(); Log.d(TAG, "gate: closed with the grown-ups' corner") },
                                 decor = com.bigpapituna.sharpears.ui.kid.DecorActions(world::place, world::unplace, say = {}),
                                 decorateWith = decorateWith, onDecorateStarted = { decorateWith = null },
@@ -1661,6 +1759,12 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     },
                                                     onLater = { comebackOpen = false })
+                                            } },
+                                            // 2.14, Family today (Priya's P8): each child's minutes, lessons and stars; a tap opens their brief.
+                                            family = roster.profiles.filter { it.isKid }.takeIf { it.isNotEmpty() }?.let { kids -> {
+                                                com.bigpapituna.sharpears.ui.family.FamilyTodayCard(kids, onOpen = { k ->
+                                                    Log.d(TAG, "today: family card opens ${k.id}'s brief"); familyBrief.value = k.id
+                                                })
                                             } })
                                     }
                                     // 2.7: everything playable. The Play corner, then the library or songs by chords.
@@ -1835,7 +1939,10 @@ class MainActivity : ComponentActivity() {
                                 say = { voice.speak(it, interrupt = true) },
                                 onChordSongs = if (com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.none { com.bigpapituna.sharpears.engine.chords.PopSong.Style.KIDS in it.styles }) null
                                     else ({ screen = Screen.KidChords(s) }),
-                                reader = current.reader)
+                                reader = current.reader,
+                                // 2.14: today's time up, or wind down closed the songs: "Tomorrow" tiles.
+                                closed = profile.isKid && !com.bigpapituna.sharpears.engine.skin.KidDoors.open(com.bigpapituna.sharpears.engine.skin.KidDoor.SONGS, kidDay),
+                                onClosed = ::sayTomorrow)
                         }
                         // A kid's chord songs (2.6): the kid list; a song opens the kid page (colour blocks; animals for a pre-reader).
                         is Screen.KidChords -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -1865,13 +1972,53 @@ class MainActivity : ComponentActivity() {
                     }
                     }
                     }
-                    if (goodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                    if (goodbye && !capGoodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         com.bigpapituna.sharpears.ui.skin.Goodbye(current.name,
                             remember { com.bigpapituna.sharpears.engine.family.PawWeek.of(progress.practiceLog(), com.bigpapituna.sharpears.data.AppClock.today()) },
                             onSongs = { voice.stop(); goodbye = false; dailyDone = null; screen = songsScreen() },
                             onClose = { voice.stop(); goodbye = false; dailyDone = null },
                             onJam = { voice.stop(); goodbye = false; dailyDone = null; screen = Screen.Play(Toy.JAM, Screen.Home()) },
-                            say = { voice.speak(it, interrupt = true) })
+                            say = { voice.speak(it, interrupt = true) }, songsOpen = !songsAsleep)
+                    }
+                    // 2.14: today's time is up: "That's all for today. See you tomorrow!" and only the goodbye.
+                    if (capGoodbye) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                        com.bigpapituna.sharpears.ui.skin.Goodbye(current.name,
+                            remember { com.bigpapituna.sharpears.engine.family.PawWeek.of(progress.practiceLog(), com.bigpapituna.sharpears.data.AppClock.today()) },
+                            onSongs = {}, onClose = { voice.stop(); capGoodbye = false; goodbye = false; dailyDone = null; screen = Screen.Home() },
+                            say = { voice.speak(it, interrupt = true) }, capped = true)
+                    }
+                    // 2.14, the doors (engine/skin/KidDoors) for what is on screen once the day has closed: opened after it closed,
+                    // it ends at once; running when it closed, at its boundary (a lesson's step, a song's end, below) or after
+                    // TimeCap.GRACE_MS; a toy or a game at once. Wind down's songs end with their own goodnight.
+                    val kidDoor = if (!profile.isKid) null else when (screen) {
+                        is Screen.Lesson -> com.bigpapituna.sharpears.engine.skin.KidDoor.LESSON
+                        is Screen.Player, is Screen.PopSong, is Screen.KidChords -> com.bigpapituna.sharpears.engine.skin.KidDoor.SONGS
+                        is Screen.Play -> com.bigpapituna.sharpears.engine.skin.KidDoor.TOYS
+                        is Screen.Arcade, is Screen.ArcadeRound -> com.bigpapituna.sharpears.engine.skin.KidDoor.GAMES
+                        else -> null
+                    }
+                    val enteredAt = remember(screen::class) { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }
+                    val closedSince = when {
+                        kidDoor == null -> -1L
+                        kidDoor == com.bigpapituna.sharpears.engine.skin.KidDoor.LESSON -> capSince
+                        capSince >= 0 && songsSince >= 0 -> minOf(capSince, songsSince)
+                        capSince >= 0 -> capSince
+                        else -> songsSince
+                    }
+                    if (kidDoor != null && closedSince >= 0 && !com.bigpapituna.sharpears.engine.skin.KidDoors.open(kidDoor, kidDay)) LaunchedEffect(kidDoor, closedSince) {
+                        if (enteredAt < closedSince) {
+                            if (capSince < 0) return@LaunchedEffect
+                            if (kidDoor == com.bigpapituna.sharpears.engine.skin.KidDoor.LESSON || kidDoor == com.bigpapituna.sharpears.engine.skin.KidDoor.SONGS)
+                                kotlinx.coroutines.delay((com.bigpapituna.sharpears.engine.skin.TimeCap.GRACE_MS - (com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() - capSince)).coerceAtLeast(0L))
+                        }
+                        closedForToday("${kidDoor.name.lowercase()} closed for today")
+                    }
+                    // The parent brief from Family today (2.14, Priya's P8): one tap, on Today; every action in it still asks the gate.
+                    familyBrief.value?.let { id ->
+                        SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                            com.bigpapituna.sharpears.ui.brief.ParentBriefDialog(com.bigpapituna.sharpears.ui.brief.rememberBriefEnv(), roster.profiles.filter { it.isKid },
+                                onClose = { familyBrief.value = null }, initial = id, period = com.bigpapituna.sharpears.engine.brief.Period.DAY, gated = false)
+                        }
                     }
                     if (!goodbye) dailyDone?.let { (parts, min, streak) -> androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.LocalRetention provides retention) {
                         // A kid's session ends on the pup, not on numbers.
@@ -2032,15 +2179,31 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "kid debug: seeded $spec")
         }
         val today = com.bigpapituna.sharpears.data.AppClock.today()
+        // 2.14: practice a seed adds goes to both stores and, as a session that ended just now, to the one minutes ledger, so the
+        // brief, the family card and the daily time count it as the goal does (data/Briefs.debugSession).
+        fun seedPractice(secs: Int) {
+            if (secs <= 0) return
+            prefs.addPractice(today, secs)
+            progress.record(ProgressEvent.Practice(com.bigpapituna.sharpears.data.AppClock.now(), secs))
+            Briefs.debugSession(prefs.profileId, secs * 1000L, secs)
+        }
         if (intent.getBooleanExtra("sleepy", false)) {
             val need = progress.goalMinutes * 60 - progress.secondsToday(today)
-            if (need > 0) prefs.addPractice(today, need)
+            seedPractice(need)
             bedtime.goodnightOn = today; bedtime.oneMoreOn = null
             Log.d(TAG, "kid debug: today's goal reached, goodnight said")
         }
         if (intent.getBooleanExtra("awake", false)) { bedtime.oneMoreOn = today; Log.d(TAG, "kid debug: lessons open today") }
         // 2.5.0: --ei practice <minutes> adds practice to today (the wardrobe's ledger takes it in at the next sync).
-        intent.getIntExtra("practice", 0).takeIf { it > 0 }?.let { m -> prefs.addPractice(today, m * 60); Log.d(TAG, "kid debug: $m minutes of practice added today") }
+        intent.getIntExtra("practice", 0).takeIf { it > 0 }?.let { m -> seedPractice(m * 60); Log.d(TAG, "kid debug: $m minutes of practice added today") }
+        // 2.14: --ei onscreen <minutes> adds time on screen today with no practice (to walk the daily time with a short cap).
+        intent.getIntExtra("onscreen", 0).takeIf { it > 0 }?.let { m ->
+            Briefs.debugSession(prefs.profileId, m * 60_000L, 0); Log.d(TAG, "kid debug: $m minutes on screen added today")
+        }
+        // 2.14: --ei cap <minutes> sets the daily time (0 off), --ez closesongs true|false wind down's songs switch.
+        if (intent.hasExtra("cap")) bedtime.capMin = intent.getIntExtra("cap", 0)
+        if (intent.hasExtra("closesongs")) bedtime.closeSongs = intent.getBooleanExtra("closesongs", false)
+        if (intent.hasExtra("winddown")) bedtime.bedtime = intent.getBooleanExtra("winddown", false)
     }
 
     /**
@@ -2162,14 +2325,17 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart(); com.bigpapituna.sharpears.engine.ForegroundClock.app.start(); openId?.let(Briefs::sessionStart)
         com.bigpapituna.sharpears.analytics.Tester.back()
+        gate.back()                     // 2.14: more than 30 s in the background closes the parent gate
     }
     override fun onStop() {
         Briefs.sessionEnd(); com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); com.bigpapituna.sharpears.analytics.Tester.away()
+        gate.away()
         super.onStop()
     }
 
     override fun onPause() {
         Juice.world?.flush()            // the treat jar saves every few notes; the rest now
+        Briefs.checkpoint()             // 2.14: a session killed from here on keeps its minutes
         super.onPause()
     }
 

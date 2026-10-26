@@ -90,6 +90,13 @@ fun BriefPage(
                 val f = page.findings ?: return@Column
                 Meta(page, brief, f, env, onRefresh = { gate.guardBrief(page.profile) { controller.refresh(page) } },
                     onSend = { gate.guardBrief(page.profile) { onSend(brief, f) } })
+                // 2.14 (Priya's P8 and P10): what they can now do, and time playing against time on screen, first.
+                com.bigpapituna.sharpears.engine.brief.CanDoWords.line(f.canDo, env.titles)?.let {
+                    Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                }
+                com.bigpapituna.sharpears.engine.brief.CanDoWords.minutesLine(f.stats.totals.practiceMinutes, f.stats.totals.minutes)?.let {
+                    Text(it, style = com.bigpapituna.sharpears.ui.Numeric.merge(MaterialTheme.typography.bodyMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Text(brief.headline, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 4.dp).semantics { heading() })
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

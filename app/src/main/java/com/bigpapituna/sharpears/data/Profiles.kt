@@ -123,7 +123,13 @@ class Profiles(
         get() = app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).getString(KEY_LOCKOUT, null)
         set(v) { app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).edit { putString(KEY_LOCKOUT, v) } }
 
+    /** 2.14: when the app last went to the background (epoch ms, 0 on screen), in the gate's own file: the gate closes after 30 s away. */
+    var gateAwayAt: Long
+        get() = app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).getLong(KEY_AWAY, 0L)
+        set(v) { app.getSharedPreferences(GATE_FILE, Context.MODE_PRIVATE).edit { putLong(KEY_AWAY, v) } }
+
     companion object {
+        const val KEY_AWAY = "awayAt"
         const val KEY_ROSTER = "roster"
         const val KEY_GATE = "gateAt"
         const val GATE_FILE = "gate"

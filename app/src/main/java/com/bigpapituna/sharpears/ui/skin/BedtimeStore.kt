@@ -37,6 +37,24 @@ class BedtimeStore(context: Context, private val profileId: String) {
         get() = p.getBoolean("bedtime", false)
         set(v) { p.edit { putBoolean("bedtime", v) }; Briefs.settingFor(profileId, "bedtime", v) }
 
+    /**
+     * 2.14, "After the goal: wind down"'s second switch, "Close Songs and the Jam too": with [bedtime] on, the goal closes
+     * Songs, the Jam and the games for the day as well (engine/skin/Bedtime.songsOpen). Off by default.
+     */
+    var closeSongs: Boolean
+        get() = p.getBoolean("closeSongs", false)
+        set(v) { p.edit { putBoolean("closeSongs", v) }; Briefs.settingFor(profileId, "bedtimeSongs", v) }
+
+    /** 2.14, the daily time (engine/skin/TimeCap.kt): minutes on screen a day, 0 off (the default). */
+    var capMin: Int
+        get() = com.bigpapituna.sharpears.engine.skin.TimeCap.of(p.getInt("capMin", 0))
+        set(v) { val m = com.bigpapituna.sharpears.engine.skin.TimeCap.of(v); p.edit { putInt("capMin", m) }; Briefs.settingFor(profileId, "capMin", m) }
+
+    /** The day the daily time's goodbye was shown (once a day; after it the doors say "Tomorrow"). */
+    var capShownOn: LocalDate?
+        get() = day("capShownOn")
+        set(v) = put("capShownOn", v)
+
     /** Grown-up mode was offered once Beginner was done (2.1, integrator): either answer puts the card away. */
     var grownUpOffered: Boolean
         get() = p.getBoolean("grownUpOffered", false)

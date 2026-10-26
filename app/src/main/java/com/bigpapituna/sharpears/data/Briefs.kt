@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.ForegroundClock
 import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.engine.brief.MinutesLedger
 import java.io.File
 import java.time.Instant
@@ -34,7 +35,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object Briefs {
     @Volatile private var filesDir: File? = null
-    @Volatile private var app: Context? = null
+    /** The app's preferences by file name (set by [init]; no Context is kept here). */
+    @Volatile private var prefsOf: ((String) -> android.content.SharedPreferences)? = null
     /** The open session's record was looked at in this process (a second [init], from the email job, leaves it alone). */
     @Volatile private var recovered = false
     /** Who is playing: MainActivity sets it when it opens the app as someone (null while the picker asks). */
@@ -64,9 +66,9 @@ object Briefs {
      * Any profile's practice seconds so far (ProgressStore's "totalSeconds", read from its file): what a session closed on
      * the next start counted, the total now less the total at its start. Tests set their own.
      */
-    @Volatile var practiceTotalOf: (String) -> Long = { id ->
-        app?.getSharedPreferences(ProgressFiles.fileFor("profile", id), Context.MODE_PRIVATE)?.getLong("totalSeconds", 0L) ?: 0L
-    }
+    @Volatile var practiceTotalOf: (String) -> Long = ::storedPracticeTotal
+
+    private fun storedPracticeTotal(id: String): Long = prefsOf?.invoke(ProgressFiles.fileFor("profile", id))?.getLong("totalSeconds", 0L) ?: 0L
 
     private class Open(val profileId: String, val startFg: Long, val practice0: Long, val startedAt: Long = 0L)
     @Volatile private var open: Open? = null
@@ -85,17 +87,18 @@ object Briefs {
      */
     fun init(context: Context) {
         filesDir = context.applicationContext.filesDir
-        app = context.applicationContext
+        val app = context.applicationContext
+        prefsOf = { name -> app.getSharedPreferences(name, Context.MODE_PRIVATE) }
         if (!recovered && open == null) { recovered = true; recover() }
     }
 
     /** Tests only: back to before [init], every log closed. */
     internal fun reset() {
         logs.values.forEach { it.close() }; logs.clear()
-        filesDir = null; app = null; recovered = false; currentId = null; open = null; flushers.clear(); today.clear()
+        filesDir = null; prefsOf = null; recovered = false; currentId = null; open = null; flushers.clear(); today.clear()
         clock = System::currentTimeMillis; logcat = { Log.d(TAG, it) }; practiceSeconds = { 0L }; onSessionEnd = null; tap = null
         foreground = { ForegroundClock.app.nowMs() }; zone = ZoneId.systemDefault()
-        practiceTotalOf = { id -> app?.getSharedPreferences(ProgressFiles.fileFor("profile", id), Context.MODE_PRIVATE)?.getLong("totalSeconds", 0L) ?: 0L }
+        practiceTotalOf = ::storedPracticeTotal
     }
 
     fun now(): Long = clock()
@@ -201,13 +204,15 @@ object Briefs {
     }
 
     private fun mark(o: Open, at: Long, ms: Long, practice: Int) {
-        prefs()?.edit()?.putString(MARK_PROFILE, o.profileId)?.putLong(MARK_STARTED, o.startedAt)?.putLong(MARK_PRACTICE0, o.practice0)
-            ?.putLong(MARK_AT, at)?.putLong(MARK_MS, ms)?.putInt(MARK_PRACTICE, practice)?.apply()
+        prefs()?.edit {
+            putString(MARK_PROFILE, o.profileId); putLong(MARK_STARTED, o.startedAt); putLong(MARK_PRACTICE0, o.practice0)
+            putLong(MARK_AT, at); putLong(MARK_MS, ms); putInt(MARK_PRACTICE, practice)
+        }
     }
 
-    private fun clearMark() { prefs()?.edit()?.clear()?.apply() }
+    private fun clearMark() { prefs()?.edit { clear() } }
 
-    private fun prefs() = app?.getSharedPreferences(SESSION_FILE, Context.MODE_PRIVATE)
+    private fun prefs() = prefsOf?.invoke(SESSION_FILE)
 
     private fun day(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
 
@@ -234,6 +239,20 @@ object Briefs {
 
     /** Tests and debug walks: forget the kept day, so the next [screenMsToday] reads the log again. */
     fun forgetToday(profileId: String) { today.remove(profileId) }
+
+    /**
+     * Debug walks only (`--ei practice`, `--ei onscreen`, `--ez sleepy`, MainActivity's kid seeds): [screenMs] on screen with
+     * [practiceSec] practised today, as one session that ended just before now (or before the open one began). The caller has
+     * already written the practice to the stores; an open session of [profileId] counts it as this one's, not its own.
+     */
+    fun debugSession(profileId: String, screenMs: Long, practiceSec: Int) {
+        val o = open
+        val end = minOf(now(), o?.startedAt ?: Long.MAX_VALUE) - 1_000
+        logFor(profileId, BriefEvent.SessionStarted(end - screenMs))
+        logFor(profileId, BriefEvent.SessionEnded(end, screenMs, practiceSec))
+        if (o != null && o.profileId == profileId) open = Open(o.profileId, o.startFg, o.practice0 + practiceSec, o.startedAt)
+        today.remove(profileId)
+    }
 
     /** Every 30 s while the app is on screen (and on every pause). */
     const val CHECKPOINT_MS = 30_000L
