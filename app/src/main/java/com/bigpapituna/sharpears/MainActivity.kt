@@ -1386,7 +1386,12 @@ class MainActivity : ComponentActivity() {
                                     fun backToPlan() { voice.stop(); if (prefs.lessonDone(l.id)) advanceDaily(s, true) else screen = s.copy(between = true, held = true) }
                                     BackHandler { backToPlan() }
                                     androidx.compose.runtime.key(l.id) { LessonScreen(l, 0, LessonDeps(sampler, midi, mic, voice, prefs, samplerReady.value), null,
-                                        onStep = { if (!prefs.lessonDone(l.id)) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it) },
+                                        onStep = {
+                                            if (!prefs.lessonDone(l.id)) prefs.openStep = com.bigpapituna.sharpears.engine.Comeback.encodeLeft(l.id, it)
+                                            // 2.14 merge: once a kid's time is up (a big kid has Practice today), the plan's lesson ends at
+                                            // its next step, as a lesson opened from Learn does; TimeCap.GRACE_MS stays the latest.
+                                            if (profile.isKid && capSince >= 0) closedForToday("a plan's lesson step ended")
+                                        },
                                         onSong = null,
                                         onDone = { stars -> lessonDone(l, stars) },
                                         onNext = null,

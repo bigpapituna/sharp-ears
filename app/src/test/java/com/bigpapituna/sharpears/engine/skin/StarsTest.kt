@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.engine.skin
 
 import com.bigpapituna.sharpears.engine.Recap
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** One to three stars from a recap's accuracy and timing, or a wait run's wrong keys. */
@@ -78,7 +79,9 @@ class StarsTest {
         assertEquals(3, Stars.of(recap(42, 0, 0), 0))
         assertEquals(2, Stars.of(recap(42, 0, 0), 0, letGos = 1))
         // Each place says its own rule in the same frame.
-        assertEquals("3 stars: steps played clean or at 98% or more (90% with the timing within 80 ms), and nothing let go.", Stars.LESSON_RULE)
+        assertEquals("3 stars: steps played clean or at 98% or more (90% with the timing within 80 ms), and nothing let go.",
+            Stars.LESSON_RULE.replace(Typography.nbsp, ' '))
+        assertTrue("80" + Typography.nbsp + "ms" in Stars.LESSON_RULE)
         assertEquals("This lesson: 1 of 3 steps at 3 stars.", Stars.lessonLine(listOf(3, 2, 1)))
         assertEquals("This lesson: 0 of 1 step at 3 stars.", Stars.lessonLine(listOf(2)))
         assertEquals(listOf(Stars.LESSON_RULE, "This lesson: 2 of 2 steps at 3 stars."), Stars.lessonLines(listOf(3, 3)))

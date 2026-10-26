@@ -2001,3 +2001,44 @@ players (docs/PERSONA-WALK-more.md, Sam: "thin timing feedback", "98% gives 2 st
 - For Roy, on the Fold with the Yamaha: whether 60 ms is the right line for rushed and dragged; the tick's size at 120 Hz; the
   calibration with real taps (the scripted run found 50 ms for taps scripted about 40 ms late); the drill's keyboard on the cover
   screen; whether a challenge should replace the plan's whole-song part or sit beside it.
+
+### 2.14.0 status (integrated 2026-10-26, branch `release-2.14`, versionCode 30; emulator-5558 Fold_QA_GU only, not on Roy's phone yet)
+The four 2.14 branches merged in the order polish, parents, levels-ages, depth (the merge commits name every conflict and
+choice). Test baseline: 1863 JVM tests, all green, PopPrivateTest included (a keyed worktree); lint 0 errors, 30 warnings
+(the branch sections above give each branch's own count). What's new 2.14.0: three lines (big kids and a start at your level;
+the family card, a daily time limit and Lock now; tap the pup, timing bar by bar). WelcomeTest checks them.
+- Two 3-star rules, each in its place, never or-ed: a lesson step is `Stars.three`/`perform` (levels-ages: clean or 98% with
+  nothing let go, 90% with the timing within 80 ms); a song's Perform run is `songStars` through `Stars.of` (depth: 98% AND
+  9 of 10 notes in time), which keeps levels-ages' `letGos` (anything let go: two stars at most). Each place says its rule in
+  one frame: the recap's TimingPanel `SongStars.RULE` ("3 stars: 98% or more, and 9 of 10 notes in time.") and "This run: ...";
+  a grown-up's or big kid's lesson finish under three stars `Stars.LESSON_RULE` ("3 stars: steps played clean or at 98% or more
+  (90% with the timing within 80 ms), and nothing let go.", "80 ms" held by a no-break space) and "This lesson: 1 of 3 steps
+  at 3 stars." under its stars (the calm finish's reward slot). A little kid's finish has no numbers.
+- Today: `greeting(name, easy, challenge)`: the challenge line, then the song by chords, then the easy song, all with the name;
+  one Start (a comeback's); the family card right after the Today card (a grown-up's Today only: it opens a brief without the
+  gate and big kids see Today), then I know these chords. Continue: a challenge in the plan wins (no Start here), else the easy
+  first song, else the easiest song by chords. `planSession(..., lessonFirst, challenge)` takes both.
+- Big kids (`Profile.isKid` true, `kidSkin` false) stay kids for the grown-ups: BigKidGrownUpsTest. Wind down, the goodnight
+  after the goal and the goal's well done in LessonScreen ask `anyKid`; a big kid's grown-up finish reads "Done for today" into
+  the goodnight. The kid doors (MainActivity `kidDoor`) cover the tabs' screens too: Practice today, Learn chords, Progressions,
+  Sight-read, Ear training and Theory are LESSON doors, the chord games a GAMES door; Practice today's lesson ends at its next
+  step once the time is up, as a lesson from Learn does. `cheer_pop`'s profile kind is the profile's (`CheerPops.profileKid`).
+  The brief's next lesson (AppEffects) and the email's map page (BriefEmail) ask `mapHome`. Skin, not safety: the pup tap's woof,
+  the non-reader goodbye picture, the day-1 starter and the song recap (RunRecap `kid` and its words) follow `kidSkin`, so a big
+  kid reads the grown-up recap with the timing panel. `SightLevels.staffOpen/open(..., bigKid)`: the grown-ups' rule for them.
+- Polish with parents and levels-ages: a picture goodbye (little non-reader) whose songs are closed or whose time is up has the
+  goodbye as its one button; in a picture finish "Try for 3 stars" is the repeat icon (words for TalkBack); the pop packs, the
+  map's Replay chip and Try for 3 stars ask the cap first.
+- Emulator smoke (5558, fresh install, keyed build through scripts/adb-route.ps1; Help Roy test turned off right after
+  onboarding; screenshots app/build/screens/rel-*.png, not committed): Sam at A lot (level 10 Steady Hands, Today with the
+  ii-V-I and staff-drill challenges, the chord pick at 9 songs); Leo (big kid, reads, a few) and Mia (little, not reading) added
+  with the sum gate (hold, then "75 plus 17"), Family today on Sam's Today and not on Leo's; Mia's first lesson: the picture
+  finish, the bandana, the repeat icon, two pup taps (`pup replay #1`, the woof once); Twinkle in Perform by a MIDI script: the
+  timing panel, the rule and run lines, the calm line and its chip and sheet; a grown-up lesson at two stars with the lesson
+  rule and Try for 3 stars (opened step 3); Leo's daily time reached in Practice today (the grace closed it before the fix, the
+  next step after it) and Start closing at once; Lock now; comebacks for Sam (the streak line) and Leo ("Pick up where you left
+  off: Your first melody.", step 2). No crash.
+- Open for Roy: big kids get no next challenge (depth's `NextChallenge.eligible` is grown-ups only) and no What's new or tour
+  (`Welcome.next` asks isKid); a capped big kid's tabs still show the plan and the library (each closes at once when opened,
+  no "Tomorrow" on them); big kids' arcade hub copy ("Pick a game!") stays kid-style; the lesson rule line's length on the
+  cover screen.

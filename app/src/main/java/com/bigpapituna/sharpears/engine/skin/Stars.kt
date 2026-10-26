@@ -65,9 +65,9 @@ object Stars {
     /**
      * 2.14 merge: a lesson's three-star rule ([three], a step at a time) as its finish says it, in the song recap's frame
      * (engine/PerformScore.kt SongStars.RULE: "3 stars: 98% or more, and 9 of 10 notes in time."). Grown-ups and big kids only:
-     * a little kid's finish has no numbers.
+     * a little kid's finish has no numbers. "80 ms" is held together (a no-break space), so a narrow line never strands "ms".
      */
-    const val LESSON_RULE = "3 stars: steps played clean or at 98% or more (90% with the timing within 80 ms), and nothing let go."
+    val LESSON_RULE = "3 stars: steps played clean or at 98% or more (90% with the timing within 80" + Typography.nbsp + "ms), and nothing let go."
 
     /** The lesson against the rule, as the recap's "This run:" line: "This lesson: 1 of 3 steps at 3 stars." */
     fun lessonLine(steps: List<Int>): String =
