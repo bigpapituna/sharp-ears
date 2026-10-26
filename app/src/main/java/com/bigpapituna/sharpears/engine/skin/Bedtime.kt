@@ -5,9 +5,11 @@ import java.time.LocalDate
 /**
  * The daily goal and bedtime. Reaching the goal (5 minutes before reading, 8 after; the live goal is
  * ProgressStore.goalMinutes) earns a cheer once a day and nothing more: a kid plays as long as they like (Roy,
- * 2026-10-20). Bedtime is a parental control, off by default, set per kid in Settings > Family behind the gate: with
- * it on, the pup yawns and says goodnight at the goal, songs and the Jam stay open, and no new lesson starts that
- * day unless a grown-up says one more. Grown-ups are never sent to bed. Pure rules; ui/skin/Goodbye.kt draws it.
+ * 2026-10-20). Bedtime is a parental control, off by default, set per kid in Settings > Family behind the gate (2.14:
+ * "After the goal: wind down", Priya's P6): with it on, the pup yawns and says goodnight at the goal and no new lesson
+ * starts that day unless a grown-up says one more; songs and the Jam stay open, unless its "Close Songs and the Jam too"
+ * is on ([songsOpen]). Grown-ups are never sent to bed. A daily time cap is engine/skin/TimeCap.kt. Pure rules;
+ * ui/skin/Goodbye.kt draws it.
  */
 object Bedtime {
     /** Today's practice reached the goal. A goal of zero never does. */
@@ -40,6 +42,16 @@ object Bedtime {
     fun oneMoreSpent(kid: Boolean, practisedSec: Int, goalMin: Int, grownUpSaidOn: LocalDate?, today: LocalDate, bedtime: Boolean): Boolean =
         kid && bedtime && goalReached(practisedSec, goalMin) && grownUpSaidOn == today
 
-    /** Songs and the Jam never close: the goodbye ends lessons only. */
-    const val SONGS_OPEN = true
+    /**
+     * May songs and the Jam start? Always, unless [bedtime] and its [closeSongs] are both on for this kid and the goal is
+     * reached: then they wait for tomorrow with the lessons (a grown-up's one more is a lesson, never a song).
+     */
+    fun songsOpen(kid: Boolean, practisedSec: Int, goalMin: Int, bedtime: Boolean, closeSongs: Boolean): Boolean =
+        !kid || !bedtime || !closeSongs || !goalReached(practisedSec, goalMin)
+
+    /** The setting's name and line in the grown-ups' corner (2.14: honest about what it does). */
+    const val LABEL = "After the goal: wind down"
+    const val LINE = "Lessons close for the day; Songs and the Jam stay open."
+    const val LINE_ALL = "Lessons, Songs and the Jam close for the day."
+    const val SONGS_SWITCH = "Close Songs and the Jam too"
 }

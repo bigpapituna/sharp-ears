@@ -288,10 +288,10 @@ object ActionCopy {
                 body = if (on) "$name has been reading the letters, so the keys can name notes with letters instead of animals." else "The keys name notes with animals again.",
                 confirm = "Yes, change it", doneLine = if (on) "The keys show letters." else "The keys show animals.", reversible = true)
             SettingId.BEDTIME -> ActionView(c.action,
-                button = if (on) "Turn on bedtime" else "Turn off bedtime",
+                button = if (on) "Wind down after the goal" else "Stop winding down",
                 title = if (on) "Say goodnight after the goal?" else "Stop saying goodnight?",
-                body = if (on) "When $name reaches the daily goal the pup says goodnight, and lessons rest until tomorrow. Songs and play stay open." else "Lessons stay open after the daily goal.",
-                confirm = "Yes, change it", doneLine = if (on) "Bedtime is on after the goal." else "Bedtime is off.", reversible = true)
+                body = if (on) "When $name reaches the daily goal the pup says goodnight, and lessons close for the day. Songs and the Jam stay open." else "Lessons stay open after the daily goal.",
+                confirm = "Yes, change it", doneLine = if (on) "Wind down after the goal is on." else "Wind down after the goal is off.", reversible = true)
             SettingId.COLOUR_NOTES -> ActionView(c.action,
                 button = if (on) "Colour the notes" else "Plain notes",
                 title = if (on) "Colour the notes?" else "Switch the note colours off?",

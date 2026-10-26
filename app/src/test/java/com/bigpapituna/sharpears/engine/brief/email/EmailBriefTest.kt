@@ -134,7 +134,7 @@ class EmailBriefTest {
         assertTrue(ready["Reading letters:"]!!.startsWith("ready."))
         assertEquals("7 of 12 stones done on the pond. The concert hall opens after it.", ready["Next page:"])
         assertEquals("On Friday you turned colour notes on.", ready["You did:"])
-        assertEquals("off.", ready["Bedtime after the goal:"])
+        assertEquals("off.", ready["Wind down after the goal:"])
 
         assertEquals(SignOff("Gold star at home", brief.praise, "Signed, the pup", PupPose.CROWN), e.signOff)
         assertEquals("Sent by Sharp Ears for Mia, from Roy's phone.", e.footer.lines[0])

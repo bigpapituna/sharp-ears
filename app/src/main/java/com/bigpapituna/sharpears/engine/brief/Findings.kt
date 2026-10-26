@@ -281,6 +281,13 @@ data class ActionTaken(val at: Long, val action: ActionId, val params: Map<Strin
 data class SettingChange(val at: Long, val key: String, val value: String)
 
 /**
+ * 2.14, "what they can now do": a lesson finished with two stars or more ([lessonId]), or a song played to its end with two
+ * stars or more ([songId], with the [hands] its best run used), in the four weeks up to the range's end. Ids only; the phone
+ * says them (engine/brief/CanDoWords.kt).
+ */
+data class CanDo(val lessonId: String? = null, val songId: String? = null, val hands: Hands? = null)
+
+/**
  * One day of the seven-day strip: minutes on screen and practised, sessions, and whether the goal was reached. [rest]
  * (2.9): a missed day the streak kept as its rest day (engine/PracticeStats.restDays), drawn as a sleeping paw.
  */
@@ -415,6 +422,8 @@ data class Findings(
     val goalMinutes: Int? = null,
     val actions: List<ActionTaken> = emptyList(),
     val settings: List<SettingChange> = emptyList(),
+    /** 2.14: what the person can now do, the latest first (at most three). */
+    val canDo: List<CanDo> = emptyList(),
 ) {
     /** Nothing happened in the range (no session, no event): writers say so kindly, or skip the brief. */
     val isEmpty: Boolean get() = stats.totals.sessions == 0 && facts.isEmpty() && flags.isEmpty() && praise.isEmpty()
@@ -424,6 +433,7 @@ data class Findings(
         facts.forEach { addAll(it.lessons) }; flags.forEach { addAll(it.lessons) }; praise.forEach { addAll(it.lessons) }
         candidates.forEach { c -> c.params["lesson"]?.let(::add) }; actions.forEach { a -> a.params["lesson"]?.let(::add) }
         stats.lessons.forEach { add(it.lessonId) }
+        canDo.forEach { c -> c.lessonId?.let(::add) }
     }
 
     /** Every song id the findings mention. */
@@ -432,6 +442,7 @@ data class Findings(
         candidates.forEach { c -> c.params["song"]?.let(::add); c.params["after"]?.let(::add) }
         actions.forEach { a -> a.params["song"]?.let(::add) }
         stats.songs.forEach { add(it.songId) }
+        canDo.forEach { c -> c.songId?.let(::add) }
     }
 
     /**
@@ -451,6 +462,7 @@ data class Findings(
             settings = settings.filter { ID.matches(it.key) && ID.matches(it.value) },
             stats = stats.copy(lessons = stats.lessons.filter { ID.matches(it.lessonId) }, songs = stats.songs.filter { ID.matches(it.songId) },
                 ear = stats.ear.filter { ID.matches(it.game) }),
+            canDo = canDo.filter { c -> listOfNotNull(c.lessonId, c.songId).all(ID::matches) },
         )
     }
 
@@ -470,7 +482,7 @@ data class Findings(
 
 /** The JSON shape of [Findings]: plain maps and lists, enum names as strings, absent fields default. */
 internal object FindingsCodec {
-    fun write(f: Findings): Map<String, Any?> = linkedMapOf(
+    fun write(f: Findings): Map<String, Any?> = linkedMapOf<String, Any?>(
         "profileKind" to f.profileKind.name, "period" to f.period.name,
         "range" to linkedMapOf("from" to f.range.fromMs, "to" to f.range.toMs),
         "reader" to f.reader, "goalMinutes" to f.goalMinutes,
@@ -482,7 +494,10 @@ internal object FindingsCodec {
         "actions" to f.actions.map { linkedMapOf("at" to it.at, "action" to it.action.name, "params" to it.params) },
         "settings" to f.settings.map { linkedMapOf("at" to it.at, "key" to it.key, "value" to it.value) },
         "stats" to stats(f.stats),
-    )
+    ).apply {
+        // 2.14: written only when there is something, so findings without it read exactly as before.
+        if (f.canDo.isNotEmpty()) put("canDo", f.canDo.map { linkedMapOf("lesson" to it.lessonId, "song" to it.songId, "hands" to it.hands?.name) })
+    }
 
     private fun stats(s: Stats): Map<String, Any?> = linkedMapOf(
         "days" to s.days.map { linkedMapOf("date" to it.date, "minutes" to it.minutes, "practiceMinutes" to it.practiceMinutes, "sessions" to it.sessions, "goal" to it.goal, "rest" to it.rest) },
@@ -546,6 +561,10 @@ internal object FindingsCodec {
             settings = list(m["settings"]).mapNotNull { e ->
                 val k = e["key"] as? String ?: return@mapNotNull null
                 SettingChange(long(e["at"]), k, e["value"]?.toString() ?: return@mapNotNull null)
+            },
+            canDo = list(m["canDo"]).mapNotNull { e ->
+                val lesson = e["lesson"] as? String; val song = e["song"] as? String
+                if (lesson == null && song == null) null else CanDo(lesson, song, enumOf<Hands>(e["hands"]))
             },
         )
     }

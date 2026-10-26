@@ -225,7 +225,8 @@ sealed class BriefEvent {
      * A setting changed for this person (or for the phone while they were playing): [key] and its new [value] as text.
      * Keys in use: reader, colourNotes, micOffsetDb, hintSeconds, goalMin, kind, bedtime, wrongFlash, sensitivityDb,
      * keyLabels, noteNames, fingerNumbers, feedbackLight, beatLines, ghostHand, sound, haptics, voice, naturalVoice,
-     * reminderOn. Never a name or anything typed.
+     * reminderOn; 2.14 bedtimeSongs (wind down's "Close Songs and the Jam too") and capMin (the daily time, 0 off). Never
+     * a name or anything typed.
      */
     data class SettingChanged(override val at: Long, val key: String, val value: String) : BriefEvent() {
         override val name get() = "setting"

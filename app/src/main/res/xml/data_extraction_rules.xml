@@ -16,6 +16,7 @@
         <exclude domain="sharedpref" path="ai-brief.xml" />
         <exclude domain="sharedpref" path="email.xml" />
         <exclude domain="sharedpref" path="tester.xml" />
+        <exclude domain="sharedpref" path="session.xml" />
         <exclude domain="file" path="tester" />
         <exclude domain="external" path="fixtures" />
         <exclude domain="external" path="stalls" />
@@ -27,6 +28,7 @@
         <exclude domain="sharedpref" path="ai-brief.xml" />
         <exclude domain="sharedpref" path="email.xml" />
         <exclude domain="sharedpref" path="tester.xml" />
+        <exclude domain="sharedpref" path="session.xml" />
         <exclude domain="file" path="tester" />
         <exclude domain="external" path="fixtures" />
         <exclude domain="external" path="stalls" />

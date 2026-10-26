@@ -1,5 +1,6 @@
 package com.bigpapituna.sharpears.engine.skin
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,7 +35,18 @@ class BedtimeTest {
         assertTrue(Bedtime.lessonOpen(kid = true, practisedSec = 300, goalMin = 5, grownUpSaidOn = today, today = today, bedtime = true))
         assertFalse(Bedtime.lessonOpen(kid = true, practisedSec = 300, goalMin = 5, grownUpSaidOn = today.minusDays(1), today = today, bedtime = true))
         assertTrue(Bedtime.lessonOpen(kid = false, practisedSec = 99999, goalMin = 10, today = today))
-        assertTrue(Bedtime.SONGS_OPEN)
+    }
+
+    /** 2.14 (Priya's P6): Songs and the Jam stay open after the goal, unless "Close Songs and the Jam too" is on as well. */
+    @Test fun songsCloseAfterTheGoalOnlyWithTheirOwnSwitch() {
+        assertTrue("wind down off", Bedtime.songsOpen(kid = true, practisedSec = 600, goalMin = 5, bedtime = false, closeSongs = true))
+        assertTrue("wind down on, songs stay", Bedtime.songsOpen(kid = true, practisedSec = 600, goalMin = 5, bedtime = true, closeSongs = false))
+        assertFalse("both on, goal reached", Bedtime.songsOpen(kid = true, practisedSec = 600, goalMin = 5, bedtime = true, closeSongs = true))
+        assertTrue("before the goal", Bedtime.songsOpen(kid = true, practisedSec = 200, goalMin = 5, bedtime = true, closeSongs = true))
+        assertTrue("grown-ups", Bedtime.songsOpen(kid = false, practisedSec = 99999, goalMin = 5, bedtime = true, closeSongs = true))
+        assertEquals("After the goal: wind down", Bedtime.LABEL)
+        assertEquals("Lessons close for the day; Songs and the Jam stay open.", Bedtime.LINE)
+        assertEquals("Close Songs and the Jam too", Bedtime.SONGS_SWITCH)
     }
 
     /** Audit 2026-10-20: one "one more lesson" from a grown-up opened every lesson for the rest of the day. */

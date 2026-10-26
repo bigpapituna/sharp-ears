@@ -222,7 +222,7 @@ internal fun HoldThePup(onHeld: () -> Unit) {
 private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
     val still = reducedMotion()
     val scope = rememberCoroutineScope()
-    var sum by remember { mutableStateOf(ParentGateRules.nextSum()) }
+    var sum by remember { mutableStateOf(ParentGateRules.nextQuestion()) }
     var typed by remember { mutableStateOf("") }
     var missed by remember { mutableStateOf(false) }
     val shake = remember { Animatable(0f) }
@@ -241,7 +241,7 @@ private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
         if (waiting) return
         if (sum.isRight(typed)) { onPass(); return }
         gate.wrong()
-        missed = true; typed = ""; sum = ParentGateRules.nextSum(previous = sum)
+        missed = true; typed = ""; sum = ParentGateRules.nextQuestion(previous = sum)
         if (!still) scope.launch { shake.snapTo(1f); shake.animateTo(0f, spring(dampingRatio = 0.25f, stiffness = 900f)) }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

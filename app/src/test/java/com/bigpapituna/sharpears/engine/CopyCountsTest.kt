@@ -43,7 +43,9 @@ class CopyCountsTest {
      */
     @Test fun countsBeforePluralNounsAreGuarded() {
         val known = listOf("This week:", "minutes a day", "chords due", "days in a row", "Three games, about", "Three quick games",
-            "\"\$m minutes\"", "now \$goal minutes", "of \$goal days", "else -> \"\$n times\"", "every \${if (trainerBars == 1)")
+            "\"\$m minutes\"", "now \$goal minutes", "of \$goal days", "else -> \"\$n times\"", "every \${if (trainerBars == 1)",
+            // 2.14: the parent gate's times tables start at four.
+            "\"\$a times \$b\"")
         val count = Regex("""\$(\{[^}]+\}|[a-zA-Z_.]+) (days|bars|cents|times|chords|minutes|notes)\b""")
         val hits = File("src/main/java/com/bigpapituna/sharpears").walkTopDown().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().filter { count.containsMatchIn(it) && "Log." !in it && "log(" !in it && known.none { k -> k in it } }.map { "${f.name}: ${it.trim()}" }

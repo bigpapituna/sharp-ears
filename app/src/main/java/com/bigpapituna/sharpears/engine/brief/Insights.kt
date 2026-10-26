@@ -114,7 +114,8 @@ object Insights {
     ): Findings {
         // A total order (time, then the line itself), so the findings never depend on the order the events came in.
         val all = events.filter { it !is BriefEvent.Unknown && it.at <= now }.sortedWith(compareBy({ it.at }, { it.encode() }))
-        val sessions = Sessions.of(all, now)
+        // 2.14: a session never merges across midnight, so each day's minutes are that day's (the minutes ledger's rule).
+        val sessions = Sessions.of(all, now, zone)
         val today = day(now, zone)
         val (win, previous) = when (period) {
             Period.SESSION -> {
@@ -134,10 +135,15 @@ object Insights {
         val firstAt = all.firstOrNull()?.at ?: now
         // Earlier periods only count once the person had started (a new kid has no "usual" yet).
         val before = previous.filter { it.to > firstAt }
+        // 2.14 (Priya's P10): for time and days (not rates) a day or a week is a baseline only when the person had started by
+        // its first day; a week begun before their first day was part empty, and "grew to seven minutes this week, from about
+        // zero" compared a whole week with a few minutes.
+        val firstDay = startOf(day(firstAt, zone), zone)
+        val whole = if (period == Period.SESSION) before else before.filter { it.from >= firstDay }
         val kid = profile.kind == ProfileKind.KID
         val goal = current.goalMinutes ?: all.filterIsInstance<BriefEvent.GoalReached>().lastOrNull { it.goalMin > 0 }?.goalMin ?: profile.dailyGoalMin
         val endMs = minOf(win.to - 1, now)
-        val trends = trends(win, before, period)
+        val trends = trends(win, before, whole, period)
         val flags = Rules(win, before, all, profile, period, endMs, zone, current, goal).flags()
         return Findings(
             profileKind = profile.kind, period = period, range = TimeRange(win.from, endMs),
@@ -153,7 +159,32 @@ object Insights {
                 ActionId.entries.firstOrNull { it.name == a.actionId }?.let { ActionTaken(a.at, it, a.params) }
             },
             settings = win.of<BriefEvent.SettingChanged>().map { SettingChange(it.at, it.key, it.value) },
+            canDo = canDo(all, endMs),
         )
+    }
+
+    /** "What they can now do" looks back this far from the range's end (2.14). */
+    const val CAN_DO_DAYS = 28L
+    /** At most this many things in the line. */
+    const val CAN_DO_MAX = 3
+
+    /**
+     * 2.14, the brief's "what they can now do" line (Priya's P10): the lessons finished with two stars or more and the songs
+     * played to their end with two stars or more in the [CAN_DO_DAYS] days up to [endMs], the latest first, one entry per
+     * lesson or song (a song with the hands its best run used). Ids only; engine/brief/CanDoWords.kt says them.
+     */
+    private fun canDo(all: List<BriefEvent>, endMs: Long): List<CanDo> {
+        val from = endMs - CAN_DO_DAYS * DAY_MS
+        val recent = all.filter { it.at in from..endMs }
+        val lessons = recent.filterIsInstance<BriefEvent.LessonDone>().filter { it.stars >= 2 }
+            .groupBy { it.lessonId }.map { (id, d) -> d.maxOf { it.at } to CanDo(lessonId = id) }
+        val songs = recent.filterIsInstance<BriefEvent.SongRun>().filter { it.mode != RunMode.LISTEN && it.stars >= 2 }
+            .groupBy { it.songId }.map { (id, r) ->
+                // Both hands outrank one; the right hand (the tune) outranks the left.
+                val hands = r.map { it.hands }.minBy { listOf(Hands.BOTH, Hands.RIGHT, Hands.LEFT).indexOf(it) }
+                r.maxOf { it.at } to CanDo(songId = id, hands = hands)
+            }
+        return (lessons + songs).sortedWith(compareBy({ -it.first }, { it.second.lessonId ?: it.second.songId })).map { it.second }.take(CAN_DO_MAX)
     }
 
     /** 2.7: the arcade's rounds by game, the best first (most stars, then most rounds, then the id). */
@@ -202,13 +233,16 @@ object Insights {
     )
     private val DOWN_IS_GOOD = setOf(TrendKind.TIMING_MS, TrendKind.WRONG_PER_RUN, TrendKind.PLAY_HINTS, TrendKind.HESITATION_MS, TrendKind.TEMPO_SPREAD)
 
-    private fun trends(w: Window, before: List<Window>, period: Period): List<Trend> {
+    /** Trends that count time or days: their baseline is whole periods only ([trends]'s `whole`). */
+    private val VOLUME = setOf(TrendKind.MINUTES, TrendKind.DAYS, TrendKind.SESSIONS)
+
+    private fun trends(w: Window, before: List<Window>, whole: List<Window>, period: Period): List<Trend> {
         val out = ArrayList<Trend>()
         for (kind in TrendKind.entries) {
             if (kind == TrendKind.DAYS && period != Period.WEEK) continue
             if (kind == TrendKind.SESSIONS && period == Period.SESSION) continue
             val now = w.value(kind) ?: continue
-            val prev = before.mapNotNull { it.value(kind) }
+            val prev = (if (kind in VOLUME) whole else before).mapNotNull { it.value(kind) }
             if (prev.isEmpty()) continue
             val base = prev.average()
             val diff = now - base
@@ -539,7 +573,7 @@ object Insights {
 
     private fun consistent(w: Window, before: List<Window>, all: List<BriefEvent>, period: Period, endMs: Long, zone: ZoneId): Praise? {
         val days = if (period == Period.WEEK) w.daysPractised.size
-            else Window(startOf(day(endMs, zone).minusDays(6), zone), endMs + 1, all, Sessions.of(all, endMs), zone).daysPractised.size
+            else Window(startOf(day(endMs, zone).minusDays(6), zone), endMs + 1, all, Sessions.of(all, endMs, zone), zone).daysPractised.size
         val usual = before.takeIf { period == Period.WEEK && it.isNotEmpty() }?.map { it.daysPractised.size }?.average()
         val good = days >= 4 || (days >= 3 && usual != null && days >= usual + 1)
         return if (good) Praise(PraiseKind.CONSISTENT, days.toLong()) else null
@@ -604,8 +638,8 @@ object Insights {
         }
         val drum = w.drumSteps
         val ear = w.ear.groupBy { it.game }.map { (g, r) -> EarStat(g, r.size, r.count { it.correct }) }.sortedWith(compareBy({ -it.rounds }, { it.game }))
-        fun meanSession(ws: List<Window>): Int? = ws.flatMap { it.sessions }.takeIf { it.isNotEmpty() }?.map { it.onScreenMs }?.average()?.let { (it / 60_000.0).roundToInt() }
-        fun min(ms: Long) = (ms / 60_000.0).roundToInt()
+        fun meanSession(ws: List<Window>): Int? = ws.flatMap { it.sessions }.takeIf { it.isNotEmpty() }?.map { it.onScreenMs }?.average()?.let { MinutesLedger.minutesOfMs(it.toLong()) }
+        fun min(ms: Long) = MinutesLedger.minutesOfMs(ms)
         return Stats(days, lessons, songs, skills, toys, parts, w.of<BriefEvent.NoisyRoom>().size, w.hintStats(), totals,
             keySlips = keySlips, topSlip = topSlip, notesDue = w.notesDue, skippedNotes = w.skippedNotes, hesitation = hesitation,
             tempoSpreadMs = w.tempoSpread?.roundToInt(), tempoRuns = w.spreads.size, left = hand(true), right = hand(false),
@@ -668,7 +702,7 @@ internal object Sessions {
      * end was written) opens one; a start left open ends at its last event (or [now] when that is recent: the session
      * under way). Then stretches closer than the gap merge.
      */
-    fun of(sorted: List<BriefEvent>, now: Long): List<Session> {
+    fun of(sorted: List<BriefEvent>, now: Long, zone: ZoneId? = null): List<Session> {
         val raw = ArrayList<Session>()
         var openStart = -1L
         var lastSeen = -1L
@@ -694,7 +728,8 @@ internal object Sessions {
         val merged = ArrayList<Session>()
         for (s in raw.sortedBy { it.start }) {
             val p = merged.lastOrNull()
-            if (p != null && s.start - p.end < Insights.SESSION_GAP_MS)
+            // With a [zone] (2.14, the minutes ledger), two stretches on different days stay two sessions.
+            if (p != null && s.start - p.end < Insights.SESSION_GAP_MS && (zone == null || Insights.day(p.start, zone) == Insights.day(s.start, zone)))
                 merged[merged.lastIndex] = Session(p.start, maxOf(p.end, s.end), p.onScreenMs + s.onScreenMs, p.practiceSec + s.practiceSec, s.open)
             else merged += s
         }
@@ -723,8 +758,9 @@ internal class Window(val from: Long, val to: Long, all: List<BriefEvent>, allSe
 
     val onScreenMs by lazy { sessions.sumOf { it.onScreenMs } }
     val practiceSec by lazy { sessions.sumOf { it.practiceSec } }
-    val minutes get() = (onScreenMs / 60_000.0).roundToInt()
-    val practiceMinutes get() = (practiceSec / 60.0).roundToInt()
+    // 2.14: one rounding for every minute a person reads (MinutesLedger: counted down, any time at all is at least 1).
+    val minutes get() = MinutesLedger.minutesOfMs(onScreenMs)
+    val practiceMinutes get() = MinutesLedger.minutes(practiceSec.toLong())
     val toyMs by lazy { of<BriefEvent.ToyOpened>().sumOf { it.durationMs } }
 
     /** Days with practice: a session that counted practice time, or a lesson, song or ear game played. */
@@ -735,10 +771,10 @@ internal class Window(val from: Long, val to: Long, all: List<BriefEvent>, allSe
     }
     val goalDays: Set<LocalDate> by lazy { of<BriefEvent.GoalReached>().map { Insights.day(it.at, zone) }.toSortedSet() }
     val minutesByDay: Map<LocalDate, Int> by lazy {
-        sessions.groupBy { Insights.day(it.start, zone) }.mapValues { (_, s) -> (s.sumOf { it.onScreenMs } / 60_000.0).roundToInt() }
+        sessions.groupBy { Insights.day(it.start, zone) }.mapValues { (_, s) -> MinutesLedger.minutesOfMs(s.sumOf { it.onScreenMs }) }
     }
     val minutesByPart: Map<DayPart, Int> by lazy {
-        sessions.groupBy { Insights.partOf(it.start, zone) }.mapValues { (_, s) -> (s.sumOf { it.onScreenMs } / 60_000.0).roundToInt() }
+        sessions.groupBy { Insights.partOf(it.start, zone) }.mapValues { (_, s) -> MinutesLedger.minutesOfMs(s.sumOf { it.onScreenMs }) }
     }
 
     val near by lazy { steps.sumOf { it.nearMisses } + runs.sumOf { it.nearMisses } }

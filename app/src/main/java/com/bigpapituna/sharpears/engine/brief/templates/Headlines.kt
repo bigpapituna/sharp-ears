@@ -60,7 +60,8 @@ internal fun praiseClause(c: Ctx, p: Praise): String {
         PraiseKind.SHINY_STICKER -> listOf(l("found a shiny sticker"), l("earned a shiny sticker"))
         PraiseKind.RARE_STICKER -> listOf(l("found a rare sticker"), l("earned a rare sticker"))
         PraiseKind.GOAL_STREAK -> listOf(l("hit the daily goal {days} in a row"), l("kept a goal streak going"))
-        PraiseKind.THREE_STARS -> listOf(l("earned three stars on {titles}"), l("earned three stars"))
+        // 2.14 (Priya's P10): always on which lesson; a bare "earned three stars" read as the latest lesson's, which had one.
+        PraiseKind.THREE_STARS -> listOf(l("earned three stars on {titles}"), l("earned three stars on a lesson"))
         PraiseKind.TIMING_IMPROVED -> listOf(l("tightened up the timing"), l("got closer to the beat"))
         PraiseKind.ACCURACY_IMPROVED -> listOf(l("played more accurately"), l("landed more notes on time"))
         PraiseKind.MISSES_CLOSER -> listOf(l("got closer to the right keys"), l("found the neighbourhood of the right key"))

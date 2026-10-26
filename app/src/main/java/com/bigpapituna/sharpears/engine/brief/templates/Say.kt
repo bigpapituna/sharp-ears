@@ -93,8 +93,11 @@ internal class Ctx(val f: Findings, name: String, private val titleOf: (String) 
     /** The first name as given, tidied; blank for no name. */
     val name: String = name.trim().replace(WHITESPACE, " ").take(24)
 
-    /** What week it is, so the same week reads the same on Refresh and the next one reads differently. */
-    val epoch: Long = Math.floorDiv(f.range.toMs, WEEK_MS)
+    /**
+     * What week it is, so the same week reads the same on Refresh and the next one reads differently. 2.14 (Priya's P10: "A
+     * request to hear it is the best praise" came back every evening): a day's and a session's brief step on each day.
+     */
+    val epoch: Long = Math.floorDiv(f.range.toMs, if (f.period == Period.WEEK) WEEK_MS else DAY_MS)
 
     val span = when (period) { Period.SESSION -> "this session"; Period.DAY -> "today"; Period.WEEK -> "this week" }
     val spanNoun = when (period) { Period.SESSION -> "session"; Period.DAY -> "day"; Period.WEEK -> "week" }

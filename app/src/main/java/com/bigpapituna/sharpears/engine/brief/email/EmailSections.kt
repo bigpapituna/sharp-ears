@@ -257,7 +257,7 @@ internal class EmailSections(
         }, label = "You did:")
         val changed = f.settings.groupBy { it.key }.mapNotNull { (_, l) -> l.maxBy { it.at }.let { settingLine(it.key, it.value) } }
         if (changed.isNotEmpty()) lines += Block.Text(changed.joinToString("; ") + ".", label = "Changed:")
-        if (kid) extras.bedtimeOn?.let { lines += Block.Text(if (it) "on." else "off.", label = "Bedtime after the goal:") }
+        if (kid) extras.bedtimeOn?.let { lines += Block.Text(if (it) "on." else "off.", label = "Wind down after the goal:") }
         val somethingChanged = f.actions.isNotEmpty() || changed.isNotEmpty() || flags.any { it in READY }
         if (lines.isEmpty() || (!week && !somethingChanged)) return null
         return section(SectionId.READINESS, "Readiness and what changed", lines)
@@ -268,7 +268,9 @@ internal class EmailSections(
         return when (key) {
             "reader" -> if (on) "the keys show letters" else "the keys show animals"
             "colourNotes" -> "colour notes ${if (on) "on" else "off"}"
-            "bedtime" -> "bedtime after the goal ${if (on) "on" else "off"}"
+            "bedtime" -> "wind down after the goal ${if (on) "on" else "off"}"
+            "bedtimeSongs" -> if (on) "Songs and the Jam close after the goal too" else "Songs and the Jam stay open after the goal"
+            "capMin" -> value.toIntOrNull()?.let { if (it <= 0) "the daily time is off" else "the daily time is ${EmailWords.count(it, "minute")}" }
             "goalMin" -> value.toIntOrNull()?.let { "the daily goal is ${EmailWords.count(it, "minute")}" }
             "micOffsetDb" -> "the microphone's sensitivity changed"
             "wrongFlash" -> if (on) "wrong keys light up again on the phone" else "wrong keys no longer light up on the phone"
