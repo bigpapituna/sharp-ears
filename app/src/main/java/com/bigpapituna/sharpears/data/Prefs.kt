@@ -207,6 +207,20 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getBoolean("micBannerClosed", false)
         set(v) = edit { putBoolean("micBannerClosed", v) }
 
+    /**
+     * 2.14: the lesson left part way and its step ("key-g:2", engine/Comeback.kt encodeLeft), kept as the steps go by and
+     * cleared when the lesson is finished: the comeback opens there. Written without bumping [version] (a step is not a change
+     * any screen shows).
+     */
+    var openStep: String?
+        get() = p.getString("openStep", null)
+        set(v) { p.edit().apply { if (v == null) remove("openStep") else putString("openStep", v) }.apply() }
+
+    /** 2.14: "I know these chords" was answered or put away ("Not now"): Today stops offering it. */
+    var knownChordsAsked: Boolean
+        get() = p.getBoolean("knownChordsAsked", false)
+        set(v) = edit { putBoolean("knownChordsAsked", v) }
+
     /** Tutorial alignment: video second at which the song's first note sounds, per song and video. */
     fun anchor(songId: String, videoId: String): Float? = p.getFloat("anchor:$songId:$videoId", -1f).takeIf { it >= 0 }
     fun saveAnchor(songId: String, videoId: String, sec: Float) = edit { putFloat("anchor:$songId:$videoId", sec) }

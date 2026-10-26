@@ -66,12 +66,15 @@ data class SessionSong(val id: String, val title: String, val minutes: Double, v
 
 /**
  * The session for today. [dueChordIds]: the Daily queue's chord items, oldest due first. [nextLesson]: id and
- * title of the first Learn lesson not done. [song]: the Continue song.
+ * title of the first Learn lesson not done. [song]: the Continue song. [lessonFirst] (2.14, engine/nav/DayOne.kt): a
+ * beginner's plan opens on the lesson, the chords after it.
  */
-fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, song: SessionSong?): SessionPlan {
+fun planSession(dueChordIds: List<String>, nextLesson: Pair<String, String>?, song: SessionSong?, lessonFirst: Boolean = false): SessionPlan {
     val parts = mutableListOf<SessionPart>()
+    val lesson = nextLesson?.let { (id, title) -> SessionPart.Lesson(id, title) }
+    if (lessonFirst && lesson != null) parts += lesson
     if (dueChordIds.isNotEmpty()) parts += SessionPart.Chords(dueChordIds.take(MAX_CHORDS))
-    nextLesson?.let { (id, title) -> parts += SessionPart.Lesson(id, title) }
+    if (!lessonFirst && lesson != null) parts += lesson
     if (song != null) {
         val bar = song.troubleBar
         parts += if (bar != null) SessionPart.Loop(song.id, song.title, bar)

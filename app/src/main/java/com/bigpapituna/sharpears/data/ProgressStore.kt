@@ -307,6 +307,24 @@ class ProgressStore(context: Context, private val prefs: Prefs, var songIds: () 
         fresh.forEach { unlocked[it.id] = today }
     }
 
+    /**
+     * 2.14: the level a placement starts at (engine/progress/PlacementLevel.kt). XP is raised to that level's start, never
+     * lowered, quietly as [catchUp] credits (no level-up screen, no toasts; achievements it earns are marked). Returns the XP
+     * added. Call it once the first-run questions are done: XP above zero counts as onboarded.
+     */
+    fun seedFromPlacement(level: com.bigpapituna.sharpears.engine.family.Level): Int {
+        val before = xp
+        val after = com.bigpapituna.sharpears.engine.progress.PlacementLevel.seeded(before, level)
+        if (after <= before) return 0
+        edit { putInt("xp", after) }
+        xpState.intValue = after
+        val today = AppClock.today()
+        val fresh = Achievements.newlyUnlocked(snapshot(), unlocked.keys)
+        edit { fresh.forEach { putString("ach:${it.id}", today.toString()) } }
+        fresh.forEach { unlocked[it.id] = today }
+        return after - before
+    }
+
     // ---- helpers ----
 
     private fun strings(key: String): Set<String> = p.getStringSet(key, null)?.toSet() ?: emptySet()

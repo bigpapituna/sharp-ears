@@ -70,6 +70,6 @@ class PupReplayWiringTest {
         assertTrue("LocalPupVoice provides pupVoice" in src("MainActivity.kt"))
         assertTrue("val pupVoice = remember(voice)" in src("MainActivity.kt"))
         // A kid's line is one of the recorded cheers, so the voice has it; a grown-up's finish says nothing.
-        assertTrue("PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid)" in src("ui/Celebrate.kt"))
+        assertTrue("PupTap.line(com.bigpapituna.sharpears.ui.family.profile().kidSkin)" in src("ui/Celebrate.kt"))
     }
 }

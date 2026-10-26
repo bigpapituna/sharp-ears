@@ -141,6 +141,10 @@ private fun AddCircle(size: androidx.compose.ui.unit.Dp) {
  * Someone new, in one screen and about twenty seconds: a name, a pup colour, "Who is this for?" (a kid or a grown-up)
  * and, for a kid, "Can they read yet?" and how much piano they have played (2.6; a parent answers, and may let the pup listen to them
  * play a little). Go hands back a [Profile] with the kind's defaults and that level (not stored yet).
+ *
+ * 2.14 (levels and ages): a kid's age band first ("How old is Leo?": Little, 4 to 7, or Big kid, 8 to 13), then "Can they
+ * read yet?", then for a reader "Has Leo had piano lessons?" (No, A few, Lots), which must be answered before Go (a parent who
+ * tapped Go at once used to get "first time"). A pre-reader is not asked: they start in the garden.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -155,9 +159,13 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
     var avatar by rememberSaveable { mutableIntStateOf(1) }
     var kind by rememberSaveable { mutableStateOf<ProfileKind?>(null) }
     var reader by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    var levelName by rememberSaveable { mutableStateOf(Level.NEVER.name) }
+    var levelName by rememberSaveable { mutableStateOf<String?>(null) }
+    var bandName by rememberSaveable { mutableStateOf<String?>(null) }
+    val band = bandName?.let(com.bigpapituna.sharpears.engine.family.AgeBand::parse)
     var tryCheck by rememberSaveable { mutableStateOf(false) }
-    val level = Level.parse(levelName)
+    // A pre-reader is not asked how many lessons they had: the garden is where they start.
+    val level = if (reader == false) Level.NEVER else Level.parse(levelName)
+    val levelAnswered = reader == false || levelName != null
     val focus = LocalFocusManager.current
     // Kids never see the grown-ups' questions, and their games listen through the microphone from the first one: a phone
     // that has not allowed it yet asks the grown-up making a kid's profile, once (before, the stages heard nothing and
@@ -181,7 +189,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
         return
     }
     val clean = Profile.cleanName(name)
-    val ready = clean.isNotEmpty() && kind != null && (kind == ProfileKind.ADULT || reader != null)
+    val ready = clean.isNotEmpty() && kind != null && (kind == ProfileKind.ADULT || (band != null && reader != null && levelAnswered))
     // The keyboard covered "Who is this for?" under the name (2.8.4, QA D12), and Go stayed off with no reason in sight:
     // once a name is typed with the keyboard up, the question and its two answers scroll into view above it.
     val askKind = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
@@ -193,7 +201,10 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
     val line = when {
         clean.isEmpty() -> "Hi! What's your name?"
         kind == null -> "Hi, $clean! Who is this for?"
+        kind == ProfileKind.KID && band == null -> com.bigpapituna.sharpears.engine.family.AgeBand.question(clean)
         kind == ProfileKind.KID && reader == null -> "Can $clean read yet?"
+        kind == ProfileKind.KID && !levelAnswered -> Placement.kidQuestion(clean)
+        kind == ProfileKind.KID && band == com.bigpapituna.sharpears.engine.family.AgeBand.BIG -> "Nice to meet you, $clean."
         kind == ProfileKind.KID -> "Let's play, $clean!"
         else -> "Nice to meet you, $clean."
     }
@@ -233,23 +244,36 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
             AnimatedVisibility(kind == ProfileKind.KID, enter = if (still) fadeIn() else fadeIn() + expandVertically(),
                 exit = if (still) fadeOut() else fadeOut() + shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // 2.14: the age band first (engine/family/Ages.kt): the pup's world for the little ones, the tabs for big kids.
+                    Question(com.bigpapituna.sharpears.engine.family.AgeBand.question(clean))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        com.bigpapituna.sharpears.engine.family.AgeBand.entries.forEach { b ->
+                            BigPill(b.answer, band == b, Modifier.weight(1f)) { bandName = b.name }
+                        }
+                    }
+                    Text(com.bigpapituna.sharpears.engine.family.AgeBand.line(band), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Question("Can they read yet?")
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BigPill("Not yet", reader == false, Modifier.weight(1f)) { reader = false }
+                        BigPill("Not yet", reader == false, Modifier.weight(1f)) { reader = false; tryCheck = false }
                         BigPill("Yes", reader == true, Modifier.weight(1f)) { reader = true }
                     }
+                    val big = band == com.bigpapituna.sharpears.engine.family.AgeBand.BIG
                     Text(when (reader) {
-                        false -> "Colours and animals on the keys, five minutes a day."
-                        true -> "Colours with letters on the keys, eight minutes a day."
+                        false -> if (big) "Colours and animals on the keys, ten minutes a day." else "Colours and animals on the keys, five minutes a day."
+                        true -> if (big) "Letters on the keys, ten minutes a day." else "Colours with letters on the keys, eight minutes a day."
                         null -> "Before they read, the keys get colours and animals."
                     }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    // Placement (2.6): a parent says how much piano the kid has played, so the pages before it can be passed by.
-                    if (reader != null) {
-                        Question(if (clean.isEmpty()) "Have they played piano before?" else "Has $clean played piano before?")
-                        Level.kid.forEach { l ->
-                            BigPill(l.kidLine!!, level == l, Modifier.fillMaxWidth()) { levelName = l.name; if (l == Level.NEVER) tryCheck = false }
+                    // Placement (2.6; 2.14 asks a reader "Has Theo had piano lessons?"): the pages, or the units, before it are passed by.
+                    if (reader == true) {
+                        Question(Placement.kidQuestion(clean))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Level.kid.forEach { l ->
+                                BigPill(l.kidLine!!, levelName == l.name, Modifier.weight(1f)) { levelName = l.name; if (l == Level.NEVER) tryCheck = false }
+                            }
                         }
-                        Text(Placement.planFor(level, ProfileKind.KID, reader == true).line.let { if (level == Level.NEVER) "They start at the very beginning, in the garden." else it },
+                        if (levelAnswered) Text(Placement.planFor(level, ProfileKind.KID, true, band ?: com.bigpapituna.sharpears.engine.family.AgeBand.LITTLE).line
+                            .let { if (level == Level.NEVER) (if (big) "They start at the very beginning, with Basics." else "They start at the very beginning, in the garden.") else it },
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         // Off unless asked: a kid is not tested. The pup shows two or three tiny things and listens; nothing is marked.
                         if (level != Level.NEVER && onCheck != null) {
@@ -263,7 +287,8 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
         }
         ChunkyButton(onClick = {
             val k = kind ?: return@ChunkyButton
-            val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true).copy(level = level.forKid) else Profile.adult(clean, avatar)
+            val p = if (k == ProfileKind.KID) Profile.kid(clean, avatar, reader == true, band = band ?: com.bigpapituna.sharpears.engine.family.AgeBand.LITTLE).copy(level = level.forKid)
+                else Profile.adult(clean, avatar)
             if (k == ProfileKind.KID) onCheck?.invoke(tryCheck && PlacementCheck.offered(level))
             if (k == ProfileKind.KID && onWeekly != null) weeklyFor = p else go(p)
         }, enabled = ready, modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {

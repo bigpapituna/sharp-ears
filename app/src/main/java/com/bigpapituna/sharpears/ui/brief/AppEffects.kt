@@ -76,9 +76,10 @@ private class StoreMemory(private val app: Context, private val who: Profile) : 
     override fun forget(lessonIds: Collection<String>) { lessonIds.forEach(prefs::forgetLessonDone); kid.forgetStars(lessonIds) }
     override fun restore(done: Set<String>, stars: Map<String, Int>) { done.forEach(prefs::markLessonDone); kid.restoreStars(stars) }
     override fun next(): String? {
-        val path = CoursePath(who.firstUnitId, bigKid = who.isKid && who.reader,
+        // 2.14 merge: the map is a little kid's (Profile.mapHome); a big kid walks the main course as MainActivity has it.
+        val path = CoursePath(who.firstUnitId, bigKid = who.mapHome && who.reader,
             startAt = { com.bigpapituna.sharpears.engine.family.Placement.startLessonId(who) ?: runCatching { ProgressStore(app, prefs).experience?.startLessonId }.getOrNull() })
-        return if (who.isKid) KidMap.next(path, prefs::lessonDone, kid.finales(), pace = kid.pace().copy(pin = null), stars = kid::stars)?.id
+        return if (who.mapHome) KidMap.next(path, prefs::lessonDone, kid.finales(), pace = kid.pace().copy(pin = null), stars = kid::stars)?.id
         else path.next(prefs::lessonDone)?.id
     }
 }

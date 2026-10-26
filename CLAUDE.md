@@ -1845,3 +1845,67 @@ daily time, an honest bedtime, a harder and shorter gate. Emulator Fold_PA (a co
 - Not proven: a kid on a real phone; the 30 s checkpoint's cost on the Fold (one prefs write); force-stop from the recents
   screen on the Fold (on the emulator a force-stop mid-step kept every second of practice the stores had and lost the 11 s of screen time since the last checkpoint); the grown-up's Settings for a
   kid profile closes after the gate's 2 minutes only on an explicit close, not on silent expiry.
+
+## 2.14 levels and ages
+Branch `levels-ages` (2026-10-26, from 2.13.0; version and What's new left to the merger). From the persona walk
+(docs/PERSONA-PLAN-2026-10-26.md, untracked): day 1 started everyone at the same place, a 9 to 13 year old got the pond and
+nursery songs, stars were easy to skip and hard to chase, and the comeback opened a list.
+- Who is who (engine/family/Ages.kt, AgesTest): a kid's `AgeBand` (Little, 4 to 7; Big kid, 8 to 13; Profile.band, a kid saved
+  before 2.14 reads as Little) and the `Audience` (little kid, big kid, grown-up) with one rule per question: `mapHome`, `tabs`,
+  `kidSkin`, `kidCheers`, `firstUnitId`, `allPopSongs`, `songsOpenOnChords`, `arcadeInTabs`, `showsLevels`, `gift`,
+  `streakLine`, `voiceSpeed`, `asksLayout`. `Profile.isKid` stays true for both bands: the parent gate, the brief and its kid
+  card, email, bedtime, the mic offset, quests and the tester's profile_kind still ask it. `ui/family isKid()` now means the
+  kid skin (Profile.kidSkin); MainActivity asks `mapHome` for the home, the Songs place, the next lesson and the finales.
+- Big kids: the tabs in Simple (`Simple.layoutOf(audience, ...)`; their own choice holds, never asked at launch), the main
+  course (Basics first; placement No, A few, Lots is Basics, Beginner, Intermediate), Songs opening on every song by chords
+  (section null is the person's own first section), the arcade on the Play corner (`PlayRow(onArcade)`, "Arcade"), Pup says
+  kept, grown-up lessons, player, finish screens and cheer bank, levels and XP, no woofs on Today. Family > the kid > "Make a
+  big kid (8 to 13)" / "Make a little kid (4 to 7)" (`Profile.withBand`); a band change reopens the app.
+- Adding a kid (ui/family/ProfilePicker.kt): "How old is Leo?" (Little, 4 to 7 / Big kid, 8 to 13), "Can they read yet?", then
+  for a reader "Has Leo had piano lessons?" No / A few / Lots (`Placement.kidQuestion`, `Level.kidLine`/`kidSummary`); Go waits
+  for the answer (2.6's open item). A pre-reader is not asked and starts in the garden. Lots keeps "Has had lessons"'s start, the
+  workshop with the hall's recital as a come-back stone: the hall itself would have reopened eleven stones for every kid placed
+  there. Stones placement passed by are drawn as done (warm sand, an empty paw, no stars).
+- Skip the garden (engine/kid/KidLevels.kt GardenSkip): a little reader placed at No with the last three garden stones at three
+  stars sees "Too easy?" at the top of the map; Skip the garden sets the level to A few (the pond next, the garden's other
+  stones passed by), Not now is for good (KidStore.gardenSkipAsked). No gate: nothing is lost.
+- Little readers' pop packs (KidPop): Pop, Greatest hits and Rock after the nursery songs on the kid Songs, each the kid chord
+  list of that style (Screen.KidChords.chip); folsom-prison-blues, knockin-on-heavens-door and watermelon-sugar are left out by
+  title.
+- Day one (engine/nav/DayOne.kt, DayOneTest): never and a little open Today's plan on the lesson (`planSession(lessonFirst)`)
+  with no chord review until two course lessons are played; the review's words are plain for them (`ChordWords`: "Play a C
+  chord", "C, E and G are lit. Any octave counts.", the keys lit). Some and a lot: the check leaves out Find a C (some: five
+  notes and Twinkle; a lot: Twinkle; what it leaves out counts as played), no mic ask in the check and no mic banner unless they
+  chose the microphone (`progress.useMic`), no Twinkle as Start here, in the plan or in the library (a song by chords instead,
+  "Let's start with a song by chords."), and the level and XP seeded from the answer (engine/progress/PlacementLevel.kt: Newcomer,
+  Note Spotter, Melody Maker, Steady Hands; a floor written quietly by ProgressStore.seedFromPlacement once the first-run questions
+  are done; grown-ups and big kids).
+- I know these chords (engine/chords/KnownChords.kt, ui/chords/KnownChordsSheet.kt): the six first chords then the catalogue's
+  most used (16), the songs they play counted as they are picked; Save writes each at the known box (LessonStore.know, never
+  lowering a box). Offered on Today to some and a lot with nothing known (until answered), and under an empty Songs I can play or
+  One new chord away.
+- Stars: the 3-star rule is `Stars.three` (a clean run, or 98 percent or more, nothing let go; 90 with the timing within 80 ms
+  still counts); wait-mode notes let go reach it through `LessonStars.ofRun(report, letGos)`. Next over a graded step not passed
+  asks "Skip this one? It stays at one star." (Skip it / Keep playing); a lesson with a graded step skipped finishes neutral ("On
+  to the next." on screen and nothing said, the standing pup's wag, no clip, confetti or fanfare: ui/Celebrate.kt `FinishStars`, one trailing parameter
+  marked "2.14 levels-ages"). "Try for 3 stars" on a lesson's finish under three stars and the kid map's Replay chip on stones
+  under three stars open the lesson at its first graded step (`LessonStars.firstGraded`; a new key resets the lesson).
+- The comeback (engine/Comeback.kt resume): the lesson left part way at its step (Prefs.openStep, kept as the steps of a lesson
+  not finished go by; a replay of a finished one never overwrites it), the
+  chart or song played last, else the next lesson; never a list. A little kid's card is the pup's as before and opens the lesson
+  left, or a stone they know at its first graded step; a big kid's reads "Welcome back." and "Pick up where you left off: <it>.";
+  a grown-up's as 2.9. After a week or more away one line names the streak: "Your 12-day streak ended on the 9th. A new one
+  starts today." (grown-ups and big kids).
+- Debug: `--ei kidstars 1..3` with `--es kidseed <page>:<n>` seeds every stone at that many stars.
+- Tests: AgesTest, DayOneTest, KnownChordsTest, KidLevelsTest, ComebackResumeTest, LevelsAgesWiringTest; StarsTest,
+  PlacementTest, PlacementCheckTest and four wiring tests follow the new rules. 1754 JVM tests, all green but
+  PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 29 warnings (as 2.13).
+- Emulator walk (Fold_LA copy of Fold_QA_GU on 5560, deleted after; touch, no mic): a grown-up at a lot (Twinkle-only check, no
+  mic ask, Today on "a song by chords" with Riptide as Start here, no mic banner, the chord pick at 16 songs, Level 10 Steady
+  Hands); Leo, a big kid reader with a few (the flow, Beginner's first lesson in the grown-up skin, the skip sheet, the neutral
+  finish with Try for 3 stars opening step 3, Songs by chords first with all 107, the Play corner's Arcade, Today); Mila, a little
+  reader with lots (the workshop, the hall passed by, a Replay chip opening step 2, the Pop pack); Theo, a little reader at No
+  (Skip the garden, then pond-1); the comeback for each with `--es today` (the grown-up's G major at step 3 and the streak line,
+  Leo's plain card, Mila's card opening a stone at step 2). Screenshots app/build/screens/la-*.png (not committed).
+- Open: the plain chord words were checked by tests only (no beginner reached the chord review on the walk); the neutral finish
+  for a little kid by tests only; whether Lots should start at the hall rather than the workshop is Roy's call.

@@ -68,7 +68,7 @@ fun WardrobeReveal(items: List<WearItem>, modifier: Modifier = Modifier, say: ((
     val sounds = rememberWorldSounds()
     val still = reducedMotion()
     val pup = rememberPupController(idle = false)
-    val replay = rememberPupReplay(pup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid))
+    val replay = rememberPupReplay(pup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().kidSkin))
     val rarity = items.maxOf { it.rarity }
     // What he wore before, kept for "No"; the new items go on at once.
     val before = rememberSaveable(items.map { it.id }) { mutableStateOf(world?.state?.outfit?.items?.map { it.id }.orEmpty()) }

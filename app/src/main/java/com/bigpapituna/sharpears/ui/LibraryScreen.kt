@@ -90,7 +90,9 @@ enum class SongsSection(val label: String) { LIBRARY("Library"), BY_CHORDS(com.b
  */
 class PopSection(val songs: List<com.bigpapituna.sharpears.engine.chords.PopSong>, val known: Set<com.bigpapituna.sharpears.engine.Chord>,
                  val start: com.bigpapituna.sharpears.ui.chords.PopStart,
-                 val onOpen: (com.bigpapituna.sharpears.engine.chords.PopSong, com.bigpapituna.sharpears.ui.chords.PopStart) -> Unit)
+                 val onOpen: (com.bigpapituna.sharpears.engine.chords.PopSong, com.bigpapituna.sharpears.ui.chords.PopStart) -> Unit,
+                 /** 2.14: "I know these chords" (the empty lists' button); null: not offered. */
+                 val onKnownChords: (() -> Unit)? = null)
 
 /**
  * The Songs tab (2.7): everything playable in one place. The Play corner at the top (just for fun), then one switch between
@@ -103,17 +105,27 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
                   /** The Play corner (ui/play/PlayRow): the Jam, Pup says and Clap along. */
                   play: (@Composable () -> Unit)? = null,
                   /** Songs by chords (ui/chords), the tab's second section; null while there are no pop songs. */
-                  pop: PopSection? = null, section: SongsSection = SongsSection.LIBRARY, onSection: (SongsSection) -> Unit = {}) {
-    val first = if (played) null else entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
+                  pop: PopSection? = null, section: SongsSection = SongsSection.LIBRARY, onSection: (SongsSection) -> Unit = {},
+                  /**
+                   * 2.14: who is playing. A big kid gets Songs by chords first in the switch and every song in it whatever the
+                   * layout (engine/family/Ages.kt).
+                   */
+                  audience: com.bigpapituna.sharpears.engine.family.Audience = com.bigpapituna.sharpears.engine.family.Audience.GROWN_UP,
+                  /** 2.14 (engine/nav/DayOne.kt easySongDefault): "Start here" with an easy song only for a beginner. */
+                  startHere: Boolean = true) {
+    val first = if (played || !startHere) null else entries.firstOrNull { it.available && it.meta.difficulty == "easy" }
     // Tile art and lengths, read off the main thread and filled in as they arrive.
     val arts = rememberSongArts(remember(entries) { entries.map { it.meta } })
     val popState = pop?.let { com.bigpapituna.sharpears.ui.chords.rememberPopBrowseState(it.start) }
     // The layouts (2.8, engine/nav/Simple.kt): Simple keeps four-chord and easiest songs, until "Show more"; Advanced has them all.
     val layout = LocalLayout.current.layout
     var morePop by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val popSongs = remember(pop?.songs, layout, morePop) {
-        pop?.songs?.let { com.bigpapituna.sharpears.engine.nav.Simple.popSongs(it, com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, morePop)) }.orEmpty()
+    val popSongs = remember(pop?.songs, layout, morePop, audience) {
+        pop?.songs?.let { com.bigpapituna.sharpears.engine.nav.Simple.popSongs(it, com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, morePop), audience) }.orEmpty()
     }
+    val allPop = com.bigpapituna.sharpears.engine.family.Ages.allPopSongs(audience)
+    // 2.14: a big kid's switch reads Songs by chords first (the tab opens there too).
+    val sections = if (com.bigpapituna.sharpears.engine.family.Ages.songsOpenOnChords(audience)) listOf(SongsSection.BY_CHORDS, SongsSection.LIBRARY) else SongsSection.entries
     val popModel = if (pop != null && popState != null) com.bigpapituna.sharpears.ui.chords.rememberPopBrowseModel(popSongs, pop.known, popState) else null
     val showPop = section == SongsSection.BY_CHORDS && pop != null && popState != null && popModel != null
     LazyColumn(
@@ -128,12 +140,12 @@ fun LibraryScreen(entries: List<LibraryEntry>, played: Boolean, a: LibraryAction
         play?.let { p -> item(key = "play") { Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { p() } } }
         // The two sections, one switch: the library, or songs by chords.
         if (pop != null) item(key = "sections") {
-            com.bigpapituna.sharpears.ui.practice.SlidingSegments(SongsSection.entries.map { it.label }, section.ordinal, { onSection(SongsSection.entries[it]) },
+            com.bigpapituna.sharpears.ui.practice.SlidingSegments(sections.map { it.label }, sections.indexOf(section), { onSection(sections[it]) },
                 Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp), height = 40.dp)
         }
         if (showPop && pop != null && popState != null && popModel != null) {
-            popBrowseItems(popModel, popState, pop.known, onOpen = { s -> pop.onOpen(s, popState.now) }, title = false)
-            item(key = "pop-more") { LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.SONGS_BY_CHORDS, morePop, { morePop = true }) }
+            popBrowseItems(popModel, popState, pop.known, onOpen = { s -> pop.onOpen(s, popState.now) }, title = false, onKnownChords = pop.onKnownChords)
+            if (!allPop) item(key = "pop-more") { LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.SONGS_BY_CHORDS, morePop, { morePop = true }) }
             return@LazyColumn
         }
         // Nothing played yet: an easy first song first.

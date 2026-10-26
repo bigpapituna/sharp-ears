@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -148,6 +149,10 @@ fun KidHome(
     gift: (@Composable () -> Unit)? = null,
     /** 2.14: the Play sheet's toys and games wait for tomorrow (today's time is up, or wind down closed them); a tap calls [onClosed]. */
     playClosed: Boolean = false, onClosed: () -> Unit = {},
+    /** 2.14: a walked stone under three stars wears a Replay chip, straight to its first graded step; null: no chips. */
+    onReplay: ((Stone) -> Unit)? = null,
+    /** 2.14: "Skip the garden" for a reader who breezes through it (engine/kid/KidLevels.kt), at the top of the map; null: none. */
+    skipGarden: (@Composable () -> Unit)? = null,
 ) {
     var playOpen by remember { mutableStateOf(false) }
     var questOpen by remember { mutableStateOf(false) }
@@ -229,11 +234,13 @@ fun KidHome(
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 item(key = "hello") { Hello(name, avatar) }
                 grownUpOffer?.let { offer -> item(key = "grown-up") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp)) { offer() } } }
+                skipGarden?.let { offer -> item(key = "skip-garden") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp)) { offer() } } }
                 model.pages.forEachIndexed { i, page ->
                     item(key = "page-${page.page.id}") {
                         PageScene(page, world, onStone = { s -> if (decorate.active) Unit else if (s.state == StoneState.LATER && !asleep) nudge = KidLines.THIS_ONE_FIRST.also(say) else onStone(s) },
                             onJar = onJar, onEgg = onEgg, asleep = asleep,
-                            spots = decorActions?.let { a -> { sl, dc -> SpotView(sl, dc, decorate, a, reachable = i in reached) } }) { sizes ->
+                            spots = decorActions?.let { a -> { sl, dc -> SpotView(sl, dc, decorate, a, reachable = i in reached) } },
+                            onReplay = onReplay?.takeIf { !decorate.active }) { sizes ->
                             val w = maxWidth
                             nextSpot(page, model.next, w)?.let { (x, y) ->
                                 // The trail runs rightward along the first row, back along the second, and so on.
@@ -529,5 +536,25 @@ private fun CornerRow(title: String, icon: Int, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Icon(painterResource(icon), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp))
         Text(title, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/**
+ * 2.14, "Skip the garden" (engine/kid/KidLevels.kt GardenSkip): a reader who said "No" lessons and played three stones at three
+ * stars in a row. One card at the top of the map: the line, Skip the garden (the pond next, the garden's other stones passed
+ * by) and Not now (never again). Text only: a reader reads it, nothing new is said aloud.
+ */
+@Composable
+fun SkipGardenCard(onSkip: () -> Unit, onLater: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp)).background(c.surfaceContainerHigh)
+        .border(2.dp, com.bigpapituna.sharpears.ui.PupGold, androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+        .padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(com.bigpapituna.sharpears.engine.kid.GardenSkip.TITLE, style = MaterialTheme.typography.titleLarge, color = c.onSurface)
+        Text(com.bigpapituna.sharpears.engine.kid.GardenSkip.LINE, style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.TextButton(onClick = onLater) { Text(com.bigpapituna.sharpears.engine.kid.GardenSkip.LATER) }
+            com.bigpapituna.sharpears.ui.ChunkyButton(onClick = onSkip) { Text(com.bigpapituna.sharpears.engine.kid.GardenSkip.SKIP) }
+        }
     }
 }

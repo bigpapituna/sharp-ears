@@ -44,6 +44,9 @@ import com.bigpapituna.sharpears.engine.family.ProfileKind
 
 /** What a profile is, in a few words: "Kid, reads", "Kid, not reading yet", "Grown-up", "Grown-up, this phone's owner". */
 fun kindLabel(p: Profile) = when {
+    // 2.14: a big kid says so (the tabs); a little kid reads as before.
+    p.bigKid && p.reader -> "Big kid, reads"
+    p.bigKid -> "Big kid, not reading yet"
     p.isKid && p.reader -> "Kid, reads"
     p.isKid -> "Kid, not reading yet"
     p.isOwner -> "Grown-up, this phone's owner"
@@ -95,6 +98,10 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
                 TextButton(onClick = { gate.guard { profiles.update(p.id) { it.copy(reader = !it.reader) } } }) {
                     Text(if (p.reader) "Not reading yet" else "Reads now")
                 }
+                // 2.14, the age band (engine/family/Ages.kt): the pup's world for 4 to 7, the tabs for 8 to 13. The app reopens as them.
+                TextButton(onClick = { gate.guard { profiles.update(p.id) { it.withBand(if (it.bigKid) com.bigpapituna.sharpears.engine.family.AgeBand.LITTLE else com.bigpapituna.sharpears.engine.family.AgeBand.BIG) } } }) {
+                    Text(if (p.bigKid) "Make a little kid (4 to 7)" else "Make a big kid (8 to 13)")
+                }
                 TextButton(onClick = { gate.guard { profiles.setKind(p.id, ProfileKind.ADULT) } }) { Text("Switch to grown-up mode") }
             } else if (!p.isOwner) {
                 TextButton(onClick = { gate.guard { profiles.setKind(p.id, ProfileKind.KID) } }) { Text("Switch to kid mode") }
@@ -132,6 +139,8 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
         AlertDialog(onDismissRequest = { levelFor = null }, title = { Text("Piano level for ${p.name}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // 2.14: a kid's answers are No, A few and Lots, to the question the new-kid flow asks.
+                    if (p.isKid) Text(Placement.kidQuestion(p.name), style = MaterialTheme.typography.bodyMedium, color = dim)
                     Level.options(p.kind).forEach { l ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(picked == l, role = Role.RadioButton) { picked = l },
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,7 +151,7 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
                             }
                         }
                     }
-                    Text(Placement.planFor(picked, p.kind, p.reader).line.let { if (picked == Level.NEVER) "The course starts at its very beginning." else it } +
+                    Text(Placement.planFor(picked, p.kind, p.reader, p.band).line.let { if (picked == Level.NEVER) "The course starts at its very beginning." else it } +
                         " Lessons already played, and their stars, are never taken away.", style = MaterialTheme.typography.bodySmall, color = dim,
                         modifier = Modifier.padding(top = 8.dp))
                 }
@@ -183,6 +192,6 @@ fun FamilySettings(profiles: Profiles, gate: ParentGateController = LocalParentG
     }
 }
 
-/** ", Has played a bit" / ", Some" after a person's kind, once they said how much they have played (nothing for a first time). */
+/** ", a few lessons" / ", played some" after a person's kind, once they said how much they have played (nothing for a first time). */
 private fun levelSuffix(p: Profile): String =
-    if (p.level == Level.NEVER) "" else ", " + (if (p.isKid) p.level.forKid.kidLine!! else p.level.label).replaceFirstChar { it.lowercase() }.let { if (p.isKid) it else "played $it" }
+    if (p.level == Level.NEVER) "" else ", " + if (p.isKid) p.level.forKid.kidSummary!! else "played " + p.level.label.lowercase()

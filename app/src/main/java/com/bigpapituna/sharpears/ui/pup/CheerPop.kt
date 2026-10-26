@@ -124,6 +124,8 @@ data class CheerCue(val seq: Int, val cheer: Cheer, val side: CheerSide, val fro
 class CheerPops internal constructor(
     val coach: CheerCoach, private val sampler: Sampler, private val mic: MicInput, private val voice: Voice, private val prefs: Prefs,
     private val scope: CoroutineScope, private val tonic: Int, private val telemetry: Boolean,
+    /** 2.14: the tester's profile kind is the profile's (Profile.isKid, a big kid too), never the bank's [kid] (the skin). */
+    private val profileKid: Boolean = coach.kid,
 ) {
     val kid get() = coach.kid
     var cue by mutableStateOf<CheerCue?>(null)
@@ -163,7 +165,7 @@ class CheerPops internal constructor(
         sync()
         val c = coach.stepPassed(now()) ?: return null
         Log.d(TAG, "cheer: ${c.trigger.wire} $audience \"${c.line}\" voice=${ChimeMode.SKIP}")
-        if (telemetry) Tester.cheerPop(c.trigger, kid)
+        if (telemetry) Tester.cheerPop(c.trigger, profileKid)
         return c.line
     }
 
@@ -183,7 +185,7 @@ class CheerPops internal constructor(
         val said = CheerRules.voiceMode(prefs.voice && CheerRules.aloud(kid, prefs.cheerAloud), listening, phones, s.betweenNotes)
         val sound = CheerRules.soundMode(prefs.sound, chiming(), listening, phones, s.betweenNotes)
         Log.d(TAG, "cheer: ${c.trigger.wire} $audience \"${c.line}\" voice=$said")
-        if (telemetry) Tester.cheerPop(c.trigger, kid)
+        if (telemetry) Tester.cheerPop(c.trigger, profileKid)
         when (said) {
             ChimeMode.PLAY -> voice.speak(c.line)
             ChimeMode.PLAY_DEAF -> voice.speakOverMic(c.line)
@@ -200,14 +202,15 @@ class CheerPops internal constructor(
 }
 
 /**
- * A [CheerPops] for this screen, new for each [key] (a lesson, a song). [kid]: whose words; [tonic]: the sparkle's key
- * (0, C, where the screen has none). [telemetry] false: the debug screen.
+ * A [CheerPops] for this screen, new for each [key] (a lesson, a song). [kid]: whose words (the kid skin's bank); [tonic]: the
+ * sparkle's key (0, C, where the screen has none). [telemetry] false: the debug screen. [profileKid]: the tester's profile kind
+ * (2.14: Profile.isKid, so a big kid on the grown-up bank still reports as a kid).
  */
 @Composable
 fun rememberCheerPops(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Prefs, kid: Boolean, key: Any, tonic: Int = 0,
-                      telemetry: Boolean = true): CheerPops {
+                      telemetry: Boolean = true, profileKid: Boolean = kid): CheerPops {
     val scope = rememberCoroutineScope()
-    return remember(key, kid) { CheerPops(CheerCoach(kid, prefs.cheerFrequency), sampler, mic, voice, prefs, scope, tonic, telemetry) }
+    return remember(key, kid, profileKid) { CheerPops(CheerCoach(kid, prefs.cheerFrequency), sampler, mic, voice, prefs, scope, tonic, telemetry, profileKid) }
 }
 
 /** The sparkle: two soft high notes, a short fade, let go (also when the screen goes). */

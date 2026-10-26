@@ -114,7 +114,9 @@ fun rememberPopBrowseModel(songs: List<PopSong>, known: Set<Chord>, state: PopBr
  * chips and sorts, then a tile per song. Keys start with "pop-", so they sit beside other rows (the Songs tab's library).
  */
 fun androidx.compose.foundation.lazy.LazyListScope.popBrowseItems(m: PopBrowseModel, state: PopBrowseState, known: Set<Chord>,
-                                                                 onOpen: (PopSong) -> Unit, title: Boolean = true) {
+                                                                 onOpen: (PopSong) -> Unit, title: Boolean = true,
+                                                                 /** 2.14: "I know these chords", offered where Songs I can play or One new chord away is empty. */
+                                                                 onKnownChords: (() -> Unit)? = null) {
     item(key = "pop-head") {
         val c = MaterialTheme.colorScheme
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -130,8 +132,18 @@ fun androidx.compose.foundation.lazy.LazyListScope.popBrowseItems(m: PopBrowseMo
         }
     }
     if (m.list.isEmpty()) item(key = "pop-empty") {
-        Text(emptyLine(state.chip, state.sort), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 480.dp).padding(horizontal = 24.dp, vertical = 28.dp))
+        // 2.14: the two lists that read the chords known end with a way to say which ones (engine/chords/KnownChords.kt).
+        val byChords = state.sort == PopFind.Sort.CAN_PLAY || state.sort == PopFind.Sort.ONE_AWAY
+        Column(Modifier.widthIn(max = 480.dp).padding(horizontal = 24.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(emptyLine(state.chip, state.sort), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center)
+            if (byChords && onKnownChords != null) {
+                Text(com.bigpapituna.sharpears.engine.chords.KnownChords.EMPTY_LINE, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                com.bigpapituna.sharpears.ui.ChunkyButton(onClick = onKnownChords) { Text(com.bigpapituna.sharpears.engine.chords.KnownChords.OFFER) }
+            }
+        }
     }
     items(m.list, key = { "pop-" + it.id }) { s ->
         PopSongTile(s, known, Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
@@ -276,22 +288,26 @@ fun FourChordBadge() {
  * animals for a child who cannot read yet).
  */
 @Composable
-fun KidChordSongs(songs: List<PopSong>, onOpen: (PopSong) -> Unit, onBack: () -> Unit) {
+fun KidChordSongs(songs: List<PopSong>, onOpen: (PopSong) -> Unit, onBack: () -> Unit,
+                  /** 2.14: one of a little reader's pop packs (engine/kid/KidLevels.kt KidPop); null: the kids' songs, as before. */
+                  chip: PopFind.Chip? = null) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(56.dp)) {
                 Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back to the songs", tint = c.onSurface, modifier = Modifier.size(30.dp))
             }
-            Text("Songs by chords", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+            Text(com.bigpapituna.sharpears.engine.kid.KidPop.title(chip), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
         }
-        PopBrowse(songs, emptySet(), onOpen, Modifier.fillMaxSize(), kid = true)
+        if (chip == null) PopBrowse(songs, emptySet(), onOpen, Modifier.fillMaxSize(), kid = true)
+        else PopKidBrowse(songs, onOpen, Modifier.fillMaxSize(), chip)
     }
 }
 
 @Composable
-private fun PopKidBrowse(songs: List<PopSong>, onOpen: (PopSong) -> Unit, modifier: Modifier) {
-    val list = remember(songs) { songs.filter { PopSong.Style.KIDS in it.styles }.sortedWith(PopFind.easiest) }
+private fun PopKidBrowse(songs: List<PopSong>, onOpen: (PopSong) -> Unit, modifier: Modifier, chip: PopFind.Chip? = null) {
+    // 2.14: a pack's songs for a little reader, or the kids' style (engine/kid/KidLevels.kt KidPop).
+    val list = remember(songs, chip) { com.bigpapituna.sharpears.engine.kid.KidPop.songs(songs, chip) }
     val c = MaterialTheme.colorScheme
     LazyVerticalGrid(GridCells.Adaptive(minSize = 200.dp), modifier, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp, top = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

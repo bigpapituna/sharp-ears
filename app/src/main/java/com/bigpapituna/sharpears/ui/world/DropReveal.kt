@@ -224,7 +224,7 @@ fun DropRevealOverlay(reward: Reward, onDone: () -> Unit, primary: String = "Int
         Column(Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 104.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // 2.14: a tap on him plays his jump again, with a tiny sparkle.
-            val replay = rememberPupReplay(pup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid))
+            val replay = rememberPupReplay(pup, voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().kidSkin))
             ReplayPup(Pose.STICKER, replay, pup, 128.dp, clips = true, idle = true)
             if (reward.drops.isNotEmpty()) DropReveal(reward, pup = pup, cardWidth = if (reward.drops.size > 1) 132.dp else 168.dp) { revealed = true }
             if (revealed) RewardExtras(reward, songTitle = songTitle)

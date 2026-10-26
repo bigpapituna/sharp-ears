@@ -96,7 +96,8 @@ object BriefEmail {
     fun extras(context: Context, profile: Profile): EmailExtras {
         val app = context.applicationContext
         val bedtime = runCatching { BedtimeStore(app, profile.id).bedtime }.getOrNull()
-        val path = if (!profile.isKid) null else runCatching {
+        // 2.14 merge: the map's page is a little kid's (Profile.mapHome); a big kid walks the main course, so no page line.
+        val path = if (!profile.mapHome) null else runCatching {
             val prefs = Prefs(app, profile.id)
             val kid = KidStore(app, profile.id)
             val model = KidMap.build(CoursePath(profile.firstUnitId, bigKid = profile.reader, startAt = { com.bigpapituna.sharpears.engine.family.Placement.startLessonId(profile) }),

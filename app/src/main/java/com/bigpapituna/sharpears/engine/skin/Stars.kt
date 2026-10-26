@@ -14,28 +14,43 @@ import kotlin.math.abs
  *   average timing within [TIGHT_MS] ms (RunWords' "a hair early/late" band or better).
  * - Wait (the notes wait, no timing): ★ for reaching the end; ★★ with at most [FEW_WRONG] wrong keys; ★★★ with none.
  * Never zero: a recap only appears once a run reached its end, and getting there earns the first star.
+ *
+ * 2.14, the third star in one rule ([three]): a clean run (no wrong key in Wait, every note in time in Perform) or
+ * [CLEAN_FROM] percent or more in Perform, with nothing let go (no note the app played after the third try, no round the
+ * pup let go); 90 percent with the timing within [TIGHT_MS] still counts. Sam played Twinkle at 98 percent with his timing
+ * 126 ms ahead and got two stars: he gets three now.
  */
 object Stars {
     const val MAX = 3
     const val IN_TIME_FROM = 60
     const val ALL_FROM = 90
+    /** 2.14: from here a Perform run earns the third star whatever its timing. */
+    const val CLEAN_FROM = 98
     const val TIGHT_MS = 80
     const val FEW_WRONG = 3
 
-    fun perform(r: Recap): Int = when {
-        r.accuracy >= ALL_FROM && abs(r.biasMs) < TIGHT_MS -> 3
+    /**
+     * The 3-star rule, the one place it is decided: [recap] a Perform run's (null: the notes waited), [wrongKeys] a wait
+     * run's, [letGos] notes or rounds let go after their third try (any of them keeps it at two at most).
+     */
+    fun three(recap: Recap?, wrongKeys: Int, letGos: Int = 0): Boolean = letGos <= 0 && if (recap != null)
+        recap.accuracy >= CLEAN_FROM || (recap.accuracy >= ALL_FROM && abs(recap.biasMs) < TIGHT_MS)
+        else wrongKeys <= 0
+
+    fun perform(r: Recap, letGos: Int = 0): Int = when {
+        three(r, 0, letGos) -> 3
         r.accuracy >= IN_TIME_FROM -> 2
         else -> 1
     }
 
-    fun waitRun(wrongKeys: Int): Int = when {
-        wrongKeys <= 0 -> 3
+    fun waitRun(wrongKeys: Int, letGos: Int = 0): Int = when {
+        three(null, wrongKeys, letGos) -> 3
         wrongKeys <= FEW_WRONG -> 2
         else -> 1
     }
 
-    /** Stars for a recap: a Perform [recap] when there is one, else a wait run with [wrongKeys]. */
-    fun of(recap: Recap?, wrongKeys: Int): Int = recap?.let(::perform) ?: waitRun(wrongKeys)
+    /** Stars for a recap: a Perform [recap] when there is one, else a wait run with [wrongKeys]; [letGos] as in [three]. */
+    fun of(recap: Recap?, wrongKeys: Int, letGos: Int = 0): Int = recap?.let { perform(it, letGos) } ?: waitRun(wrongKeys, letGos)
 
     /** What TalkBack says for the row. */
     fun spoken(stars: Int): String = when (stars.coerceIn(1, MAX)) {

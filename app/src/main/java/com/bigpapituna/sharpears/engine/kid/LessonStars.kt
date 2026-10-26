@@ -20,14 +20,49 @@ object LessonStars {
 
     /** What skipping [step] adds to the lesson's steps: [SKIPPED] for a graded step, null for a picture or a listen. */
     fun ofSkip(step: com.bigpapituna.sharpears.engine.Step): Int? =
-        SKIPPED.takeIf { step.exercise != null && step.kind != com.bigpapituna.sharpears.engine.StepKind.LISTEN }
+        SKIPPED.takeIf { graded(step) }
+
+    /** A step that is judged (it has an exercise and is not a listen): the steps a skip costs a star and a replay goes to. */
+    fun graded(step: com.bigpapituna.sharpears.engine.Step): Boolean =
+        step.exercise != null && step.kind != com.bigpapituna.sharpears.engine.StepKind.LISTEN
+
+    /**
+     * 2.14, "Try for 3 stars" and a stone's Replay: the index of the lesson's first graded step, so a replay skips the reading
+     * pages and the listens before it (Theo's replay started again at the reading page, every time). 0 when none is graded.
+     */
+    fun firstGraded(steps: List<com.bigpapituna.sharpears.engine.Step>): Int = steps.indexOfFirst(::graded).coerceAtLeast(0)
+
+    /** The finish screen offers "Try for 3 stars" when the lesson earned fewer and has a graded step to go back to. */
+    fun tryForThree(stars: Int, steps: List<com.bigpapituna.sharpears.engine.Step>): Boolean = stars in 1 until Stars.MAX && steps.any(::graded)
+
+    /** A walked stone under three stars wears a Replay chip (2.14); a stone passed by placement has no stars to chase. */
+    fun replayChip(stone: Stone): Boolean = stone.state == StoneState.DONE && !stone.skipped && stone.stars in 1 until Stars.MAX
+
+    /**
+     * How a lesson's finish sounds (2.14): a lesson with a graded step skipped with Next is [Finish.NEUTRAL] ("On to the next.",
+     * the pup's wag, no "You did it!" or the celebrate clip); every other finish celebrates.
+     */
+    fun finish(skippedGraded: Int): Finish = if (skippedGraded > 0) Finish.NEUTRAL else Finish.CELEBRATE
+
+    enum class Finish { CELEBRATE, NEUTRAL }
+
+    const val TRY_FOR_THREE = "Try for 3 stars"
+    const val REPLAY = "Replay"
+    /** The sheet before Next passes a graded step by. */
+    const val SKIP_TITLE = "Skip this one?"
+    const val SKIP_LINE = "It stays at one star."
+    const val SKIP_YES = "Skip it"
+    const val SKIP_NO = "Keep playing"
+    /** The neutral finish's title (and what the voice says). */
+    const val NEUTRAL_TITLE = "On to the next."
+    const val NEUTRAL_LINE = "Come back for more stars any time."
 
     /**
      * Stars for one exercise step's passing run: a Perform run by its accuracy and timing ([Stars.perform]); a run
      * with its own score (the drum's beats with a clap, a pedal or loudness step) by that score on the same lines as
      * Perform accuracy; a run where the notes wait by its wrong keys ([Stars.waitRun]).
      */
-    fun ofRun(report: Report): Int = minOf(byScore(report), letGoCap(report))
+    fun ofRun(report: Report, letGos: Int = 0): Int = minOf(byScore(report, letGos), letGoCap(report))
 
     /**
      * A stage that let rounds go (three tries, nothing heard or found) cannot earn more than it played: one star when half
@@ -40,14 +75,14 @@ object LessonStars {
         else -> 2
     }
 
-    private fun byScore(report: Report): Int = when {
-        report.recap != null -> Stars.perform(report.recap)
+    private fun byScore(report: Report, letGos: Int): Int = when {
+        report.recap != null -> Stars.perform(report.recap, letGos)
         report.extraScore != null -> when {
-            report.extraScore >= Stars.ALL_FROM -> 3
+            report.extraScore >= Stars.ALL_FROM && letGos <= 0 -> 3
             report.extraScore >= Stars.IN_TIME_FROM -> 2
             else -> 1
         }
-        else -> Stars.waitRun(report.wrongKeys)
+        else -> Stars.waitRun(report.wrongKeys, letGos)
     }
 
     /**

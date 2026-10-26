@@ -143,6 +143,8 @@ fun Celebration(
      * title, no sentences, no stat chips on screen (TalkBack still hears them, and the voice says the one line).
      */
     picture: Boolean = false,
+    /** 2.14 levels-ages: the stars' part of a lesson's finish (see [FinishStars]); null: as before. */
+    stars: FinishStars? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
     // The buttons fade in where the keys were: a tap meant for the keys does nothing (SettleTaps).
@@ -168,8 +170,10 @@ fun Celebration(
     // 2.14, tap the pup to play it again: the clip from its first frame (the rig's jump and cheer without one), a tiny sparkle, a kid's
     // line the first time only. It never waits on the buttons.
     val replay = com.bigpapituna.sharpears.ui.pup.rememberPupReplay(pup, clip = clip, hold = clip != null, then = PupMood.CHEER,
-        voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().isKid))
+        voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().kidSkin))
     LaunchedEffect(Unit) {
+        // 2.14 levels-ages: a finish with a graded step skipped is neutral: the rig's wag, never the jump or the celebrate clip.
+        if (stars?.neutral == true) { snapshotFlow { rise.value }.first { it >= 0.97f }; pup.play(PupMood.WAG); return@LaunchedEffect }
         if (clip != null) pup.prepare(clip)
         snapshotFlow { rise.value }.first { it >= 0.97f }
         if (clip != null) pup.playClip(clip, fallback = PupMood.HAPPY, hold = true, then = PupMood.CHEER)
@@ -180,7 +184,7 @@ fun Celebration(
         }
     }
     LaunchedEffect(Unit) {
-        sampler?.let { launch { fanfare(it) } }
+        if (stars?.neutral != true) sampler?.let { launch { fanfare(it) } }      // 2.14 levels-ages: no fanfare for a skip
         if (still) return@LaunchedEffect
         launch { rise.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = 180f)) }
         launch { snapshotFlow { rise.value }.first { it >= 0.97f }; puff.animateTo(1f, tween(750, easing = LinearEasing)) }
@@ -247,7 +251,15 @@ fun Celebration(
         if (reward != null && rest.value > 0.3f) Box(Modifier.padding(top = 4.dp)) { reward() }
     }
     val middle: @Composable ColumnScope.() -> Unit = { head(pupSize); drop() }
+    // 2.14 levels-ages: "Try for 3 stars", straight to the lesson's first graded step, over the way on.
+    val retryTap = stars?.retry?.let { (_, go) -> settledTap(action = go) }
     val bottom: @Composable ColumnScope.() -> Unit = {
+        // A picture finish (a child who cannot read yet) gets it as a picture too: the "again" arrow, its words for TalkBack.
+        if (stars?.retry != null && retryTap != null) androidx.compose.material3.OutlinedButton(onClick = retryTap,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).then(if (picture) Modifier.semantics { contentDescription = stars.retry.first } else Modifier)) {
+            if (picture) Icon(painterResource(com.bigpapituna.sharpears.R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(26.dp))
+            else Text(stars.retry.first)
+        }
         // "One more" brings its own big button; then the way out is the quieter one.
         if (picture) {
             // A child who cannot read yet: one big button, an arrow on it (2.14).
@@ -266,7 +278,7 @@ fun Celebration(
     // still reachable and could be activated through the celebration).
     Box(Modifier.fillMaxSize().paper().pointerInput(Unit) { detectTapGestures { } }.semantics { paneTitle = title }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Confetti(title, Modifier.fillMaxSize())
+        if (stars?.neutral != true) Confetti(title, Modifier.fillMaxSize())      // 2.14 levels-ages: none for a skip
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         // A landscape screen or a big square one (the Fold's inner screen): the pup and his words on the left, the drop
         // and the way on at the right, so nothing has to scroll out of sight.
@@ -520,3 +532,12 @@ internal fun CalmRewards(calm: CalmFinish, modifier: Modifier = Modifier) {
     }
     if (open.value) com.bigpapituna.sharpears.ui.world.RewardsSheet(calm.items, onClose = { open.value = false }, say = calm.say)
 }
+// ---- 2.14 levels-ages (branch levels-ages): the stars' part of a lesson's finish. Branch polish redesigns the finish
+// screens' layout; this adds no layout of its own beyond one button, and is kept apart so the two merge cleanly. ----
+
+/**
+ * The stars on a lesson's finish (engine/kid/LessonStars.kt): [retry], "Try for 3 stars" and where it goes (the lesson's first
+ * graded step), offered under three stars; [neutral] when a graded step was skipped with Next: the caller's title is "On to
+ * the next.", the pup wags (no jump, no celebrate clip, no confetti, no fanfare).
+ */
+class FinishStars(val retry: Pair<String, () -> Unit>? = null, val neutral: Boolean = false)

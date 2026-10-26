@@ -40,7 +40,9 @@ enum class Toy(val title: String, val line: String, val pose: Pose) {
  * pictures say it); a grown-up a line each. [titled] false leaves the title to a sheet that has its own.
  */
 @Composable
-fun PlayRow(onToy: (Toy) -> Unit, modifier: Modifier = Modifier, titled: Boolean = true) {
+fun PlayRow(onToy: (Toy) -> Unit, modifier: Modifier = Modifier, titled: Boolean = true,
+            /** 2.14: a big kid's way into the arcade (ui/arcade) from the tabs, a fourth tile; null: none. */
+            onArcade: (() -> Unit)? = null) {
     val kid = isKid()
     val c = MaterialTheme.colorScheme
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -60,6 +62,18 @@ fun PlayRow(onToy: (Toy) -> Unit, modifier: Modifier = Modifier, titled: Boolean
                     if (!kid) Text(t.line, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 3)
                 }
             }
+            if (onArcade != null) Column(Modifier.weight(1f).fillMaxHeight().pressScale().clip(RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh)
+                .clickable(role = Role.Button, onClickLabel = "Open the $ARCADE", onClick = onArcade).padding(horizontal = 8.dp, vertical = 12.dp)
+                .semantics(mergeDescendants = true) { },
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Pup(Pose.TAIL_CHASE, size = if (kid) 76.dp else 60.dp, idle = false)
+                Text(ARCADE, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center, maxLines = 1)
+                if (!kid) Text("Pop balloons, grow the garden, beat your best.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant,
+                    textAlign = TextAlign.Center, maxLines = 3)
+            }
         }
     }
 }
+
+/** 2.14: the arcade's name on a big kid's Play corner ("Games" is the chord games' name in Learn). */
+const val ARCADE = "Arcade"

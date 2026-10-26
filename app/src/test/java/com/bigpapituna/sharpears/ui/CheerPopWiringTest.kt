@@ -80,7 +80,7 @@ class CheerPopWiringTest {
         assertTrue("ChimeMode.PLAY -> voice.speak(c.line)" in show && "ChimeMode.PLAY_DEAF -> voice.speakOverMic(c.line)" in show)
         assertTrue(show.indexOf("mic.deafFor(CheerRules.SPARKLE_DEAF_MS.toLong())") in 0 until show.indexOf("playSparkle("))
         assertTrue("Log.d(TAG, \"cheer: \${c.trigger.wire} \$audience \\\"\${c.line}\\\" voice=\$said\")" in show)
-        assertTrue("if (telemetry) Tester.cheerPop(c.trigger, kid)" in show)
+        assertTrue("if (telemetry) Tester.cheerPop(c.trigger, profileKid)" in show)      // 2.14 merge: the profile's kind (a big kid is a kid)
         assertTrue("} finally {\n        notes.forEach { sampler.noteOff(it.midi) }" in pop)
         // The design system's colours only (the accent and the pup's gold, the bubble in the theme's container).
         assertFalse(Regex("""Color\(0x""").containsMatchIn(pop))

@@ -124,7 +124,7 @@ fun PopSongPage(
     preReader: Boolean = false,
 ) {
     val profile = LocalProfile.current
-    val kid = kidOverride ?: profile.isKid
+    val kid = kidOverride ?: profile.kidSkin      // 2.14: a big kid gets the whole page (key, tempo, patterns, the band)
     val reader = (profile.reader || !profile.isKid) && !preReader
     val c = MaterialTheme.colorScheme
     val key = Math.floorMod(song.key + shift, 12)

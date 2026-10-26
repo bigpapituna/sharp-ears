@@ -151,7 +151,7 @@ class PolishWiringTest {
         assertTrue("captions = com.bigpapituna.sharpears.ui.family.profile().reader" in src("ui/Retention.kt") || "captions = reader" in src("ui/Retention.kt") ||
             "WrappedGift(modifier, captions = com.bigpapituna.sharpears.ui.family.profile().reader)" in src("ui/Retention.kt"))
         // "Done for today" and the goodbye too.
-        assertTrue("picture = !current.reader" in src("MainActivity.kt") && "picture = current.isKid && !current.reader" in src("MainActivity.kt"))
+        assertTrue("picture = !current.reader" in src("MainActivity.kt") && "picture = current.kidSkin && !current.reader" in src("MainActivity.kt"))
         val bye = src("ui/skin/Goodbye.kt")
         assertTrue("picture: Boolean = false" in bye && "if (picture) androidx.activity.compose.BackHandler(onBack = onClose)" in bye)
         assertEquals("both goodbyes in the lesson", 2, Regex("""picture = kid && !who\.reader""").findAll(lesson).count())
@@ -165,7 +165,7 @@ class PolishWiringTest {
         assertTrue("WearSlot.entries.firstOrNull { sl -> s.unlocked.any { it.slot == sl } } ?: WearSlot.HEAD" in dress)
         // Locked items are no longer tiles of their own: the grid is what is open, then the one tile.
         assertTrue("all.filter { it in s.wardrobe } + (if (all.any { it !in s.wardrobe }) listOf(null) else emptyList())" in dress)
-        assertTrue("starter = profile.isKid" in src("MainActivity.kt"))
+        assertTrue("starter = profile.kidSkin" in src("MainActivity.kt"))
         assertTrue("starter: Boolean = false" in src("data/WorldStore.kt"))
     }
 

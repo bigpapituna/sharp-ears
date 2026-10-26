@@ -117,6 +117,8 @@ internal fun PageScene(page: MapPage, world: WorldState, modifier: Modifier = Mo
                        onJar: (() -> Unit)?, onEgg: (() -> Unit)?, asleep: Boolean = false,
                        /** 2.5: the scene's sticker spots (decorate mode and its long press); null: stuck stickers only shown. */
                        spots: (@Composable BoxWithConstraintsScope.(SceneSlot, Decal?) -> Unit)? = null,
+                       /** 2.14: a walked stone under three stars wears a Replay chip that opens its first graded step; null: none. */
+                       onReplay: ((Stone) -> Unit)? = null,
                        overlay: @Composable BoxWithConstraintsScope.(MapSizes) -> Unit) {
     Column(modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PageFlag(page)
@@ -126,7 +128,7 @@ internal fun PageScene(page: MapPage, world: WorldState, modifier: Modifier = Mo
                 onJar = onJar.takeIf { page.place == Place.GARDEN }, onEgg = onEgg.takeIf { page.place == Place.GARDEN },
                 stop = { i -> page.stones.getOrNull(i)?.let { s -> StoneView(s, sizes, onClick = { onStone(s) }, asleep = asleep, stars = false, badge = badgeOf(s, world)) } },
                 slots = spots,
-                overlay = { overlay(sizes); StarsOver(page, sizes) })
+                overlay = { overlay(sizes); StarsOver(page, sizes); if (onReplay != null && !asleep) ReplayChips(page, sizes, onReplay) })
         }
     }
 }
@@ -175,7 +177,7 @@ internal fun StoneView(stone: Stone, sizes: MapSizes, onClick: () -> Unit, aslee
     Layout(content = {
         Box(Modifier.size(d * 1.1f, d).clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }) {
-            Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring?.value ?: 0f, asleep) }
+            Canvas(Modifier.size(d * 1.1f, d)) { drawPebble(stone.state, night, ring?.value ?: 0f, asleep, passedBy = stone.skipped) }
             // The sticker this stone gives, as a shape on its shoulder until it is earned.
             if (badge != null) Box(Modifier.align(Alignment.TopEnd).offset(x = d * 0.22f, y = -d * 0.24f).size(d * 0.56f)
                 .background(Color.White.copy(alpha = if (night) 0.75f else 0.88f), CircleShape)
@@ -210,6 +212,29 @@ private fun BoxWithConstraintsScope.StarsOver(page: MapPage, sizes: MapSizes) {
     }
 }
 
+/**
+ * 2.14: a Replay chip beside each walked stone under three stars (engine/kid/LessonStars.replayChip), drawn over the scene like
+ * the stars: a round button with the replay arrow, its stars to win named for TalkBack. It opens the lesson at its first
+ * graded step (Theo's replays started at the reading page, every time).
+ */
+@Composable
+private fun BoxWithConstraintsScope.ReplayChips(page: MapPage, sizes: MapSizes, onReplay: (Stone) -> Unit) {
+    val at = WorldAnchors.stops(page.place, page.stones.size)
+    page.stones.forEachIndexed { i, s ->
+        val a = at.getOrNull(i) ?: return@forEachIndexed
+        if (!com.bigpapituna.sharpears.engine.kid.LessonStars.replayChip(s)) return@forEachIndexed
+        val d = sizes.stone * 0.62f
+        Box(Modifier.pinAt(maxWidth * a.x + sizes.stone * 0.62f, maxHeight * a.y - sizes.stone * 0.3f).size(d).clip(CircleShape)
+            .background(Accent).border(2.dp, Color.White, CircleShape)
+            .clickable(role = Role.Button, onClickLabel = com.bigpapituna.sharpears.engine.kid.LessonStars.REPLAY) { onReplay(s) }
+            .semantics { contentDescription = "${com.bigpapituna.sharpears.engine.kid.LessonStars.REPLAY} ${s.title}, try for three stars" },
+            contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(com.bigpapituna.sharpears.R.drawable.ic_repeat), contentDescription = null,
+                tint = Color.White, modifier = Modifier.size(d * 0.6f))
+        }
+    }
+}
+
 /** Three little stars, [stars] of them gold. */
 @Composable
 private fun StarsUnder(stars: Int, size: Dp, modifier: Modifier = Modifier) {
@@ -232,10 +257,11 @@ internal fun DrawScope.drawStar(fill: Color, edge: Color, line: Float) {
     drawPath(star, edge, style = Stroke(line, join = StrokeJoin.Round))
 }
 
-private fun DrawScope.drawPebble(state: StoneState, night: Boolean, ring: Float, asleep: Boolean) {
+private fun DrawScope.drawPebble(state: StoneState, night: Boolean, ring: Float, asleep: Boolean, passedBy: Boolean = false) {
     val w = size.width; val h = size.height
     val line = w * 0.045f
-    val face = when (state) {
+    // 2.14: a stone placement passed by is done for the path: warm sand, lighter than a walked one, an empty paw and no stars.
+    val face = if (state == StoneState.OPEN && passedBy) (if (night) Color(0xFFCDB98F) else Color(0xFFF3E4BF)) else when (state) {
         StoneState.DONE -> if (night) Color(0xFFD8B676) else Color(0xFFF6D894)
         StoneState.NEXT -> if (asleep) Color(0xFFB9A7D6) else Accent
         StoneState.OPEN -> if (night) Color(0xFFC9BEAE) else Color(0xFFEFE6D8)

@@ -22,9 +22,12 @@ val LocalProfiles = staticCompositionLocalOf<Profiles?> { null }
 @Composable @ReadOnlyComposable
 fun profile(): Profile = LocalProfile.current
 
-/** True when a kid is playing: the kid skin (bites, stars, no numbers, the goodbye) is on. */
+/**
+ * True when the kid skin (bites, stars, no numbers, the goodbye) is on: a little kid (2.14). A big kid (8 to 13) reads the
+ * grown-up screens; ask `LocalProfile.current.isKid` for what treats every kid alike (the gate, the brief, bedtime, quests).
+ */
 @Composable @ReadOnlyComposable
-fun isKid(): Boolean = LocalProfile.current.isKid
+fun isKid(): Boolean = LocalProfile.current.kidSkin
 
 /** True when the player reads: letters on the colour notes. Always true for grown-ups; pre-readers get animals. */
 @Composable @ReadOnlyComposable

@@ -154,7 +154,7 @@ internal class JamFx {
 @Composable
 fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -> Unit, hint: String? = null, voice: Voice? = null) {
     val profile = LocalProfile.current
-    val kid = profile.isKid
+    val kid = profile.kidSkin                    // 2.14: the pup's kid words for a little kid; a big kid's quest is still a kid's
     val reader = profile.reader
     val context = LocalContext.current
     val store = remember(profile.id) { PlayStore(context, profile.id) }
@@ -226,7 +226,7 @@ fun JamScreen(mic: MicInput, midi: MidiDevices?, frames: FrameTap?, onExit: () -
         Log.d(TAG, "jam: ${noteName(m)} ($src${if (confirmed) "" else ", not confirmed"}) at $at caption \"${said?.text}\"")
         if (m % 12 == 0) {
             // Touched, the Cs on these keys are all there are to find (C4 and C5); the mic and MIDI have every C.
-            val stars: List<QuestTask> = store.recordQuest(QuestEvent.NotePlayed(m, touchKeys = if (src == "touch") LOW..HIGH else null), kid)
+            val stars: List<QuestTask> = store.recordQuest(QuestEvent.NotePlayed(m, touchKeys = if (src == "touch") LOW..HIGH else null), profile.isKid)
             if (stars.isNotEmpty()) line = if (kid) "You found all the Cs! A quest star!" else "All the Cs: a quest star."
         }
     }

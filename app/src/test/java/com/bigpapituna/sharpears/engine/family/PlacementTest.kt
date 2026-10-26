@@ -94,7 +94,11 @@ class PlacementTest {
         assertEquals("A little: I know some keys and can play a simple tune", Level.A_LITTLE.adultText)
         assertEquals("Some: I play with both hands and read a bit", Level.SOME.adultText)
         assertEquals("A lot: I'm here for songs and technique", Level.A_LOT.adultText)
-        assertEquals(listOf("First time at a piano", "Has played a bit", "Has had lessons"), Level.kid.map { it.kidLine })
+        // 2.14: "Has Theo had piano lessons?" No, A few, Lots.
+        assertEquals(listOf("No", "A few", "Lots"), Level.kid.map { it.kidLine })
+        assertEquals(listOf("no lessons yet", "a few lessons", "lots of lessons"), Level.kid.map { it.kidSummary })
+        assertEquals("Has Theo had piano lessons?", Placement.kidQuestion("Theo"))
+        assertEquals("Have they had piano lessons?", Placement.kidQuestion(" "))
         assertEquals(Level.NEVER, Level.parse(null)); assertEquals(Level.NEVER, Level.parse("nonsense")); assertEquals(Level.SOME, Level.parse("SOME"))
     }
 

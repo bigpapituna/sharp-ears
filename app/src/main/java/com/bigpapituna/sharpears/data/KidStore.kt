@@ -59,6 +59,11 @@ class KidStore(context: Context, val profileId: String, private val log: (String
         get() = p.getBoolean(ROAD_SAID, false)
         set(v) { p.edit { putBoolean(ROAD_SAID, v) }; version.intValue++ }
 
+    /** 2.14: "Skip the garden" was answered (taken, or "Not now"): it is never offered again (engine/kid/KidLevels.kt GardenSkip). */
+    var gardenSkipAsked: Boolean
+        get() = p.getBoolean(GARDEN_SKIP, false)
+        set(v) { p.edit { putBoolean(GARDEN_SKIP, v) }; version.intValue++ }
+
     /** The lesson pinned as the next stone and until when (Set as next), or null. */
     var pin: Pin?
         get() = p.getString(PIN, null)?.let { Pin(it, p.getLong(PIN_UNTIL, 0L)) }
@@ -120,6 +125,7 @@ class KidStore(context: Context, val profileId: String, private val log: (String
         private const val STARS = "stars:"
         private const val FINALE = "finale:"
         private const val ROAD_SAID = "roadSaid"
+        private const val GARDEN_SKIP = "gardenSkipAsked"
         private const val PIN = "pin"
         private const val PIN_UNTIL = "pinUntil"
         private const val FOCUS = "focus"

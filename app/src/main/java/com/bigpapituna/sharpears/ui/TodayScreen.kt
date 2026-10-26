@@ -77,7 +77,8 @@ data class GoalState(val line: String, val met: Boolean, val streak: Int, val at
 sealed interface ContinueTile {
     /** A library song; [fresh] is "Start here", an easy first song before anything was played. */
     data class Song(val entry: LibraryEntry, val fresh: Boolean) : ContinueTile
-    data class PopSong(val song: com.bigpapituna.sharpears.engine.chords.PopSong) : ContinueTile
+    /** A song by chords; [fresh] (2.14): the first song offered to someone who said some or a lot, before anything was played. */
+    data class PopSong(val song: com.bigpapituna.sharpears.engine.chords.PopSong, val fresh: Boolean = false) : ContinueTile
     /** A course lesson and the name of its unit. */
     data class Lesson(val lesson: CourseLesson, val unit: String?, val done: Boolean) : ContinueTile
 }
@@ -114,9 +115,14 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 /** 2.14: the grown-up's name for the greeting ("Good evening, Dana."), null when none was given ("Hi there"). */
                 name: String? = null,
                 /** 2.14: Family today (ui/family/FamilyTodayCard.kt) under the card, when the family has kids; null: none. */
-                family: (@Composable () -> Unit)? = null) {
+                family: (@Composable () -> Unit)? = null,
+                /** 2.14: "I know these chords" offered under the card (some and a lot, nothing known yet); null: not offered. */
+                knownChords: (@Composable () -> Unit)? = null) {
     val shown = if (emptyPlan && card.state == TodayCard.State.PLAN) card.copy(state = TodayCard.State.NOTHING_DUE, rows = emptyList()) else card
     var tapLine by remember { mutableStateOf<String?>(null) }
+    // 2.14: a big kid's words are plain: no woofs from the pup on their Today.
+    val big = com.bigpapituna.sharpears.ui.family.LocalProfile.current.bigKid
+    val taps = remember(big) { if (big) PUP_TAPS.filter { "Woof" !in it } else PUP_TAPS }
     var playCorner by remember { mutableStateOf(false) }
     val dressed = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current != com.bigpapituna.sharpears.engine.world.Outfit.NONE
     val pose = when {
@@ -126,7 +132,8 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
         dressed -> Pose.WEAR_BASE                    // in his outfit (2.1): the base pose is the one he wears it in
         else -> Pose.WELCOME
     }
-    val fresh = (cont as? ContinueTile.Song)?.fresh == true || cont == null
+    val freshChart = (cont as? ContinueTile.PopSong)?.fresh == true
+    val fresh = (cont as? ContinueTile.Song)?.fresh == true || cont == null || freshChart
     val arts = rememberSongArts(remember(cont) { listOfNotNull((cont as? ContinueTile.Song)?.entry?.meta) })
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -135,15 +142,16 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             // for half a minute he dozes off.
             Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // 2.10: idle only and subtle (a breath, a blink, now and then an ear): no acts, no hops; a tap still wags him.
-                Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (PUP_TAPS - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
+                Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (taps - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
                     bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
-                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name) { greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name) }, style = MaterialTheme.typography.bodyLarge,
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name, freshChart) { greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name, easy = !freshChart) }, style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
             welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
             TodayCardView(shown, goal, a, quest, showStart = welcomeBack == null)
             family?.invoke()
+            knownChords?.invoke()
             when (cont) {
                 null -> {}
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -342,9 +350,12 @@ private fun PlayCornerSheet(onToy: (Toy) -> Unit, onDismiss: () -> Unit) {
  * away ([back]) is a welcome, never a word about the streak; a rest day is said plainly.
  */
 internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, hour: Int = java.time.LocalTime.now().hour, back: Boolean = false,
-                       /** 2.14: the grown-up's name (Greeting): "Good evening, Dana." with one, "Good evening." without. */ name: String? = null): String = when {
+                       /** 2.14: the grown-up's name (Greeting): "Good evening, Dana." with one, "Good evening." without. */ name: String? = null,
+                       /** 2.14: the first song offered is the easy one (a beginner); false: a song by chords (some, a lot). */
+                       easy: Boolean = true): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
     back -> "${Greeting.welcomeBack(name)} Good to see you."
+    fresh && !easy -> "${Greeting.hi(name)} I'm your coach. Let's start with a song by chords."
     fresh -> "${Greeting.hi(name)} I'm your coach. Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."
     goal != null && goal.atRisk && goal.restYesterday -> "Yesterday was a rest day. Ready when you are."
@@ -354,4 +365,21 @@ internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, 
     hour < 12 -> "${Greeting.timeOfDay("Good morning", name)} A few minutes at the keys?"
     hour < 18 -> "${Greeting.timeOfDay("Good afternoon", name)} Ready when you are."
     else -> "${Greeting.timeOfDay("Good evening", name)} A short session before the day ends?"
+}
+
+/**
+ * 2.14, "I know these chords" on Today (engine/chords/KnownChords.kt): one outlined line under the card for someone who said
+ * some or a lot and has no chord known yet, with the way to the pick and a close (it stays away once answered either way).
+ */
+@Composable
+fun KnownChordsRow(onOpen: () -> Unit, onClose: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, c.outlineVariant, RoundedCornerShape(16.dp))
+        .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(painterResource(R.drawable.ic_piano), contentDescription = null, tint = c.primary, modifier = Modifier.size(22.dp))
+        Text(com.bigpapituna.sharpears.engine.chords.KnownChords.OFFER_LINE, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        TextButton(onClick = onOpen) { Text(com.bigpapituna.sharpears.engine.chords.KnownChords.OFFER) }
+        IconButton(onClick = onClose) { Icon(painterResource(R.drawable.ic_close), contentDescription = "Not now", tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
+    }
 }

@@ -112,6 +112,11 @@ fun PlacementCheckScreen(
     /** The label of the last button: where the pup takes them ("Start learning", "Show me the songs", "To the map"). */
     finishLabel: String = "Start learning",
     inject: String? = null, startTask: Int = 0,
+    /**
+     * 2.14 (engine/nav/DayOne.kt checkAsksMic): false for a grown-up who chose the screen's keys or MIDI: the microphone is not
+     * asked for (Sam chose MIDI and was asked anyway); the check plays on the keys and MIDI.
+     */
+    askMic: Boolean = true,
 ) {
     val tasks = remember(said, who.kind) { PlacementCheck.tasksFor(if (who.isKid) said.forKid else said) }
     if (tasks.isEmpty()) {
@@ -126,7 +131,7 @@ fun PlacementCheckScreen(
     BackHandler { quit() }
 
     // The microphone is asked for once, up front; allowed or not, the check plays (the keys can be touched).
-    var settled by remember { mutableStateOf(mic.hasPermission() || inject != null) }
+    var settled by remember { mutableStateOf(mic.hasPermission() || inject != null || !askMic) }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         Log.d(TAG, "placement: microphone ${if (ok) "allowed" else "not allowed"}"); settled = true
     }
@@ -137,7 +142,7 @@ fun PlacementCheckScreen(
     var rewardShown by remember { mutableStateOf<Reward?>(null) }
     var finished by remember { mutableStateOf(false) }
     val suggestion = remember(finished) {
-        if (!finished) null else PlacementCheck.suggest(said, PlacementCheck.score(results.toList()), who.kind, tasks.size)
+        if (!finished) null else PlacementCheck.suggest(said, PlacementCheck.score(results.toList()), who.kind, tasks.size, who.band)
     }
     val scope = rememberCoroutineScope()
     fun ended(task: Task, r: Result) {

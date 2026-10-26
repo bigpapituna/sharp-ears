@@ -232,7 +232,8 @@ fun PlayerScreen(
     // 2.13, cheer pops: a lesson's own (LocalCheers, drawn over its header); a song played on its own gets one per song, drawn
     // in a top corner of its notes.
     val cheers = com.bigpapituna.sharpears.ui.pup.LocalCheers.current ?: if (embedded == null) com.bigpapituna.sharpears.ui.pup.rememberCheerPops(
-        sampler, mic, voice, prefs, com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid, key = original.id) else null
+        sampler, mic, voice, prefs, com.bigpapituna.sharpears.ui.family.LocalProfile.current.kidSkin, key = original.id,
+        profileKid = com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid) else null
     PlayerStage(PlayerArgs(original, meta, sampler, midi, mic, voice, prefs, ready, startMs, debugDump, start, onBack, onFinished, embedded,
         modifier, chordTrack, onTimeUp, anyOfLessons, onWrongKey, letGo, onRecapClosed, band, onRightKey, cheers))
 }
@@ -280,10 +281,12 @@ private fun PlayerStage(args: PlayerArgs) {
     val labels = embedded?.labels ?: true
     // Who is playing: the mic offset and the report tag follow the profile; hint timings and the key size are theirs.
     val profile = com.bigpapituna.sharpears.ui.family.LocalProfile.current
-    val kid = profile.isKid
+    // 2.14: the kid skin (big keys, the pup in the bar, no numbers) is a little kid's; a big kid plays the grown-up player and
+    // keeps a kid's quest (the quest is per kind, as Today and the map ask it).
+    val kid = profile.kidSkin
     // 2.10: a kid's pup in the bar (the full player): he wags at every right key and tilts his head at a wrong one.
     val kidPup = rememberPupController(idle = false)
-    val questStore = androidx.compose.ui.platform.LocalContext.current.let { c -> remember(profile.id) { if (kid) com.bigpapituna.sharpears.data.PlayStore(c.applicationContext, profile.id) else null } }
+    val questStore = androidx.compose.ui.platform.LocalContext.current.let { c -> remember(profile.id) { if (profile.isKid) com.bigpapituna.sharpears.data.PlayStore(c.applicationContext, profile.id) else null } }
     // Kids get big keys: just the octave the notes need, about twice as wide (REGULAR is exactly fitRange).
     val keySize = KeyboardSize.forKid(kid)
     // A kid playing one hand (the concert's band plays the other) sees only that hand's keys; the rest play themselves.
@@ -559,7 +562,7 @@ private fun PlayerStage(args: PlayerArgs) {
             }
             InputResult.CORRECT, InputResult.GROUP_DONE -> {
                 // A C played right counts toward a kid's quest, "Find all the Cs" (QA 2.8.3: Where C lives' every C did not).
-                if (kid && midi in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS) questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(midi), kid = true)
+                if (profile.isKid && midi in com.bigpapituna.sharpears.engine.play.QuestTask.ALL_CS) questStore?.recordQuest(com.bigpapituna.sharpears.engine.play.QuestEvent.NotePlayed(midi), kid = true)
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (kid) kidPup.play(com.bigpapituna.sharpears.engine.pup.PupMood.WAG)
                 onRightKey(midi)
@@ -658,7 +661,7 @@ private fun PlayerStage(args: PlayerArgs) {
         val timeMs = transport.runRealMs.toLong()
         // A run the player played drops a sticker and counts for today's quest.
         val reward = if (played) world?.songComplete(meta.id, run?.accuracy) else null
-        if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), kid)
+        if (played) PlayStore(context, profile.id).recordQuest(QuestEvent.SongFinished(meta.id), profile.isKid)
             .forEach { Log.d(TAG, "quest: ${it.kind} done by ${song.id}") }
         // A duet: the partner gets the whole run too (their own best and first completion), and today's quest.
         val partner = duet?.partnerOf(profile.id)?.let { id -> everyone.firstOrNull { it.id == id } }

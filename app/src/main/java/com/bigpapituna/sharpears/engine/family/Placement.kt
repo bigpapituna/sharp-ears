@@ -18,6 +18,9 @@ import com.bigpapituna.sharpears.engine.playground.isPlaygroundLevel
 /**
  * How much piano someone has played. Grown-ups answer all four; a parent answers for a kid with the first three ([kidLine]
  * is null for [A_LOT]). Stored by name in the profile ([Profile.level]).
+ *
+ * 2.14: a parent is asked "Has Theo had piano lessons?" ([Placement.kidQuestion]) and answers No, A few or Lots ([kidLine]);
+ * [kidSummary] is the answer inside a sentence ("a few lessons"). Lots starts at the same page "Has had lessons" did.
  */
 enum class Level(
     /** The grown-up's answer, short. */
@@ -26,11 +29,13 @@ enum class Level(
     val adultLine: String,
     /** A parent's answer for a kid; null: not offered for kids. */
     val kidLine: String?,
+    /** The kid's answer inside a sentence (Family's "A kid, a few lessons"); null for [A_LOT]. */
+    val kidSummary: String?,
 ) {
-    NEVER("Never", "I'm starting from the very first key", "First time at a piano"),
-    A_LITTLE("A little", "I know some keys and can play a simple tune", "Has played a bit"),
-    SOME("Some", "I play with both hands and read a bit", "Has had lessons"),
-    A_LOT("A lot", "I'm here for songs and technique", null);
+    NEVER("Never", "I'm starting from the very first key", "No", "no lessons yet"),
+    A_LITTLE("A little", "I know some keys and can play a simple tune", "A few", "a few lessons"),
+    SOME("Some", "I play with both hands and read a bit", "Lots", "lots of lessons"),
+    A_LOT("A lot", "I'm here for songs and technique", null, null);
 
     /** "Never: I'm starting from the very first key". */
     val adultText: String get() = "$label: $adultLine"
@@ -98,6 +103,9 @@ object Placement {
     /** The page a kid of each level starts at: the garden, the pond, the workshop (the garden, pond and hall are skipped). */
     private val KID_START = mapOf(Level.NEVER to "garden", Level.A_LITTLE to "pond", Level.SOME to "workshop")
 
+    /** The question a parent answers for a kid who reads (2.14): "Has Theo had piano lessons?". */
+    fun kidQuestion(name: String): String = if (name.isBlank()) "Have they had piano lessons?" else "Has $name had piano lessons?"
+
     /**
      * The first unit and lesson to open for [level], what is marked "done, skipped" and what the home shows first.
      * Kids (answered by a parent): first time at a piano starts in the garden; has played a bit at the pond (the garden
@@ -105,11 +113,15 @@ object Placement {
      * as a "come back" stone). Grown-ups: never starts at Basics, a little at Beginner (Basics skipped), some at
      * Intermediate (Basics, Beginner and Rhythm skipped), a lot at Keys (everything before it skipped, Learn opens at Keys and
      * the home shows the song library first). A [reader] kid on a page the big kids' short list names lessons in starts at
-     * the first of them.
+     * the first of them. A big kid (2.14, [band] BIG) walks the main course as a grown-up does, Basics first: no lessons
+     * is Basics, a few is Beginner, lots is Intermediate.
      */
     fun startFor(level: Level, kind: ProfileKind, reader: Boolean = true, course: List<CourseLevel> = COURSE,
-                 pages: List<PlaygroundPage> = PLAYGROUND_PAGES): PlacementPlan =
-        if (kind == ProfileKind.KID) forKid(level.forKid, reader, course, pages) else forAdult(level, course)
+                 pages: List<PlaygroundPage> = PLAYGROUND_PAGES, band: AgeBand = AgeBand.LITTLE): PlacementPlan = when {
+        kind == ProfileKind.KID && band == AgeBand.BIG -> forAdult(level.forKid, course).copy(kind = ProfileKind.KID)
+        kind == ProfileKind.KID -> forKid(level.forKid, reader, course, pages)
+        else -> forAdult(level, course)
+    }
 
     private fun forAdult(level: Level, course: List<CourseLevel>): PlacementPlan {
         val main = course.filter { !isPlaygroundLevel(it.id) }
@@ -158,15 +170,16 @@ object Placement {
      */
     const val CHECK_TITLE = "Let's hear you play"
 
-    private val plans = HashMap<Triple<Level, ProfileKind, Boolean>, PlacementPlan>()
+    private val plans = HashMap<List<Any>, PlacementPlan>()
 
     /** [startFor] on the app's own course, remembered (the path asks on every look). */
-    fun planFor(level: Level, kind: ProfileKind, reader: Boolean = true): PlacementPlan = synchronized(plans) {
-        plans.getOrPut(Triple(if (kind == ProfileKind.KID) level.forKid else level, kind, reader)) { startFor(level, kind, reader) }
+    fun planFor(level: Level, kind: ProfileKind, reader: Boolean = true, band: AgeBand = AgeBand.LITTLE): PlacementPlan = synchronized(plans) {
+        val b = if (kind == ProfileKind.KID) band else AgeBand.LITTLE
+        plans.getOrPut(listOf(if (kind == ProfileKind.KID) level.forKid else level, kind, reader, b)) { startFor(level, kind, reader, band = b) }
     }
 
     /** The plan of [who]'s level. */
-    fun planOf(who: Profile): PlacementPlan = planFor(who.level, who.kind, who.reader)
+    fun planOf(who: Profile): PlacementPlan = planFor(who.level, who.kind, who.reader, who.band)
 
     /**
      * The lesson suggestions begin at for [who] ([com.bigpapituna.sharpears.engine.CoursePath]'s startAt): their plan's start,

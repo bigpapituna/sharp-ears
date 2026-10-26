@@ -27,12 +27,19 @@ object PlacementCheck {
         TWINKLE("Twinkle with the band", "Play the start of Twinkle, Twinkle with your right hand. The band plays along."),
     }
 
-    /** The things [level] is asked to play: nothing for a first time, two for a little, three for some and a lot. */
+    /**
+     * The things [level] is asked to play: nothing for a first time, two for a little. 2.14 (Sam, "a lot", was asked to "Find
+     * a C. Any C will do."): some skips Find a C (five notes and Twinkle), a lot plays Twinkle with the band only.
+     */
     fun tasksFor(level: Level): List<Task> = when (level) {
         Level.NEVER -> emptyList()
         Level.A_LITTLE -> listOf(Task.FIND_C, Task.FIVE_NOTES)
-        Level.SOME, Level.A_LOT -> Task.entries
+        Level.SOME -> listOf(Task.FIVE_NOTES, Task.TWINKLE)
+        Level.A_LOT -> listOf(Task.TWINKLE)
     }
+
+    /** The easier things [level]'s check leaves out (Find a C for some; Find a C and five notes for a lot): taken as played. */
+    fun leftOut(level: Level): Int = tasksFor(level).firstOrNull()?.let { Task.entries.indexOf(it) } ?: 0
 
     /** Someone who has never played goes straight to Basics: no check is offered. */
     fun offered(level: Level) = tasksFor(level).isNotEmpty()
@@ -63,11 +70,13 @@ object PlacementCheck {
 
     /**
      * The highest level playing [score] of [asked] things speaks for. All of them does not argue with any level (so the check
-     * never lowers a true answer); two of three is a little; less is a first time.
+     * never lowers a true answer); two of the three (the easier ones the check left out, [leftOut], count as played) is a
+     * little; less is a first time. So a lot who lets Twinkle go starts at a little, as when they found the C and played the
+     * five notes but not Twinkle before 2.14.
      */
-    fun supports(score: Int, asked: Int): Level = when {
+    fun supports(score: Int, asked: Int, leftOut: Int = 0): Level = when {
         asked > 0 && score >= asked -> Level.A_LOT
-        score >= 2 -> Level.A_LITTLE
+        score + leftOut >= 2 -> Level.A_LITTLE
         else -> Level.NEVER
     }
 
@@ -77,16 +86,18 @@ object PlacementCheck {
      * is the self-report. The check never raises a level. [kind] chooses the words (a kid's pages or a grown-up's units).
      * [Suggestion.line] is what the pup says: where they will start and what stays open, never a mark.
      */
-    fun suggest(selfReport: Level, score: Int?, kind: ProfileKind = ProfileKind.ADULT, asked: Int = tasksFor(selfReport).size): Suggestion {
+    fun suggest(selfReport: Level, score: Int?, kind: ProfileKind = ProfileKind.ADULT, asked: Int = tasksFor(selfReport).size,
+                band: AgeBand = AgeBand.LITTLE): Suggestion {
         val said = if (kind == ProfileKind.KID) selfReport.forKid else selfReport
-        val played = score?.let { supports(it.coerceIn(0, asked.coerceAtLeast(0)), asked) }
+        val played = score?.let { supports(it.coerceIn(0, asked.coerceAtLeast(0)), asked, if (asked == tasksFor(said).size) leftOut(said) else 0) }
         val level = if (played == null || played.ordinal >= said.ordinal) said else played
-        val plan = Placement.startFor(level, kind)
+        val plan = Placement.startFor(level, kind, band = band)
+        val pages = kind == ProfileKind.KID && band == AgeBand.LITTLE
         val agrees = level == said
         val line = when {
             score == null -> plan.line
             agrees -> "Lovely playing. ${plan.line}"
-            else -> "Let's begin at ${plan.startTitle}" + plan.openLine().let { if (it.isEmpty()) "." else "; " + (if (kind == ProfileKind.KID) it.replaceFirstChar { c -> c.lowercase() } else it) }
+            else -> "Let's begin at ${plan.startTitle}" + plan.openLine().let { if (it.isEmpty()) "." else "; " + (if (pages) it.replaceFirstChar { c -> c.lowercase() } else it) }
         }
         return Suggestion(level, said, score, agrees, line)
     }
