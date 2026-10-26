@@ -66,6 +66,8 @@ class BigKidGrownUpsTest {
             assertTrue("$s has a door", Regex("""\b${Regex.escape(s)}\b""").containsMatchIn(doors))
         // Practice today's lesson (a big kid's Start) ends at its next step once the time is up, as one from Learn does.
         assertTrue("if (profile.isKid && capSince >= 0) closedForToday(\"a plan's lesson step ended\")" in activity)
+        // No comeback card offers a lesson once the day is closed (its Play would only open the goodbye).
+        assertTrue("if (comebackOpen && comeback != null && capSince < 0) {" in activity && "progress.secondsToday() > 0 || capSince >= 0) null" in activity)
         // A lesson's bedtime asks every kid, the skin only draws it.
         val lesson = src("ui/LessonScreen.kt")
         assertTrue("val kid = who.kidSkin" in lesson && "val anyKid = who.isKid" in lesson)

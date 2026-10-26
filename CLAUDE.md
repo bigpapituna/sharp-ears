@@ -2022,7 +2022,8 @@ the family card, a daily time limit and Lock now; tap the pup, timing bar by bar
   after the goal and the goal's well done in LessonScreen ask `anyKid`; a big kid's grown-up finish reads "Done for today" into
   the goodnight. The kid doors (MainActivity `kidDoor`) cover the tabs' screens too: Practice today, Learn chords, Progressions,
   Sight-read, Ear training and Theory are LESSON doors, the chord games a GAMES door; Practice today's lesson ends at its next
-  step once the time is up, as a lesson from Learn does. `cheer_pop`'s profile kind is the profile's (`CheerPops.profileKid`).
+  step once the time is up, as a lesson from Learn does; no comeback card (the map's or Today's) offers a lesson once the day
+  is closed. `cheer_pop`'s profile kind is the profile's (`CheerPops.profileKid`).
   The brief's next lesson (AppEffects) and the email's map page (BriefEmail) ask `mapHome`. Skin, not safety: the pup tap's woof,
   the non-reader goodbye picture, the day-1 starter and the song recap (RunRecap `kid` and its words) follow `kidSkin`, so a big
   kid reads the grown-up recap with the timing panel. `SightLevels.staffOpen/open(..., bigKid)`: the grown-ups' rule for them.
@@ -2036,8 +2037,9 @@ the family card, a daily time limit and Lock now; tap the pup, timing bar by bar
   finish, the bandana, the repeat icon, two pup taps (`pup replay #1`, the woof once); Twinkle in Perform by a MIDI script: the
   timing panel, the rule and run lines, the calm line and its chip and sheet; a grown-up lesson at two stars with the lesson
   rule and Try for 3 stars (opened step 3); Leo's daily time reached in Practice today (the grace closed it before the fix, the
-  next step after it) and Start closing at once; Lock now; comebacks for Sam (the streak line) and Leo ("Pick up where you left
-  off: Your first melody.", step 2). No crash.
+  next step after it) and Start closing at once; Mia capped: the picture goodbye with its one check button, and after a week
+  away no comeback card offering a stone over it (it did before the fix); Lock now; comebacks for Sam (the streak line) and Leo
+  ("Pick up where you left off: Your first melody.", step 2). No crash.
 - Open for Roy: big kids get no next challenge (depth's `NextChallenge.eligible` is grown-ups only) and no What's new or tour
   (`Welcome.next` asks isKid); a capped big kid's tabs still show the plan and the library (each closes at once when opened,
   no "Tomorrow" on them); big kids' arcade hub copy ("Pick a game!") stays kid-style; the lesson rule line's length on the

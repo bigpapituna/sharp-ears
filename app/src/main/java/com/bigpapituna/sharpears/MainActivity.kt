@@ -1778,7 +1778,8 @@ class MainActivity : ComponentActivity() {
                                 com.bigpapituna.sharpears.ui.GiftOpening(o, reader = current.reader, say = { voice.speak(it, interrupt = true) }, onClose = { voice.stop(); giftOpened = null })
                             }
                             // 2.9, the comeback: the pup is glad, and one stone the kid knows to play for stars (once per return).
-                            if (comebackOpen && comeback != null) {
+                            // 2.14 merge: not once today's time is up (parents): its Play would only open the goodbye.
+                            if (comebackOpen && comeback != null && capSince < 0) {
                                 // 2.14: a concrete step: the lesson left part way at its step, else a stone they know from its first
                                 // graded step (they know it; the reading page waits), else the next stone.
                                 val left = remember { com.bigpapituna.sharpears.engine.Comeback.parseLeft(prefs.openStep)?.takeIf { (id, _) -> !prefs.lessonDone(id) && path.lesson(id) != null } }
@@ -1903,7 +1904,7 @@ class MainActivity : ComponentActivity() {
                                             // concrete step, never a list (engine/Comeback.kt resume: the lesson left part way at its step, the
                                             // last chart or song, else the next lesson); a big kid's words are plain; after a week away one line
                                             // says what became of the streak.
-                                            welcomeBack = if (!comebackOpen || comeback == null || progress.secondsToday() > 0) null else { {
+                                            welcomeBack = if (!comebackOpen || comeback == null || progress.secondsToday() > 0 || capSince >= 0) null else { {
                                                 val r = remember {
                                                     com.bigpapituna.sharpears.engine.Comeback.resume(com.bigpapituna.sharpears.engine.Comeback.parseLeft(prefs.openStep),
                                                         com.bigpapituna.sharpears.engine.nav.ContinueWith.decode(prefs.lastPlayed), nextLesson()?.id, done = prefs::lessonDone) { c ->
