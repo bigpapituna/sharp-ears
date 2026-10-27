@@ -2344,3 +2344,38 @@ a parent report, a forgiving streak), and the shareable parts were songs by chor
 - Expected conflicts: `plain-mode` (ui/WelcomeTour.kt only if it also edits the tour; MainActivity's Welcome.next call and Practice slot are near its pup switches), `mic-trust`
   (none in code; docs/STORE-LISTING.md section 6 must be reconciled with the privacy page), the merger's 2.15.0 line in `Welcome.WHATS_NEW` (untouched here) and the `RunEnd` data class
   (a new trailing `tip`). Open: the recap's tip pushes the Loop pills lower on a short screen (they sit in the scrolling part); the tour pictures are fixed samples, not live screens.
+
+### 2.15.0 status (integrated 2026-10-27, branch `release-2.15`, versionCode 31; emulator-5558 Fold_QA_GU only, not on Roy's phone yet)
+The four 2.15 branches merged in the order error-tracking (a fast-forward), mic-trust, plain-mode, show-off (the merge commits
+name every conflict and choice). Test baseline: 1968 JVM tests, all green, PopPrivateTest included (a keyed worktree; TesterTest's
+two keyless checks skip by assumption); lint 0 errors, 40 warnings (as mic-trust measured; 2.14.0's 30 plus ten older ones). The
+keyless door: `:app:compileDebugKotlin "-Psharpears.posthog=false"` and `:app:testDebugUnitTest "-Psharpears.posthog=false"` pass
+(1967 then). Voice: 3972 catalog lines, 3972 files, `render_voice.py --check` records and deletes nothing. What's new 2.15.0: three
+lines (Plain look in Settings; the microphone card, privacy page, could-not-hear hint and room check; the tour and tips). WelcomeTest
+checks them.
+- Merge decisions: `Tester.look(layout.wire, plainLook = plainMode.on)` keyed on the layout and the Plain value (LocalPlain's);
+  the Plain offer asks `AppFlags.plainLookOffer` last, inside `PlainLook.offerDue(..., flag)`, before `plainOffered` is written
+  (flag off: no card, nothing marked; the exposure event only for those the card would reach); cheers: Plain on is Off, else
+  `prefs.cheerFrequency` (the choice, else the `cheer_frequency_default` flag, else Often), Plain never writes it. `mic_not_heard`
+  is `AppEvents.micNotHeard` (catalog, cause only), one per hint through TesterTally; `TesterRules.MIC_NOT_HEARD` stays. What Help
+  Roy test sends is said once, `TesterRules.SENDS` ("screen recordings, app events and error reports"): the Settings line, the
+  default-on notice, the mic card, the privacy page's What leaves this phone and the onboarding's first card. The could-not-hear
+  hint's words, the mic card and the privacy page never read LocalPlain (PlainWiringTest). In the Plain look the tour skips card 5,
+  "A streak that forgives" (`Welcome.tour(plain)`, four cards; its picture is paws); the tips stay. `tour_card_seen`'s `which` is
+  the card's picture (plan, band, timing, loop, streak; For grown-ups: family, limit, gate). docs/STORE-LISTING.md section 6 is
+  `MicTrust.privacy`'s real strings for the public build's facts.
+- Emulator smoke (5558, fresh install, keyed debug APK; Help Roy test turned off in Settings, Testing, behind the gate, six
+  minutes after the first launch, 12:02 to 12:09 emulator time, every event `is_emulator` true; screenshots app/build/screens/
+  r215-*.png, not committed): onboarding as Dana (name, Never, Microphone, the mic card with the merged tester sentence, Not now,
+  "You're all set"), the layout question (Advanced), the five-card tour ("Hi, Dana."), Today, Finger numbers step 3 by a MIDI
+  script (check, confetti, cheer pop, x9, "Spot on!"), Settings' Encouragement (Often), Plain look on: Settings ("Off in Plain look",
+  Step sound), Today (the mark, no pup, quest or paws), the same step plain ("Passed.", the check alone, chime SKIP); Twinkle in
+  Wait with injected silence and Plain on: the could-not-hear hint in words at 8 s, "Use the on-screen keys" took the mic off; the
+  privacy page (the merged Help Roy test line, the Testing paragraph with error reports); Plain off: You with the streak and
+  freezes back; Mia added from Settings, Family (the gate, the form, the brief's day, then the mic card naming her, Not now),
+  For grown-ups on Dana's return (three cards); Mia's High and low step 4 by touch: the picture finish, three stars, the bandana.
+  No crash (one process all walk). Fixed: the onboarding's testing line (it said only "what happens on screen").
+- Open: once a little kid's card was answered Not now (at the kid's making), her Jam shows "Mic off" with no button, so the card
+  behind the gate from a kid's own screen was not walked again (MicTrustWiringTest holds it); `mic_permission` counts Android's
+  answers only, the card's Not now sends nothing; the new tour opens over whichever tab "Look around first" lands on (Learn);
+  nothing on the Fold itself.
