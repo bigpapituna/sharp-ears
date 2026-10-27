@@ -2082,7 +2082,8 @@ removal). Emulator Fold_PL (a wiped copy of Fold_QA_GU, config only) on 5560, de
   spoken lines S/S/R (`PlainLook.voiceOn`: Spoken guidance has its own value in Plain, Prefs `plainVoice`, off until turned on there;
   the usual one waits), woof and exclamation lines S/S/P (`PlainLook.calm`: a plain bank for the cheer bar's titles, "High five!",
   "Good try!", "Lesson complete!"; otherwise the pup's sentences go and a trailing "!" becomes ".", only the end, so "Oh! Susanna"
-  keeps its own; Celebration, CheerBar, RunRecap and every spoken line pass through it), the comeback card S/S/P ("Welcome back." and
+  keeps its own; Celebration, CheerBar, RunRecap and every spoken line pass through it; said aloud, a line made only of the pup's
+  words is kept, calmed, since it may be an instruction), the comeback card S/S/P ("Welcome back." and
   "Pick up where you left off: <item>."), the switch H/S/S, the offer H/S/H.
 - Also plain: Today's greeting is text (no "I'm your coach", the time of day in place of the streak and rest-day lines), avatars are the
   person's colour with a plain figure (the picker, before anyone plays, keeps the pups), the family wall has no sticker or crown, the
@@ -2092,8 +2093,8 @@ removal). Emulator Fold_PL (a wiped copy of Fold_QA_GU, config only) on 5560, de
   findings as BriefEnv loads them, a grown-up's own only; BriefPage also hides a fact or praise that `mentionsStreak`, for AI text).
 - The one-time offer (ui/Plain.kt `PlainOffer`, `PlainLook.offerDue`): "Prefer a plainer look? Turn off the pup, cheers and streaks."
   with Try Plain look and No thanks, small and outlined, inline (never a dialog): under a grown-up's or big kid's calm lesson finish
-  (the first lesson finished after 2.15) or on Today on opening the app after seven days played or more (`OFFER_DAYS`, the practice
-  log). Marked offered as it shows (Prefs `plainOffered`), so once per profile, answered or not; never to a little kid, never with Plain
+  (the first lesson finished after 2.15) or right under the Today card on opening the app after seven days played or more
+  (`OFFER_DAYS`, the practice log). Marked offered as it shows (Prefs `plainOffered`), so once per profile, answered or not; never to a little kid, never with Plain
   on. Try turns it on there and then (the finish and Today redraw plain), logged like the switch.
 - Debug (keyless builds): `--ez plain true|false` (the opened profile's switch), `--ez plainoffer true` (the offer may show again),
   `--es family "Leo:1:big"` (a third part makes a big kid).
@@ -2103,12 +2104,13 @@ removal). Emulator Fold_PL (a wiped copy of Fold_QA_GU, config only) on 5560, de
   JVM tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 30 warnings (as 2.14.0).
 - Emulator walk (Fold_PL, emulator-5560, fresh install, keyless; `--es midi` scripts; screenshots app/build/screens/pl-*.png, not
   committed): Dana, a grown-up beginner, Plain on: Today (pl-02), You (pl-03, pl-09 after a week), Settings (pl-04), Finger numbers
-  step 3 by a MIDI script: the plain words, the check alone, "Passed.", `step pop: streak 1, chime SKIP`, no cheer pop, no combo (pl-05,
-  pl-06, pl-06-lesson-steppop-check), the last step to "Lesson complete." with the mark and no chip or XP (pl-07), Twinkle in Perform to
+  step 3 by a MIDI script: the plain words, the check alone, "Passed.", `step pop: streak 1, chime SKIP`, no cheer pop, no combo (pl-06,
+  pl-06-lesson-steppop-check), the last step to "Lesson complete." with the mark and no chip or XP (pl-07), Twinkle in Perform to
   its recap with the mark (pl-08), My week without the streak headline or praise and its dot strip (pl-14, pl-15), the comeback after a
-  seven-day streak and seven days away (pl-16); Plain off on day eleven: the offer on Today (pl-17), Try Plain look and Today redrawn
+  seven-day streak and seven days away (pl-16); Plain off on day twelve: the offer under the Today card (pl-17), Try Plain look and Today redrawn
   plain, `plainLook=true` in the log (pl-18). Leo, a big kid (`--es family "Leo:1:big"`), Plain on: a reading step (pl-11), Today
-  (pl-10), the goodbye with wind down on (pl-12), the comeback (pl-13), You (pl-23), the gate (pl-24, pl-25) and Settings (pl-26); Plain
+  (pl-10), Finger numbers step 3 by the same script: the check alone, chime SKIP (pl-28, pl-29), Twinkle in Perform to its recap
+  (pl-30), the goodbye with wind down on (pl-12), the comeback (pl-13), You (pl-23), the gate (pl-24, pl-25) and Settings (pl-26); Plain
   off and the offer reset: the offer under the lesson's finish (pl-21), Try Plain look and the finish redrawn (pl-22). Mia, a little
   kid, with `--ez plain true` stored: the pup, the paws and the map as ever (pl-19, pl-20) and no Plain look in her Settings (pl-27). No
   crash. A grown-up never reaches Goodbye (it is every kid's), so its plain words were walked on the big kid.
@@ -2119,8 +2121,9 @@ removal). Emulator Fold_PL (a wiped copy of Fold_QA_GU, config only) on 5560, de
   with the level-up screen (both unlock underneath and show on You); Pup's quest, the lane's combo, the family wall's sticker and crown,
   the ear workout's days in a row and the paw prints in the page are gone too (the simulation's "hooks"); the run's "Streak" chip on the
   recap stays (a performance number, like Good and Missed); a big kid's pup card is skipped rather than reworded (it is the pup talking);
-  the offer is inline, not a dialog, under the rest of Today (it waits below the family card and I know these chords); an offer shown is
-  an offer made, answered or not; the own week drops the goal streak's praise at the findings (presentation, not data: the event log and
+  the offer is inline, not a dialog, right under the Today card (it counts as offered as it shows, so it sits where it is seen); an
+  offer shown is an offer made, answered or not; on a big kid's profile Try Plain look is not behind the parent gate (the Settings
+  switch is, as all of a kid's Settings): it is the kid's own look, and the 10 to 12 year olds were who asked; the own week drops the goal streak's praise at the findings (presentation, not data: the event log and
   the stats are untouched, a kid's brief is as it was).
 - Open: the kid templates still say "streak" in a kid's brief a Plain grown-up reads (it is the kid's report); the AI writer is not told
   about the Plain look (its text passes the page's `mentionsStreak` filter only); dark mode of the plain screens was not walked; nothing
