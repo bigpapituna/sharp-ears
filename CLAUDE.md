@@ -2350,7 +2350,7 @@ The four 2.15 branches merged in the order error-tracking (a fast-forward), mic-
 name every conflict and choice). Test baseline: 1968 JVM tests, all green, PopPrivateTest included (a keyed worktree; TesterTest's
 two keyless checks skip by assumption); lint 0 errors, 40 warnings (as mic-trust measured; 2.14.0's 30 plus ten older ones). The
 keyless door: `:app:compileDebugKotlin "-Psharpears.posthog=false"` and `:app:testDebugUnitTest "-Psharpears.posthog=false"` pass
-(1967 then). Voice: 3972 catalog lines, 3972 files, `render_voice.py --check` records and deletes nothing. What's new 2.15.0: three
+(1968; TesterTest's two keyless-only checks skip there too, since the property leaves POSTHOG_KEY in BuildConfig). Voice: 3972 catalog lines, 3972 files, `render_voice.py --check` records and deletes nothing. What's new 2.15.0: three
 lines (Plain look in Settings; the microphone card, privacy page, could-not-hear hint and room check; the tour and tips). WelcomeTest
 checks them.
 - Merge decisions: `Tester.look(layout.wire, plainLook = plainMode.on)` keyed on the layout and the Plain value (LocalPlain's);
@@ -2371,8 +2371,9 @@ checks them.
   script (check, confetti, cheer pop, x9, "Spot on!"), Settings' Encouragement (Often), Plain look on: Settings ("Off in Plain look",
   Step sound), Today (the mark, no pup, quest or paws), the same step plain ("Passed.", the check alone, chime SKIP); Twinkle in
   Wait with injected silence and Plain on: the could-not-hear hint in words at 8 s, "Use the on-screen keys" took the mic off; the
-  privacy page (the merged Help Roy test line, the Testing paragraph with error reports); Plain off: You with the streak and
-  freezes back; Mia added from Settings, Family (the gate, the form, the brief's day, then the mic card naming her, Not now),
+  privacy page (the merged Help Roy test line, the Testing paragraph with error reports); You in Plain (`--ez plain true`: plain
+  avatars, day dots, the mark in the level ring, no flame, count or freezes; Level 1 and XP stay) and off again with the streak
+  and freezes back; Mia added from Settings, Family (the gate, the form, the brief's day, then the mic card naming her, Not now),
   For grown-ups on Dana's return (three cards); Mia's High and low step 4 by touch: the picture finish, three stars, the bandana.
   No crash (one process all walk). Fixed: the onboarding's testing line (it said only "what happens on screen").
 - Open: once a little kid's card was answered Not now (at the kid's making), her Jam shows "Mic off" with no button, so the card
