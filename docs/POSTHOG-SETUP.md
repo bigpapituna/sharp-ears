@@ -6,14 +6,15 @@ here was clicked by the agent that wrote it: these are the steps to click togeth
 
 Everything below only fills with data from phones where Help Roy test is on, running a build with the PostHog key.
 
-## 1. Turn on error tracking in the project (do this first)
+## 1. Error tracking in the project
 
-The SDK asks the project before it catches crashes on its own. With the project setting off, uncaught exceptions are not
-sent (the app's handled reports still are).
+The app reports crashes, ANRs and its handled errors itself, so nothing here is required for them to arrive.
 
-1. Settings (the gear, bottom left) > Project > **Error tracking**.
-2. Turn on **Exception autocapture** (it may be called "Autocapture exceptions").
-3. Open **Error tracking** in the left menu once: the issues list. Reports group into issues by exception and stack.
+1. Open **Error tracking** in the left menu: the issues list. Reports group into issues by exception and stack; the 2.15
+   emulator test made one issue for `ErrorTestException` (see step 5).
+2. Optional: Settings (the gear, bottom left) > Project > **Error tracking** > **Exception autocapture** (it may be called
+   "Autocapture exceptions"). It was off in this project on 2026-10-27. On, the SDK's own crash handler acts as well; the app
+   keeps it to one copy per crash, so either way is fine. Leave it as it is unless PostHog's docs ask for it.
 
 Proguard or R8 mapping upload is not needed: the debug builds Roy hands out are not minified.
 
@@ -131,8 +132,13 @@ Two flags, read by the app with a safe default when PostHog is not there (EVENTS
 Every event from an emulator says `is_emulator` = true and the error test's say `is_error_test` = true, so the filters in
 step 2 already keep them out of every insight. To clear them from Error tracking, open the issue for
 `ErrorTestException` and resolve or suppress it. If the plan offers event deletion (Settings > Project > Data management or
-a deletion request), delete events where `is_error_test` = true, and the emulator's events by its `distinct_id` and the
-times the branch report lists.
+a deletion request), delete events where `is_error_test` = true, and the emulator's events by its `distinct_id`.
+
+The 2.15 emulator test (2026-10-27, UTC) sent, all from `distinct_id` `0a8925c2-82ea-4169-9cf4-5c7ae4b8f24a` with
+`is_emulator` = true: 15:14:58 to 15:15:01 Application Installed, `tester_default_on`, `app_open`, `profile_kind`,
+Application Opened, `$screen`; 15:15:25 `$exception` (`where` error_test); 15:19:52 to 15:19:56 `app_open`, `profile_kind`,
+Application Opened, `$screen` and `$exception` (`where` uncaught, a fatal crash on purpose); 15:20:17 to 15:20:20 `app_open`,
+`profile_kind`, Application Opened, `$screen`; and three short masked session replays of those minutes.
 
 ## 6. End of the beta
 

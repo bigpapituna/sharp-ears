@@ -61,6 +61,19 @@ class ErrorsTest {
         assertTrue(lines.any { it == "errors: uncaught not sent (limited)" })
     }
 
+    /** One copy of a crash: ours and the SDK's own handler may both act (the project's Exception autocapture on). */
+    @Test fun aCrashGoesOutOnceAndOursSaysUnhandled() {
+        val sdk = exception("java.lang.IllegalStateException", "boom", fatal = true)
+        assertTrue(Errors.beforeSend("\$exception", sdk))
+        assertFalse("the second fatal of the process is a copy", Errors.beforeSend("\$exception", exception("java.lang.IllegalStateException", "boom", fatal = true)))
+        assertTrue(lines.any { it == "errors: the SDK's copy of the uncaught exception dropped (sent already)" })
+        val ours = exception("java.lang.IllegalStateException", "boom", fatal = true).apply { put(ErrorReport.WHERE, "uncaught"); put(ErrorReport.HANDLED, false) }
+        assertTrue(Errors.beforeSend("\$exception", ours))
+        @Suppress("UNCHECKED_CAST") val item = (ours["\$exception_list"] as List<Map<String, Any?>>).single()
+        assertEquals(false, (item["mechanism"] as Map<*, *>)["handled"])
+        assertEquals(false, ErrorReport.props("uncaught", handled = false)[ErrorReport.HANDLED])
+    }
+
     @Test fun aHandledReportKeepsItsPlaceAndAnyOtherEventGetsTheMarks() {
         val handled = exception("java.io.IOException", "HTTP 503", fatal = false).apply { put(ErrorReport.WHERE, "email_send") }
         assertTrue(Errors.beforeSend("\$exception", handled))

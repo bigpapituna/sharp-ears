@@ -115,8 +115,11 @@ Buckets: minutes are `0`, `1-4`, `5-9`, `10-19`, `20-29`, `30-59`, `60+`; accura
 
 PostHog's error tracking, through the SDK (posthog-android 3.72.5):
 
-- **Uncaught exceptions**: the SDK's autocapture (`errorTrackingConfig.autoCapture`), `where` = `uncaught`. PostHog also
-  needs the project's "Exception autocapture" on (docs/POSTHOG-SETUP.md), or its remote config turns this off.
+- **Uncaught exceptions**: `Errors.installCrashHandler` puts the app's own handler in front of the SDK's: the crash goes
+  out as fatal (`where` = `uncaught`, `handled` = false), written to the SDK's queue at once and sent at the next start. The
+  SDK's own autocapture is on too (`errorTrackingConfig.autoCapture`), but PostHog's remote config turns it off while the
+  project's "Exception autocapture" is off (it was off in project 680038 on 2026-10-27); when both act, the second copy is
+  dropped, so a crash goes out once.
 - **Native crashes** (the speech library): read from Android's tombstones at the next start (`captureNativeCrashes`).
 - **ANRs**: the SDK has none. At the next start `Errors.reportPastExits` reads the ANRs Android kept (Android 11 and up,
   `ApplicationExitInfo`) that were not reported yet, each as `ApplicationNotResponding` with the main thread's stack from
@@ -136,6 +139,7 @@ PostHog's error tracking, through the SDK (posthog-android 3.72.5):
 | `song_import` | the older song import failed | none |
 | `pup_clip` | a pup clip did not decode | `clip` |
 | `anr` | an earlier run did not respond | `reason`, `importance` |
+| `uncaught` | a crash (`handled` = false, `$exception_level` fatal) | none |
 | `error_test` | the debug route's test (below) | none |
 
 Calls not made on purpose (a metered network, no key, a bad URL) are not reported.
@@ -149,13 +153,15 @@ How often: one report per place, exception class and message in ten minutes, and
 in tester.xml (never backed up), so a crash loop cannot reset it. A report beyond the limit logs `errors: <where> not sent
 (limited)`.
 
-Log lines (tag SharpEars): `errors: reported <where> (<Class>)` when a handled report goes, `errors: reported uncaught
-(<Class>, fatal=true, is_error_test=..., is_emulator=...)` when the SDK's own goes, `errors: <where> not sent (<why>)`
-otherwise. Never the message.
+Log lines (tag SharpEars): `errors: reported <where> (<Class>)` when a report goes (`errors: reported uncaught
+(<Class>)` for a crash), `errors: reported native_crash (...)` or `errors: reported uncaught (<Class>, fatal=true,
+is_error_test=..., is_emulator=...)` when one the SDK caught itself goes, `errors: <where> not sent (<why>)` otherwise.
+Never the message.
 
 The test: `--es screen errortest` (a debug build, through engine/DebugRoutes.kt; keyed builds through
 `scripts/adb-route.ps1`) sends one handled `ErrorTestException` at once, then throws an uncaught one four seconds later, which
-closes the app; the SDK sends that one at the next start. Both carry `is_error_test` = true so Roy can find and delete them.
+closes the app; that one is sent at the next start. Both carry `is_error_test` = true so Roy can find and delete them. A second
+run within ten minutes sends only the crash (the handled one is limited).
 
 ## Feature flags
 

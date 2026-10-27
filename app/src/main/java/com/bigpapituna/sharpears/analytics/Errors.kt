@@ -12,6 +12,7 @@ import com.bigpapituna.sharpears.engine.tester.ErrorReport
 import com.bigpapituna.sharpears.engine.tester.ErrorScrub
 import com.bigpapituna.sharpears.engine.tester.ExitRules
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** The debug route's test exception (`--es screen errortest`): every report of it carries is_error_test=true. */
 class ErrorTestException(message: String) : RuntimeException(message)
@@ -26,7 +27,9 @@ class ApplicationNotResponding(message: String) : RuntimeException(message)
  * - [report]: a handled exception at one of the app's risk points (the voice, the natural voice, the AI and email
  *   transports, a refused MIDI file, a pup clip that did not decode, an earlier run's ANR). Scrubbed, limited (one per place,
  *   class and message in ten minutes, 30 a day, kept in tester.xml across starts), logged `errors: reported <where>`.
- * - Uncaught exceptions and native crashes: the SDK catches them itself (TesterSdk's errorTrackingConfig).
+ * - Uncaught exceptions: [installCrashHandler] reports them itself (written to the SDK's queue at once, sent at the next
+ *   start), whether or not the project's "Exception autocapture" lets the SDK's own handler act (Roy's project had it off on
+ *   2026-10-27); when both act, the second copy is dropped ([fatalSent]). Native crashes: the SDK, from Android's tombstones.
  * - [beforeSend]: every event passes it last. It stamps the test marks, scrubs the messages of every exception (the SDK's own
  *   too), applies the limit to the ones the SDK caught, marks the debug route's test exception and logs a key-free line.
  *
@@ -39,6 +42,9 @@ object Errors {
     const val EXCEPTION = "\$exception"
 
     @Volatile private var limiter: ErrorLimiter? = null
+    /** The uncaught exception of this process went out already (by our handler or the SDK's): only one copy is sent. */
+    private val fatalSent = AtomicBoolean(false)
+    @Volatile private var handlerInstalled = false
 
     private fun app(): Context? = Tester.appContext()
 
@@ -52,7 +58,36 @@ object Errors {
     private fun today(): Long = LocalDate.now().toEpochDay()
 
     /** Tests only: a new process (the limit is read back from tester.xml). */
-    internal fun resetForTest() { limiter = null }
+    internal fun resetForTest() { limiter = null; fatalSent.set(false) }
+
+    /**
+     * Ours in front of the SDK's (or Android's) uncaught exception handler, once the dashboard records (Tester): the crash is
+     * reported as fatal (`where` = uncaught, `handled` = false), then the next handler runs as before and the app closes.
+     */
+    fun installCrashHandler() {
+        if (handlerInstalled) return
+        handlerInstalled = true
+        val next = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+            runCatching { reportFatal(e) }
+            next?.uncaughtException(thread, e)
+        }
+    }
+
+    private fun reportFatal(t: Throwable) {
+        val cls = ErrorScrub.className(t.javaClass.name)
+        if (!Tester.capturingNow) { Tester.logcat("errors: uncaught not sent (${Tester.notSentWhy()})"); return }
+        if (!fatalSent.compareAndSet(false, true)) return
+        val message = ErrorScrub.message(t.message, Tester.namesNow())
+        val allowed = limiter().allow(ErrorLimiter.key("uncaught", cls, message), System.currentTimeMillis(), today())
+        save()
+        if (!allowed) { Tester.logcat("errors: uncaught not sent (limited)"); return }
+        // A fatal $exception is written to the SDK's queue before this returns (its queue writes fatal records at once).
+        TesterSdk.captureException(t, ErrorReport.props("uncaught", test = cls == ErrorReport.TEST_CLASS, handled = false) + (LEVEL to "fatal"))
+        Tester.logcat("errors: reported uncaught (${t.javaClass.simpleName})")
+    }
+
+    private const val LEVEL = "\$exception_level"
 
     /**
      * A handled [throwable] at [where] (a short place name of the app's own, "voice_engine"), with [extra] (ErrorReport.props
@@ -98,6 +133,7 @@ object Errors {
         if (test) props[ErrorReport.IS_ERROR_TEST] = true
         val fatal = props["\$exception_level"] == "fatal"
         if (props[ErrorReport.WHERE] == null) {
+            if (fatal && !fatalSent.compareAndSet(false, true)) { Tester.logcat("errors: the SDK's copy of the uncaught exception dropped (sent already)"); return@runCatching false }
             val mechanism = ((first?.get("mechanism") as? Map<*, *>)?.get("type") as? String).orEmpty().lowercase()
             val where = when { "native" in mechanism || "signal" in mechanism || "tombstone" in mechanism -> "native_crash"; fatal -> "uncaught"; else -> "auto" }
             props[ErrorReport.WHERE] = where
@@ -106,7 +142,17 @@ object Errors {
             save()
             if (!allowed) { Tester.logcat("errors: $where not sent (limited)"); return@runCatching false }
             Tester.logcat("errors: reported $where (${type?.substringAfterLast('.') ?: "?"}, fatal=$fatal, is_error_test=$test, is_emulator=${props[AppEvents.IS_EMULATOR]})")
-        } else Tester.logcat("errors: sending ${props[ErrorReport.WHERE]} (fatal=$fatal, is_error_test=$test, is_emulator=${props[AppEvents.IS_EMULATOR]})")
+        } else if (props[ErrorReport.HANDLED] == false) {
+            // Ours: the stack's mechanism says unhandled too, so PostHog shows it as a crash.
+            (props["\$exception_list"] as? List<*>)?.let { list ->
+                props["\$exception_list"] = list.map { item ->
+                    val m = item as? Map<*, *> ?: return@map item
+                    LinkedHashMap<Any?, Any?>(m).apply { (m["mechanism"] as? Map<*, *>)?.let { put("mechanism", LinkedHashMap<Any?, Any?>(it).apply { put("handled", false) }) } }
+                }
+            }
+        }
+        // The SDK runs this twice for each event (PostHog.capture, then captureStateless): the second time `where` is set
+        // and nothing more is logged.
         true
     }.getOrElse { Tester.logcat("errors: beforeSend failed (${it.javaClass.simpleName})"); true }
 

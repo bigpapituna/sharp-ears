@@ -118,7 +118,7 @@ object ErrorReport {
      * a boolean, a whole or finite number, an enum's name, or a short word scrubbed like a message (40 characters). Anything
      * else is dropped.
      */
-    fun props(where: String, extra: Map<String, Any?> = emptyMap(), test: Boolean = false): Map<String, Any> = buildMap {
+    fun props(where: String, extra: Map<String, Any?> = emptyMap(), test: Boolean = false, handled: Boolean = true): Map<String, Any> = buildMap {
         for ((k, v) in extra) {
             if (!KEY.matches(k) || AppEvents.denied(k) || k == WHERE || k == HANDLED || k == IS_ERROR_TEST) continue
             when (v) {
@@ -132,7 +132,7 @@ object ErrorReport {
             }
         }
         put(WHERE, ErrorScrub.where(where))
-        put(HANDLED, true)
+        put(HANDLED, handled)
         if (test) put(IS_ERROR_TEST, true)
     }
 }

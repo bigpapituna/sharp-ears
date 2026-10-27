@@ -99,7 +99,8 @@ lesson_started with Encouragement on against off (the brief logs the setting as 
 
 - The full table of events, properties, flags and error reports is `EVENTS.md` (beside this file); Roy's PostHog steps
   are `docs/POSTHOG-SETUP.md`.
-- Error tracking: the door turns on the SDK's exception autocapture and native crash capture, adds a `beforeSend`
+- Error tracking: the door turns on the SDK's exception autocapture and native crash capture (crashes also go through the
+  app's own handler, `Errors.installCrashHandler`, since the project's autocapture setting can switch the SDK's off), adds a `beforeSend`
   (`Errors.beforeSend`: scrubs every exception message, stamps `is_emulator`, `build_flavor`, `app_version`, marks
   `is_error_test`, limits the SDK's own reports) and offers `captureException`. `Errors.report(where, throwable, extra)` is
   the one helper for handled exceptions (rate limited and scrubbed by `engine/tester/ErrorRules.kt`); `Errors.reportPastExits`

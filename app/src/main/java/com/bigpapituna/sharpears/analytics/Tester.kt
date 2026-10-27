@@ -150,6 +150,7 @@ object Tester {
             look.forEach { (k, v) -> TesterSdk.register(k, v) }
             route?.let { r -> TesterSdk.screen(TesterRules.screenOf(r), mapOf("route" to TesterRules.safeRoute(r))) }
             Errors.reportPastExits(a)
+            Errors.installCrashHandler()
         }
     }
 

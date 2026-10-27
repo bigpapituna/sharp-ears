@@ -52,6 +52,9 @@ class TesterWiringTest {
         assertTrue(errors.contains("TesterSdk.captureException(t, ErrorReport.props(w, extra, test = cls == ErrorReport.TEST_CLASS))"))
         assertTrue("sent only while the dashboard records", errors.contains("if (!Tester.capturingNow)"))
         assertTrue(src("analytics/Tester.kt").contains("deviceId(a), Errors::beforeSend)"))
+        // Crashes: our handler in front of the SDK's, so they are reported even with the project's autocapture off.
+        assertTrue(src("analytics/Tester.kt").contains("Errors.installCrashHandler()"))
+        assertTrue(errors.contains("Thread.setDefaultUncaughtExceptionHandler { thread, e ->") && errors.contains("next?.uncaughtException(thread, e)"))
         // The risk points report through the one helper.
         for ((file, where) in listOf("audio/Voice.kt" to "voice_engine", "audio/Voice.kt" to "voice_utterance", "audio/NaturalVoice.kt" to "natural_voice",
             "data/BriefAi.kt" to "ai_transport", "data/BriefEmail.kt" to "email_send", "MainActivity.kt" to "midi_refused", "ui/pup/PupClip.kt" to "pup_clip"))
