@@ -29,7 +29,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
      */
     @Volatile var plain: () -> Boolean = { false }
     val enabled get() = com.bigpapituna.sharpears.engine.family.PlainLook.voiceOn(plain(), prefs.voice, prefs.plainVoice)
-    private fun plainText(text: String) = if (plain()) com.bigpapituna.sharpears.engine.family.PlainLook.calm(text) else text
+    private fun plainText(text: String) = if (plain()) com.bigpapituna.sharpears.engine.family.PlainLook.calm(text, spoken = true) else text
 
     private val main = Handler(Looper.getMainLooper())
     private val queue = SpeechQueue()

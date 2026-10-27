@@ -153,6 +153,9 @@ class PlainLookTest {
         assertEquals("That's today's playing done, Leo.", PlainLook.calm("That's today's playing done, Leo. Goodnight from the pup!"))
         assertEquals("New best.", PlainLook.calm("New best!"))
         assertEquals(PlainLook.PUP_ONLY, PlainLook.calm("Woof!"))
+        // Said aloud, a line that is all the pup's may be an instruction: kept, calmed.
+        assertEquals("Find the paw key.", PlainLook.calm("Find the paw key!", spoken = true))
+        assertEquals("Amazing.", PlainLook.calm(PupTap.LINE, spoken = true))
         // Only the end: song titles keep their own marks inside a line.
         assertEquals("Next: Oh! Susanna", PlainLook.calm("Next: Oh! Susanna"))
         assertEquals("Last Christmas by Wham! at 80 percent.", PlainLook.calm("Last Christmas by Wham! at 80 percent."))

@@ -132,7 +132,7 @@ class PlainWiringTest {
         assertTrue("if (plain) { drawCheckDisc(box.center, 1f, StepPopMotion.fade(ms), 1f); return@Canvas }" in step)
         val voice = src("audio/Voice.kt")
         assertTrue("PlainLook.voiceOn(plain(), prefs.voice, prefs.plainVoice)" in voice)
-        assertTrue("PlainLook.calm(text)" in voice)
+        assertTrue("PlainLook.calm(text, spoken = true)" in voice)
         // Lessons, the player and songs keep their own calls (the entry points decide).
         assertTrue("rememberStepPops(deps.sampler, deps.mic, sound = { deps.prefs.sound }" in src("ui/LessonScreen.kt"))
     }
@@ -162,7 +162,10 @@ class PlainWiringTest {
         assertTrue("PlainLook.Moment.LESSON_FINISHED" in src("ui/LessonScreen.kt"))
         val main = src("MainActivity.kt")
         assertTrue("PlainLook.Moment.APP_OPENED" in main && "daysPlayed = { progress.practiceLog().count { it.value > 0 } }" in main)
-        assertTrue("plainOffer?.invoke()" in src("ui/TodayScreen.kt"))
+        // Right under the card, where it is seen before it counts as offered.
+        val today = src("ui/TodayScreen.kt")
+        assertTrue(today.indexOf("TodayCardView(shown, goal, a, quest") < today.indexOf("plainOffer?.invoke()") &&
+            today.indexOf("plainOffer?.invoke()") < today.indexOf("family?.invoke()"))
     }
 
     @Test fun theQuietOnesInThePlainLook() {

@@ -184,12 +184,14 @@ object PlainLook {
      * Any line a grown-up or big kid sees or hears in the Plain look: a line of the plain bank when it has one ([BANK]);
      * otherwise its pup-voiced sentences go ("Woof!", "Goodnight from the pup!") and a trailing exclamation mark becomes a
      * full stop. Only the end: "Oh! Susanna" inside a line keeps its own. A line that was nothing but the pup's becomes
-     * [PUP_ONLY].
+     * [PUP_ONLY] on screen; said aloud ([spoken], the voice's path) it is kept, calmed, since it may be an instruction
+     * ("Find the paw key!").
      */
-    fun calm(text: String): String {
+    fun calm(text: String, spoken: Boolean = false): String {
         BANK[text]?.let { return it }
         if (text.isBlank()) return text
-        val kept = text.trim().split(SENTENCE).filterNot { PUP_VOICE.containsMatchIn(it) }
+        val all = text.trim().split(SENTENCE)
+        val kept = all.filterNot { PUP_VOICE.containsMatchIn(it) }.ifEmpty { if (spoken) all else emptyList() }
         if (kept.isEmpty()) return PUP_ONLY
         val joined = kept.joinToString(" ").trim()
         return if (joined.endsWith("!")) joined.trimEnd('!').trimEnd() + "." else joined

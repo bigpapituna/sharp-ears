@@ -158,9 +158,10 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
             welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
             TodayCardView(shown, goal, a, quest, showStart = welcomeBack == null)
+            // 2.15: right under the card, where it is seen (it is marked offered as it shows).
+            plainOffer?.invoke()
             family?.invoke()
             knownChords?.invoke()
-            plainOffer?.invoke()
             when (cont) {
                 null -> {}
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
