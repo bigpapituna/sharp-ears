@@ -78,6 +78,26 @@ class Prefs(context: Context, val profileId: String) {
         get() = if (p.contains("cheerAloud")) p.getBoolean("cheerAloud", false) else null
         set(v) = edit { if (v == null) remove("cheerAloud") else putBoolean("cheerAloud", v) }
 
+    /**
+     * 2.15, Settings > Playing > Plain look (engine/family/PlainLook.kt): the switch as saved. Off by default; a little kid's
+     * profile ignores it (PlainLook.on asks the audience), and nothing else stored changes when it flips.
+     */
+    var plainLook: Boolean
+        get() = p.getBoolean("plainLook", false)
+        set(v) = edit { putBoolean("plainLook", v) }
+    /** Spoken guidance while the Plain look is on: null until set there (off, PlainLook.voiceOn); [voice] is kept for later. */
+    var plainVoice: Boolean?
+        get() = if (p.contains("plainVoice")) p.getBoolean("plainVoice", false) else null
+        set(v) = edit { if (v == null) remove("plainVoice") else putBoolean("plainVoice", v) }
+    /** The step pop's chime in the Plain look ("Step sound", off by default). */
+    var plainStepSound: Boolean
+        get() = p.getBoolean("plainStepSound", false)
+        set(v) = edit { putBoolean("plainStepSound", v) }
+    /** The one-time "Prefer a plainer look?" card was shown (or answered) on this profile. */
+    var plainOffered: Boolean
+        get() = p.getBoolean("plainOffered", false)
+        set(v) = edit { putBoolean("plainOffered", v) }
+
     /** Note names inside the falling notes. */
     var noteNames: Boolean
         get() = p.getBoolean("noteNames", true)

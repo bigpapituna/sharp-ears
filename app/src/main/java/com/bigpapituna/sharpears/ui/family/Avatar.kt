@@ -49,6 +49,10 @@ fun PupAvatar(avatar: Int, modifier: Modifier = Modifier, size: Dp = 72.dp, sele
             .background(colour.copy(alpha = if (dark) 0.28f else 0.20f)),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        PupAvatarArt(avatar.coerceIn(0, Profile.AVATARS - 1), Modifier.fillMaxSize().padding(top = size * 0.08f))
+        // 2.15, the Plain look: the person's colour stays, the pup goes (a plain figure in it); the picker, before anyone
+        // plays, keeps the pups.
+        if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) androidx.compose.material3.Icon(painterResource(R.drawable.ic_person), contentDescription = null,
+            tint = colour, modifier = Modifier.align(Alignment.Center).size(size * 0.5f))
+        else PupAvatarArt(avatar.coerceIn(0, Profile.AVATARS - 1), Modifier.fillMaxSize().padding(top = size * 0.08f))
     }
 }

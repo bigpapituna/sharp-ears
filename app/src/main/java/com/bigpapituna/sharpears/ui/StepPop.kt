@@ -122,7 +122,10 @@ class StepPops internal constructor(
 @Composable
 fun rememberStepPops(sampler: Sampler, mic: MicInput, sound: () -> Boolean, key: Any, tonic: Int, telemetry: Boolean = true): StepPops {
     val scope = rememberCoroutineScope()
-    return remember(key, tonic) { StepPops(sampler, mic, sound, scope, tonic, telemetry) }
+    // 2.15: in the Plain look the chime needs "Step sound" too (PlainLook.stepChime), read at each pop.
+    val plainNow = androidx.compose.runtime.rememberUpdatedState(LocalPlain.current)
+    val chime: () -> Boolean = { com.bigpapituna.sharpears.engine.family.PlainLook.stepChime(plainNow.value.on, sound(), plainNow.value.stepSound) }
+    return remember(key, tonic) { StepPops(sampler, mic, chime, scope, tonic, telemetry) }
 }
 
 /** The chime: its notes struck [StepPopRules.NOTE_GAP_MS] apart, a short fade, then let go (also when the screen goes). */
@@ -159,6 +162,9 @@ private val popInk = Ink
  */
 @Composable
 fun StepPop(cue: StepPopCue?, modifier: Modifier = Modifier, area: () -> Rect? = { null }) {
+    // 2.15: the Plain look shows the plain check only: its disc, still, for the pop's time, then faded (no burst, confetti,
+    // rainbow or paw, nothing moving).
+    val plain = LocalPlain.current.on
     val still = reducedMotion()
     val t = remember { mutableFloatStateOf(-1f) }
     val star = remember { unitStar() }
@@ -178,6 +184,7 @@ fun StepPop(cue: StepPopCue?, modifier: Modifier = Modifier, area: () -> Rect? =
         if (ms < 0f || c0 == null) return@Canvas
         val box = area() ?: Rect(Offset.Zero, size)
         if (still) { drawCheckDisc(box.center, 1f, StepPopMotion.calmAlpha(ms), 1f); return@Canvas }
+        if (plain) { drawCheckDisc(box.center, 1f, StepPopMotion.fade(ms), 1f); return@Canvas }
         when (c0.variant) {
             PopVariant.BURST -> burst(ms, box.center, c0.seq, star)
             PopVariant.CONFETTI -> confetti(ms, box, c0.seq)

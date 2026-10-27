@@ -97,7 +97,7 @@ internal fun WorkoutRun(plan: WorkoutPlan, env: EarEnv, store: EarStore, onExit:
             @Suppress("UNUSED_VARIABLE") val saved = store.version.intValue          // read so the streak line updates once today is saved
             Celebration(
                 Workout.headline(total.score, total.rounds),
-                "${results.size} games done" + (store.workoutStreak().takeIf { it > 1 }?.let { ", $it days in a row" } ?: "") + ".",
+                "${results.size} games done" + (store.workoutStreak().takeIf { it > 1 && !com.bigpapituna.sharpears.ui.plainLook() }?.let { ", $it days in a row" } ?: "") + ".",
                 listOf(Stat("${total.score}/${total.rounds}", "Score"), Stat("${total.bestStreak}", "Best streak"),
                     Stat(clock(seconds), "Time")),
                 primary = "Done", onPrimary = onExit,

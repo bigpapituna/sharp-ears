@@ -137,7 +137,9 @@ class CheerPops internal constructor(
 
     private fun now() = SystemClock.uptimeMillis()
     private fun moment(s: CheerSituation) = CheerMoment(now(), s.busy || voice.speaking.value, s.tail)
-    private fun sync() { coach.frequency = prefs.cheerFrequency }
+    /** 2.15: the Plain look is on (LocalPlain, read where the pops are made): Encouragement reads as Off, the choice kept. */
+    internal var plain: () -> Boolean = { false }
+    private fun sync() { coach.frequency = com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plain(), prefs.cheerFrequency) }
 
     /** A step opened, a try began, a song's run started fresh: [part] is the exercise or song (its bars are remembered). */
     fun stepBegan(part: String) { sync(); coach.stepBegan(part, now()) }
@@ -210,7 +212,12 @@ class CheerPops internal constructor(
 fun rememberCheerPops(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Prefs, kid: Boolean, key: Any, tonic: Int = 0,
                       telemetry: Boolean = true, profileKid: Boolean = kid): CheerPops {
     val scope = rememberCoroutineScope()
-    return remember(key, kid, profileKid) { CheerPops(CheerCoach(kid, prefs.cheerFrequency), sampler, mic, voice, prefs, scope, tonic, telemetry, profileKid) }
+    // 2.15: the Plain look turns the pops off (PlainLook.cheerFrequency), read at each moment so a change in Settings holds.
+    val plainNow = androidx.compose.runtime.rememberUpdatedState(com.bigpapituna.sharpears.ui.LocalPlain.current.on)
+    return remember(key, kid, profileKid) {
+        CheerPops(CheerCoach(kid, com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plainNow.value, prefs.cheerFrequency)),
+            sampler, mic, voice, prefs, scope, tonic, telemetry, profileKid).also { it.plain = { plainNow.value } }
+    }
 }
 
 /** The sparkle: two soft high notes, a short fade, let go (also when the screen goes). */
@@ -281,6 +288,8 @@ private fun springOf(e: CheerEntry, slow: Float) = when (e) {
  */
 @Composable
 fun CheerPop(cue: CheerCue?, modifier: Modifier = Modifier, maxPupDp: Float = 56f) {
+    // 2.15: no cheer pops in the Plain look (their rules read Off too, CheerPops.sync).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     val still = reducedMotion()
     var shown by remember { mutableStateOf<CheerCue?>(null) }
     val enter = remember { Animatable(0f) }
@@ -434,6 +443,8 @@ internal fun CheerBubble(line: String, tail: BubbleTail, modifier: Modifier = Mo
  */
 @Composable
 fun StepPopLine(seq: Int?, line: String?, area: () -> Rect?, modifier: Modifier = Modifier) {
+    // 2.15: the plain check alone in the Plain look (Encouragement reads Off there, so no line comes either).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     val still = reducedMotion()
     val shownLine = remember { mutableStateOf<String?>(null) }
     val a = remember { Animatable(0f) }

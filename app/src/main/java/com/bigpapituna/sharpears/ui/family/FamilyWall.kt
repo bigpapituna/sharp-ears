@@ -103,10 +103,12 @@ private fun Member(e: FamilyWallEntry, crown: Boolean, onClick: () -> Unit) {
         .semantics(mergeDescendants = true) { contentDescription = said }
         .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // 2.15, the Plain look: no sticker and no crown on the wall (the days played stay, as dots: Paw).
+        val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
         Box {
             PupAvatar(e.profile.avatar, size = 60.dp)
-            StickerSlot(e.stickerRes, Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 4.dp))
-            if (crown) Crown(Modifier.align(Alignment.TopStart).offset(x = (-8).dp, y = (-10).dp).size(width = 30.dp, height = 22.dp))
+            if (!plain) StickerSlot(e.stickerRes, Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 4.dp))
+            if (crown && !plain) Crown(Modifier.align(Alignment.TopStart).offset(x = (-8).dp, y = (-10).dp).size(width = 30.dp, height = 22.dp))
         }
         Text(e.profile.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -152,6 +154,14 @@ private fun StickerSlot(res: Int?, modifier: Modifier = Modifier) {
 fun Paw(day: PawDay, size: Dp, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
     val colour = when { day.practised -> c.primary; day.future -> c.outlineVariant; else -> c.outline }
+    // 2.15, the Plain look: a dot for a day played (an outline otherwise), no paw and no rest-day moon.
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) {
+        Canvas(modifier.size(size)) {
+            val r = this.size.minDimension * 0.3f
+            if (day.practised) drawCircle(colour, r) else drawCircle(colour, r, style = Stroke(1.2.dp.toPx()))
+        }
+        return
+    }
     Canvas(modifier.size(size)) { if (day.rest) drawRestPaw(c.primary) else drawPaw(colour, filled = day.practised) }
 }
 

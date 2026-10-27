@@ -608,7 +608,12 @@ fun LessonScreen(
             val calm = com.bigpapituna.sharpears.ui.CalmFinish(
                 com.bigpapituna.sharpears.engine.world.RewardQueue.line(items, (xpAtEnd - xpAtOpen).takeIf { it > 0 }, xpAtEnd),
                 items, say = { line -> deps.voice.speak(line) }, onLeave = { progress?.consumeLevelUp() },
-                below = { com.bigpapituna.sharpears.ui.TomorrowSlot() })
+                below = {
+                    com.bigpapituna.sharpears.ui.TomorrowSlot()
+                    // 2.15: the first lesson finished after the update offers the Plain look, once (a grown-up or big kid).
+                    PlainOffer(deps.prefs, who.audience, com.bigpapituna.sharpears.engine.family.PlainLook.Moment.LESSON_FINISHED,
+                        Modifier.widthIn(max = 420.dp).padding(top = 4.dp))
+                })
             // A big kid (grown-up skin) still gets the pup's card for the brief after the button (levels-ages: cardStep).
             Celebration(
                 if (neutral) com.bigpapituna.sharpears.engine.kid.LessonStars.NEUTRAL_TITLE else "Lesson complete!", lesson.summary,

@@ -136,6 +136,8 @@ import kotlin.math.sin
 @Composable
 internal fun StagePup(pose: Pose, modifier: Modifier = Modifier, size: Dp = 120.dp, fx: StageFx? = null, point: Int? = null,
                       lift: (() -> Float)? = null, squash: (() -> Float)? = null, shadow: Boolean = true, poke: Int = 0) {
+    // 2.15: no stage pup in the Plain look (a big kid or grown-up playing a Playground page).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     val pup = rememberPupController(idle = false)
     val hits = fx?.hits ?: 0
     val misses = fx?.misses ?: 0

@@ -186,6 +186,8 @@ fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fall
             scale: Float = PupClips.scale(name), once: Boolean = PupClips.oneShot(name),
             /** 2.14, tap the pup to play it again: each change of [replay] plays the clip again from its first frame (the rig: his HAPPY beat); [onTap] takes the touch, if any. */
             replay: Int = 0, onTap: (() -> Unit)? = null) {
+    // 2.15: no clips in the Plain look (ui/Plain.kt).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     val context = LocalContext.current
     val still = reducedMotion()
     val state by produceState<ClipState>(ClipState.Loading, name, still) {
@@ -223,6 +225,7 @@ fun PupClip(name: String, modifier: Modifier = Modifier, size: Dp = 160.dp, fall
  */
 @Composable
 fun PupBow(size: Dp, modifier: Modifier = Modifier, fallback: Pose = Pose.DANCING, then: PupMood = PupMood.CHEER) {
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return       // 2.15: the Plain look
     val context = LocalContext.current
     val bow = remember { PupClips.has(context, PupClips.BOW) }
     PupClip(if (bow) PupClips.BOW else PupClips.DANCE, modifier, size, fallback, then)

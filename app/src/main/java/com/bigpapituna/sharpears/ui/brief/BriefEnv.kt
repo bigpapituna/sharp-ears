@@ -120,7 +120,11 @@ class BriefEnv(
             return BriefEnv(
                 titles = titles,
                 serviceFor = { p -> liveService(app, p) },
-                loadFindings = { p, period, now -> BriefLoader.findings(app, p, period, now) },
+                // 2.15: a grown-up's own week in the Plain look leaves the goal streak's praise out (PlainLook.withoutStreaks).
+                loadFindings = { p, period, now -> BriefLoader.findings(app, p, period, now).let { f ->
+                    if (!p.isKid && com.bigpapituna.sharpears.engine.family.PlainLook.on(p.audience, com.bigpapituna.sharpears.data.Prefs(app, p.id).plainLook))
+                        com.bigpapituna.sharpears.engine.family.PlainLook.withoutStreaks(f) else f
+                } },
                 effectsFor = { p -> AppEffects(app, profiles, p, nav) },
                 record = { p, id, params -> Briefs.logFor(p.id) { BriefEvent.ParentAction(it, id, params) } },
                 weekly = object : WeeklyAccess {

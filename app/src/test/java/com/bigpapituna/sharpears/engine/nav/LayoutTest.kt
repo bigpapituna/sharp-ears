@@ -218,9 +218,9 @@ class LayoutTest {
     // ---- Settings ----
 
     @Test fun settingsShowTheEssentialsThenThePlayingOnesThenAll() {
-        // 2.13: Encouragement (the cheer pops) shows in every layout.
+        // 2.13: Encouragement (the cheer pops) shows in every layout; 2.15: so does the Plain look.
         val essentials = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE, SettingsPart.REMINDER,
-            SettingsPart.MICROPHONE, SettingsPart.TESTING, SettingsPart.BRIEFS, SettingsPart.ENCOURAGEMENT)
+            SettingsPart.MICROPHONE, SettingsPart.TESTING, SettingsPart.BRIEFS, SettingsPart.ENCOURAGEMENT, SettingsPart.PLAIN_LOOK)
         assertEquals(essentials, SettingsPart.entries.filter { Simple.settingsShows(it, s) }.toSet())
         assertEquals(essentials + setOf(SettingsPart.KEYS, SettingsPart.FALLING_NOTES, SettingsPart.WRONG_KEYS, SettingsPart.BRIEFS),
             SettingsPart.entries.filter { Simple.settingsShows(it, a) }.toSet())

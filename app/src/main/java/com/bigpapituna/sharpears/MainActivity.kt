@@ -493,10 +493,13 @@ class MainActivity : ComponentActivity() {
         com.bigpapituna.sharpears.analytics.Tester.init(this)
         Briefs.tap = com.bigpapituna.sharpears.analytics.Tester::briefEvent
         // 2.14, debug walks: --es family "Mia:0,Theo:1" adds those kids (name, then 1 when they read) unless someone has the name.
+        // 2.15: a third part "big" makes a big kid (8 to 13): "Leo:1:big".
         intent.getStringExtra("family")?.takeIf { debugRoutes }?.split(",")?.forEachIndexed { i, spec ->
             val name = spec.substringBefore(":").trim()
+            val parts = spec.split(":")
             if (name.isNotEmpty() && profiles.all.none { it.name == name }) {
-                profiles.create(com.bigpapituna.sharpears.engine.family.Profile.kid(name, 1 + i, reader = spec.substringAfter(":", "0") == "1"), switch = false)
+                profiles.create(com.bigpapituna.sharpears.engine.family.Profile.kid(name, 1 + i, reader = parts.getOrNull(1)?.trim() == "1",
+                    band = if (parts.getOrNull(2)?.trim() == "big") com.bigpapituna.sharpears.engine.family.AgeBand.BIG else com.bigpapituna.sharpears.engine.family.AgeBand.LITTLE), switch = false)
                     ?.let { Log.d(TAG, "profiles: debug family added ${it.id} ($name)") }
             }
         }
@@ -635,6 +638,8 @@ class MainActivity : ComponentActivity() {
         openVoice?.release()
         val voice = Voice(this, prefs, mic).also { openVoice = it }   // the speech engine itself starts on the first line
         voice.speed = com.bigpapituna.sharpears.engine.family.Ages.voiceSpeed(profile.audience)   // big and slow for little kids (KIDS-PLAN 3.8)
+        // 2.15, the Plain look (engine/family/PlainLook.kt): spoken lines off by default, the plain bank's words; never a little kid's.
+        voice.plain = { com.bigpapituna.sharpears.engine.family.PlainLook.on(profiles.current.audience, prefs.plainLook) }
         val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
@@ -650,6 +655,11 @@ class MainActivity : ComponentActivity() {
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         if ((profile.isKid || !progress.onboardingDone && progress.xp == 0) && prefs.whatsNewSeen != appVersion) prefs.whatsNewSeen = appVersion
         // Debug --ez welcome true: What's new and the tour again for this profile.
+        // Debug --ez plain true|false: this profile's Plain look (2.15); --ez plainoffer true: its one-time offer may show again.
+        if (fromLaunch && debugRoutes && intent.hasExtra("plain")) {
+            prefs.plainLook = intent.getBooleanExtra("plain", false); Log.d(TAG, "plain: look ${if (prefs.plainLook) "on" else "off"} for ${profile.id} (debug)")
+        }
+        if (fromLaunch && debugRoutes && intent.getBooleanExtra("plainoffer", false)) { prefs.plainOffered = false; Log.d(TAG, "plain: offer reset for ${profile.id} (debug)") }
         if (fromLaunch && debugRoutes && intent.getBooleanExtra("welcome", false)) {
             prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
         }
@@ -916,6 +926,10 @@ class MainActivity : ComponentActivity() {
             val chosenLayout = if (prefs.version.intValue >= 0) prefs.layout else null
             // 2.14: a big kid is in Simple (their own choice holds), a little kid in Full (engine/nav/Simple.kt by audience).
             val layout = com.bigpapituna.sharpears.engine.nav.Simple.layoutOf(current.audience, chosenLayout, current.level)
+            // 2.15, the Plain look: ONE switch for every screen (ui/Plain.kt LocalPlain), this profile's, never a little kid's.
+            val plainMode = remember(prefs.version.intValue, current.audience) {
+                com.bigpapituna.sharpears.ui.PlainMode(com.bigpapituna.sharpears.engine.family.PlainLook.on(current.audience, prefs.plainLook), prefs.plainStepSound)
+            }
             val layoutMode = remember(layout) {
                 com.bigpapituna.sharpears.ui.LayoutMode(layout) { l ->
                     prefs.layout = l
@@ -930,7 +944,8 @@ class MainActivity : ComponentActivity() {
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
                 com.bigpapituna.sharpears.ui.pup.LocalPupVoice provides pupVoice,
                 LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
-                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode) {
+                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode,
+                com.bigpapituna.sharpears.ui.LocalPlain provides plainMode) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
                 Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
@@ -1933,7 +1948,7 @@ class MainActivity : ComponentActivity() {
                                                     else if (r == null) com.bigpapituna.sharpears.engine.Comeback.grownUpLine(null, false)
                                                     else com.bigpapituna.sharpears.engine.Comeback.grownUpLine(r, title),
                                                     title = if (big) com.bigpapituna.sharpears.engine.Comeback.BIG_KID_TITLE else com.bigpapituna.sharpears.engine.Comeback.GROWN_UP_TITLE,
-                                                    streak = streak,
+                                                    streak = streak, item = title,
                                                     onStart = {
                                                         comebackOpen = false
                                                         retentionEvent(com.bigpapituna.sharpears.engine.tester.Retention.COMEBACK_PLAYED)
@@ -1965,7 +1980,12 @@ class MainActivity : ComponentActivity() {
                                                     PopFind.known(lessons.mastery()), prefs.knownChordsAsked) }) null else { {
                                                 com.bigpapituna.sharpears.ui.KnownChordsRow(onOpen = { knownChordsOpen = true },
                                                     onClose = { prefs.knownChordsAsked = true; Log.d(TAG, "today: known chords put away") })
-                                            } })
+                                            } },
+                                            // 2.15: the one-time "Prefer a plainer look?" on opening the app after seven days played or more.
+                                            plainOffer = {
+                                                com.bigpapituna.sharpears.ui.PlainOffer(prefs, current.audience, com.bigpapituna.sharpears.engine.family.PlainLook.Moment.APP_OPENED,
+                                                    daysPlayed = { progress.practiceLog().count { it.value > 0 } })
+                                            })
                                     }
                                     // 2.7: everything playable. The Play corner, then the library or songs by chords.
                                     HomeTab.SONGS -> {
@@ -2252,12 +2272,13 @@ class MainActivity : ComponentActivity() {
                             pose = com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP, sampler = sampler.takeIf { prefs.sound },
                             reward = { com.bigpapituna.sharpears.ui.TomorrowSlot() }, clip = com.bigpapituna.sharpears.ui.pup.PupClips.CELEBRATE,
                             picture = !current.reader)           // 2.14: a child who cannot read yet sees the pup and one arrow
+                        // 2.15: the Plain look has no streak (no line, no chip): the parts and the minutes.
                         else com.bigpapituna.sharpears.ui.Celebration("Done for today!",
-                            if (streak >= 2) "$streak days in a row. Keep it going." else "Same time tomorrow?",
+                            if (streak >= 2 && !plainMode.on) "$streak days in a row. Keep it going." else "Same time tomorrow?",
                             // The minutes the session added, whole as the goal line counts them; under one, no chip (not "0 min").
                             listOfNotNull(com.bigpapituna.sharpears.ui.Stat("$parts", if (parts == 1) "Part" else "Parts"),
                                 com.bigpapituna.sharpears.ui.Stat("$min min", "Practice").takeIf { min > 0 },
-                                com.bigpapituna.sharpears.ui.Stat("$streak", if (streak == 1) "Day" else "Days in a row")),
+                                com.bigpapituna.sharpears.ui.Stat("$streak", if (streak == 1) "Day" else "Days in a row").takeIf { !plainMode.on }),
                             primary = "Continue", onPrimary = { dailyDone = null },
                             pose = if (streak >= 2) com.bigpapituna.sharpears.ui.pup.Pose.STREAK else com.bigpapituna.sharpears.ui.pup.Pose.LEVEL_UP,
                             sampler = sampler.takeIf { prefs.sound },
@@ -2296,11 +2317,13 @@ class MainActivity : ComponentActivity() {
                     // A Celebration on screen holds the level-up back until it closes: celebration first, then the level.
                     // A kid's session ends on the sticker, not on XP (KIDS-PLAN 3.4): XP still adds up underneath for grown-up
                     // mode later, but no level-up screen full of numbers.
-                    if (current.kidSkin) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
+                    // 2.15: the Plain look the same (XP and level on You only): the level-up and the banners stay unseen.
+                    val quiet = current.kidSkin || plainMode.on
+                    if (quiet) LaunchedEffect(progress.levelUp.value) { if (progress.levelUp.value != null) progress.consumeLevelUp() }
                     // Nor achievement banners ("One week streak", "100 minutes"): they unlock underneath, unseen by a kid.
                     // 2.14: a big kid sees levels as a grown-up does (Ages.showsLevels); a little kid sees none.
-                    if (current.kidSkin) LaunchedEffect(progress.toasts.size) { progress.toasts.clear() }
-                    if (!isStage(screen) && !current.kidSkin) SharpEarsTheme(dark = isSystemInDarkTheme()) {
+                    if (quiet) LaunchedEffect(progress.toasts.size) { progress.toasts.clear() }
+                    if (!isStage(screen) && !quiet) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         ProgressOverlays(progress, holdLevelUp = current.kidSkin || com.bigpapituna.sharpears.ui.celebrationsShowing.intValue > 0)
                     }
                     // The weekly brief's notification asked for someone's brief (2.4).

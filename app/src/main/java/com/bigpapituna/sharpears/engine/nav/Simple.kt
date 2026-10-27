@@ -194,15 +194,15 @@ object Simple {
 
     // ---- Settings ----
 
-    enum class SettingsPart { FAMILY, PROGRESS, LAYOUT, KEYS, FALLING_NOTES, WRONG_KEYS, SOUND, VOICE, ENCOURAGEMENT, REMINDER, BRIEFS, MICROPHONE, ABOUT, TESTING }
+    enum class SettingsPart { FAMILY, PROGRESS, LAYOUT, KEYS, FALLING_NOTES, WRONG_KEYS, SOUND, VOICE, ENCOURAGEMENT, PLAIN_LOOK, REMINDER, BRIEFS, MICROPHONE, ABOUT, TESTING }
 
     /**
      * The essentials Simple keeps: family, voice, sound, the microphone and the reminder (and the layout itself), plus
      * Testing while the tester build exists (Roy, 2026-10-22: "add help Roy test in simple mode as well"), and since 2.13
-     * Encouragement (the cheer pops: every layout shows it).
+     * Encouragement (the cheer pops: every layout shows it), and since 2.15 the Plain look (grown-ups and big kids, every layout).
      */
     val SETTINGS_ESSENTIALS: Set<SettingsPart> = setOf(SettingsPart.FAMILY, SettingsPart.LAYOUT, SettingsPart.SOUND, SettingsPart.VOICE,
-        SettingsPart.ENCOURAGEMENT, SettingsPart.BRIEFS,
+        SettingsPart.ENCOURAGEMENT, SettingsPart.PLAIN_LOOK, SettingsPart.BRIEFS,
         SettingsPart.REMINDER, SettingsPart.MICROPHONE, SettingsPart.TESTING)
 
     /** Advanced adds how playing looks (keys, falling notes, wrong keys); Progress and About wait for Full. */

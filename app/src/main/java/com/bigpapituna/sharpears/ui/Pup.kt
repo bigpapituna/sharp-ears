@@ -64,6 +64,8 @@ private val TAIL = 9.dp
 /** What the pup says: a gold speech bubble with its tail toward him (on the left). Pops in when the line changes. */
 @Composable
 fun SpeechBubble(line: String, modifier: Modifier = Modifier, style: TextStyle = MaterialTheme.typography.titleMedium) {
+    // 2.15, the Plain look: no pup to point at, so no gold bubble or tail: the words on a quiet surface.
+    if (LocalPlain.current.on) { PlainWords(line, modifier, style); return }
     val density = LocalDensity.current
     val shape = remember(density) {
         val tail = with(density) { TAIL.toPx() }
@@ -90,11 +92,14 @@ fun PupSays(pose: Pose, line: String, modifier: Modifier = Modifier, size: Dp = 
             onTap: (() -> Unit)? = null, sleepyAfterMs: Long? = null, style: TextStyle? = null,
             controller: PupController? = null, bounce: BounceSize = BounceSize.SMALL,
             /** False where the pose is the message (a "not quite", a pointing pup): no idle acts, no sleep. */
-            idle: Boolean = true, mood: PupMood = pose.mood) =
+            idle: Boolean = true, mood: PupMood = pose.mood) {
+    // 2.15, the Plain look: the words alone (a lesson's instruction, a hint, an empty list's line), no pup and no bubble tail.
+    if (LocalPlain.current.on) { PlainWords(line, modifier, style ?: MaterialTheme.typography.titleMedium); return }
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Pup(pose, mood, size = size, onTap = onTap, sleepyAfterMs = sleepyAfterMs, controller = controller, bounce = bounce, idle = idle)
         SpeechBubble(line, Modifier.weight(1f, fill = false), style ?: MaterialTheme.typography.titleMedium)
     }
+}
 
 /**
  * The main action on a screen: a pill that sits on a darker lip and sinks into it when pressed, then springs back,
@@ -125,7 +130,8 @@ fun ChunkyButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bo
 /** A burst of confetti in the accent, the pup's gold and the hand colours, once per [key]. Nothing with animations off. */
 @Composable
 fun Confetti(key: Any, modifier: Modifier = Modifier) {
-    if (reducedMotion()) return
+    // 2.15: none in the Plain look either (PlainLook.party).
+    if (reducedMotion() || LocalPlain.current.on) return
     val t = remember(key) { Animatable(0f) }
     LaunchedEffect(key) { t.animateTo(1f, tween(2400, easing = LinearEasing)) }
     // Each bit: sideways speed, upward speed, spin, size; colours in turn.

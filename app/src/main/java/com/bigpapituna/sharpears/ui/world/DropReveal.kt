@@ -143,6 +143,8 @@ fun StickerCard(drop: Drop, flip: Float, enter: Float, modifier: Modifier = Modi
 @Composable
 fun DropReveal(reward: Reward, modifier: Modifier = Modifier, pup: PupController? = null, cardWidth: Dp = 150.dp,
                /** 2.14: false for a child who cannot read yet: the card alone, its words only for TalkBack. */ captions: Boolean = true, onDone: () -> Unit = {}) {
+    // 2.15: no sticker reveals in the Plain look (the stickers still go to the trail, unseen).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) { LaunchedEffect(Unit) { onDone() }; return }
     val still = reducedMotion()
     val sounds = rememberWorldSounds()
     val haptic = LocalHapticFeedback.current

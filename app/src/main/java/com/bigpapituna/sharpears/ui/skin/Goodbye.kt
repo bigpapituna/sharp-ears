@@ -122,8 +122,11 @@ fun Goodbye(
     capped: Boolean = false,
 ) {
     if (picture) androidx.activity.compose.BackHandler(onBack = onClose)
-    val line = remember(name, seed, asleep, capped) {
-        when { capped -> com.bigpapituna.sharpears.engine.skin.TimeCap.line(name); asleep -> SessionWords.lessonsAsleep(name); else -> SessionWords.goodnight(name, seed) }
+    // 2.15, the Plain look (a big kid's goodbye): no sleepy pup (the app's mark), the plain words, days played as dots.
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
+    val line = remember(name, seed, asleep, capped, plain) {
+        when { plain -> com.bigpapituna.sharpears.engine.family.PlainLook.goodbye(name, asleep, capped)
+            capped -> com.bigpapituna.sharpears.engine.skin.TimeCap.line(name); asleep -> SessionWords.lessonsAsleep(name); else -> SessionWords.goodnight(name, seed) }
     }
     val songs = songsOpen && !capped
     LaunchedEffect(line) { say(line) }
@@ -143,7 +146,8 @@ fun Goodbye(
             val wide = maxWidth > maxHeight * 1.15f
             val pupSize = if (wide) min(maxHeight * 0.62f, 300.dp) else min(maxWidth * 0.66f, 280.dp)
             val pup: @Composable () -> Unit = {
-                SleepyPup(pupSize, still, rise, yawn, breathe?.let { { it.value } })
+                if (plain) com.bigpapituna.sharpears.ui.PlainMark(min(pupSize * 0.4f, 112.dp), Modifier.graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) })
+                else SleepyPup(pupSize, still, rise, yawn, breathe?.let { { it.value } })
             }
             val words: @Composable ColumnScope.() -> Unit = if (picture) { {
                 Spacer(Modifier.size(1.dp).semantics { heading(); liveRegion = LiveRegionMode.Polite; contentDescription = line })
@@ -156,7 +160,9 @@ fun Goodbye(
                     Text("Grown-ups: one more lesson", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } } else { {
-                SpeechBubble(line, Modifier.widthIn(max = 460.dp).graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) }
+                if (plain) Text(line, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.widthIn(max = 460.dp)
+                    .semantics { heading(); liveRegion = LiveRegionMode.Polite })
+                else SpeechBubble(line, Modifier.widthIn(max = 460.dp).graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) }
                     .semantics { heading(); liveRegion = LiveRegionMode.Polite }, MaterialTheme.typography.titleLarge)
                 Text(if (capped) SessionWords.ALL_TOMORROW else if (songs) SessionWords.STILL_OPEN else SessionWords.SONGS_CLOSED,
                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -170,7 +176,7 @@ fun Goodbye(
                             Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.size(6.dp)); Text("Play a song")
                         }
-                        if (onJam != null) OutlinedButton(onClick = onJam) { Text("Jam with the pup") }
+                        if (onJam != null) OutlinedButton(onClick = onJam) { Text(if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.JAM else "Jam with the pup") }
                         TextButton(onClick = onClose) { Text("Close") }
                     } else ChunkyButton(onClick = onClose, modifier = Modifier.widthIn(min = 180.dp)) { Text("Goodbye") }    // only the goodbye
                 }
@@ -262,6 +268,11 @@ private fun SleepyPup(size: Dp, still: Boolean, rise: Animatable<Float, *>, yawn
  */
 @Composable
 fun PawWeekRow(week: List<PawDay>, size: Dp, modifier: Modifier = Modifier, stamp: Boolean = false, today: LocalDate = com.bigpapituna.sharpears.data.AppClock.today()) {
+    // 2.15, the Plain look: the days played as dots, no paws and no rest-day moon (rest days still count, silently).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) {
+        com.bigpapituna.sharpears.ui.PlainDays(week.map { Triple(it.initial, it.practised, it.date == today) }, size * 0.5f, modifier)
+        return
+    }
     val c = MaterialTheme.colorScheme
     val still = reducedMotion()
     val press = remember { Animatable(if (still || !stamp) 1f else 0f) }

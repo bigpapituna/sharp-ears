@@ -90,7 +90,8 @@ fun Interstitial(line: String, voice: Voice, onGo: () -> Unit, onSkip: () -> Uni
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
         if (part != null) Text(if (kid) "Practice today" else "Your plan, part ${index + 1} of ${parts.size}", style = Numeric.merge(MaterialTheme.typography.labelLarge),
             color = c.primary)
-        Pup(Pose.GET_READY, size = 176.dp)
+        // 2.15, the Plain look: the app's mark in the pup's place, the words without his bubble (UpBubble).
+        if (plainLook()) PlainMark(72.dp) else Pup(Pose.GET_READY, size = 176.dp)
         UpBubble(part?.let { SessionWords.quoted(it, kid) } ?: SessionWords.quoted(line), Modifier.widthIn(max = 480.dp).semantics { heading() })
         part?.let {
             Text(SessionWords.about(it, kid), style = MaterialTheme.typography.bodyMedium,
@@ -162,6 +163,7 @@ private fun CountdownRing(progress: Animatable<Float, *>) {
 /** The pup's line in a bubble under him, its tail pointing up at him. */
 @Composable
 private fun UpBubble(text: String, modifier: Modifier = Modifier) {
+    if (plainLook()) { Text(text, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, modifier = modifier); return }
     val density = LocalDensity.current
     val shape = remember(density) {
         val tail = with(density) { 10.dp.toPx() }; val r = with(density) { 20.dp.toPx() }

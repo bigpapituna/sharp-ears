@@ -147,6 +147,12 @@ fun Celebration(
     stars: FinishStars? = null,
 ) {
     BackHandler { (onSecondary ?: onPrimary)() }
+    // 2.15, the Plain look: no pup (the app's mark in his place), no confetti, sunburst or fanfare, plain words, no XP line.
+    val plain = LocalPlain.current.on
+    @Suppress("NAME_SHADOWING") val title = if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(title) else title
+    @Suppress("NAME_SHADOWING") val line = if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(line) else line
+    @Suppress("NAME_SHADOWING") val newBest = newBest && !plain
+    @Suppress("NAME_SHADOWING") val xpGained = xpGained.takeIf { !plain }       // XP and level on You only
     // The buttons fade in where the keys were: a tap meant for the keys does nothing (SettleTaps).
     val primaryTap = settledTap(action = onPrimary)
     val secondaryTap = settledTap { onSecondary?.invoke() }
@@ -172,6 +178,7 @@ fun Celebration(
     val replay = com.bigpapituna.sharpears.ui.pup.rememberPupReplay(pup, clip = clip, hold = clip != null, then = PupMood.CHEER,
         voice = com.bigpapituna.sharpears.engine.pup.PupTap.line(com.bigpapituna.sharpears.ui.family.profile().kidSkin))
     LaunchedEffect(Unit) {
+        if (plain) return@LaunchedEffect          // 2.15: no pup to play anything
         // 2.14 levels-ages: a finish with a graded step skipped is neutral: the rig's wag, never the jump or the celebrate clip.
         if (stars?.neutral == true) { snapshotFlow { rise.value }.first { it >= 0.97f }; pup.play(PupMood.WAG); return@LaunchedEffect }
         if (clip != null) pup.prepare(clip)
@@ -184,7 +191,7 @@ fun Celebration(
         }
     }
     LaunchedEffect(Unit) {
-        if (stars?.neutral != true) sampler?.let { launch { fanfare(it) } }      // 2.14 levels-ages: no fanfare for a skip
+        if (stars?.neutral != true && !plain) sampler?.let { launch { fanfare(it) } }      // 2.14 levels-ages: no fanfare for a skip; 2.15 none in Plain
         if (still) return@LaunchedEffect
         launch { rise.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = 180f)) }
         launch { snapshotFlow { rise.value }.first { it >= 0.97f }; puff.animateTo(1f, tween(750, easing = LinearEasing)) }
@@ -205,7 +212,8 @@ fun Celebration(
         .animateFloat(0f, 360f, infiniteRepeatable(tween(45_000, easing = LinearEasing), RepeatMode.Restart), label = "spin") else null
     val px = with(LocalDensity.current) { 320.dp.toPx() }
     val head: @Composable ColumnScope.(pupSize: androidx.compose.ui.unit.Dp) -> Unit = { pupSize ->
-        Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
+        if (plain) PlainMark(minOf(pupSize * 0.45f, 88.dp), Modifier.graphicsLayer { alpha = rise.value.coerceIn(0f, 1f) })
+        else Box(Modifier.size(pupSize).landing(newBest, spin, rise, burst, puff), contentAlignment = Alignment.Center) {
             com.bigpapituna.sharpears.ui.pup.ReplayPup(pose, replay, pup, pupSize, mood = PupMood.IDLE, clips = clip != null, modifier = Modifier.graphicsLayer {
                 translationY = (1 - rise.value) * px
                 val s = 0.4f + 0.6f * rise.value
@@ -454,6 +462,9 @@ enum class Cheer { GOOD, MISS }
  */
 @Composable
 fun CheerBar(cheer: Cheer, title: String, line: String?, button: String, modifier: Modifier = Modifier, onButton: () -> Unit) {
+    // 2.15, the Plain look: no pup over the bar's edge, the plain bank's title ("Step passed." for "Nice work!").
+    val plain = LocalPlain.current.on
+    @Suppress("NAME_SHADOWING") val title = if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(title) else title
     val still = reducedMotion()
     val haptic = LocalHapticFeedback.current
     val up = remember(title, line) { Animatable(if (still) 1f else 0f) }
@@ -477,7 +488,7 @@ fun CheerBar(cheer: Cheer, title: String, line: String?, button: String, modifie
             .semantics { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
             TypedText(title, typed, MaterialTheme.typography.headlineSmall, if (good) c.onPrimaryContainer else c.onSurface,
-                Modifier.padding(start = 92.dp))
+                Modifier.padding(start = if (plain) 0.dp else 92.dp))
             line?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = if (good) c.onPrimaryContainer else c.onSurfaceVariant) }
             Spacer(Modifier.height(8.dp))
             ChunkyButton(onClick = settledTap(title, line, action = onButton), modifier = Modifier.fillMaxWidth()) { Text(button) }
@@ -523,6 +534,8 @@ class CalmFinish(val line: String?, val items: List<com.bigpapituna.sharpears.en
 /** The reward line and its chip, under a calm finish's numbers; the chip opens the one rewards sheet. */
 @Composable
 internal fun CalmRewards(calm: CalmFinish, modifier: Modifier = Modifier) {
+    // 2.15, the Plain look: no reward line (the XP and level are on You) and no chip; tomorrow's next thing stays.
+    if (LocalPlain.current.on) { calm.below?.let { Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { it() } }; return }
     val open = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val chip = com.bigpapituna.sharpears.engine.world.RewardQueue.chip(calm.items)
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {

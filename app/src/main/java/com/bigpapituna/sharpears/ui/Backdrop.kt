@@ -37,6 +37,8 @@ fun Modifier.paper(): Modifier {
     val ink = MaterialTheme.colorScheme.onBackground
     val dark = bg.luminance() < 0.5f
     val grain = remember { ShaderBrush(ImageShader(Grain, TileMode.Repeated, TileMode.Repeated)) }
+    // 2.15, the Plain look: the paper and its light, no paw prints.
+    val paws = !LocalPlain.current.on
     return drawWithCache {
         val glow = Brush.radialGradient(listOf(PupGold.copy(alpha = if (dark) 0.07f else 0.16f), Color.Transparent),
             center = Offset(size.width * 0.5f, -size.width * 0.15f), radius = size.width * 1.1f)
@@ -51,7 +53,7 @@ fun Modifier.paper(): Modifier {
             // Paw prints on a staggered grid, each turned a little, as if the pup wandered across the page.
             var row = 0
             var y = step * 0.4f
-            while (y < size.height + step) {
+            while (paws && y < size.height + step) {
                 var x = if (row % 2 == 0) step * 0.3f else step * 0.85f
                 while (x < size.width + step) {
                     val turn = if ((row + (x / step).toInt()) % 2 == 0) -22f else 18f

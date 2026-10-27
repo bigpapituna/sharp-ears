@@ -102,6 +102,8 @@ fun ReplayPup(
     outfit: com.bigpapituna.sharpears.engine.world.Outfit = com.bigpapituna.sharpears.ui.world.LocalPupOutfit.current,
     bounce: com.bigpapituna.sharpears.ui.motion.BounceSize = com.bigpapituna.sharpears.ui.motion.BounceSize.SMALL,
 ) {
+    // 2.15: no pup and no tap-to-replay in the Plain look; a finish screen draws PlainMark in his place (ui/Plain.kt).
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     Box(modifier.size(size)) {
         Pup(pose, mood, size = size, onTap = replay.onTap, idle = idle, controller = controller, clips = clips, outfit = outfit, bounce = bounce)
         TapSparkle(replay.taps, Modifier.fillMaxSize())

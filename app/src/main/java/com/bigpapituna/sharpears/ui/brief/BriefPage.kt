@@ -102,14 +102,16 @@ fun BriefPage(
                 }
                 Text(brief.headline, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 4.dp).semantics { heading() })
+                // 2.15, the Plain look: no streak lines in the person's own week (a fact or the praise that names one).
+                val plainOwn = com.bigpapituna.sharpears.ui.LocalPlain.current.on && page.profile.kind != ProfileKind.KID
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    brief.facts.take(3).forEach { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    brief.facts.filterNot { plainOwn && com.bigpapituna.sharpears.engine.family.PlainLook.mentionsStreak(it) }.take(3).forEach { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Dot(Modifier.padding(top = 9.dp))
                         Text(it, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     } }
                 }
                 Recommendations(page, controller)
-                Praise(brief.praise)
+                if (!(plainOwn && com.bigpapituna.sharpears.engine.family.PlainLook.mentionsStreak(brief.praise))) Praise(brief.praise)
                 AskBox(page.asks.exchanges, page.asks.busy, AskRules.starters(f), onAsk = { q -> gate.guardBrief(page.profile) { controller.ask(page, q) } },
                     modifier = Modifier.padding(top = 10.dp), guard = { a -> gate.guardBrief(page.profile, a) })
                 ExpandRow(page.expanded, onToggle = { page.expanded = !page.expanded })

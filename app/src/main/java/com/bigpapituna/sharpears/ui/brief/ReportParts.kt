@@ -63,9 +63,11 @@ fun ReportTitle(text: String, modifier: Modifier = Modifier) =
 @Composable
 fun WeekStrip(days: List<DayStat>, goalMinutes: Int?, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
+    // 2.15, the Plain look: a dot for each day played (no paws), no rest-day moon or its legend.
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
     val fractions = Spark.dayFractions(days, goalMinutes)
     val description = days.joinToString(". ") { d ->
-        BriefFormat.dayShort(d.date) + (if (d.practiceMinutes > 0) ", ${BriefFormat.minutes(d.practiceMinutes)}" else if (d.rest) ", a rest day" else ", no practice") + if (d.goal) ", the goal was reached" else ""
+        BriefFormat.dayShort(d.date) + (if (d.practiceMinutes > 0) ", ${BriefFormat.minutes(d.practiceMinutes)}" else if (d.rest && !plain) ", a rest day" else ", no practice") + if (d.goal) ", the goal was reached" else ""
     }
     Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = description }) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -77,7 +79,10 @@ fun WeekStrip(days: List<DayStat>, goalMinutes: Int?, modifier: Modifier = Modif
                             drawCircle(PupGold, style = Stroke(1.5.dp.toPx()))
                         }
                         val practised = d.practiceMinutes > 0
-                        Canvas(Modifier.size(26.dp)) { if (d.rest && !practised) drawRestPaw(c.primary) else drawPaw(if (practised) c.primary else c.outline, filled = practised) }
+                        Canvas(Modifier.size(26.dp)) {
+                            if (plain) { if (practised) drawCircle(c.primary, size.minDimension * 0.32f) else drawCircle(c.outline, size.minDimension * 0.3f, style = Stroke(1.5.dp.toPx())) }
+                            else if (d.rest && !practised) drawRestPaw(c.primary) else drawPaw(if (practised) c.primary else c.outline, filled = practised)
+                        }
                     }
                     Text(if (d.practiceMinutes > 0) "${d.practiceMinutes}" else "0", style = Numeric.copy(fontSize = MaterialTheme.typography.labelLarge.fontSize),
                         color = if (d.practiceMinutes > 0) c.onSurface else c.onSurfaceVariant)
@@ -91,7 +96,7 @@ fun WeekStrip(days: List<DayStat>, goalMinutes: Int?, modifier: Modifier = Modif
         Text(buildString {
             append("Minutes practised each day.")
             if (days.any { it.goal }) append(" A gold ring means the daily goal was reached.")
-            if (days.any { it.rest }) append(" A paw with a moon is a rest day: one missed day the streak kept.")
+            if (days.any { it.rest } && !plain) append(" A paw with a moon is a rest day: one missed day the streak kept.")
         }, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
     }
 }

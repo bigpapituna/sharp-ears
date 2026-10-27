@@ -130,8 +130,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     val wordsKind = if (kid) ProfileKind.KID else ProfileKind.ADULT
     val stars = Stars.of(e.recap, e.wrongKeys)
     val seed = remember(e) { e.hashCode() }
+    // 2.15, the Plain look: no pup (the app's mark in his place), no party, no star chimes, plain words, no reward line or chip.
+    val plain = LocalPlain.current.on
     // The sunburst, confetti, trophy and flourish: grown-ups on a best worth it (RunWords.CELEBRATE_FROM), kids on three stars.
-    val party = RunWords.party(wordsKind, e.recap, e.wrongKeys, e.newBest)
+    val party = com.bigpapituna.sharpears.engine.family.PlainLook.party(plain, RunWords.party(wordsKind, e.recap, e.wrongKeys, e.newBest))
     // 2.10: three stars (a best for a grown-up) and he lands in a jump for joy, then cheers; a good run, a wag.
     val pup = rememberPupController(idle = false)
     // 2.14, tap the pup to play it again: his jump (the clip, for a kid's stars) then the cheer on a party, a tiny sparkle, a kid's
@@ -165,12 +167,13 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         else -> when { e.wrongKeys == 0 -> Pose.GREAT_JOB; e.wrongKeys <= 5 -> Pose.PRACTICING; else -> Pose.MISTAKE }
     }
     LaunchedEffect(e) {
+        if (plain) return@LaunchedEffect          // 2.15: no pup to play anything
         androidx.compose.runtime.snapshotFlow { m.rise.value }.first { it >= 0.97f }
         if (party) { pup.play(PupMood.HAPPY); delay(PupMotion.HAPPY_MS.toLong()); pup.mood = PupMood.CHEER }
         else if (pose == Pose.GREAT_JOB) pup.play(PupMood.WAG)
     }
-    val title = RunWords.headline(wordsKind, r, e.wrongKeys, e.newBest, seed)
-    val line = RunWords.coaching(wordsKind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed)
+    val title = RunWords.headline(wordsKind, r, e.wrongKeys, e.newBest, seed).let { if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(it) else it }
+    val line = RunWords.coaching(wordsKind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed).let { if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(it) else it }
     // The pup says it, name and all (made on the phone, since names are never recorded): kids every time, grown-ups on a best.
     LaunchedEffect(e) {
         if (say == null) return@LaunchedEffect
@@ -203,7 +206,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             val short = wide && maxHeight < 480.dp
             val pupSize = if (short) min(maxHeight * 0.34f, 150.dp) else if (wide) min(maxHeight * 0.46f, 190.dp) else min(maxWidth * 0.5f, 200.dp)
             val head: @Composable ColumnScope.() -> Unit = {
-                Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
+                if (plain) PlainMark(min(pupSize * 0.45f, 88.dp), Modifier.graphicsLayer { alpha = m.rise.value.coerceIn(0f, 1f) })
+                else Box(Modifier.size(pupSize * 1.25f).sunburst(party, spin, m.rise), contentAlignment = Alignment.Center) {
                     // Held in the run's pose (as on a lesson's celebration): left alone he dozed off on the recap.
                     com.bigpapituna.sharpears.ui.pup.ReplayPup(pose, replay, pup, pupSize, mood = PupMood.IDLE, clips = kid, modifier = Modifier.graphicsLayer {
                         translationY = (1 - m.rise.value) * size.height * 0.8f
@@ -239,7 +243,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
             // The stars lead; they start landing as the headline pops (kids get them bigger, and nothing else).
             val starRow: @Composable ColumnScope.() -> Unit = {
                 StarRow(stars, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).graphicsLayer { alpha = m.pop.value.coerceIn(0f, 1f) }, size = if (kid) (if (short) 56.dp else 72.dp) else 48.dp,
-                    sampler = sampler, startDelayMs = if (still) 0L else 420L)
+                    sampler = sampler.takeIf { !plain }, startDelayMs = if (still) 0L else 420L)
             }
             val numbers: @Composable ColumnScope.() -> Unit = if (kid) { { if (!short) starRow(); com.bigpapituna.sharpears.ui.player.TimingPanel(e.timing, r, kid = true, Modifier.slideIn(m.rest, 1)); drop(); TomorrowSlot(Modifier.slideIn(m.rest, 2)) } } else { {
                 if (!short) starRow()
