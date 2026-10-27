@@ -174,7 +174,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                         }
                     }
                 }
-                TextButton(onClick = { if (askName) onName(name); store.onboardingDone = true; onDone(null) }) { Text("Skip") }
+                TextButton(onClick = { com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = false); if (askName) onName(name); store.onboardingDone = true; onDone(null) }) { Text("Skip") }
             }
             AnimatedContent(
                 step, Modifier.weight(1f),
@@ -200,6 +200,7 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
             }
             ChunkyButton(
                 onClick = {
+                    com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = true)
                     if (step < STEPS - 1) step++
                     else if (reminderOn && !Reminder.canNotify(context)) askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     else afterNotify(true)

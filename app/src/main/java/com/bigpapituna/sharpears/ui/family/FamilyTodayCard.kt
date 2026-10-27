@@ -69,7 +69,7 @@ private fun ChildRow(kid: Profile, row: ChildToday?, onOpen: (Profile) -> Unit) 
     val line = row?.let(FamilyToday::line) ?: " "
     val paw = row?.let(FamilyToday::pawWords).orEmpty()
     Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp))
-        .clickable(role = Role.Button, onClickLabel = "Open ${kid.name}'s brief") { onOpen(kid) }.padding(horizontal = 8.dp, vertical = 8.dp)
+        .clickable(role = Role.Button, onClickLabel = "Open ${kid.name}'s brief") { com.bigpapituna.sharpears.analytics.Events.familyCardOpened(); onOpen(kid) }.padding(horizontal = 8.dp, vertical = 8.dp)
         .semantics(mergeDescendants = true) { contentDescription = "${kid.name}. $line $paw." },
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         PupAvatar(kid.avatar, size = 44.dp)

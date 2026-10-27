@@ -51,8 +51,11 @@ object TesterRules {
     /** What happens on screen is written to the tester log while either switch is on (the diary reads it; nothing else does). */
     fun records(switchOn: Boolean, diaryOn: Boolean, diaryTo: String): Boolean = switchOn || (diaryOn && diaryShown(diaryTo))
 
-    /** An imported song's id is made from its file name, which may hold someone's name: it goes out as "user-song". */
-    fun safeId(id: String?): String? = id?.let { if (it.startsWith("user-")) "user-song" else it }
+    /**
+     * An imported song's id is made from its file name, and a My songs id from its title (2.15: those were missed), either may
+     * hold someone's name: it goes out as "user-song" (AppEvents.songId tells them from the bundled songs).
+     */
+    fun safeId(id: String?): String? = id?.let { if (AppEvents.songId(it) == AppEvents.MY_SONG) "user-song" else it }
 
     /**
      * The screen a route names (MainActivity.routeOf: "home:LEARN/lesson:2:find-c"), as one event's name: its last part, a
@@ -78,7 +81,10 @@ object TesterRules {
         if (p.startsWith("song:")) "song:" + safeId(p.removePrefix("song:")) else p
     }
 
-    /** "kid" or "adult": the only thing about a profile that goes out (never its name, never its id). */
+    /**
+     * "kid" or "adult" from a kid flag: the only thing about a profile that goes out (never its name, never its id). 2.15: a big
+     * kid's events say "big_kid" (analytics/Tester.kt refines this word with AppEvents.refineKind, AppEvents.profileKind).
+     */
     fun profileKind(isKid: Boolean): String = if (isKid) "kid" else "adult"
 
     /**
@@ -140,13 +146,19 @@ object TesterRules {
 class TesterTally {
     private class Open(var tries: Int = 0, var letGo: Int = 0)
     private val open = HashMap<String, Open>()
+    /** 2.15: the kinds of play since the session started (AppEvents.partOf), for practice_session's parts. */
+    private val parts = HashSet<String>()
 
-    fun eventsFor(e: BriefEvent): List<TesterEvent> = when (e) {
+    /** The analytics events [e] makes (2.15: also counts the session's kinds of play first). */
+    fun eventsFor(e: BriefEvent): List<TesterEvent> { AppEvents.partOf(e)?.let(parts::add); return mapped(e) }
+
+    private fun mapped(e: BriefEvent): List<TesterEvent> = when (e) {
         is BriefEvent.LessonStep -> {
             val o = open.getOrPut(e.lessonId) { Open() }
             o.tries += e.tries; if (e.letGo) o.letGo++
             val step = mapOf("lesson" to e.lessonId, "step" to e.stepIndex, "kind" to e.kind, "tries" to e.tries, "let_go" to e.letGo)
             listOfNotNull(
+                AppEvents.lessonStepPassed(e),
                 TesterEvent("stage_stuck", step).takeIf { e.letGo || e.tries >= TesterRules.STUCK_TRIES },
                 TesterEvent("hint_step", step + mapOf("hints" to e.hintsUsed.size, "deepest" to (e.hintsUsed.maxOrNull() ?: 0))).takeIf { e.hintsUsed.isNotEmpty() },
             )
@@ -156,10 +168,14 @@ class TesterTally {
             listOf(TesterEvent("lesson_finished", mapOf("lesson" to e.lessonId, "stars" to e.stars, "tries" to o.tries, "let_go" to o.letGo,
                 "seconds" to e.durationMs / 1000)))
         }
-        is BriefEvent.SongRun -> listOf(TesterEvent("song_run", buildMap {
-            put("song", TesterRules.safeId(e.songId)!!); put("mode", e.mode.name.lowercase()); put("stars", e.stars)
-            e.accuracy?.let { put("accuracy", it) }; put("duet", e.duet)
-        }))
+        // 2.15 (AppEvents): the session's length and practice, the arcade, and the settings the dashboard tracks.
+        is BriefEvent.SessionStarted -> { parts.clear(); emptyList() }
+        is BriefEvent.SessionEnded -> listOfNotNull(AppEvents.sessionLength(e.durationMs),
+            AppEvents.practiceSession(e.practiceSec, parts.size).takeIf { e.practiceSec > 0 }).also { parts.clear() }
+        is BriefEvent.GameRound -> listOf(AppEvents.arcadeGamePlayed(e))
+        is BriefEvent.SettingChanged -> listOfNotNull(AppEvents.fromSetting(e))
+        // 2.15: song_run became song_played (a song of the person's own as my_song, the accuracy as a bucket) and chord_chart_played.
+        is BriefEvent.SongRun -> listOf(AppEvents.songRun(e))
         is BriefEvent.ToyOpened -> listOf(TesterEvent("toy_opened", mapOf("toy" to e.toy.wire, "seconds" to e.durationMs / 1000)))
         else -> emptyList()
     }

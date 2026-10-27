@@ -272,8 +272,8 @@ private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
     val waiting = lock.locked(now)
     fun check() {
         if (waiting) return
-        if (sum.isRight(typed)) { onPass(); return }
-        gate.wrong()
+        if (sum.isRight(typed)) { com.bigpapituna.sharpears.analytics.Events.gateOpened(); onPass(); return }
+        gate.wrong(); com.bigpapituna.sharpears.analytics.Events.gateFailed()
         missed = true; typed = ""; sum = ParentGateRules.nextQuestion(previous = sum)
         if (!still) scope.launch { shake.snapTo(1f); shake.animateTo(0f, spring(dampingRatio = 0.25f, stiffness = 900f)) }
     }

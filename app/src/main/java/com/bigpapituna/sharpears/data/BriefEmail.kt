@@ -19,7 +19,9 @@ import com.bigpapituna.sharpears.engine.brief.email.EmailFrequency
 import com.bigpapituna.sharpears.engine.brief.email.EmailHtml
 import com.bigpapituna.sharpears.engine.brief.email.EmailHtmlOptions
 import com.bigpapituna.sharpears.engine.brief.email.EmailImages
+import com.bigpapituna.sharpears.engine.brief.email.EmailSendException
 import com.bigpapituna.sharpears.engine.brief.email.EmailSender
+import com.bigpapituna.sharpears.engine.brief.email.EmailTransport
 import com.bigpapituna.sharpears.engine.brief.email.PathProgress
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.kid.KidMap
@@ -131,11 +133,22 @@ object BriefEmail {
      * Brevo from BuildConfig (the key read at call time), asking [allowed] before every send. The brief's sender and the tester
      * diary (analytics/TesterDiary.kt) both go through it.
      */
-    fun transport(context: Context): BrevoTransport {
+    fun transport(context: Context): EmailTransport {
         val app = context.applicationContext
-        return BrevoTransport(BuildConfig.EMAIL_BASE_URL, keyProvider = { BuildConfig.EMAIL_KEY }, senderName = BuildConfig.EMAIL_FROM_NAME,
+        val real = BrevoTransport(BuildConfig.EMAIL_BASE_URL, keyProvider = { BuildConfig.EMAIL_KEY }, senderName = BuildConfig.EMAIL_FROM_NAME,
             senderEmail = BuildConfig.EMAIL_FROM, allowed = { allowed(app) }, log = ::log)
+        // 2.15: a send that failed is an error report (analytics/Errors.kt; the message is scrubbed of the key and the address
+        // already, and again there); a send not tried (metered, no key, no sender) is not.
+        return EmailTransport { message ->
+            try { real.send(message) } catch (e: EmailSendException) {
+                if (e.kind !in NOT_ERRORS) com.bigpapituna.sharpears.analytics.Errors.report("email_send", e, mapOf("kind" to e.kind, "status" to e.status))
+                throw e
+            }
+        }
     }
+
+    /** Sends the transport did not try on purpose: no error report. */
+    private val NOT_ERRORS = setOf(EmailSendException.Kind.NOT_ALLOWED, EmailSendException.Kind.NO_KEY, EmailSendException.Kind.CONFIG)
 
     /** The full report as a PDF, drawn by the same code as Send; the temporary file is gone before this returns. Null if it cannot be made. */
     private fun pdf(app: Context, profile: Profile, findings: Findings, brief: Brief, zone: ZoneId): ByteArray? {

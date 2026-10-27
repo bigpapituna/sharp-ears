@@ -19,7 +19,10 @@ fun secret(name: String, default: String = "") = (secrets.getProperty(name) ?: d
 // secrets.properties has a POSTHOG_KEY. Without one the build takes src/noposthog (a stub that does nothing) and has no
 // PostHog class at all. `-Psharpears.posthog=true` compiles the SDK in without a key, to check that code builds; it still
 // never starts without a key (analytics/Tester.kt).
-val withPostHog = secret("POSTHOG_KEY").isNotBlank() || providers.gradleProperty("sharpears.posthog").orNull == "true"
+// 2.15: `-Psharpears.posthog=false` leaves it out of a keyed build, to check that the keyless door (src/noposthog) still
+// compiles and its tests pass on a PC that has the key.
+val withPostHog = secret("POSTHOG_KEY").isNotBlank() && providers.gradleProperty("sharpears.posthog").orNull != "false" ||
+    providers.gradleProperty("sharpears.posthog").orNull == "true"
 
 // The debug routes' key (security review 2026-10-22, finding 1; engine/DebugRoutes.kt). With DEBUG_ROUTE_KEY in
 // secrets.properties (scripts/set-debug-key.ps1) the debug build acts on `--es screen ...` and the other launch extras only

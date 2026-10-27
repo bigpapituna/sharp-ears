@@ -5,8 +5,9 @@ package com.bigpapituna.sharpears.engine.family
  * the same pond, frogs and nursery songs as a 5 year old. A kid's profile now carries an age band: a little kid (4 to 7)
  * keeps the pup's world; a big kid (8 to 13) gets the tabs in Simple with their own progress, the pop charts first on Songs,
  * the arcade and Pup says, a small helper pup and plain words, and stays a kid for the parent gate, the parent brief and
- * its email, bedtime and the tester's profile kind. [Profile.isKid] keeps meaning "a kid" for all of those; every place that
- * draws the little kids' world asks [Ages] instead. Pure, so the routing is tested on the JVM (AgesTest).
+ * its email and bedtime (2.15: the tester's profile kind says big_kid, engine/tester/AppEvents.profileKind). [Profile.isKid]
+ * keeps meaning "a kid" for all of those; every place that draws the little kids' world asks [Ages] instead. Pure, so the
+ * routing is tested on the JVM (AgesTest).
  */
 
 /** How old a kid is, as the grown-up adding them says it: the little ones get the pup's world, the big kids the tabs. */
@@ -64,7 +65,7 @@ object Ages {
     /** The cheer pops' kid bank (the pup's own voice, woofs and all): little kids. Big kids get the grown-up bank. */
     fun kidCheers(a: Audience): Boolean = a == Audience.LITTLE_KID
 
-    /** A kid for the grown-ups: the parent gate, the parent brief and its email, bedtime, the mic offset, the tester's kind. */
+    /** A kid for the grown-ups: the parent gate, the parent brief and its email, bedtime, the mic offset (2.15: the tester's kind is big_kid). */
     fun kidForGrownUps(a: Audience): Boolean = a != Audience.GROWN_UP
 
     /** The course: the Playground's pages first for a little kid; Basics first (the pages an extra) for everyone else. */

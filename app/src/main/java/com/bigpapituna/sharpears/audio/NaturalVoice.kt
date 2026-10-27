@@ -58,7 +58,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
         pending.incrementAndGet()
         worker.execute {
             try { if (gen == generation) speakNow(text, gen, speed) }
-            catch (e: Exception) { Log.w(TAG, "voice: natural voice failed on \"$text\"", e) }
+            catch (e: Exception) { Log.w(TAG, "voice: natural voice failed on \"$text\"", e); com.bigpapituna.sharpears.analytics.Errors.report("natural_voice", e) }
             finally { if (pending.decrementAndGet() == 0) onIdle() }
         }
     }
@@ -136,7 +136,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
                 kokoro = OfflineTtsKokoroModelConfig(model = "$d/model.int8.onnx", voices = "$d/voices.bin", tokens = "$d/tokens.txt",
                     dataDir = "$d/espeak-ng-data", lexicon = "$d/lexicon-$en-en.txt", lang = "en-$en"),
                 numThreads = 4)))
-        }.onFailure { modelFailed = true; Log.w(TAG, "voice: the Kokoro model did not load", it) }.getOrNull()
+        }.onFailure { modelFailed = true; Log.w(TAG, "voice: the Kokoro model did not load", it); com.bigpapituna.sharpears.analytics.Errors.report("natural_voice_load", it) }.getOrNull()
         model?.let { Log.d(TAG, "voice: Kokoro loaded in ${System.currentTimeMillis() - t0} ms, speaker $speaker, ${it.sampleRate()} Hz") }
         return model
     }

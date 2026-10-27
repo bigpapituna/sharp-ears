@@ -492,6 +492,9 @@ class MainActivity : ComponentActivity() {
         // Tester analytics (analytics/Tester.kt): PostHog starts only on a build with a key and "Help Roy test" on.
         com.bigpapituna.sharpears.analytics.Tester.init(this)
         Briefs.tap = com.bigpapituna.sharpears.analytics.Tester::briefEvent
+        // 2.15, debug: --es screen errortest (keyed builds through scripts/adb-route.ps1): a handled test exception, then an
+        // uncaught one that closes the app (analytics/Errors.kt ErrorTest). Both carry is_error_test=true.
+        if (debugRoutes && BuildConfig.DEBUG && intent.getStringExtra("screen") == "errortest") com.bigpapituna.sharpears.analytics.ErrorTest.run()
         // 2.14, debug walks: --es family "Mia:0,Theo:1" adds those kids (name, then 1 when they read) unless someone has the name.
         intent.getStringExtra("family")?.takeIf { debugRoutes }?.split(",")?.forEachIndexed { i, spec ->
             val name = spec.substringBefore(":").trim()
@@ -923,6 +926,7 @@ class MainActivity : ComponentActivity() {
                     Log.d(TAG, "layout: ${l.wire} for ${profile.id}")
                 }
             }
+            LaunchedEffect(layout) { com.bigpapituna.sharpears.analytics.Tester.look(layout.wire) }      // 2.15: `layout` with every tester event
             // Every screen can report XP events through LocalProgress, and read who is playing through LocalProfile; the
             // pup's world (and the outfit every base-pose pup wears) through LocalWorld.
             // 2.14: the pup's voice for his tap-to-replay line on a finish screen (a kid's; said once per screen).
@@ -1133,12 +1137,14 @@ class MainActivity : ComponentActivity() {
                         Log.d(TAG, "daily: plan ${plan.aboutLabel}: " + plan.parts.joinToString { it.done })
                         if (!plan.isEmpty) screen = Screen.Daily(plan, 0, between = true, startedAt = System.currentTimeMillis(), done = emptyList(),
                             practiceAt = progress.secondsToday())
+                        if (!plan.isEmpty) com.bigpapituna.sharpears.analytics.Events.dailyPlanStarted(plan.parts.size)
                     }
                     LaunchedEffect(Unit) { if (startDaily) startDaily() }
                     fun finishDaily(s: Screen.Daily, done: List<SessionPart>, skipped: List<SessionPart> = s.skipped) {
                         // The practice the session added, as the goal line counts it (2.8.4, QA D5: the wall clock since Start,
                         // pauses and all, said "2 min" beside "0 of 10 min today"). Each part writes its seconds before it ends.
                         val secs = (progress.secondsToday() - s.practiceAt).coerceAtLeast(0).toLong()
+                        com.bigpapituna.sharpears.analytics.Events.dailyPlanFinished(done.size, s.plan.parts.size, secs, complete = done.isNotEmpty() && (profile.mapHome || s.plan.through(done, skipped)))
                         // Nothing done (every part skipped or left at once): no summary, the panel stays as it was.
                         if (done.isEmpty()) { Log.d(TAG, "daily: ended with nothing done"); screen = Screen.Home(); return }
                         // A grown-up's plan is done for today only when every part was played or skipped (QA D5: a plan left
@@ -1199,9 +1205,9 @@ class MainActivity : ComponentActivity() {
                                 progress.record(ProgressEvent.FeatureUsed("import"))
                                 libraryVersion++
                             } catch (e: ImportException) {
-                                Log.d(TAG, "import failed: ${e.message}"); importError = e.message
+                                Log.d(TAG, "import failed: ${e.message}"); importError = e.message; com.bigpapituna.sharpears.analytics.Errors.report("song_import", e)
                             } catch (e: Exception) {
-                                Log.d(TAG, "import failed: $e"); importError = "Import failed: ${e.message}"
+                                Log.d(TAG, "import failed: $e"); importError = "Import failed: ${e.message}"; com.bigpapituna.sharpears.analytics.Errors.report("song_import", e)
                             }
                         }
                     }
@@ -1220,8 +1226,10 @@ class MainActivity : ComponentActivity() {
                                 mySongDraft = draft
                             } catch (e: com.bigpapituna.sharpears.engine.MySongs.Refused) {
                                 Log.d(TAG, "my songs: refused, ${e.problem}"); mySongRefused = e.problem.line
+                                com.bigpapituna.sharpears.analytics.Errors.report("midi_refused", e, mapOf("problem" to e.problem))
                             } catch (e: Exception) {
                                 Log.d(TAG, "my songs: pick failed, $e"); mySongRefused = com.bigpapituna.sharpears.engine.MySongs.Problem.UNREADABLE.line
+                                com.bigpapituna.sharpears.analytics.Errors.report("midi_pick", e)
                             }
                         }
                     }
@@ -2493,6 +2501,7 @@ class MainActivity : ComponentActivity() {
         if (!allowed || (listOf("screen", "song", "lesson", "profile", "today").none { intent.getStringExtra(it) != null } && !intent.getBooleanExtra("daily", false))) return
         debugRoutes = true
         setIntent(intent)
+        if (BuildConfig.DEBUG && intent.getStringExtra("screen") == "errortest") com.bigpapituna.sharpears.analytics.ErrorTest.run()   // 2.15
         intent.getStringExtra("profile")?.let(profiles::switchTo)
         openApp(fromLaunch = true)
     }
@@ -2548,6 +2557,17 @@ class MainActivity : ComponentActivity() {
             "arcadegame" -> com.bigpapituna.sharpears.engine.arcade.ArcadeGame.byId(arg)?.let { Screen.ArcadeRound(it, back) } ?: back
             else -> back
         }
+    }
+
+    /**
+     * 2.15: every answer to the microphone question, from whichever screen asked (each has its own launcher; androidx.activity
+     * hands every result through here to them), as `mic_permission`. An answer already given asks nothing and sends nothing.
+     */
+    @Deprecated("androidx.activity still calls it for every permission result; overridden only to look")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        @Suppress("DEPRECATION") super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val i = permissions.indexOf(android.Manifest.permission.RECORD_AUDIO)
+        if (i in grantResults.indices) com.bigpapituna.sharpears.analytics.Events.micPermission(grantResults[i] == android.content.pm.PackageManager.PERMISSION_GRANTED)
     }
 
     // A session of the parent brief's log runs while the app is on screen as someone (the picker is no one).

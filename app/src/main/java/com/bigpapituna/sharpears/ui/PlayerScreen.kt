@@ -700,6 +700,7 @@ private fun PlayerStage(args: PlayerArgs) {
             // Listen (the app played it) or nothing reached: it opens at the top again, not marked played, no song XP.
             prefs.savePosition(meta.id, 0)
             Log.d(TAG, (if (transport.mode == Mode.LISTEN) "listened through " else "nothing played in the run of ") + song.id)
+            if (transport.mode == Mode.LISTEN) com.bigpapituna.sharpears.analytics.Events.songListened(meta.id)
         } else {
             prefs.markCompleted(meta.id)
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, null, newBest = false, firstCompletion = !wasCompleted))

@@ -53,7 +53,7 @@ class BedtimeStore(context: Context, private val profileId: String) {
     /** The day the daily time's goodbye was shown (once a day; after it the doors say "Tomorrow"). */
     var capShownOn: LocalDate?
         get() = day("capShownOn")
-        set(v) = put("capShownOn", v)
+        set(v) { if (v != null && v != capShownOn) com.bigpapituna.sharpears.analytics.Events.timeCapReached(capMin); put("capShownOn", v) }
 
     /** Grown-up mode was offered once Beginner was done (2.1, integrator): either answer puts the card away. */
     var grownUpOffered: Boolean

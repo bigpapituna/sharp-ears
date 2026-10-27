@@ -57,6 +57,9 @@ class TesterRulesTest {
         assertEquals("kidchords", TesterRules.screenOf("home:SONGS/kidsongs/kidchords"))
         assertEquals("home:SONGS/song:user-song", TesterRules.safeRoute("home:SONGS/song:user-mias-recital"))
         assertEquals("twinkle", TesterRules.safeId("twinkle"))
+        // 2.15: a My songs id is its title's letters and a hash: as private as an imported file's name.
+        assertEquals("song:user-song", TesterRules.screenOf("home:SONGS/song:mias-recital-3fa2b1"))
+        assertEquals("home:SONGS/song:user-song", TesterRules.safeRoute("home:SONGS/song:mias-recital-3fa2b1"))
         assertNull(TesterRules.safeId(null))
     }
 
@@ -99,17 +102,20 @@ class TesterRulesTest {
 
     @Test fun briefEventsBecomeStageLessonSongAndToyEvents() {
         val t = TesterTally()
-        assertTrue("one easy try: nothing", t.eventsFor(BriefEvent.LessonStep(1, "find-c", 0, "PLAY", tries = 1)).isEmpty())
-        val stuck = t.eventsFor(BriefEvent.LessonStep(2, "find-c", 1, "PLAY", tries = 4, letGo = true, hintsUsed = listOf(1, 3)))
+        // 2.15: every step left forward is lesson_step_passed too (let go included).
+        assertEquals("one easy try: the step passed only", listOf("lesson_step_passed"),
+            t.eventsFor(BriefEvent.LessonStep(1, "find-c", 0, "PLAY", tries = 1)).map { it.name })
+        val stuck = t.eventsFor(BriefEvent.LessonStep(2, "find-c", 1, "PLAY", tries = 4, letGo = true, hintsUsed = listOf(1, 3))).filter { it.name != "lesson_step_passed" }
         assertEquals(listOf("stage_stuck", "hint_step"), stuck.map { it.name })
         assertEquals(true, stuck[0].props["let_go"]); assertEquals(4, stuck[0].props["tries"])
         assertEquals(2, stuck[1].props["hints"]); assertEquals(3, stuck[1].props["deepest"])
-        assertEquals("three tries is stuck", "stage_stuck", t.eventsFor(BriefEvent.LessonStep(3, "find-c", 2, "PLAY", tries = 3)).single().name)
+        assertEquals("three tries is stuck", listOf("lesson_step_passed", "stage_stuck"), t.eventsFor(BriefEvent.LessonStep(3, "find-c", 2, "PLAY", tries = 3)).map { it.name })
         val done = t.eventsFor(BriefEvent.LessonDone(4, "find-c", stars = 2, durationMs = 61_000)).single()
         assertEquals(TesterEvent("lesson_finished", mapOf("lesson" to "find-c", "stars" to 2, "tries" to 8, "let_go" to 1, "seconds" to 61L)), done)
         assertEquals("the tally starts again", 0, t.eventsFor(BriefEvent.LessonDone(5, "find-c", stars = 3)).single().props["tries"])
+        // 2.15: song_run became song_played, a song of the person's own as my_song and the accuracy as a bucket.
         val song = t.eventsFor(BriefEvent.SongRun(6, "user-mias-recital", RunMode.PERFORM, Hands.BOTH, accuracy = 87, stars = 2)).single()
-        assertEquals(mapOf("song" to "user-song", "mode" to "perform", "stars" to 2, "accuracy" to 87, "duet" to false), song.props)
+        assertEquals(TesterEvent("song_played", mapOf("song" to "my_song", "mode" to "perform", "stars" to 2, "accuracy_bucket" to "85-94")), song)
         assertEquals(TesterEvent("toy_opened", mapOf("toy" to "jam", "seconds" to 95L)), t.eventsFor(BriefEvent.ToyOpened(7, ToyKind.JAM, 95_000)).single())
         assertTrue(t.eventsFor(BriefEvent.GoalReached(8, 10)).isEmpty())
     }

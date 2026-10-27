@@ -200,6 +200,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
             if (status != TextToSpeech.SUCCESS) {
                 // The lines waiting for it never come: [speaking] would stay true and hold the mic for good.
                 Log.d(TAG, "voice: engine failed to start ($status), ${beforeReady.size} waiting line(s) dropped")
+                com.bigpapituna.sharpears.analytics.Errors.report("voice_engine", IllegalStateException("the speech engine did not start, status $status"), mapOf("code" to status))
                 failed = true
                 beforeReady.clear()
                 settle(inFlight.isNotEmpty() || natural.busy)
@@ -219,7 +220,10 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
                 override fun onDone(utteranceId: String) { finished(utteranceId, "done") }
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String) { finished(utteranceId, "error") }
-                override fun onError(utteranceId: String, errorCode: Int) { finished(utteranceId, "error $errorCode") }
+                override fun onError(utteranceId: String, errorCode: Int) {
+                    finished(utteranceId, "error $errorCode")
+                    com.bigpapituna.sharpears.analytics.Errors.report("voice_utterance", IllegalStateException("the speech engine failed a line, error $errorCode"), mapOf("code" to errorCode))
+                }
                 override fun onStop(utteranceId: String, interrupted: Boolean) { finished(utteranceId, "stopped") }
             })
             ready = true

@@ -65,6 +65,7 @@ class Profiles(
         val r = state.value.add(profile.copy(createdAt = profile.createdAt.takeIf { it > 0 } ?: clock()), switch) ?: return null
         val added = r.profiles.last()
         save(r, "added ${added.id} (${added.kind}, reader=${added.reader})")
+        if (added.bigKid) com.bigpapituna.sharpears.analytics.Events.bigKidMade()
         return added
     }
 

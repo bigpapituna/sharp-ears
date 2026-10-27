@@ -142,6 +142,7 @@ fun PopSongPage(
     val band = remember { BandPlayer(context, sampler) }
     DisposableEffect(Unit) { onDispose { band.release() } }
     LaunchedEffect(hearAtOpen) { if (hearAtOpen) { delay(900); hearing = true } }
+    LaunchedEffect(hearing) { if (hearing) com.bigpapituna.sharpears.analytics.Events.chartHeard(song.id) }     // 2.15: chord_chart_played, mode listen
     LaunchedEffect(hearing, built, bed, withPiano) {
         if (!hearing) return@LaunchedEffect
         Log.d(TAG, "pop: hearing ${song.id} ${PopPlay.keyName(key, song.minor)} ${pattern.name} at $bpm bpm, piano=$withPiano")

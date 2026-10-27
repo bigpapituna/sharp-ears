@@ -30,8 +30,32 @@ class TesterWiringTest {
         fun members(f: String) = Regex("""(?m)^\s*(?:@\S+\s+)*(?:inline\s+)?(?:fun|val|const val)\s+([\w.]+)""").findAll(File(f).readText()).map { it.groupValues[1] }.toSet()
         val real = members("src/posthog/java/com/bigpapituna/sharpears/analytics/TesterSdk.kt")
         val stub = members("src/noposthog/java/com/bigpapituna/sharpears/analytics/TesterSdk.kt")
-        assertEquals(setOf("present", "start", "running", "resume", "pause", "capture", "screen", "register", "Modifier.testerMask"), stub)
+        assertEquals(setOf("present", "start", "running", "resume", "pause", "capture", "screen", "register", "captureException", "flag",
+            "Modifier.testerMask"), stub)
         assertTrue("$real", real.containsAll(stub))
+    }
+
+    /**
+     * 2.15: the keyless door names nothing of the SDK (it compiles without it: `-Psharpears.posthog=false` on a PC with the key),
+     * and error tracking, the test marks and the flags reach PostHog only through the real door.
+     */
+    @Test fun theKeylessDoorHasNoSdkAndErrorsGoThroughTheDoor() {
+        val stub = File("src/noposthog/java/com/bigpapituna/sharpears/analytics/TesterSdk.kt").readText()
+        assertFalse("no PostHog import or class in the keyless door", "com.posthog" in stub || Regex("""\bPostHog\w*[.(]""").containsMatchIn(stub))
+        val door = File("src/posthog/java/com/bigpapituna/sharpears/analytics/TesterSdk.kt").readText()
+        for (line in listOf("errorTrackingConfig.autoCapture = true", "errorTrackingConfig.captureNativeCrashes = true",
+            "errorTrackingConfig.exceptionSteps.enabled = false", "addBeforeSend(", "PostHog.captureException(throwable, props)", "sendFeatureFlagEvent = true"))
+            assertTrue(line, door.contains(line))
+        val gradle = File(app, "build.gradle.kts").readText()
+        assertTrue("a keyed PC can build the keyless door", gradle.contains("providers.gradleProperty(\"sharpears.posthog\").orNull != \"false\""))
+        val errors = src("analytics/Errors.kt")
+        assertTrue(errors.contains("TesterSdk.captureException(t, ErrorReport.props(w, extra, test = cls == ErrorReport.TEST_CLASS))"))
+        assertTrue("sent only while the dashboard records", errors.contains("if (!Tester.capturingNow)"))
+        assertTrue(src("analytics/Tester.kt").contains("deviceId(a), Errors::beforeSend)"))
+        // The risk points report through the one helper.
+        for ((file, where) in listOf("audio/Voice.kt" to "voice_engine", "audio/Voice.kt" to "voice_utterance", "audio/NaturalVoice.kt" to "natural_voice",
+            "data/BriefAi.kt" to "ai_transport", "data/BriefEmail.kt" to "email_send", "MainActivity.kt" to "midi_refused", "ui/pup/PupClip.kt" to "pup_clip"))
+            assertTrue("$file reports $where", src(file).contains("Errors.report(\"$where\""))
     }
 
     @Test fun theRealDoorMasksTextAndImagesAndRecordsNoLogcat() {
@@ -44,7 +68,7 @@ class TesterWiringTest {
     }
 
     @Test fun theSwitchesAreBehindTheGateWithTheCornersDot() {
-        assertEquals("Sends screen recordings and app events to Roy's test dashboard. No sound.", HELP_ROY_TEST_LINE)
+        assertEquals("Sends screen recordings, app events and error reports to Roy's test dashboard. No sound.", HELP_ROY_TEST_LINE)
         val corner = src("ui/kid/KidHome.kt")
         assertTrue(corner.contains("com.bigpapituna.sharpears.analytics.TesterSettings(Modifier.padding(top = 8.dp))"))
         assertTrue(corner.contains("dot = com.bigpapituna.sharpears.analytics.Tester.switchOn.value"))
@@ -98,7 +122,7 @@ class TesterWiringTest {
         assertTrue("TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid)" in main)
         assertTrue(main.indexOf("TesterDefaultNotice {") in 1 until main.indexOf("SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }"))
         assertTrue("!isStage(screen)) SharpEarsTheme" in main)
-        assertEquals("This test build sends screen recordings and app events to Roy to help improve the app. No sound is recorded. " +
+        assertEquals("This test build sends screen recordings, app events and error reports to Roy to help improve the app. No sound is recorded. " +
             "You can turn this off in Settings, Testing.", com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
     }
 }

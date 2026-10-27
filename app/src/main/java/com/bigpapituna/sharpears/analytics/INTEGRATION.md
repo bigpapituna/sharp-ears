@@ -94,3 +94,29 @@ lesson_started with Encouragement on against off (the brief logs the setting as 
 - PostHog's own preference file is named after the key (`posthog-android-<key>.xml`), so the backup rules cannot list it;
   it holds the SDK's ids and flags only, and a restored phone starts with the switch off (tester.xml is not restored).
 - The dot is on the kids' whistle only; a grown-up's home has no corner.
+
+## 2.15: error tracking and the event taxonomy (branch `error-tracking`)
+
+- The full table of events, properties, flags and error reports is `EVENTS.md` (beside this file); Roy's PostHog steps
+  are `docs/POSTHOG-SETUP.md`.
+- Error tracking: the door turns on the SDK's exception autocapture and native crash capture, adds a `beforeSend`
+  (`Errors.beforeSend`: scrubs every exception message, stamps `is_emulator`, `build_flavor`, `app_version`, marks
+  `is_error_test`, limits the SDK's own reports) and offers `captureException`. `Errors.report(where, throwable, extra)` is
+  the one helper for handled exceptions (rate limited and scrubbed by `engine/tester/ErrorRules.kt`); `Errors.reportPastExits`
+  reports ANRs of earlier runs. All of it only while Help Roy test is on, on a build with the key.
+- `profile_kind` has three values now: `kid`, `big_kid`, `adult` (`Tester.profile` reads the roster for the band; events
+  that carry their own kind are refined in `Tester.capture`).
+- New super properties: `layout` (`Tester.look`, MainActivity), `plain_look` (`Tester.look(layout, plainLook)`, for the
+  plain-mode branch to pass), `is_emulator`, `build_flavor`, `app_version`.
+- `song_run` became `song_played` (`my_song` for a song of the person's own, `accuracy_bucket`) and `chord_chart_played`.
+  `TesterRules.safeId` now also hides My songs ids (made from the title).
+- Flags: `AppFlags` (in `Events.kt`) over `engine/tester/Flags.kt`. `Prefs.cheerFrequency` reads `cheer_frequency_default`
+  when unset. `sendFeatureFlagEvent` is on now, so experiments get their exposure events.
+- `-Psharpears.posthog=false` builds the keyless door on a PC that has the key.
+
+For the merger:
+- plain-mode: call `Tester.look(layout.wire, plainLook = <the Plain look in force>)` where MainActivity calls
+  `Tester.look(layout.wire)` (one line, after the layout's `remember`), and read `AppFlags.plainLookOffer` before showing
+  the one-time Plain look offer.
+- mic-trust: its `mic_not_heard` is in `AppEvents.CATALOG` already; keep its `TesterRules.MIC_NOT_HEARD` and its
+  `TesterTally` line (the `when` there now also has 2.15's branches after `LessonDone`).

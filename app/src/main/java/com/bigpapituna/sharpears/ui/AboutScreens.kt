@@ -156,8 +156,9 @@ fun PrivacyScreen(canRecord: Boolean, onMicSetup: () -> Unit, onBack: () -> Unit
         Para(listOfNotNull("This is a test build, on a phone Roy hands to a tester he has asked (and, for a child, their parent).",
             ("With Help Roy test on, the app records what happens on its screens and sends it, with app events such as a lesson started or " +
                 "a stage that was hard, to Roy's test dashboard at PostHog (posthog.com). Every text and picture on screen is hidden in the " +
-                "recording. No sound is ever recorded. Kid profiles are recorded too; the recording says only kid or grown-up, never a name. " +
-                "The phone goes by a random id made on it. PostHog keeps recordings for 30 days.").takeIf { testerDashboard },
+                "recording. No sound is ever recorded. Kid profiles are recorded too; the recording says only kid, big kid or grown-up, never a name. " +
+                "The phone goes by a random id made on it. PostHog keeps recordings for 30 days. When something goes wrong in the app, an error " +
+                "report goes too: where it happened and the error's technical words, with any address, name, title or file name taken out.").takeIf { testerDashboard },
             ("With Email Roy a daily diary on, a plain email goes to Roy once a day through Brevo: which screens, lessons, tries and notes, " +
                 "with no names or addresses.").takeIf { testerDiary },
             ("Help Roy test is on from the start in this build, and the app says so once; turn it off in Settings, Testing, behind the parent " +

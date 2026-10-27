@@ -91,6 +91,7 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                         val newBest = prefs.saveSightDrillBest(level, s)
                         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
                         Log.d(TAG, "sight: drill level $level ${s.label}, newBest=$newBest" + (goal?.let { ", goal $it ${if (s.right >= it) "met" else "not met"}" } ?: ""))
+                        com.bigpapituna.sharpears.analytics.Events.sightDrillDone(level, s.right, staff = true)
                         deps.voice.speak((if (newBest) "A new best: " else "Done: ") + s.label + ".")
                         drilled = s to newBest
                     })
@@ -112,6 +113,7 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                                     val newBest = prefs.saveSightBest(level, s)
                                     progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.SightRead(level))
                                     Log.d(TAG, "sight: level $level done in ${s.seconds} s, ${s.wrong} wrong, points ${s.points}, newBest=$newBest")
+                                    com.bigpapituna.sharpears.analytics.Events.sightDrillDone(level, s.points, staff = false)
                                     deps.voice.speak((if (newBest) "A new best: " else "Done: ") + "${s.seconds} seconds" +
                                         if (s.wrong == 0) ", no wrong notes." else ", ${s.wrong} wrong.")
                                     result = s to newBest

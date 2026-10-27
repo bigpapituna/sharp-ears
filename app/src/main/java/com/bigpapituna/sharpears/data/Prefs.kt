@@ -71,7 +71,8 @@ class Prefs(context: Context, val profileId: String) {
 
     /** 2.13, Settings > Playing > Encouragement: how often the pup pops up mid-lesson with a few kind words (Often). */
     var cheerFrequency: com.bigpapituna.sharpears.engine.lessons.CheerFrequency
-        get() = com.bigpapituna.sharpears.engine.lessons.CheerFrequency.parse(p.getString("cheer", null))
+        // 2.15: never chosen, the dashboard's flag cheer_frequency_default may set where it starts (Often without it).
+        get() = p.getString("cheer", null)?.let(com.bigpapituna.sharpears.engine.lessons.CheerFrequency::parse) ?: com.bigpapituna.sharpears.analytics.AppFlags.cheerFrequencyDefault
         set(v) = edit { putString("cheer", v.wire) }
     /** The pup says the pops aloud too: null until chosen, which is on for a kid and off for a grown-up (CheerRules.aloud). */
     var cheerAloud: Boolean?

@@ -11,6 +11,8 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.data.EventLog
 import com.bigpapituna.sharpears.data.Profiles
 import com.bigpapituna.sharpears.engine.brief.BriefEvent
+import com.bigpapituna.sharpears.engine.tester.AppEvents
+import com.bigpapituna.sharpears.engine.tester.BuildMarks
 import com.bigpapituna.sharpears.engine.tester.TesterEvent
 import com.bigpapituna.sharpears.engine.tester.TesterLog
 import com.bigpapituna.sharpears.engine.tester.TesterRules
@@ -118,6 +120,7 @@ object Tester {
         // 2.13: the default turned it on (here, or in a background process that loaded first): the event, once, when the
         // dashboard is up; on a build without it the mark waits (nothing is ever sent there).
         sendDefaultEvent(prefs(a))
+        capture(AppEvents.appOpen(cold = true))
     }
 
     /** The pending `tester_default_on`, sent and cleared only while the dashboard records. */
@@ -137,14 +140,31 @@ object Tester {
 
     private fun startIfAllowed(a: Context) {
         if (!TesterRules.sdkMayStart(TesterSdk.present, hasKey, switchOn.value)) return
-        val ok = runCatching { TesterSdk.start(a, BuildConfig.POSTHOG_KEY, BuildConfig.POSTHOG_HOST, deviceId(a)) }
+        val ok = runCatching { TesterSdk.start(a, BuildConfig.POSTHOG_KEY, BuildConfig.POSTHOG_HOST, deviceId(a), Errors::beforeSend) }
             .onFailure { logcat("tester: the dashboard did not start (${it.javaClass.simpleName})") }.getOrDefault(false)
         if (ok) {
             logcat("tester: dashboard recording")
-            kind?.let { (k, _) -> TesterSdk.register("profile_kind", k) }
+            // 2.15: the test marks (is_emulator, build_flavor, app_version), who is playing and the look, with every event.
+            runCatching { marks().forEach { (k, v) -> TesterSdk.register(k, v) } }
+            kind?.let { (k, _) -> TesterSdk.register(AppEvents.PROFILE_KIND, k) }
+            look.forEach { (k, v) -> TesterSdk.register(k, v) }
             route?.let { r -> TesterSdk.screen(TesterRules.screenOf(r), mapOf("route" to TesterRules.safeRoute(r))) }
+            Errors.reportPastExits(a)
         }
     }
+
+    /**
+     * 2.15, what marks test traffic, with every event (and stamped on any event that went before they were registered,
+     * Errors.beforeSend): `is_emulator` (true or false, never missing), `build_flavor` (BuildMarks.buildFlavor) and `app_version`.
+     */
+    internal fun marks(): Map<String, Any> = marks ?: mapOf(
+        AppEvents.IS_EMULATOR to runCatching {
+            BuildMarks.isEmulator(android.os.Build.FINGERPRINT, android.os.Build.MODEL, android.os.Build.PRODUCT, android.os.Build.HARDWARE, android.os.Build.MANUFACTURER)
+        }.getOrDefault(false),
+        AppEvents.BUILD_FLAVOR to BuildMarks.buildFlavor(BuildConfig.DEBUG, BuildConfig.BUILD_TYPE, BuildConfig.DEBUG_ROUTE_KEY_SHA256.isNotBlank()),
+        AppEvents.APP_VERSION to BuildConfig.VERSION_NAME,
+    ).also { marks = it }
+    @Volatile private var marks: Map<String, Any>? = null
 
     /** The random id this phone goes by in the dashboard and the diary, made once (never a name, an email or a hardware id). */
     fun deviceId(context: Context): String {
@@ -182,8 +202,23 @@ object Tester {
 
     private val recording get() = TesterRules.records(switchOn.value, diaryOn.value, diaryTo)
     private val capturing get() = switchOn.value && TesterSdk.running
+    /** 2.15: the dashboard records now (Errors and AppFlags ask). */
+    internal val capturingNow: Boolean get() = capturing
 
-    private fun capture(e: TesterEvent, force: Boolean = false) { if (capturing || force) runCatching { TesterSdk.capture(e.name, e.props) } }
+    /** Why nothing goes to the dashboard now (Errors' log line). */
+    internal fun notSentWhy(): String = when {
+        !hasKey || !TesterSdk.present -> "no dashboard in this build"
+        !switchOn.value -> "help Roy test off"
+        else -> "the dashboard is not running"
+    }
+
+    /** 2.15: an event's own `profile_kind` agrees with who is playing (a big kid's retention and cheer events say big_kid). */
+    private fun capture(e: TesterEvent, force: Boolean = false) {
+        if (!capturing && !force) return
+        val own = e.props[AppEvents.PROFILE_KIND]
+        val props = if (own != null) e.props + (AppEvents.PROFILE_KIND to (AppEvents.refineKind(own, kind?.first) ?: own)) else e.props
+        runCatching { TesterSdk.capture(e.name, props) }
+    }
 
     /** The tester log (opened on first use), or null before [init]. */
     internal fun log(): EventLog? {
@@ -216,16 +251,47 @@ object Tester {
     fun away() { if (route == null) return; route = null; write(TesterLog.screen(now(), TesterLog.AWAY)) }
 
     /** The app is back (onStart): the screen it shows starts again. */
-    fun back() { lastRoute?.let { if (route == null) screen(it) } }
+    fun back() { lastRoute?.let { if (route == null) { capture(AppEvents.appOpen(cold = false)); screen(it) } } }
 
     /** Who is playing changed: their kind goes with every later event; the diary gets the kind and the profile id. */
     fun profile(isKid: Boolean, profileId: String) {
-        val k = TesterRules.profileKind(isKid) to profileId
+        // 2.15: a big kid goes out as big_kid (AppEvents.profileKind); the roster is read here, never sent.
+        val roster = runCatching { app?.let { a -> Profiles(a).all } }.getOrNull()
+        names = roster?.map { it.name }
+        val big = isKid && roster?.firstOrNull { it.id == profileId }?.bigKid == true
+        val k = AppEvents.profileKind(isKid, big) to profileId
         if (k == kind) return
         kind = k
+        AppFlags.forget()
         write(TesterLog.kind(now(), k.first, profileId))
         if (capturing) { runCatching { TesterSdk.register("profile_kind", k.first) }; capture(TesterEvent("profile_kind", mapOf("kind" to k.first))) }
     }
+
+    // ---- 2.15: the look, the app's own events, flags and the diary's error lines ----
+
+    /** The layout and the Plain look on show (the super properties `layout` and `plain_look`). */
+    private val look = java.util.concurrent.ConcurrentHashMap<String, Any>()
+
+    /** The layout on show changed (MainActivity), with the Plain look where the build has it (null: not in this build). */
+    fun look(layout: String, plainLook: Boolean? = null) {
+        val next = buildMap<String, Any> { put(AppEvents.LAYOUT, layout.lowercase()); plainLook?.let { put(AppEvents.PLAIN_LOOK, it) } }
+        if (next.all { (k, v) -> look[k] == v }) return
+        look.putAll(next)
+        if (capturing) next.forEach { (k, v) -> runCatching { TesterSdk.register(k, v) } }
+    }
+
+    /** One of the app's own 2.15 events (engine/tester/AppEvents.kt; analytics/Events.kt sends them). */
+    fun track(e: TesterEvent) = capture(e)
+
+    /** A feature flag's value from the dashboard (AppFlags), or null while it does not record. */
+    internal fun flag(key: String): Any? = if (capturing) runCatching { TesterSdk.flag(key) }.getOrNull() else null
+
+    /** The family's names (to scrub from error messages, never sent), read at the last profile change. */
+    @Volatile private var names: List<String>? = null
+    internal fun namesNow(): List<String> = names ?: names().also { names = it }
+
+    /** An error line for the diary (Errors), while a switch records. */
+    internal fun diaryLine(text: String) = write(TesterLog.line(now(), TesterRules.safeLine(text, namesNow())))
 
     /** A brief event was logged (Briefs.tap): the lesson, stage, song and toy events it makes. */
     fun briefEvent(e: BriefEvent) { if (capturing) runCatching { tally.eventsFor(e) }.getOrDefault(emptyList()).forEach(::capture) }
@@ -330,7 +396,10 @@ object Tester {
 
     internal fun prefsOf(context: Context) = prefs(context)
 
+    /** The application context once [load] ran, else null (Errors). */
+    internal fun appContext(): Context? = app
+
     /** Tests only: forget the process state. */
     internal fun resetForTest() { route = null; lastRoute = null; screen = null; before = null; kind = null; logFile = null; app = null
-        noticePending.value = false }
+        noticePending.value = false; names = null; look.clear() }
 }

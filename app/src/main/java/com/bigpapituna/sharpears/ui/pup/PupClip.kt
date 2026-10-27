@@ -110,7 +110,7 @@ object PupClips {
     fun load(context: Context, name: String): AnimatedImageDrawable? = runCatching {
         if (!has(context, name)) return null
         ImageDecoder.decodeDrawable(ImageDecoder.createSource(context.assets, "$DIR/$name.webp")) as? AnimatedImageDrawable
-    }.onFailure { Log.d(TAG, "pup clip $name: could not decode ($it)") }.getOrNull()
+    }.onFailure { Log.d(TAG, "pup clip $name: could not decode ($it)"); com.bigpapituna.sharpears.analytics.Errors.report("pup_clip", it, mapOf("clip" to name)) }.getOrNull()
 }
 
 /** A clip shown in a pup's place, and how much its view scales him ([PupClips.scale]). */

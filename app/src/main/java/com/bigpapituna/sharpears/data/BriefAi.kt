@@ -6,7 +6,9 @@ import android.util.Log
 import androidx.core.content.edit
 import com.bigpapituna.sharpears.BuildConfig
 import com.bigpapituna.sharpears.TAG
+import com.bigpapituna.sharpears.engine.brief.ai.AiCallException
 import com.bigpapituna.sharpears.engine.brief.ai.AiLimits
+import com.bigpapituna.sharpears.engine.brief.ai.AiTransport
 import com.bigpapituna.sharpears.engine.brief.ai.AiWriter
 import com.bigpapituna.sharpears.engine.brief.ai.Budget
 import com.bigpapituna.sharpears.engine.brief.ai.BudgetStore
@@ -53,7 +55,7 @@ object BriefAi {
     val hasKey: Boolean get() = BuildConfig.AI_KEY.isNotBlank()
 
     @Volatile private var budget: Budget? = null
-    @Volatile private var transport: OpenRouterTransport? = null
+    @Volatile private var transport: AiTransport? = null
 
     private fun log(line: String) { Log.d(TAG, line); com.bigpapituna.sharpears.analytics.Tester.logLine(line) }
 
@@ -75,18 +77,28 @@ object BriefAi {
         budget ?: Budget(PrefsBudgetStore(context.applicationContext.getSharedPreferences(CACHE_FILE, Context.MODE_PRIVATE))).also { budget = it }
     }
 
-    private fun transport(context: Context): OpenRouterTransport = transport ?: synchronized(this) {
+    private fun transport(context: Context): AiTransport = transport ?: synchronized(this) {
         transport ?: run {
             val app = context.applicationContext
-            OpenRouterTransport(
+            val real = OpenRouterTransport(
                 baseUrl = BuildConfig.AI_BASE_URL,
                 keyProvider = { BuildConfig.AI_KEY },          // read at call time, kept in no field
                 model = BuildConfig.AI_MODEL,
                 allowed = { Network.unmetered(app) || mobileData(app) },
                 log = ::log,
             )
+            // 2.15: a call that failed is an error report (analytics/Errors.kt); a call not made (metered, no key, the URL) is not.
+            AiTransport { request ->
+                try { real.complete(request) } catch (e: AiCallException) {
+                    if (e.kind !in NOT_ERRORS) com.bigpapituna.sharpears.analytics.Errors.report("ai_transport", e, mapOf("kind" to e.kind, "status" to e.status))
+                    throw e
+                }
+            }
         }.also { transport = it }
     }
+
+    /** Calls the transport did not make on purpose: no error report. */
+    private val NOT_ERRORS = setOf(AiCallException.Kind.NOT_ALLOWED, AiCallException.Kind.NO_KEY, AiCallException.Kind.CONFIG)
 
     /** A deleted profile's quota and cached replies go with it (Profiles.delete). */
     fun forgetProfile(context: Context, profileId: String) = budget(context).forgetProfile(profileId)

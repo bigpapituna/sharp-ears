@@ -99,7 +99,9 @@ class CheerPopWiringTest {
         val simple = src("engine/nav/Simple.kt")
         assertTrue("SettingsPart.ENCOURAGEMENT" in simple.substringAfter("val SETTINGS_ESSENTIALS").substringBefore("\n\n"))
         val prefs = src("data/Prefs.kt")
-        assertTrue("CheerFrequency.parse(p.getString(\"cheer\", null))" in prefs && "p.contains(\"cheerAloud\")" in prefs)
+        // 2.15: never chosen, the dashboard's flag may set where it starts (Flags.cheerFrequencyDefault: Often without it).
+        assertTrue("p.getString(\"cheer\", null)?.let(com.bigpapituna.sharpears.engine.lessons.CheerFrequency::parse) ?: " +
+            "com.bigpapituna.sharpears.analytics.AppFlags.cheerFrequencyDefault" in prefs && "p.contains(\"cheerAloud\")" in prefs)
     }
 
     @Test fun theDebugRouteGoesThroughTheGateAndReadsNoExtras() {

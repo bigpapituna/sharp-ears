@@ -2044,3 +2044,62 @@ the family card, a daily time limit and Lock now; tap the pup, timing bar by bar
   (`Welcome.next` asks isKid); a capped big kid's tabs still show the plan and the library (each closes at once when opened,
   no "Tomorrow" on them); big kids' arcade hub copy ("Pick a game!") stays kid-style; the lesson rule line's length on the
   cover screen.
+
+## 2.15 posthog
+Branch `error-tracking` (2026-10-27; version and What's new left to the merger). Roy: run the PostHog wizard for error
+tracking (project 680038, us.posthog.com) and "connect any features you recommend and have for the app through PostHog".
+Everything goes out only while Help Roy test is on, on a build with POSTHOG_KEY; the keyless build still has no PostHog class.
+The table of events, properties, flags and error reports: analytics/EVENTS.md. Roy's clicks in PostHog: docs/POSTHOG-SETUP.md.
+- The wizard (`npx -y @posthog/wizard@latest error-tracking --project-id=680038`) did not run: the npx cache held a broken
+  posthog-node (no `index.node.mjs`; a clean install in the scratchpad fixed that), then it refused without an interactive
+  terminal (winpty too), and its only sign-ins are a browser OAuth hand-off or a personal API key (phx_), both Roy's. Done by
+  hand instead; the wizard would not know the posthog/noposthog source sets or the gradle secrets anyway. If Roy runs it later
+  in a terminal, read its diff: keep nothing that puts a key in the source or the SDK outside src/posthog.
+- Error tracking (analytics/Errors.kt, the rules in engine/tester/ErrorRules.kt): the door turns on the SDK's uncaught exception
+  autocapture and native crash capture (the speech library), no exception steps; PostHog also needs the project's Exception
+  autocapture on (POSTHOG-SETUP.md step 1). ANRs: the SDK has none, so `Errors.reportPastExits` reads Android's
+  ApplicationExitInfo (11 and up) at the next start, each new ANR as `ApplicationNotResponding` with the main thread's stack
+  from Android's trace (a watermark in tester.xml; the first start only sets it). Handled exceptions go through one helper,
+  `Errors.report(where, throwable, extra)`, at: `voice_engine` and `voice_utterance` (audio/Voice.kt), `natural_voice` and
+  `natural_voice_load` (NaturalVoice), `ai_transport` (data/BriefAi.kt wraps OpenRouterTransport), `email_send`
+  (data/BriefEmail.kt wraps Brevo; the diary too), `midi_refused` (with the Problem) and `midi_pick` (My songs),
+  `song_import`, `pup_clip`, `anr`. Calls not made on purpose (metered, no key, the URL) are not reported.
+- Privacy: `ErrorScrub.message` takes out addresses, keys and bearer tokens, long opaque tokens, links, paths, file names,
+  anything quoted, phone-like digit runs and the family's names, one line, 200 characters; `ErrorReport.props` keeps only
+  extra keys of the app's own that hold no denied word. `Errors.beforeSend` (the door's `addBeforeSend`) does the same scrub
+  on every `$exception`, the SDK's own included, so autocaptured messages never go raw. Limits: one per place, class and
+  message in ten minutes, 30 a day, kept in tester.xml (a crash loop cannot reset it). Log lines: `errors: reported <where>
+  (<Class>)`, `errors: reported uncaught (<Class>, fatal=true, is_error_test=..., is_emulator=...)`, `errors: <where> not
+  sent (<why>)`; never the message.
+- Test traffic: super properties `is_emulator` (BuildMarks.isEmulator, true or false, never missing), `build_flavor` (`debug`
+  keyless, `tester` keyed debug, else the build type) and `app_version`, registered at start and stamped by beforeSend on any
+  event that went before. The debug route `--es screen errortest` (onCreate and onNewIntent, through DebugRoutes; keyed builds
+  via scripts/adb-route.ps1) sends one handled `ErrorTestException`, then throws an uncaught one four seconds later; both
+  carry `is_error_test` = true.
+- Events (engine/tester/AppEvents.kt is the catalog and the builders; analytics/Events.kt sends the screen ones): from the
+  brief's own log in TesterTally, no screen code: `lesson_step_passed`, `song_played` (was `song_run`; `my_song` for a song of
+  the person's own, `accuracy_bucket`), `chord_chart_played`, `arcade_game_played`, `session_length` and `practice_session`
+  (minutes buckets, the kinds of play), `layout_chosen`, `time_cap_set`, `placement_result` (from the brief's setting
+  events). One line at each place: `app_open` (Tester.init and back), `sight_drill_done`, `daily_plan_started` and
+  `daily_plan_finished`, `onboarding_step`, `big_kid_made` (Profiles.create), `family_card_opened`, `brief_email_set_up`
+  (FamilyAddress verify and stop), `time_cap_reached` (BedtimeStore.capShownOn), `gate_opened` and `gate_failed` (the sum
+  pad), `tour_card_seen`, `mic_permission` (MainActivity's onRequestPermissionsResult sees every launcher's answer), Listen
+  runs and Hear the band. `mic_not_heard` is mic-trust's (in the catalog only).
+- `profile_kind` has three values: `kid` (little), `big_kid`, `adult` (Tester.profile reads the roster's band); retention and
+  cheer events made with a kid flag are refined to `big_kid` in Tester.capture. New super property `layout` (Tester.look from
+  MainActivity) and `plain_look` (Tester.look's second argument, for plain-mode to pass). Fixed on the way: a My songs id is
+  its title's letters plus a hash, and went out raw in `song_run` and screen names; TesterRules.safeId and AppEvents.songId
+  catch it now.
+- Flags (engine/tester/Flags.kt, read in one place through AppFlags in analytics/Events.kt; a value kept for the profile's
+  visit once it came, the local default until then): `plain_look_offer` (boolean, default true, for plain-mode's offer) and
+  `cheer_frequency_default` (`often`, `less`, `off`; default often), which Prefs.cheerFrequency reads for a profile that never
+  chose. `sendFeatureFlagEvent` is on now (experiments need the exposure events).
+- Copy: Help Roy test's line and the default notice say "error reports" too; the privacy page and docs/privacy-policy.md say
+  kid, big kid or grown-up and what an error report carries.
+- Build: `-Psharpears.posthog=false` builds the keyless door on a PC with the key (`:app:compileDebugKotlin
+  "-Psharpears.posthog=false"`, and its unit tests).
+- Tests: ErrorRulesTest (the scrub, the limiter across restarts, the props, the marks, ANR watermark and trace), AppEventsTest
+  (no denied key in the catalog, every `TesterEvent("...")` in the code is listed, EVENTS.md lists every event and property,
+  my_song and the bundled ids, the brief's events, sessions and parts), FlagsTest (defaults, odd values, one reader),
+  ErrorsTest (nothing sent while not recording, beforeSend's scrub, test mark and limit across a restart),
+  TesterWiringTest (the keyless door names no SDK; the door's error config; each risk point reports), TesterRulesTest updated.

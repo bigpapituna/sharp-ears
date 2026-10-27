@@ -126,11 +126,12 @@ class FamilyAddress(private val store: BudgetStore) {
     fun verify(code: String, verification: EmailVerification = EmailVerification()): EmailVerification.Verified = synchronized(EmailSettings.LOCK) {
         val (next, result) = verification.verify(load(), code)
         save(next)
+        if (result == EmailVerification.Verified.OK) com.bigpapituna.sharpears.analytics.Events.briefEmailSetUp(true)
         result
     }
 
     /** The grown-up stopped the emails (or is changing the address): the address and its code gone. The children's switches stay. */
-    fun stop(): EmailPrefs = synchronized(EmailSettings.LOCK) { load().cleared().also(::save) }
+    fun stop(): EmailPrefs = synchronized(EmailSettings.LOCK) { load().cleared().also(::save) }.also { com.bigpapituna.sharpears.analytics.Events.briefEmailSetUp(false) }
 
     /** The first email (with the code) went out at [at]. */
     internal fun firstWent(at: Long) = synchronized(EmailSettings.LOCK) { save(load().copy(firstSent = true).counted(at)) }

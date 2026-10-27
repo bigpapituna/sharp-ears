@@ -87,7 +87,7 @@ fun WhatsNewSheet(version: String, lines: List<String>, onDone: () -> Unit) {
 fun TourDialog(onCard: (NavTab) -> Unit, onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null) {
     val cards = Welcome.TOUR
     var i by rememberSaveable { mutableIntStateOf(0) }
-    androidx.compose.runtime.LaunchedEffect(i) { onCard(cards[i].tab) }
+    androidx.compose.runtime.LaunchedEffect(i) { onCard(cards[i].tab); com.bigpapituna.sharpears.analytics.Events.tourCardSeen(cards[i].tab.name) }
     val still = reducedMotion()
     Dialog(onDismissRequest = { onDone(true) }) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.widthIn(max = 460.dp)) {
