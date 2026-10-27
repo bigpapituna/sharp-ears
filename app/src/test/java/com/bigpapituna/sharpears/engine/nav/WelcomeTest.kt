@@ -3,6 +3,7 @@ package com.bigpapituna.sharpears.engine.nav
 import com.bigpapituna.sharpears.engine.nav.Welcome.Show
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -109,17 +110,55 @@ class WelcomeTest {
         lines.forEach { assertTrue(it, it.first().isUpperCase() && it.endsWith(".") && '!' !in it) }
     }
 
-    @Test fun theTourIsThreeCardsOverTodaySongsAndLearnWithRoysTitles() {
-        assertEquals(listOf("Today is your plan", "Songs is everything you can play", "Learn is the road, with chords at the top"), Welcome.TOUR.map { it.title })
-        assertEquals(listOf(NavTab.TODAY, NavTab.SONGS, NavTab.LEARN), Welcome.TOUR.map { it.tab })
+    /** 2.15: the tour is the five things that matter most, one picture and one sentence each, in this order. */
+    @Test fun theTourIsTheFiveThingsThatMatterMost() {
+        assertEquals(listOf("One Start for your day", "Play songs by chords with a band", "See your timing, bar by bar", "Loop the bars you missed", "A streak that forgives"),
+            Welcome.TOUR.map { it.title })
+        assertEquals(listOf(Welcome.TourArt.PLAN, Welcome.TourArt.BAND, Welcome.TourArt.TIMING, Welcome.TourArt.LOOP, Welcome.TourArt.STREAK), Welcome.TOUR.map { it.art })
+        assertTrue(Welcome.TOUR.size <= Welcome.MAX_TOUR_CARDS)
+        // One sentence a card.
+        Welcome.TOUR.forEach { assertEquals(it.line, 1, it.line.count { ch -> ch == '.' }) }
+    }
+
+    /** 2.15: "For grown-ups" is three cards; the brief card promises an email only on a build that can send one. */
+    @Test fun theParentsTourIsThreeCardsAndTheEmailIsHonest() {
+        val with = Welcome.parentsTour(emailed = true); val without = Welcome.parentsTour(emailed = false)
+        assertEquals(Welcome.PARENTS_TOUR_CARDS, with.size)
+        assertEquals(listOf(Welcome.TourArt.FAMILY, Welcome.TourArt.LIMIT, Welcome.TourArt.GATE), with.map { it.art })
+        assertTrue("emailed" in with[0].line && "emailed" !in without[0].line)
+        assertTrue(with[0].line.endsWith(".") && without[0].line.endsWith("."))
+        // The four things a parent needs, in three cards.
+        assertTrue("Family today" in with[0].title && "brief" in with[0].title.lowercase())
+        assertTrue("closes the app" in with[1].title && "until tomorrow" in with[1].line)
+        assertTrue("Lock now" in with[2].title && "Lock now" in with[2].line && "two minutes" in with[2].line)
+    }
+
+    /** "For grown-ups" comes after What's new and the tour, once, for grown-ups only. */
+    @Test fun theParentsTourComesLastAndNeverToAKid() {
+        assertEquals(Show.WHATS_NEW, Welcome.next(false, tourDone = false, whatsNewSeen = null, version = v, parentsTourDue = true))
+        assertEquals(Show.TOUR, Welcome.next(false, tourDone = false, whatsNewSeen = v, version = v, parentsTourDue = true))
+        assertEquals(Show.PARENTS, Welcome.next(false, tourDone = true, whatsNewSeen = v, version = v, parentsTourDue = true))
+        assertEquals(Show.NOTHING, Welcome.next(false, tourDone = true, whatsNewSeen = v, version = v, parentsTourDue = false))
+        assertEquals(Show.NOTHING, Welcome.next(true, tourDone = true, whatsNewSeen = v, version = v, parentsTourDue = true))
+    }
+
+    /** The first kid on a phone starts it; a second kid, a phone that already saw it, or a phone that had kids before 2.15 does not. */
+    @Test fun onlyTheFirstKidStartsTheParentsTour() {
+        assertEquals(Welcome.PARENTS_PENDING, Welcome.parentsStateAfterAdd(hadKid = false, state = null))
+        assertNull(Welcome.parentsStateAfterAdd(hadKid = true, state = null))
+        assertEquals(Welcome.PARENTS_DONE, Welcome.parentsStateAfterAdd(hadKid = false, state = Welcome.PARENTS_DONE))
+        assertEquals(Welcome.PARENTS_PENDING, Welcome.parentsStateAfterAdd(hadKid = true, state = Welcome.PARENTS_PENDING))
+        assertTrue(Welcome.parentsTourDue(Welcome.PARENTS_PENDING))
+        assertFalse(Welcome.parentsTourDue(Welcome.PARENTS_DONE)); assertFalse(Welcome.parentsTourDue(null))
     }
 
     /** The copy rules (CLAUDE.md design system): no dashes or symbol glyphs, sentences end with a stop. */
     @Test fun theCopyKeepsTheRules() {
-        val lines = Welcome.TOUR.flatMap { listOf(it.title, it.line) } + Welcome.WHATS_NEW.values.flatten()
+        val lines = (Welcome.TOUR + Welcome.parentsTour(true) + Welcome.parentsTour(false)).flatMap { listOf(it.title, it.line) } + Welcome.WHATS_NEW.values.flatten()
         for (l in lines) {
             assertFalse(l, Regex("[—–·>]| - ").containsMatchIn(l))
         }
-        (Welcome.TOUR.map { it.line } + Welcome.WHATS_NEW.values.flatten()).forEach { assertTrue(it, it.endsWith(".")) }
+        (Welcome.TOUR.map { it.line } + Welcome.parentsTour(true).map { it.line } + Welcome.WHATS_NEW.values.flatten()).forEach { assertTrue(it, it.endsWith(".")) }
+        (Welcome.TOUR + Welcome.parentsTour(true)).forEach { assertFalse(it.title, it.title.endsWith(".")); assertFalse(it.title, it.title.first().isLowerCase()) }
     }
 }

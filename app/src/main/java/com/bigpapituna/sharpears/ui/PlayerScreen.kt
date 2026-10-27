@@ -614,11 +614,23 @@ private fun PlayerStage(args: PlayerArgs) {
         embedded?.onTally?.invoke(transport.tally.copy())
         onFinished(transport.report().copy(extraScore = extra, realMs = transport.runRealMs).also { Log.d(TAG, "run report ${song.id}: $it") })
         keepRun()
+        // 2.15: a grown-up's recap may carry ONE one-time tip (engine/nav/Tips.kt): the bar strip after the first Perform run, the
+        // Loop buttons on the third recap with hard bars. Counted and chosen here, once per run, so a recomposition or a turn of
+        // the phone neither shows it twice nor loses it; never for a kid.
+        fun RunEnd.withTip(): RunEnd {
+            if (profile.isKid) return this
+            val hard = spots.isNotEmpty()
+            if (hard) prefs.hardRecaps += 1
+            val tip = com.bigpapituna.sharpears.engine.nav.Tips.afterSong(false, prefs.tipsSeen, com.bigpapituna.sharpears.engine.nav.TipSession.shown,
+                timingBars = timing?.bars?.any { it.verdict != null } == true, hardRecaps = prefs.hardRecaps, hasHardBars = hard)
+            if (tip != null) { prefs.tipShown(tip); Log.d(TAG, "tip: ${tip.id} on the recap of ${song.id}") }
+            return copy(tip = tip)
+        }
         if (meta == null) {                                // generated songs (lessons, progressions) keep no progress
             // A pop song (songs by chords, 2.6) keeps its runs under its own id, like a library song (see popRunEnd).
             val popRun = com.bigpapituna.sharpears.engine.chords.PopPlay.runIdOf(original.id)
             if (popRun != null && embedded == null) {
-                recap = popRunEnd(popRun, transport, run, prefs, progress)?.timed(transport, speed, midiRun)?.also { if (touchRun) haptics.success() }
+                recap = popRunEnd(popRun, transport, run, prefs, progress)?.timed(transport, speed, midiRun)?.withTip()?.also { if (touchRun) haptics.success() }
                 return
             }
             run?.let { recap = RunEnd(it, false, emptyList(), timeMs = transport.runRealMs.toLong()).timed(transport, speed, midiRun) }
@@ -693,7 +705,7 @@ private fun PlayerStage(args: PlayerArgs) {
             val earned = progress?.record(ProgressEvent.SongRun(meta.id, r.accuracy, newBest = best, firstCompletion = !wasCompleted))
             creditPartner(r.accuracy)
             recap = RunEnd(r, best, spots.orEmpty(), canReplay = lastRun != null, timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(),
-                reward = reward, duetLine = duetLine).timed(transport, speed, midiRun)
+                reward = reward, duetLine = duetLine).timed(transport, speed, midiRun).withTip()
             if (touchRun) haptics.success()
             Log.d(TAG, "perform recap ${song.id}: $r accuracy=${r.accuracy} from=${transport.scoreFromMs.toLong()} newBest=$best")
         } else if (!played) {
@@ -706,7 +718,7 @@ private fun PlayerStage(args: PlayerArgs) {
             if (played) creditPartner(null)
             if (transport.mode == Mode.WAIT) {
                 recap = RunEnd(null, false, spots.orEmpty(), wrongKeys = transport.report().wrongKeys, canReplay = lastRun != null,
-                    timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(), reward = reward, duetLine = duetLine)
+                    timeMs = timeMs, xpGained = xp(earned?.xpGained), xpBar = bar(), reward = reward, duetLine = duetLine).withTip()
                 if (touchRun) haptics.success()
             }
             Log.d(TAG, "completed ${song.id} mode=${transport.mode}")
@@ -714,6 +726,7 @@ private fun PlayerStage(args: PlayerArgs) {
     }
     /** "Loop bar N": the A-B loop on that bar, wait mode at half speed, from a lead-in before it. */
     fun loopBar(s: TroubleSpot) {
+        prefs.tipUsed(com.bigpapituna.sharpears.engine.nav.Tips.Tip.LOOP)
         recap = null
         autoOn = false
         if (transport.mode != Mode.WAIT) setMode(Mode.WAIT) else pause()
@@ -1428,7 +1441,9 @@ data class RunEnd(val recap: Recap?, val newBest: Boolean, val spots: List<Troub
                   /** 2.14: a Perform run's bars and notes against the beat, for the recap's timing panel (engine/PerformTiming.kt). */
                   val timing: com.bigpapituna.sharpears.engine.TimingReport? = null,
                   /** The song names black keys as flats (the timing panel's notes). */
-                  val flats: Boolean = false)
+                  val flats: Boolean = false,
+                  /** 2.15: the one-time tip this recap carries (engine/nav/Tips.kt); null for a kid and once it was shown. */
+                  val tip: com.bigpapituna.sharpears.engine.nav.Tips.Tip? = null)
 
 /**
  * 2.14: [e] with its Perform run's timing (null and anything not Perform pass through): every graded note in its bar,

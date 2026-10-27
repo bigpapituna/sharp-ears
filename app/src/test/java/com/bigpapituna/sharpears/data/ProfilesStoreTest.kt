@@ -93,6 +93,30 @@ class ProfilesStoreTest {
         assertTrue(listOf("progress.p1", "profile.p1", "practice.p1").all { it in phone.files })
     }
 
+    /** 2.15: the first kid on the phone starts "For grown-ups"; a grown-up added first, or a second kid, does not; seen is kept. */
+    @Test fun theFirstKidStartsTheParentsTourOnce() {
+        val p = profiles()
+        assertNull(p.parentsTour)
+        p.create(Profile.adult("Dana", 0), switch = false)
+        assertNull("a grown-up is not a kid", p.parentsTour)
+        val mia = p.create(Profile.kid("Mia", 1, reader = false), switch = false)!!
+        assertEquals("pending", p.parentsTour)
+        assertEquals("pending", profiles().parentsTour)               // kept across a restart
+        p.parentsTour = "done"
+        p.create(Profile.kid("Theo", 2, reader = true), switch = false)
+        assertEquals("a second kid does not ask again", "done", p.parentsTour)
+        p.delete(mia.id)
+        assertEquals("done", profiles().parentsTour)
+    }
+
+    @Test fun aPhoneThatHadKidsBeforeThisVersionGetsNoTour() {
+        val p = profiles()
+        p.create(Profile.kid("Mia", 1, reader = false), switch = false)
+        p.parentsTour = null                                          // as a phone from before 2.15: kids, nothing recorded
+        p.create(Profile.kid("Theo", 2, reader = true), switch = false)
+        assertNull(p.parentsTour)
+    }
+
     /** 2.14: the owner's name is asked once, the answer kept, and a name typed in Settings answers it too. */
     @Test fun theOwnersNameIsAskedOnceAndKept() {
         var p = profiles()

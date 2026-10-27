@@ -27,6 +27,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,11 +41,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.bigpapituna.sharpears.R
-import com.bigpapituna.sharpears.engine.nav.NavTab
 import com.bigpapituna.sharpears.engine.nav.Welcome
 import com.bigpapituna.sharpears.ui.motion.ScreenMotion
 import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.pup.Pup
+import com.bigpapituna.sharpears.ui.tour.TourPicture
 
 /**
  * What's new (2.7): a sheet with the pup and up to three lines for [version] (engine/nav/Welcome.kt), shown once per version
@@ -79,25 +80,40 @@ fun WhatsNewSheet(version: String, lines: List<String>, onDone: () -> Unit) {
 }
 
 /**
- * The tour (2.7): three cards with the pup, one per tab that changed ("Today is your plan", "Songs is everything you can play",
- * "Learn is the road, with chords at the top"); [onCard] shows that card's tab behind it. Skip or the last card's button ends
- * it ([onDone] with whether it was skipped); it never shows again for this profile.
+ * The tour (2.7, rewritten in 2.15): the five things that matter most ("One Start for your day", "Play songs by chords with a
+ * band", "See your timing, bar by bar", "Loop the bars you missed", "A streak that forgives"), a small picture of the real
+ * screen on each (ui/tour/TourArt.kt) and one sentence. It stays over whichever tab the grown-up is on. Skip or the last
+ * card's button ends it ([onDone] with whether it was skipped); it never shows again for this profile.
  */
 @Composable
-fun TourDialog(onCard: (NavTab) -> Unit, onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null) {
-    val cards = Welcome.TOUR
+fun TourDialog(onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null) {
+    TourCards(Welcome.TOUR, label = "tour", hello = com.bigpapituna.sharpears.engine.family.Greeting.hi(name), onDone = onDone)
+}
+
+/**
+ * "For grown-ups" (2.15): three cards the first time a grown-up is on their own screen after adding a kid: Family today with the
+ * brief, the daily time that closes the app, and the gate with Lock now ([Welcome.parentsTour]; [emailed] is whether this build
+ * can email a brief). Skippable; never again on this phone.
+ */
+@Composable
+fun ParentsTourDialog(emailed: Boolean, onDone: (skipped: Boolean) -> Unit) {
+    TourCards(remember(emailed) { Welcome.parentsTour(emailed) }, label = "parents tour", hello = "For grown-ups", onDone = onDone)
+}
+
+/** The cards of a tour in one dialog: the picture, a title, one line, the dots, Skip and Next. [hello] sits over the first card. */
+@Composable
+private fun TourCards(cards: List<Welcome.Card>, label: String, hello: String?, onDone: (skipped: Boolean) -> Unit) {
     var i by rememberSaveable { mutableIntStateOf(0) }
-    androidx.compose.runtime.LaunchedEffect(i) { onCard(cards[i].tab) }
     val still = reducedMotion()
     Dialog(onDismissRequest = { onDone(true) }) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.widthIn(max = 460.dp)) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AnimatedContent(i, transitionSpec = { ScreenMotion.tab(still) }, label = "tour") { n ->
+                AnimatedContent(i, transitionSpec = { ScreenMotion.tab(still) }, label = label) { n ->
                     val c = cards[n]
-                    Column(Modifier.fillMaxWidth().heightIn(min = 250.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Pup(when (n) { 0 -> Pose.POINTING; 1 -> Pose.DANCING; else -> Pose.LEARNING }, size = 120.dp, idle = false)
-                        if (n == 0) Text(com.bigpapituna.sharpears.engine.family.Greeting.hi(name), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.fillMaxWidth().heightIn(min = 300.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (n == 0 && hello != null) Text(hello, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        TourPicture(c.art)
                         Text(c.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
                         Text(c.line, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

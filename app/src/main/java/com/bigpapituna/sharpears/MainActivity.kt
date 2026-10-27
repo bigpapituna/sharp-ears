@@ -653,6 +653,14 @@ class MainActivity : ComponentActivity() {
         if (fromLaunch && debugRoutes && intent.getBooleanExtra("welcome", false)) {
             prefs.tourDone = false; prefs.whatsNewSeen = null; Log.d(TAG, "welcome: reset for ${profile.id} (debug)")
         }
+        // Debug --ez parentstour true: "For grown-ups" waits for the next grown-up's home (2.15). --ez tips true: the one-time tips again
+        // for this profile, and this launch's one-tip limit lifted.
+        if (fromLaunch && debugRoutes && intent.getBooleanExtra("parentstour", false)) {
+            profiles.parentsTour = com.bigpapituna.sharpears.engine.nav.Welcome.PARENTS_PENDING; Log.d(TAG, "welcome: for grown-ups pending (debug)")
+        }
+        if (fromLaunch && debugRoutes && intent.getBooleanExtra("tips", false)) {
+            prefs.resetTips(); com.bigpapituna.sharpears.engine.nav.TipSession.reset(); Log.d(TAG, "tips: reset for ${profile.id} (debug)")
+        }
         // Debug --es simple simple|advanced|full|unset (or --es layout ...; 2.7's on|off|default still read as simple|full|unset):
         // the profile's layout; unset forgets the choice, so the launch asks again.
         if (fromLaunch && debugRoutes) (intent.getStringExtra("layout") ?: intent.getStringExtra("simple"))?.let { v ->
@@ -2039,6 +2047,18 @@ class MainActivity : ComponentActivity() {
                                                 PlayerStart(Mode.WAIT, ex.practice, mic = prefs.micDefault && mic.hasPermission(), beatLines = ex.beatLines), 0.0, s)
                                         },
                                         startTab = s.practiceTab,
+                                        // 2.15: the sight-reading tip, once, for a grown-up placed at Some or A lot who has not tried a drill (engine/nav/Tips.kt).
+                                        tip = run {
+                                            val staff = com.bigpapituna.sharpears.engine.SightLevels.staffOpen(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid)
+                                            var shown by androidx.compose.runtime.saveable.rememberSaveable(current.id) { mutableStateOf<String?>(
+                                                com.bigpapituna.sharpears.engine.nav.Tips.inPractice(current.isKid, current.level, staff, prefs.sightTried(), prefs.tipsSeen,
+                                                    com.bigpapituna.sharpears.engine.nav.TipSession.shown)?.also { prefs.tipShown(it); Log.d(TAG, "tip: ${it.id} on Practice") }?.id) }
+                                            val t = com.bigpapituna.sharpears.engine.nav.Tips.Tip.entries.firstOrNull { it.id == shown }
+                                            if (t == null) null else ({
+                                                com.bigpapituna.sharpears.ui.TipCard(t, onClose = { shown = null },
+                                                    onAction = { shown = null; screen = Screen.SightRead(s, com.bigpapituna.sharpears.engine.nav.Tips.sightLevelFor(current.level)) })
+                                            })
+                                        },
                                         onEvent = { e -> progress.record(ProgressEvent.FeatureUsed(if (e.kind == PracticeKind.WARMUP) "warmups" else "scales")) },
                                         onTab = { t ->
                                             screen = s.copy(practiceTab = t)
@@ -2068,24 +2088,31 @@ class MainActivity : ComponentActivity() {
                             }
                             // 2.7 (engine/nav/Welcome.kt): What's new once per version, then the tour once per profile, over the tabs.
                             val wv = prefs.version.intValue
+                            var parentsTourOpen by remember { mutableStateOf(true) }
                             // 2.14: a phone from before 2.14 has an owner nobody named (the app called them "Roy"): asked once, before the sheets.
                             var nameAnswered by remember { mutableStateOf(false) }
                             val nameDue = !nameAnswered && current.isOwner && profiles.ownerNameDue(progress.onboardingDone)
                             if (nameDue) com.bigpapituna.sharpears.ui.onboarding.OwnerNameAsk { typed -> nameAnswered = true; profiles.nameOwner(typed); Log.d(TAG, "profiles: owner name asked, ${if (typed.isBlank()) "none given" else "given"}") }
-                            else                             when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion)) {
+                            else                             when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion,
+                                parentsTourDue = parentsTourOpen && com.bigpapituna.sharpears.engine.nav.Welcome.parentsTourDue(profiles.parentsTour))) {
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.WHATS_NEW -> com.bigpapituna.sharpears.ui.WhatsNewSheet(appVersion,
                                     com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew(appVersion)) {
                                     prefs.whatsNewSeen = appVersion; Log.d(TAG, "welcome: what's new $appVersion seen")
                                 }
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.TOUR -> {
-                                    val from = remember { s.tab }
-                                    com.bigpapituna.sharpears.ui.TourDialog(onCard = { t -> screen = s.copy(tab = HomeTab.entries.first { it.nav == t }) },
-                                        name = current.greetName,
+                                    com.bigpapituna.sharpears.ui.TourDialog(name = current.greetName,
                                         onDone = { skipped ->
-                                            prefs.tourDone = true; screen = s.copy(tab = from)
+                                            prefs.tourDone = true
                                             Log.d(TAG, "welcome: tour ${if (skipped) "skipped" else "done"}")
                                         })
                                 }
+                                // 2.15: "For grown-ups", once per phone, on a grown-up's own screen after the first kid was added.
+                                com.bigpapituna.sharpears.engine.nav.Welcome.Show.PARENTS -> com.bigpapituna.sharpears.ui.ParentsTourDialog(
+                                    emailed = com.bigpapituna.sharpears.data.BriefEmail.hasKey,
+                                    onDone = { skipped ->
+                                        profiles.parentsTour = com.bigpapituna.sharpears.engine.nav.Welcome.PARENTS_DONE; parentsTourOpen = false
+                                        Log.d(TAG, "welcome: for grown-ups ${if (skipped) "skipped" else "done"}")
+                                    })
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.NOTHING -> {}
                             }
                         }

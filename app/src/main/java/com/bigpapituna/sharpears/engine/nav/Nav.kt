@@ -45,7 +45,8 @@ object NavGraph {
         // 2.14: a big kid's Play corner opens the arcade too.
         tab(NavTab.SONGS) to setOf("Player", "PopSong", "Play", "Arcade"),
         tab(NavTab.LEARN) to setOf("Lesson", "LearnChords", "ChordGames", "Progressions", "Theory", "EarTraining", "SightRead"),
-        tab(NavTab.PRACTICE) to setOf("Player"),
+        // 2.15: the sight-reading tip on Practice opens the staff drill.
+        tab(NavTab.PRACTICE) to setOf("Player", "SightRead"),
         // You: Settings from the gear; the world card; the family wall opens the app as someone else (the launch again).
         tab(NavTab.YOU) to setOf("Settings", "World", LAUNCH),
         "Settings" to setOf("MicSetup", "Privacy", "Licences"),

@@ -1,22 +1,56 @@
 package com.bigpapituna.sharpears.engine.nav
 
 /**
- * The 2.7 tour and the What's new sheet, for grown-ups only (kids see neither). The tour is three cards with the pup, shown
- * once per profile (after the first-run questions and "Let's hear you play", or on a profile's first open of 2.7) and
- * skippable; What's new is up to three lines from [WHATS_NEW], shown once per versionName to a profile that was here before
- * it. Kept per profile in Prefs (tourDone, whatsNewSeen). Pure, so WelcomeTest checks when each shows.
+ * The 2.7 tour and the What's new sheet, for grown-ups only (kids see neither). The tour is shown once per profile (after the
+ * first-run questions and "Let's hear you play", or on a profile's first open of 2.7) and skippable; What's new is up to three
+ * lines from [WHATS_NEW], shown once per versionName to a profile that was here before it. Kept per profile in Prefs (tourDone,
+ * whatsNewSeen). Pure, so WelcomeTest checks when each shows.
+ *
+ * 2.15 (show off): the tour became the five things that matter most, each with a small picture of the real screen ([TourArt]),
+ * and a short "For grown-ups" tour ([PARENTS_TOUR]) follows the first kid a grown-up adds, once per phone.
  */
 object Welcome {
-    data class Card(val title: String, val line: String, val tab: NavTab)
+    /** The little picture on a card (ui/tour/TourArt.kt draws each from the app's own colours and icons). */
+    enum class TourArt { PLAN, BAND, TIMING, LOOP, STREAK, FAMILY, LIMIT, GATE }
 
-    /** The tour: one card per tab that changed, each over its tab (the titles are Roy's). */
+    data class Card(val title: String, val line: String, val art: TourArt)
+
+    /** The tour: the five things that matter most, one card each, one sentence each (2.15). Skippable; five at most. */
     val TOUR = listOf(
-        Card("Today is your plan", "One card holds today's chords, lesson and song. Press Start and it walks you through them.", NavTab.TODAY),
-        Card("Songs is everything you can play", "Your library, songs by chords with the band, and the Play corner at the top.", NavTab.SONGS),
-        Card("Learn is the road, with chords at the top",
-            "Learn chords, Games and Progressions sit above the course path. Simple shows each place's first steps, Advanced adds lessons, songs and practice, Full shows it all.",
-            NavTab.LEARN),
+        Card("One Start for your day", "Press Start and Today walks you through your chords, a lesson and a song.", TourArt.PLAN),
+        Card("Play songs by chords with a band", "Pick a song you know and play its chords while a drum and bass band keeps time.", TourArt.BAND),
+        Card("See your timing, bar by bar", "After a song in Perform, a strip shows each bar as clean, rushed or dragged, and a tap shows its notes.", TourArt.TIMING),
+        Card("Loop the bars you missed", "After a song, the hardest bars get a Loop button that repeats just that bar, slowly.", TourArt.LOOP),
+        Card("A streak that forgives", "Miss one day in a week and your streak stays, shown as a rest paw.", TourArt.STREAK),
     )
+
+    const val MAX_TOUR_CARDS = 5
+
+    /**
+     * "For grown-ups": three cards after a grown-up adds the first kid (2.15). The four things a parent needs are paired so the
+     * tour stays at three: the Family today card with the brief it opens, the daily time, and the gate with Lock now. [emailed]
+     * is whether this build can email a brief (BriefEmail.hasKey): without it the brief card does not promise an email.
+     */
+    fun parentsTour(emailed: Boolean): List<Card> = listOf(
+        Card("Family today, and the brief",
+            "Each child's day is on your Today: minutes, lessons and stars. Tap a child to read their brief, what they played and what to try next" +
+                (if (emailed) ", and have it emailed to you." else "."), TourArt.FAMILY),
+        Card("A daily limit that closes the app",
+            "Set a daily time for each child in Family. When it is up, lessons, songs and games close until tomorrow.", TourArt.LIMIT),
+        Card("A gate, and Lock now",
+            "The grown-ups' corner opens with a maths question and shuts again after two minutes. Lock now closes it at once.", TourArt.GATE),
+    )
+
+    const val PARENTS_TOUR_CARDS = 3
+
+    /** The phone's "For grown-ups" state, kept in the profiles file: nothing yet, waiting for a grown-up's screen, or seen. */
+    const val PARENTS_PENDING = "pending"
+    const val PARENTS_DONE = "done"
+
+    /** A kid was added: the first kid on a phone that never had the tour starts it ([hadKid]: there was a kid already). */
+    fun parentsStateAfterAdd(hadKid: Boolean, state: String?): String? = if (!hadKid && state == null) PARENTS_PENDING else state
+
+    fun parentsTourDue(state: String?): Boolean = state == PARENTS_PENDING
 
     const val MAX_LINES = 3
 
@@ -63,16 +97,19 @@ object Welcome {
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)
 
-    enum class Show { NOTHING, WHATS_NEW, TOUR }
+    enum class Show { NOTHING, WHATS_NEW, TOUR, PARENTS }
 
     /**
      * What a grown-up's home shows now: What's new first (once per [version], if the table has lines for it and [whatsNewSeen]
-     * is another version), then the tour (once per profile), then nothing. A kid: nothing, ever.
+     * is another version), then the tour (once per profile), then "For grown-ups" ([parentsTourDue]: a first kid was added and
+     * nobody has seen it yet; once per phone), then nothing. A kid: nothing, ever. Never two at once.
      */
-    fun next(kid: Boolean, tourDone: Boolean, whatsNewSeen: String?, version: String, table: Map<String, List<String>> = WHATS_NEW): Show = when {
+    fun next(kid: Boolean, tourDone: Boolean, whatsNewSeen: String?, version: String, table: Map<String, List<String>> = WHATS_NEW,
+             parentsTourDue: Boolean = false): Show = when {
         kid -> Show.NOTHING
         whatsNewSeen != version && whatsNew(version, table).isNotEmpty() -> Show.WHATS_NEW
         !tourDone -> Show.TOUR
+        parentsTourDue -> Show.PARENTS
         else -> Show.NOTHING
     }
 }

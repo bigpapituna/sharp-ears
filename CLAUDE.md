@@ -2044,3 +2044,44 @@ the family card, a daily time limit and Lock now; tap the pup, timing bar by bar
   (`Welcome.next` asks isKid); a capped big kid's tabs still show the plan and the library (each closes at once when opened,
   no "Tomorrow" on them); big kids' arcade hub copy ("Pick a game!") stays kid-style; the lesson rule line's length on the
   cover screen.
+
+## 2.15 show off
+Branch `show-off` (2026-10-27, from 2.14.0 7f73a6f4; version and What's new lists left to the merger; emulator Fold_SO on 5564, a copy of Fold_QA_GU, deleted after).
+From docs/MIROFISH-REPORT-2026-10-26.md (untracked): personas asked for things the app already does (timing per note or bar, a time cap that closes the app,
+a parent report, a forgiving streak), and the shareable parts were songs by chords with the band, trouble-spot loops, the one-Start plan. So: show them.
+- The grown-up tour (engine/nav/Welcome.kt `TOUR`, ui/WelcomeTour.kt `TourDialog`, ui/tour/TourArt.kt `TourPicture`): five cards, one sentence each, each with
+  a small picture built from the app's own colours, icons and the strip's `verdictColour`: "One Start for your day" (the plan card and Start), "Play songs by
+  chords with a band" (chord blocks, Drums and Bass), "See your timing, bar by bar" (the strip, its legend, the plain line), "Loop the bars you missed" (the strip,
+  Hardest bars, Loop bar pills), "A streak that forgives" (a week of paws, one `drawRestPaw`). `Welcome.Card(title, line, art: TourArt)` (the tab is gone: the tour
+  stays over whatever tab the grown-up is on, no more tab switching behind it). `MAX_TOUR_CARDS` 5, Skip on every card but the last; the hello ("Hi, Dana.",
+  `Greeting.hi(name)`) stays on card 1. No pup in the new cards, only icons, so branch `plain-mode` has nothing to hide; there is no LocalPlain here.
+  A tour already done (every phone before 2.15, `tourDone`) is not shown again; What's new is the merger's way to tell them.
+- "For grown-ups" (`Welcome.parentsTour(emailed)`, `ParentsTourDialog`): three cards, the four things paired: "Family today, and the brief" (the Family today rows;
+  tap a child for their brief; "and have it emailed to you" only where `BriefEmail.hasKey`), "A daily limit that closes the app" (10 to 45 min per child in Family;
+  lessons, songs and games close until tomorrow), "A gate, and Lock now" (a maths question, open two minutes, Lock now). When it shows: `Profiles.create` sets
+  `parentsTour` = "pending" in the profiles file when a KID is added to a phone with no kid (`Welcome.parentsStateAfterAdd`); `Welcome.next(..., parentsTourDue)`
+  gives `Show.PARENTS` after What's new and the tour, on a grown-up's home only (`!isKid`), so the launch picker's add (which opens the app as the kid) waits for
+  the next grown-up screen and Settings > Family's add shows it on the return to Today. Done or Skip writes "done"; once per phone. A phone that already had kids
+  when it updated gets no tour (nobody adds a "first" kid). Debug: `--ez parentstour true` marks it pending.
+- Tips (engine/nav/Tips.kt `Tips`, `TipSession`; ui/TipCard.kt; Prefs `tipsSeen`, `hardRecaps`, `tipShown`, `tipUsed`, `sightTried`): three one-time tips, a light bulb, one
+  sentence, an X, never the pup. "Tap a bar to see which notes were early or late." on the recap of the first Perform run whose strip has bars (it stands in for the
+  panel's own hint while open: `TimingPanel(hint = ...)`); "Loop the bars you missed." on the third song recap that has hard bars (`hardRecaps`, counted in the player's
+  finish, `RunEnd.withTip()`, Perform and Wait, library and pop runs; tapping Loop bar marks it used first); "Try a sight-reading drill at your level." with an Open
+  button on the Practice tab (a slot into PracticeScreen's `tip`, from MainActivity) for a placement of Some or A lot whose layout opens the staff levels (`SightLevels.staffOpen`)
+  and no sight level played (`Prefs.sightTried`); Open goes to the staff drill at Today's challenge level (4 at Some, 6 at A lot; `NavGraph` PRACTICE now opens SightRead).
+  Rules: never for `Profile.isKid` (so big kids get none, though they read the grown-up recap), one per session (a session is a process: `TipSession.shown`), marked seen the
+  moment it is put on a screen (kept through a turn of the phone: the recap's choice is made once in the finish, the Practice one in a `rememberSaveable`), never
+  again after, timing first when two are due. Debug: `--ez tips true` forgets them for the profile and lifts the session limit. The recap's tip is one per run,
+  chosen where `spots` is computed, so nothing is decided in a composable.
+- docs/STORE-LISTING.md (committed, not in the app): name, short description (80), full description (3,300 characters, plain, no superlatives), bullets for kids,
+  grown-ups and parents, 8 screenshot captions, a privacy summary marked "to match the privacy page" (branch `mic-trust` rewrites that page), and a "Remove before public
+  release" list (Help Roy test, recordings kept, the six privateOnly charts, the Alicia slot, Moonlight's licence, debug routes).
+- Tests (1883 JVM, all green but PopPrivateTest.privateSongsMustNotShipPublic on this keyless worktree; lint 0 errors, 30 warnings as 2.14): WelcomeTest (five cards, the
+  parents' three, order, copy rules), TipsTest (nine), ShowOffWiringTest (four), ProfilesStoreTest (+2), WelcomePrefsTest (+2); LayoutTest no longer expects the tour's third card to name
+  Simple, Advanced and Full (What's new 2.8.0 still does).
+- Emulator walk (Fold_SO, fresh data, keyless build; screens in app/build/screens/so-*.png, not committed): first-run onboarding then the five tour cards (so-08-*, so-17-*);
+  a kid added (debug `--es family`), the picker, the light gate, then "For grown-ups" on Dana's Today (so-10-*); the Practice tip and Open into level 6 (so-11, so-12), gone on return
+  (so-13); a Twinkle Perform run by a MIDI script with the timing tip on the recap (so-15), a second run with none, a third with the loop tip over Loop bar 5 and 7 (so-16-recap3).
+- Expected conflicts: `plain-mode` (ui/WelcomeTour.kt only if it also edits the tour; MainActivity's Welcome.next call and Practice slot are near its pup switches), `mic-trust`
+  (none in code; docs/STORE-LISTING.md section 6 must be reconciled with the privacy page), the merger's 2.15.0 line in `Welcome.WHATS_NEW` (untouched here) and the `RunEnd` data class
+  (a new trailing `tip`). Open: the recap's tip pushes the Loop pills lower on a short screen (they sit in the scrolling part); the tour pictures are fixed samples, not live screens.

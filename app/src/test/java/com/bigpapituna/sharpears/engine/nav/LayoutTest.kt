@@ -254,9 +254,8 @@ class LayoutTest {
         assertTrue(Layout.SIMPLE.line.startsWith("The first steps"))
         assertTrue(Layout.ADVANCED.line.startsWith("Lessons, songs and practice"))
         assertTrue(Layout.FULL.line.startsWith("Everything"))
-        // The tour's third card and What's new name all three.
+        // What's new in 2.8 names all three (the tour's third card did too, until 2.15 made the tour about what matters most).
         for (n in listOf("Simple", "Advanced", "Full")) {
-            assertTrue(n, n in Welcome.TOUR[2].line)
             assertTrue(n, Welcome.whatsNew("2.8.0").any { n in it })
         }
     }

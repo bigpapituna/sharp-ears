@@ -43,7 +43,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -127,6 +130,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     // 2.14 merge: the kid recap (no numbers, the pup's words, the reveals one at a time) is the kid skin's, a little kid's; a big
     // kid reads the grown-up recap as the rest of the player (levels-ages). The words follow the skin too.
     val kid = who.kidSkin
+    // 2.15: the recap's one-time tip (engine/nav/Tips.kt, chosen by the player's finish; never for a kid), closed with its X.
+    var tipOpen by remember(e) { mutableStateOf(e.tip != null && !kid) }
     val wordsKind = if (kid) ProfileKind.KID else ProfileKind.ADULT
     val stars = Stars.of(e.recap, e.wrongKeys)
     val seed = remember(e) { e.hashCode() }
@@ -256,7 +261,9 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 // 2.14 (depth): the star rule against this run and the bars' timing (ui/player/TimingPanel.kt), Perform only;
                 // under the numbers, over the calm rewards (the merge keeps polish's layout: the XP line, the drop and Tomorrow
                 // live in the calm line, its chip and its sheet).
-                com.bigpapituna.sharpears.ui.player.TimingPanel(e.timing, r, kid = false, Modifier.slideIn(m.rest, stats.size), flats = e.flats)
+                com.bigpapituna.sharpears.ui.player.TimingPanel(e.timing, r, kid = false, Modifier.slideIn(m.rest, stats.size), flats = e.flats,
+                    hint = !(tipOpen && e.tip == com.bigpapituna.sharpears.engine.nav.Tips.Tip.TIMING))
+                if (tipOpen && e.tip == com.bigpapituna.sharpears.engine.nav.Tips.Tip.TIMING) TipCard(e.tip, onClose = { tipOpen = false }, modifier = Modifier.widthIn(max = 560.dp))
                 // 2.14, calm: ONE reward line ("A sticker for your trail." or "+40 XP, level 3 in 120."), a small "See rewards (3)"
                 // chip for the one sheet (the sticker, a rare one, something to wear, an egg, the new level), and under it, once
                 // today's goal is met, tomorrow's next thing (2.9).
@@ -264,6 +271,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
                 // The quieter way on: a hard bar on a loop.
                 TroubleSpots.line(e.spots)?.let { loops ->
                     Column(Modifier.slideIn(m.rest, stats.size + 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (tipOpen && e.tip == com.bigpapituna.sharpears.engine.nav.Tips.Tip.LOOP) TipCard(e.tip, onClose = { tipOpen = false }, modifier = Modifier.widthIn(max = 560.dp))
                         Text(loops, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             e.spots.forEach { s -> SmallPill("Loop bar ${s.bar}", R.drawable.ic_repeat) { onLoop(s) } }

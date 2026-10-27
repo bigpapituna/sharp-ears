@@ -76,7 +76,8 @@ internal fun verdictColour(v: BarVerdict?): Color = when (v) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TimingPanel(timing: TimingReport?, recap: Recap?, kid: Boolean, modifier: Modifier = Modifier, flats: Boolean = false) {
+fun TimingPanel(timing: TimingReport?, recap: Recap?, kid: Boolean, modifier: Modifier = Modifier, flats: Boolean = false,
+                /** 2.15: false while a tip says the same thing ("Tap a bar to see which notes were early or late."). */ hint: Boolean = true) {
     if (recap == null) return
     val bars = timing?.bars.orEmpty()
     var open by remember(timing) { mutableStateOf<Int?>(null) }
@@ -100,7 +101,7 @@ fun TimingPanel(timing: TimingReport?, recap: Recap?, kid: Boolean, modifier: Mo
             if (!kid) {
                 Text(timing!!.line, style = MaterialTheme.typography.bodyLarge, color = c.primary)
                 val shown = bars.firstOrNull { it.bar == open }
-                if (shown != null) BarDetail(shown, flats) else Text("Tap a bar to see its notes.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                if (shown != null) BarDetail(shown, flats) else if (hint) Text("Tap a bar to see its notes.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
             }
         }
     }
