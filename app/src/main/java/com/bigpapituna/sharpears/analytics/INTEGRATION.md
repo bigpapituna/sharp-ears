@@ -119,5 +119,6 @@ For the merger:
 - plain-mode: call `Tester.look(layout.wire, plainLook = <the Plain look in force>)` where MainActivity calls
   `Tester.look(layout.wire)` (one line, after the layout's `remember`), and read `AppFlags.plainLookOffer` before showing
   the one-time Plain look offer.
-- mic-trust: its `mic_not_heard` is in `AppEvents.CATALOG` already; keep its `TesterRules.MIC_NOT_HEARD` and its
-  `TesterTally` line (the `when` there now also has 2.15's branches after `LessonDone`).
+- mic-trust (done in the 2.15.0 merge): `TesterRules.MIC_NOT_HEARD` stays; `AppEvents.MIC_NOT_HEARD` and its builder
+  `AppEvents.micNotHeard` make the one event TesterTally sends for each hint's `BriefEvent.MicNotHeard` (AppEventsTest).
+  What Help Roy test sends is said once, `TesterRules.SENDS`, for the Settings line, the notice, the card and the privacy page.

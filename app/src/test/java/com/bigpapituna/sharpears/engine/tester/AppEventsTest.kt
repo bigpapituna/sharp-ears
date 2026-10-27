@@ -5,6 +5,7 @@ import com.bigpapituna.sharpears.engine.brief.BriefEvent
 import com.bigpapituna.sharpears.engine.brief.Hands
 import com.bigpapituna.sharpears.engine.brief.RunMode
 import com.bigpapituna.sharpears.engine.brief.ToyKind
+import com.bigpapituna.sharpears.engine.hints.NotHeard
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -71,6 +72,7 @@ class AppEventsTest {
             AppEvents.timeCapReached(30), AppEvents.gateOpened(), AppEvents.gateFailed(), AppEvents.tourCardSeen("TODAY"), AppEvents.micPermission(false),
             AppEvents.fromSetting(BriefEvent.SettingChanged(1, "layout", "simple"))!!, AppEvents.fromSetting(BriefEvent.SettingChanged(1, "capMin", "30"))!!,
             AppEvents.fromSetting(BriefEvent.SettingChanged(1, "level", "A_LITTLE"))!!,
+            AppEvents.micNotHeard(BriefEvent.MicNotHeard(1, NotHeard.NOISE)),
         )
         for (e in events) {
             val keys = AppEvents.CATALOG[e.name]
@@ -125,6 +127,9 @@ class AppEventsTest {
         assertEquals(TesterEvent("time_cap_set", mapOf("minutes" to 0)), t.eventsFor(BriefEvent.SettingChanged(5, "capMin", "0")).single())
         assertEquals(TesterEvent("placement_result", mapOf("level" to "some")), t.eventsFor(BriefEvent.SettingChanged(5, "level", "SOME")).single())
         assertTrue("other settings are not tracked", t.eventsFor(BriefEvent.SettingChanged(5, "voice", "false")).isEmpty())
+        // 2.15 merge: mic-trust's could-not-hear hint is one brief event, so one mic_not_heard with the cause only.
+        assertEquals(listOf(TesterEvent("mic_not_heard", mapOf("cause" to "noise"))), t.eventsFor(BriefEvent.MicNotHeard(6, NotHeard.NOISE)))
+        assertEquals(listOf("cause"), AppEvents.CATALOG["mic_not_heard"])
     }
 
     @Test fun aSessionsLengthAndPracticeWithItsKindsOfPlay() {

@@ -202,7 +202,8 @@ private sealed interface Screen {
     data class Progressions(val back: Screen) : Screen
     /** A course lesson at step [step]. [inject] (debug) feeds the mic for that first step. */
     data class Lesson(val lesson: CourseLesson, val back: Screen, val step: Int = 0, val inject: String? = null, val midiScript: String? = null, val scene: Int = 0) : Screen
-    data class MicSetup(val back: Screen) : Screen
+    /** [inject] (debug, 2.15): the room check hears it instead of the microphone. */
+    data class MicSetup(val back: Screen, val inject: String? = null) : Screen
     /** The sight-reading drill. [inject] (debug) feeds the mic; [midiScript] (debug) plays a pretend keyboard into a staff drill. */
     data class SightRead(val back: Screen, val level: Int = 1, val inject: String? = null, val midiScript: String? = null) : Screen
     /**
@@ -584,7 +585,7 @@ class MainActivity : ComponentActivity() {
                     var weekly by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }
                     var wantsCheck by remember { mutableStateOf(false) }
                     androidx.compose.runtime.CompositionLocalProvider(LocalProfiles provides profiles, LocalParentGate provides gate,
-                        com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav) {
+                        com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalMic provides mic) {
                         ProfilePicker(roster,
                             onPick = { id -> profiles.switchTo(id); openApp(fromLaunch = true) },
                             onAdd = { p ->
@@ -808,6 +809,9 @@ class MainActivity : ComponentActivity() {
                     if (intent.hasExtra("kid")) intent.getBooleanExtra("kid", false) else null, intent.getBooleanExtra("pre", false))
             }
             route == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
+            // 2.15: --es screen micsetup [--es inject <wav>|synth:...] (the room check hears the injection), --es screen privacy
+            route == "micsetup" -> Screen.MicSetup(Screen.Settings(Screen.Home(HomeTab.YOU)), debugStart.inject)
+            route == "privacy" -> Screen.Privacy(Screen.Settings(Screen.Home(HomeTab.YOU)))
             route == "today" -> Screen.Home(HomeTab.TODAY)
             route == "songs" -> Screen.Home(HomeTab.SONGS, songs = if (intent.getStringExtra("section") == "chords") com.bigpapituna.sharpears.ui.SongsSection.BY_CHORDS
                 else com.bigpapituna.sharpears.ui.SongsSection.LIBRARY)
@@ -934,7 +938,8 @@ class MainActivity : ComponentActivity() {
             androidx.compose.runtime.CompositionLocalProvider(LocalProgress provides progress, LocalProfile provides current,
                 com.bigpapituna.sharpears.ui.pup.LocalPupVoice provides pupVoice,
                 LocalProfiles provides profiles, LocalParentGate provides gate, LocalWorld provides world, LocalPupOutfit provides world.state.outfit,
-                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode) {
+                com.bigpapituna.sharpears.ui.brief.LocalBriefNav provides briefNav, com.bigpapituna.sharpears.ui.LocalLayout provides layoutMode,
+                com.bigpapituna.sharpears.ui.LocalMic provides mic) {
             SharpEarsTheme(dark = playerShown(screen) || isSystemInDarkTheme()) {
                 // Every touch anywhere wakes the pups (their idle clock restarts); it takes nothing from the screens.
                 Surface(Modifier.fillMaxSize().paper().wakesPup(), color = androidx.compose.ui.graphics.Color.Transparent,
@@ -1553,7 +1558,8 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.Privacy -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             BackHandler { screen = s.back }
-                            PrivacyScreen(mic.canRecord, onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } }, onBack = { screen = s.back })
+                            PrivacyScreen(com.bigpapituna.sharpears.ui.micFacts(mic), onMicSetup = { gate.guardForKids { screen = Screen.MicSetup(s) } }, onBack = { screen = s.back },
+                                mic = mic)
                         }
                         is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back },
@@ -1661,7 +1667,7 @@ class MainActivity : ComponentActivity() {
                             Box(Modifier.weight(1f)) {
                             MicSetupScreen(mic, midi, debuggable,
                                 onMicCheck = { screen = Screen.Player(micCheck, null, PlayerStart(Mode.WAIT, Practice.BOTH, mic = true), 0.0, s) },
-                                onBack = { screen = s.back }, guardToken = gate::guard)
+                                onBack = { screen = s.back }, guardToken = { gate.guard(it) }, inject = s.inject)
                             }
                             }
                         }

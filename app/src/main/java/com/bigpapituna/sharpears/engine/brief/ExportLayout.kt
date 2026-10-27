@@ -254,7 +254,7 @@ object ExportDoc {
             add(ExportBlock.Bars(parts.mapIndexed { i, p -> BarRow(BriefFormat.partLabel(p.part), BriefFormat.minutes(p.minutes), shares[i]) }))
         }
         add(ExportBlock.Text(TextKind.SECTION, "The room and the hints"))
-        add(ExportBlock.Text(TextKind.BODY, BriefFormat.noisyLine(s.noisyRoom)))
+        BriefFormat.roomLines(s).forEach { add(ExportBlock.Text(TextKind.BODY, it)) }
         BriefFormat.hintLines(s.hints).forEach { add(ExportBlock.Text(TextKind.BULLET, it)) }
         brief.sections.forEach { sec ->
             add(ExportBlock.Text(TextKind.SECTION, sec.title))

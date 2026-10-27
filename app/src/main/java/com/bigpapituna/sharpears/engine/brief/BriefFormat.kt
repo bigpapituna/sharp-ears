@@ -99,6 +99,24 @@ object BriefFormat {
         else -> "$n noisy moments, when the microphone heard the room."
     }
 
+    /**
+     * 2.15: the times the microphone could not hear the piano ("I can't hear the piano clearly."), by cause; null when none.
+     * "The microphone could not hear the piano twice over noise in the room and once when it heard nothing at all."
+     */
+    fun notHeardLine(noise: Int, quiet: Int): String? {
+        if (noise <= 0 && quiet <= 0) return null
+        val parts = listOfNotNull(
+            if (noise > 0) "${com.bigpapituna.sharpears.engine.times(noise)} over noise in the room" else null,
+            if (quiet > 0) "${com.bigpapituna.sharpears.engine.times(quiet)} when it heard nothing at all" else null)
+        return "The microphone could not hear the piano ${parts.joinToString(" and ")}."
+    }
+
+    /** The room section's lines: the noisy moments and the times the piano was not heard ("heard it clearly" only with neither). */
+    fun roomLines(s: Stats): List<String> {
+        val notHeard = notHeardLine(s.notHeardNoise, s.notHeardQuiet)
+        return if (notHeard == null) listOf(noisyLine(s.noisyRoom)) else listOfNotNull(noisyLine(s.noisyRoom).takeIf { s.noisyRoom > 0 }, notHeard)
+    }
+
     /** What an action taken says in the brief's "since last time" list ("You set Copy the frogs as the next stone"). */
     fun actionTaken(a: ActionTaken, titles: BriefTitles): String {
         val p = a.params

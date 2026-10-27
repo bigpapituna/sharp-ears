@@ -468,10 +468,14 @@ internal fun rememberStage(
     val run = rememberStageRun(exercise, id, deps, sound = { false }, coach = coach, phrases = phrases, onEnded = onEnded, onCue = ::handle, gapMs = gapMs)
     val st = remember(run) { StageState(run, fx).also { holder[0] = it } }
     st.onCall = ::sayOver
+    // 2.15, "could not hear" (engine/hints/MicHearing.kt): this stage is one step; PlaygroundStage draws the hint it sets.
+    val hearingUi = LocalStageHearing.current
+    val hearing = remember(run) { com.bigpapituna.sharpears.engine.hints.MicHearing(mic.hearingLimit) }
 
     /** A decided sound; [touch]: a key touched on screen (certain), which may count while the demo still plays. */
     fun answer(s: StageSound, touch: Boolean = false) {
         if (!s.final) return
+        if (s.midi != null) hearing.pitched()            // 2.15: a key heard or touched: the piano (or the keys) are heard
         // QA 2.8.3: a touch during the demo counts once the demo has played the key the round waits for. Anything else in a
         // demo (the mic, a key not shown yet, a key that is not it) waits as before: no try, so it can never let a round go.
         val early = touch && run.rounds.earlyTouchMayCount(st.demoShown)
@@ -518,10 +522,11 @@ internal fun rememberStage(
     }
     st.onFeed = { s -> heard(s); answer(s, touch = true) }
     val heardKeys = keys(run)
-    st.listening = rememberStageEar(mic, voice, run.started && !run.ended, inject, heardKeys, groups?.invoke(heardKeys), chords) { s ->
+    st.listening = rememberStageEar(mic, voice, run.started && !run.ended && hearingUi?.touchOnly != true, inject, heardKeys, groups?.invoke(heardKeys), chords) { s ->
         heard(s)
         answer(s)
     }
+    if (hearingUi != null) StageHearingWatch(st, hearing, hearingUi, mic, voice)
     // 2.13: the cheer pops' time while the stage runs (the focus pop; a demo or a line holds them). Between rounds is between
     // notes: a pop said then goes over the mic, deaf.
     if (cheers != null) LaunchedEffect(run) {
@@ -543,6 +548,45 @@ internal fun rememberStage(
         }
     }
     return st
+}
+
+/**
+ * 2.15: what a stage's could-not-hear hint shows ([cause], drawn by PlaygroundStage near the stage's top) and whether the kid
+ * chose the screen's keys for this step ([touchOnly]: the stage stops listening, its keys still play).
+ */
+@Stable
+class StageHearing {
+    var cause by mutableStateOf<com.bigpapituna.sharpears.engine.hints.NotHeard?>(null)
+    var touchOnly by mutableStateOf(false)
+}
+
+/** The stage's [StageHearing], provided by PlaygroundStage for every stage made with [rememberStage]. */
+val LocalStageHearing = androidx.compose.runtime.staticCompositionLocalOf<StageHearing?> { null }
+
+/**
+ * The could-not-hear clock for a stage (the player's HearingWatch, a stage's way): while the stage listens for the kid's
+ * turn (the round's listen phase, not its demo, the voice quiet, the mic not deaf), the level meter feeds [hearing] every
+ * 100 ms and the matcher's sounds with no key count as noise; a key from the mic or the screen starts it again. The drum and
+ * the claps (rememberListening) are left out: clapping has no pitch by design.
+ */
+@Composable
+private fun StageHearingWatch(st: StageState, hearing: com.bigpapituna.sharpears.engine.hints.MicHearing, ui: StageHearing, mic: MicInput, voice: Voice) {
+    val kid = com.bigpapituna.sharpears.ui.family.LocalProfile.current.kidSkin
+    val run = st.run
+    LaunchedEffect(mic) { mic.noise.collect { if (st.listening) hearing.unpitched(SystemClock.uptimeMillis()) } }
+    LaunchedEffect(run) {
+        while (!run.ended) {
+            delay(100)
+            val expecting = st.listening && run.started && run.phase == RoundCoach.Phase.LISTEN && st.demoKeys.isEmpty() &&
+                ui.cause == null && !ui.touchOnly && !voice.speaking.value && !mic.deaf
+            if (!expecting) { hearing.hold(); continue }
+            val cause = hearing.level(SystemClock.uptimeMillis(), mic.level.floatValue.toDouble()) ?: continue
+            ui.cause = cause
+            Log.d(TAG, "playground: could not hear the piano (${cause.wire})")
+            com.bigpapituna.sharpears.data.Briefs.log { com.bigpapituna.sharpears.engine.brief.BriefEvent.MicNotHeard(it, cause) }
+            if (kid) voice.sayInPupVoice(cause.line)
+        }
+    }
 }
 
 /** The stage's rounds are all done: the ding (the mic deaf for it). */

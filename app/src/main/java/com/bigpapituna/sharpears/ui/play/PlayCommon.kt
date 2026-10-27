@@ -1,9 +1,6 @@
 package com.bigpapituna.sharpears.ui.play
 
-import android.Manifest
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,8 +85,9 @@ internal fun rememberMicStrikes(
     onStrike: (MicEvent.Strike) -> Unit,
 ): MicState {
     var allowed by remember { mutableStateOf(mic.hasPermission()) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
-    LaunchedEffect(Unit) { if (!allowed) ask.launch(Manifest.permission.RECORD_AUDIO) }
+    // 2.15: through the microphone card (a kid's: the gate first); after its Not now the toy opens on its keys, unasked.
+    val ask = com.bigpapituna.sharpears.ui.rememberMicAsk(mic) { allowed = it }
+    LaunchedEffect(Unit) { if (!allowed) ask.ask(auto = true) }
     val active = listen && allowed && onScreen()
     val activeNow by rememberUpdatedState(active)
     val strike by rememberUpdatedState(onStrike)

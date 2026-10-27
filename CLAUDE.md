@@ -2123,3 +2123,95 @@ The table of events, properties, flags and error reports: analytics/EVENTS.md. R
   no "phc_", "sk-or-", "xkeysib", "Bearer" or "@" from the app; the crash buffer holds only the two test crashes.
 - Open for Roy: the PostHog clicks (docs/POSTHOG-SETUP.md); deleting the test events above if he wants them gone (they are
   filtered out by `is_emulator`); the plain-mode merger wires `plain_look` and `plain_look_offer`; nothing ran on a phone.
+
+## 2.15 mic trust
+Branch `mic-trust` (2026-10-27, from 2.14.0 7f73a6f4; version and What's new left to the merger). From docs/MIROFISH-REPORT-2026-10-26.md
+(untracked; simulated personas, not users): 25 of 40 raised microphone privacy before install, 23 of 40 doubted mic accuracy on real
+pianos and in noisy rooms, 12 asked for a clear "could not hear" state. Emulator Fold_MT (a config copy of Fold_QA_GU, audio input
+off) on 5562, deleted after.
+- The words come from build facts (engine/MicTrust.kt; MicTrustTest walks all 96 combinations). `MicFacts`: can keep recordings, keeps
+  them now, review clips sent, the tester dashboard, the diary, AI brief, email brief; `ui/MicCard.kt micFacts(mic)` reads
+  `MicInput.canRecord/keepRecordings`, `Reporter.enabled`, `Tester.hasKey` (never `rowShown`: the row shows on keyless builds where
+  nothing is sent), `Tester.diaryBuilt`, `BriefAi.hasKey`, `BriefEmail.hasKey`. A build that keeps recordings never says "none of it
+  is kept" or "gone straight away" and always says `MicTrust.KEEP_LINE` ("This test build keeps the last four practice recordings on
+  this phone to tune the listening. Turn this off in Settings."); a build without the dashboard never names Help Roy test; "None of
+  it is sent anywhere" only when no clip can go (review off, nothing kept). Settings > Microphone keeps the longer `Recordings.KEEP_LINE`.
+- The microphone card (`MicTrust.card`, `MicCardDialog`): "How the microphone works", a lead, What it listens for, What happens to the
+  sound, Kids' profiles, Playing without the mic; "Allow the microphone" (then Android's prompt) and "Not now". Every RECORD_AUDIO
+  request goes through `rememberMicAsk(mic)` (MicTrustWiringTest fails on any other; the brief's dictation, AskBox, is speech and keeps
+  Android's prompt): granted at once when allowed, else the card first. Its answer is phone-wide in the "mic" prefs (`micCardSeen`,
+  `micNotNow`). Not now answers false and the screen stays on its keys, quietly (no refused line; onboarding sets useMic false, so no
+  mic banner on Today); screens that ask by themselves (`ask(auto = true)`: the play corner's toys, the placement check) never ask
+  again after it; a mic button tapped later shows the card again, and the picker making a kid shows it for each new kid (a new
+  child is a new decision; not walked: the AVD was gone, MicTrustWiringTest holds it). A kid's card is a grown-up's: the parent gate
+  first (`ParentGateController.guard(action, onCancel)`, new: leaving the gate counts as Not now), the lead names the child ("Mia's
+  games can listen..."); a kid's screen never puts Android's prompt up by itself once the card was answered. The picker making a kid
+  shows it with no second gate (`gated = false`: adding someone is behind the gate once a kid is on the phone; the first kid is
+  made by the grown-up who set the phone up). `LocalMic` (MainActivity, both roots) gives the onboarding and the picker the mic.
+  Reached later as "How the microphone works" (`MicCardInfo`, one Close) from Microphone setup (both states) and the privacy page.
+- Privacy page (ui/AboutScreens.kt): "Sharp Ears has no account and no ads. In short:" then `MicTrust.privacy(facts)`: What the app
+  listens to (with the card's button), What stays on this phone (names, progress; a child's profile holds a first name, an age group and
+  their playing, no birthday, no photo, and "no voice" only on a build that keeps no recordings; deleting a person removes their progress
+  and brief; backup never carries recordings), What leaves this phone (only what the build has: the AI brief's findings with no names and
+  no sound, the email brief once set up, Help Roy test's screen recordings and events, never sound, the diary, review clips on a test
+  build; YouTube always, with its two links). At most 150 words each (MicTrustTest; on the Fold_MT cover screen the first two fit one
+  screen together). The old Microphone, What is stored and Internet sections are gone; Test recordings (the clips paragraph and
+  Microphone setup), The parent brief, The brief by email, Testing, Speech and MIDI follow unchanged.
+- Could not hear (engine/hints/MicHearing.kt, MicHearingTest): while the mic listens and the learner is expected to play, a level reading
+  every 100 ms, the matcher's unpitched jumps (`mic.noise`, the watchdog's signal), and any key (mic strike, wrong key, touch, MIDI)
+  starting the clock again. NOISE: 4 s (`NOISE_MS`) with no pitched onset and 3+ jumps (`NOISE_JUMPS`) or half the readings at -45 dBFS
+  or louder (`LOUD_DB`, `LOUD_SHARE`). SILENCE: 6 s (`SILENCE_MS`) with 90% of readings under -60 dBFS (`QUIET_DB`, `QUIET_SHARE`), no
+  jump, and nothing heard yet in the step (decision: a learner thinking in a quiet room after playing is not told to turn the piano up
+  as the 6 s hint glow starts). Once per step (`newStep`: a lesson step's or a stage's player is new; the full player's each Play),
+  twice a minute app-wide (`MicInput.hearingLimit`). The clock holds (`hold`) during a demo or a hint played through the speaker
+  (`mic.deaf`), the voice speaking, Listen, a count-in, a recap, the noisy-room offer, the hint itself, Wait mode between groups, and a
+  finished injection (the mic not listening).
+  Tuned on Roy's recordings (gitignored fixtures, copied in for the test, never committed): level alone cannot carry noise (his room
+  reads -58 to -66 dBFS between notes in every recording), the jumps do; the TV session gives noise at 4.1 s and no key; no recording
+  ever gives silence; the scale with MIDI truth gives one hint, in its only pause of 4 s or more (9.7 to 14.9 s, talking). Synthetic
+  Gaussian noise bursts (test/RoomNoise.kt) pass for a key in the player's matcher about once a second (strict keys: none); real TV
+  passes for none, so the player's noise walk injects the TV recording.
+- The hint (ui/hints/NotHeardHint.kt): "I can't hear the piano clearly." with "It's a bit noisy here. Try moving the phone closer to the
+  piano." or "I can't hear anything yet. Is the piano's volume up?", then "Move the phone closer" (dismiss) and "Use the on-screen keys"
+  (this step on touch: the player's `micOn = false`, never `prefs.micDefault`; a stage's `StageHearing.touchOnly` stops its ear, its keys
+  still play). At the top of the lane under the bar (player, lesson steps: `HearingWatch` in ui/PlayerScreen.kt) or of the stage
+  (PlaygroundStage draws it from `LocalStageHearing`, set by `rememberStage`'s `StageHearingWatch`; the drum and claps, `rememberListening`,
+  are left out: no pitch by design). Grown-ups and big kids: words only. Little kids (kidSkin): the listening pup beside it, and the pup
+  says the cause line in his recorded voice (`Voice.sayInPupVoice`: a recording or Kokoro, never the platform voice; the two lines are
+  kid lines at 0.85, rendered with render_voice.py, 3972 voice files). Logged `mic: could not hear the piano (noise|silence)` and
+  `playground: ...`; `BriefEvent.MicNotHeard` ("notHeard", cause only) feeds the brief's room section (`BriefFormat.roomLines` /
+  `notHeardLine`, the email's "Mic:" line, both only when there was one; `Stats.notHeardNoise/notHeardQuiet` go on the AI's wire only
+  above 0) and the tester analytics (`mic_not_heard` with `cause`, through TesterTally).
+- Room check (Microphone setup, `RoomCheckSection`, engine `RoomCheck`): "Play C, E and G, one after another. It takes ten seconds."
+  C4 E4 G4 with strict keys, the same rule: all three heard and never noisy "Heard clearly"; notes heard in a room the rule calls noisy
+  (a 4 s stretch between notes, or 3 jumps in 4 s at any time) "Heard, a bit noisy"; none, or not all three, "Couldn't hear: try
+  closer". Logged `room check: CLEAR heard=[C4, E4, G4] noisy=false` (with `(jumps)` or `(stretch)` when noisy).
+- Fixed on the way (MicInput): the level meter's post mark was never reset, so after every mic restart the meter (and anything reading
+  `mic.level`) froze for as long as the session before had run; an injection's end cleared the label of a mic started right after it;
+  Mic setup's "Heard C4" counted every strike.
+- Debug (keyless builds): `--es screen micsetup [--es inject <wav>|synth:...]` (the room check hears the injection), `--es screen
+  privacy`. Noise and silence for walks: a WAV copied into the app's files (`adb shell "cat /data/local/tmp/x.wav | run-as
+  com.bigpapituna.sharpears sh -c 'cat > files/x.wav'"`, then `--es inject /data/user/0/com.bigpapituna.sharpears/files/x.wav`) and
+  `synth:r,r,...@1000` (rests are near silence).
+- Tests: MicHearingTest (17), MicTrustTest (8), MicTrustWiringTest (6); SpokenCatalogTest with the two new kid lines. All green but
+  PopPrivateTest.privateSongsMustNotShipPublic (keyless worktree): 1894 JVM tests. Lint 0 errors, 40 warnings, none on a line this
+  branch added (checked against `git diff 7f73a6f4 -U0`; the 2.14.0 note above says 30, the other ten predate this branch).
+- Decisions: the brief's event is `notHeard` (the log's short names), the tester event `mic_not_heard`; the card lists the tuner and
+  Microphone setup with lessons, songs and games (the page's list). After merging `show-off` or `plain-mode`, rerun SpokenCatalogTest
+  and `render_voice.py --check`: the catalog has to match the merged set of voice files.
+- Emulator walk (Fold_MT, 5562, fresh data; screenshots app/build/screens/mt-*.png, not committed): onboarding to "Microphone" and
+  Finish, the card (mt-03), Not now to "You're all set" and Today with no mic banner (mt-04, mt-05); Microphone setup unallowed with the
+  card's link (mt-06), Allow microphone showing the card again, Allow, Android's prompt (mt-07, mt-08), the room check: clear, a bit
+  noisy, try closer (mt-09 to mt-13); Twinkle in Wait with injected silence: the silence hint at 8 s, then "Use the on-screen keys" (mic
+  off, the run goes on; mt-14, mt-15; `notHeard` with cause silence in the brief's log); Finger numbers' Play step with the TV
+  recording: the noise hint at 6 s, no voice for a grown-up (mt-16); the Jam's own ask for a grown-up and its Not now (mt-17, mt-18); Mia
+  (little, pre-reader) opening the Jam: the gate, then the card naming her, Allow (mt-19, mt-20); Mia's High and low stage with talking
+  noise: the hint with the pup, said in his recorded voice, then the on-screen keys (mt-21, mt-22); the privacy page on the inner and
+  cover screens and the card from it (mt-23 to mt-26).
+- Open for Roy: on the Fold with his Yamaha and a TV on, whether 4 s and 3 jumps feel right and whether silence ever fires in a real
+  quiet room (the emulator's own mic input reads -3 dBFS, so it was off for the walk); a Playground coach's "Here it is again." can follow
+  the pup's could-not-hear line within a second; the toys (Jam, Pup says, Clap along), chord and ear games, the tuner and the arcade ask
+  through the card but show no could-not-hear hint (player, lesson steps and the Playground's key stages only).
+- Expected conflicts: `plain-mode` (PlayerScreen's lane overlays and its new HearingWatch; PlaygroundKit's rememberStage; Voice.kt; the
+  hint's pup is shown only for kidSkin, so Plain's rule for grown-ups and big kids already holds); `show-off` (OnboardingScreen's mic ask,
+  a few lines near the top; MainActivity's two CompositionLocalProviders gained `LocalMic`).

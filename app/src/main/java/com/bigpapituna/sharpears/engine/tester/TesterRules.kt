@@ -42,6 +42,15 @@ object TesterRules {
     /** The tester event sent once when the default turned the switch on (no properties). */
     const val DEFAULT_ON_EVENT = "tester_default_on"
 
+    /**
+     * 2.15 merge: what Help Roy test sends, in one place: the Settings line and the default-on notice (analytics/TesterSettings.kt)
+     * and the microphone card and privacy page (engine/MicTrust.kt) all say these words.
+     */
+    const val SENDS = "screen recordings, app events and error reports"
+
+    /** 2.15: the microphone could not hear the piano; one property, "cause": "noise" or "silence". */
+    const val MIC_NOT_HEARD = "mic_not_heard"
+
     /** The default turned the switch on: a grown-up sees the notice once, never a kid (it waits for a grown-up's profile). */
     fun showsNotice(pending: Boolean, kid: Boolean): Boolean = pending && !kid
 
@@ -177,6 +186,8 @@ class TesterTally {
         // 2.15: song_run became song_played (a song of the person's own as my_song, the accuracy as a bucket) and chord_chart_played.
         is BriefEvent.SongRun -> listOf(AppEvents.songRun(e))
         is BriefEvent.ToyOpened -> listOf(TesterEvent("toy_opened", mapOf("toy" to e.toy.wire, "seconds" to e.durationMs / 1000)))
+        // 2.15: the mic could not hear the piano: the cause only (noise or silence), nothing else (AppEvents' catalog).
+        is BriefEvent.MicNotHeard -> listOf(AppEvents.micNotHeard(e))
         else -> emptyList()
     }
 }

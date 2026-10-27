@@ -1,8 +1,5 @@
 package com.bigpapituna.sharpears.ui.practice
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -99,7 +96,8 @@ private const val IN_TUNE_CENTS = 5.0
 fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) {
     var allowed by remember { mutableStateOf(mic.hasPermission()) }
     var refused by remember { mutableStateOf(false) }       // refused twice, Android stops asking: say where to allow it
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it; refused = !it }
+    // 2.15: through the microphone card; its Not now leaves the button here, nothing more.
+    val ask = com.bigpapituna.sharpears.ui.rememberMicAsk(mic) { allowed = it; refused = !it && !mic.micNotNow }
     val visible = onScreen()
     LaunchedEffect(visible) { if (visible && !allowed) allowed = mic.hasPermission() }
     var micFailed by remember { mutableStateOf(false) }
@@ -144,7 +142,7 @@ fun TunerScreen(mic: MicInput, sampler: Sampler, modifier: Modifier = Modifier) 
             Spacer(Modifier.height(12.dp))
             PupLine(Pose.LISTENING, "Let me listen and I will tell you if a note is sharp or flat. I only listen, nothing is recorded.")
             Gauge(null, Modifier.fillMaxWidth().height(230.dp), quiet = true)
-            ChunkyButton(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.fillMaxWidth()) {
+            ChunkyButton(onClick = { ask.ask() }, modifier = Modifier.fillMaxWidth()) {
                 Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.size(8.dp))
                 Text("Allow microphone")

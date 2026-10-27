@@ -46,14 +46,16 @@ object AppEvents {
     const val GATE_FAILED = "gate_failed"
     const val TOUR_CARD_SEEN = "tour_card_seen"
     const val MIC_PERMISSION = "mic_permission"
+    /** mic-trust's could-not-hear hint (TesterRules.MIC_NOT_HEARD): one per hint shown, the cause only. */
+    const val MIC_NOT_HEARD = TesterRules.MIC_NOT_HEARD
 
     /** A song of the person's own, as every event names it. */
     const val MY_SONG = "my_song"
 
     /**
      * Every event the app sends and its properties (besides the super properties). The 2.6 to 2.13 events keep their names;
-     * `song_run` became `song_played` and `chord_chart_played` in 2.15. `mic_not_heard` is sent by the mic-trust branch
-     * (listed here so the catalog and the deny-list test cover it). `$screen` and `$exception` are PostHog's own names.
+     * `song_run` became `song_played` and `chord_chart_played` in 2.15. `mic_not_heard` (mic-trust) is made by TesterTally
+     * from the brief's MicNotHeard, logged once per could-not-hear hint ([micNotHeard]). `$screen` and `$exception` are PostHog's own names.
      */
     val CATALOG: Map<String, List<String>> = linkedMapOf(
         // PostHog's own, with the app's properties
@@ -103,7 +105,7 @@ object AppEvents {
         GATE_FAILED to emptyList(),
         TOUR_CARD_SEEN to listOf("which"),
         MIC_PERMISSION to listOf("result"),
-        "mic_not_heard" to listOf("cause"),
+        MIC_NOT_HEARD to listOf("cause"),
     )
 
     // ---- the privacy rule ----
@@ -210,6 +212,9 @@ object AppEvents {
     fun gateFailed() = TesterEvent(GATE_FAILED)
     fun tourCardSeen(which: String) = TesterEvent(TOUR_CARD_SEEN, mapOf("which" to which.lowercase()))
     fun micPermission(granted: Boolean) = TesterEvent(MIC_PERMISSION, mapOf("result" to if (granted) "granted" else "denied"))
+
+    /** The could-not-hear hint showed (the brief's MicNotHeard, one per hint): its cause, "noise" or "silence", nothing else. */
+    fun micNotHeard(e: BriefEvent.MicNotHeard) = TesterEvent(MIC_NOT_HEARD, mapOf("cause" to e.cause.wire))
 
     /**
      * A setting the brief logged (Briefs.setting / settingFor) that the dashboard tracks: the layout chosen, a kid's daily time

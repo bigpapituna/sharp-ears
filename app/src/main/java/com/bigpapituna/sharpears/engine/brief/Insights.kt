@@ -640,7 +640,10 @@ object Insights {
         val ear = w.ear.groupBy { it.game }.map { (g, r) -> EarStat(g, r.size, r.count { it.correct }) }.sortedWith(compareBy({ -it.rounds }, { it.game }))
         fun meanSession(ws: List<Window>): Int? = ws.flatMap { it.sessions }.takeIf { it.isNotEmpty() }?.map { it.onScreenMs }?.average()?.let { MinutesLedger.minutesOfMs(it.toLong()) }
         fun min(ms: Long) = MinutesLedger.minutesOfMs(ms)
+        val notHeard = w.of<BriefEvent.MicNotHeard>()
         return Stats(days, lessons, songs, skills, toys, parts, w.of<BriefEvent.NoisyRoom>().size, w.hintStats(), totals,
+            notHeardNoise = notHeard.count { it.cause == com.bigpapituna.sharpears.engine.hints.NotHeard.NOISE },
+            notHeardQuiet = notHeard.count { it.cause == com.bigpapituna.sharpears.engine.hints.NotHeard.SILENCE },
             keySlips = keySlips, topSlip = topSlip, notesDue = w.notesDue, skippedNotes = w.skippedNotes, hesitation = hesitation,
             tempoSpreadMs = w.tempoSpread?.roundToInt(), tempoRuns = w.spreads.size, left = hand(true), right = hand(false),
             hintsBefore = before.firstOrNull()?.takeIf { it.steps.isNotEmpty() || it.runs.isNotEmpty() }?.hintStats(),
@@ -694,7 +697,7 @@ internal data class SlowKey(val midi: Int, val ms: Int, val lessonId: String?, v
 internal data class Session(val start: Long, val end: Long, val onScreenMs: Long, val practiceSec: Int, val open: Boolean = false)
 
 internal object Sessions {
-    private val ACTIVITY = setOf("step", "lesson", "song", "toy", "ear", "noisy", "wrong", "octave")
+    private val ACTIVITY = setOf("step", "lesson", "song", "toy", "ear", "noisy", "notHeard", "wrong", "octave")
 
     /**
      * Sessions from the log: a start opens one, an end closes it with its time on screen and practice; an end with no

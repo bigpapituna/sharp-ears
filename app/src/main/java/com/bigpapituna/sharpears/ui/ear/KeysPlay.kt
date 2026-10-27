@@ -1,9 +1,6 @@
 package com.bigpapituna.sharpears.ui.ear
 
-import android.Manifest
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,8 +96,9 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     val flash = remember { mutableStateMapOf<Int, Color>() }                    // judged keys, for a moment
     val glow = remember { mutableStateMapOf<Int, Color>() }                     // keys the app is playing
     val scope = rememberCoroutineScope()
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) micOn = true else hint = com.bigpapituna.sharpears.ui.MIC_REFUSED_LINE to false     // refused: where to allow it
+    // 2.15: through the microphone card; its Not now stays on the keys, quietly.
+    val askMic = com.bigpapituna.sharpears.ui.rememberMicAsk(env.mic) {
+        if (it) micOn = true else if (!env.mic.micNotNow) hint = com.bigpapituna.sharpears.ui.MIC_REFUSED_LINE to false     // refused: where to allow it
     }
     val seen = version
     val round = trainer.round
@@ -260,7 +258,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             }, style = MaterialTheme.typography.titleSmall, minLines = if (prog != null) 1 else 2, maxLines = 2)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (usesKeys) FilterChip(micOn, {
-                    if (micOn) micOn = false else if (env.mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
+                    if (micOn) micOn = false else if (env.mic.hasPermission()) micOn = true else askMic.ask()
                 }, label = { Text(if (micOn) "Listening" else "Use mic") },
                     leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
                 OutlinedButton(onClick = { replayIntro = false; replay++ }, enabled = phase == Phase.ANSWER) {

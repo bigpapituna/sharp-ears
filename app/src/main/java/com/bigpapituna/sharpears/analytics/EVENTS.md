@@ -77,7 +77,7 @@ Buckets: minutes are `0`, `1-4`, `5-9`, `10-19`, `20-29`, `30-59`, `60+`; accura
 | `big_kid_made` | none | a kid profile is made as a big kid |
 | `tour_card_seen` | `which` (today, songs, learn) | a card of the tour shows |
 | `mic_permission` | `result` (granted, denied) | someone answers the microphone question, on any screen |
-| `mic_not_heard` | `cause` (noise, silence) | the microphone could not hear the piano (sent by the mic-trust branch; listed here only) |
+| `mic_not_heard` | `cause` (noise, silence) | the could-not-hear hint shows in a player, a lesson step or a Playground stage (once per hint; the brief's `notHeard` through TesterTally) |
 
 ### Grown-ups and family
 

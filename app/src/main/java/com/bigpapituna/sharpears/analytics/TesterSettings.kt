@@ -29,10 +29,10 @@ import com.bigpapituna.sharpears.data.BriefEmail
 import com.bigpapituna.sharpears.ui.brief.SwitchRow
 
 /** "Help Roy test"'s one line (Roy, 2026-10-21). */
-const val HELP_ROY_TEST_LINE = "Sends screen recordings, app events and error reports to Roy's test dashboard. No sound."
+const val HELP_ROY_TEST_LINE = "Sends " + com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS + " to Roy's test dashboard. No sound."
 
 /** 2.13: the one-time notice when the default turned Help Roy test on (Roy's words, 2026-10-25). */
-const val DEFAULT_ON_NOTICE = "This test build sends screen recordings, app events and error reports to Roy to help improve the app. No sound is recorded. " +
+const val DEFAULT_ON_NOTICE = "This test build sends " + com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS + " to Roy to help improve the app. No sound is recorded. " +
     "You can turn this off in Settings, Testing."
 
 /**

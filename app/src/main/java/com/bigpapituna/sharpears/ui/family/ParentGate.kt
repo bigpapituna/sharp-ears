@@ -119,9 +119,13 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
      * Runs [action] now when the gate is open (its two minutes start again from now), otherwise after the gate is passed
      * (and not at all when it is left).
      */
-    fun guard(action: () -> Unit) {
-        if (isOpen) { store(ParentGateRules.used(passedAt, clock())); action() } else { pending = action; Log.d(TAG, "gate: asked") }
+    fun guard(action: () -> Unit) = guard(action, null)
+
+    /** [guard], and [onCancel] when the gate is left instead (2.15: the microphone card asked for a kid falls back to touch). */
+    fun guard(action: () -> Unit, onCancel: (() -> Unit)?) {
+        if (isOpen) { store(ParentGateRules.used(passedAt, clock())); action() } else { pending = action; pendingCancel = onCancel; Log.d(TAG, "gate: asked") }
     }
+    private var pendingCancel: (() -> Unit)? = null
 
     /** Like [guard] while a kid is playing; for a grown-up [action] runs at once. */
     fun guardForKids(action: () -> Unit) {
@@ -134,11 +138,11 @@ class ParentGateController(private val profiles: Profiles?, private val clock: (
         if (lockout != ParentGateRules.Lockout()) { lockout = ParentGateRules.Lockout(); profiles?.gateLockout = null }
         Log.d(TAG, "gate: passed, open for ${ParentGateRules.OPEN_MS / 60_000} min from the last use")
         val a = pending
-        pending = null
+        pending = null; pendingCancel = null
         a?.invoke()
     }
 
-    fun cancel() { pending = null; Log.d(TAG, "gate: left") }
+    fun cancel() { val c = pendingCancel; pending = null; pendingCancel = null; Log.d(TAG, "gate: left"); c?.invoke() }
 
     /**
      * Bumps each time an open gate is closed (Lock now, a switch of player, the app away, a corner shut): grown-ups' screens

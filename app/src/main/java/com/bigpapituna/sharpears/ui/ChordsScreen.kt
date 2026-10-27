@@ -1,10 +1,7 @@
 package com.bigpapituna.sharpears.ui
 
-import android.Manifest
 import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -410,7 +407,8 @@ private fun ChordTrainer(
     val keyFlash = remember { mutableStateMapOf<Int, Color>() }               // a burst on the keys: green when a chord lands, warm on a slip
     val scope = rememberCoroutineScope()
     val touched = remember { mutableStateMapOf<Int, Color>() }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true else flash = MIC_REFUSED_LINE to false }
+    // 2.15: through the microphone card; its Not now stays on the keys, quietly.
+    val askMic = rememberMicAsk(mic) { if (it) micOn = true else if (!mic.micNotNow) flash = MIC_REFUSED_LINE to false }
 
     val current = remember(version, drill) { drill.current }
     val voicing = current.voicing(0)
@@ -491,7 +489,7 @@ private fun ChordTrainer(
             style = MaterialTheme.typography.titleMedium, modifier = Modifier.height(24.dp))
         FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(micOn, {
-                if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
+                if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.ask()
             }, label = { Text(if (micOn) "Listening" else "Use mic") },
                 leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
             FilterChip(showNotes, { showNotes = !showNotes }, label = { Text("Show notes") })

@@ -15,6 +15,7 @@ import android.os.Process
 import android.util.Log
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.edit
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.data.Recordings
 import com.bigpapituna.sharpears.engine.MatcherConfig
@@ -83,6 +84,20 @@ class MicInput(private val context: Context) {
     val paintsWrongKeys get() = wrongFlash && !wrongPaintOff
     /** The room-noise watchdog for this app session (the player feeds it and asks it; see engine/hints/NoiseWatch). */
     val noiseWatch = com.bigpapituna.sharpears.engine.hints.NoiseWatch()
+    /**
+     * 2.15: "never more than twice a minute" for the could-not-hear hint (engine/hints/MicHearing), shared by every screen that
+     * shows it (a lesson makes its player anew for every step).
+     */
+    val hearingLimit = com.bigpapituna.sharpears.engine.hints.HearingLimit()
+
+    /** 2.15: the microphone card was shown and answered once (ui/MicCard.kt). Phone-wide, like the permission. */
+    var micCardSeen: Boolean
+        get() = prefs.getBoolean("micCardSeen", false)
+        set(v) { prefs.edit { putBoolean("micCardSeen", v) } }
+    /** 2.15: the card's "Not now" (or the gate left): screens that ask by themselves no longer do; a mic button still may. */
+    var micNotNow: Boolean
+        get() = prefs.getBoolean("micNotNow", false)
+        set(v) { prefs.edit { putBoolean("micNotNow", v) } }
 
     /**
      * The person playing: [kid] goes into every report this mic saves as "profile=kid|adult" (never the name), and
@@ -312,6 +327,7 @@ class MicInput(private val context: Context) {
     private fun loopMic(rec: AudioRecord) {
         val buf = FloatArray(512)
         framesRead = 0
+        lastLevelPost = 0           // 2.15: the meter's last post belongs to the session before (it froze for as long as that one ran)
         try {
             rec.startRecording()          // inside the try: a refused start still releases the recorder below
             while (!stop) {
@@ -349,6 +365,7 @@ class MicInput(private val context: Context) {
         val buf = FloatArray(512)
         val t0 = System.nanoTime()
         framesRead = 0
+        lastLevelPost = 0           // 2.15: the meter's last post belongs to the session before (it froze for as long as that one ran)
         var i = 0
         while (!stop && i < samples.size) {
             val n = minOf(buf.size, samples.size - i)
@@ -362,7 +379,8 @@ class MicInput(private val context: Context) {
         }
         Log.d(TAG, "mic: injection finished")
         thread = null
-        main.post { source.value = null; onStopped?.invoke() }
+        // Not over a mic started right after (the room check hands the screen back to the real mic): it read "Starting".
+        main.post { if (thread == null) source.value = null; onStopped?.invoke() }
     }
 
     /** Raw input, on the audio thread, for tools that read the mic besides note matching (the tuner). */
