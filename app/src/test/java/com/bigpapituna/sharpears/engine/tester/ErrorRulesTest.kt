@@ -60,6 +60,7 @@ class ErrorRulesTest {
         assertFalse("the same within ten minutes", l.allow(k, 1_000 + 9 * 60_000, 100))
         assertTrue("another message is another key", l.allow(ErrorLimiter.key("voice_engine", "java.lang.IllegalStateException", "status -2"), 2_000, 100))
         assertTrue("ten minutes later", l.allow(k, 1_000 + 10 * 60_000, 100))
+        assertEquals("a full or a simple class name is one key", k, ErrorLimiter.key("voice_engine", "IllegalStateException", "status -1"))
         val day = ErrorLimiter()
         repeat(30) { i -> assertTrue("report $i", day.allow("k$i", 5_000L + i, 7)) }
         assertFalse("the 31st of the day", day.allow("k31", 6_000, 7))

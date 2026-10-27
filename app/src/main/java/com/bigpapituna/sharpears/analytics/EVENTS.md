@@ -118,8 +118,8 @@ PostHog's error tracking, through the SDK (posthog-android 3.72.5):
 - **Uncaught exceptions**: `Errors.installCrashHandler` puts the app's own handler in front of the SDK's: the crash goes
   out as fatal (`where` = `uncaught`, `handled` = false), written to the SDK's queue at once and sent at the next start. The
   SDK's own autocapture is on too (`errorTrackingConfig.autoCapture`), but PostHog's remote config turns it off while the
-  project's "Exception autocapture" is off (it was off in project 680038 on 2026-10-27); when both act, the second copy is
-  dropped, so a crash goes out once.
+  project's "Exception autocapture" is off (it was off in project 680038 on 2026-10-27); when both act, the second copy has
+  the same place, class and message, and the limit drops it, so a crash goes out once.
 - **Native crashes** (the speech library): read from Android's tombstones at the next start (`captureNativeCrashes`).
 - **ANRs**: the SDK has none. At the next start `Errors.reportPastExits` reads the ANRs Android kept (Android 11 and up,
   `ApplicationExitInfo`) that were not reported yet, each as `ApplicationNotResponding` with the main thread's stack from

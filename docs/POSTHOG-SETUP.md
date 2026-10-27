@@ -134,7 +134,8 @@ step 2 already keep them out of every insight. To clear them from Error tracking
 `ErrorTestException` and resolve or suppress it. If the plan offers event deletion (Settings > Project > Data management or
 a deletion request), delete events where `is_error_test` = true, and the emulator's events by its `distinct_id`.
 
-The 2.15 emulator test (2026-10-27, UTC) sent, all from `distinct_id` `0a8925c2-82ea-4169-9cf4-5c7ae4b8f24a` with
+The 2.15 emulator test (2026-10-27, UTC) queued these and its queue drained (Activity, filtered by that `distinct_id`,
+shows whether PostHog took them), all from `distinct_id` `0a8925c2-82ea-4169-9cf4-5c7ae4b8f24a` with
 `is_emulator` = true: 15:14:58 to 15:15:01 Application Installed, `tester_default_on`, `app_open`, `profile_kind`,
 Application Opened, `$screen`; 15:15:25 `$exception` (`where` error_test); 15:19:52 to 15:19:56 `app_open`, `profile_kind`,
 Application Opened, `$screen` and `$exception` (`where` uncaught, a fatal crash on purpose); 15:20:17 to 15:20:20 `app_open`,

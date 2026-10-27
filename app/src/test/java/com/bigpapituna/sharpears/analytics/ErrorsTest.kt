@@ -61,12 +61,16 @@ class ErrorsTest {
         assertTrue(lines.any { it == "errors: uncaught not sent (limited)" })
     }
 
-    /** One copy of a crash: ours and the SDK's own handler may both act (the project's Exception autocapture on). */
+    /**
+     * One copy of a crash: ours and the SDK's own handler may both act (the project's Exception autocapture on); they meet on
+     * one limiter key. Another fatal before it (a native crash read at start, another class) never blocks it.
+     */
     @Test fun aCrashGoesOutOnceAndOursSaysUnhandled() {
-        val sdk = exception("java.lang.IllegalStateException", "boom", fatal = true)
-        assertTrue(Errors.beforeSend("\$exception", sdk))
-        assertFalse("the second fatal of the process is a copy", Errors.beforeSend("\$exception", exception("java.lang.IllegalStateException", "boom", fatal = true)))
-        assertTrue(lines.any { it == "errors: the SDK's copy of the uncaught exception dropped (sent already)" })
+        assertTrue("an earlier fatal of another kind", Errors.beforeSend("\$exception", exception("java.lang.OutOfMemoryError", "heap", fatal = true)))
+        val sdk = exception("IllegalStateException", "boom", fatal = true)
+        assertTrue("this crash still goes", Errors.beforeSend("\$exception", sdk))
+        assertFalse("the same crash again is a copy", Errors.beforeSend("\$exception", exception("java.lang.IllegalStateException", "boom", fatal = true)))
+        assertEquals(1, lines.count { it == "errors: uncaught not sent (limited)" })
         val ours = exception("java.lang.IllegalStateException", "boom", fatal = true).apply { put(ErrorReport.WHERE, "uncaught"); put(ErrorReport.HANDLED, false) }
         assertTrue(Errors.beforeSend("\$exception", ours))
         @Suppress("UNCHECKED_CAST") val item = (ours["\$exception_list"] as List<Map<String, Any?>>).single()

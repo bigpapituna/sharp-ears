@@ -2060,7 +2060,8 @@ The table of events, properties, flags and error reports: analytics/EVENTS.md. R
   (its remote config, cached by the SDK, said `autocaptureExceptions: false`), which switches the SDK's crash handler off, so
   `Errors.installCrashHandler` puts the app's own in front: a crash goes out as fatal (`where` uncaught, `handled` false),
   written to the SDK's queue at once (its queue writes fatal records synchronously) and sent at the next start; when the SDK's
-  handler acts too, beforeSend drops the second copy. ANRs: the SDK has none, so `Errors.reportPastExits` reads Android's
+  handler acts too, its copy meets ours on one limiter key (place, simple class name, message) and is dropped. ANRs: the SDK
+  has none, so `Errors.reportPastExits` reads Android's
   ApplicationExitInfo (11 and up) at the next start, each new ANR as `ApplicationNotResponding` with the main thread's stack
   from Android's trace (a watermark in tester.xml; the first start only sets it). Handled exceptions go through one helper,
   `Errors.report(where, throwable, extra)`, at: `voice_engine` and `voice_utterance` (audio/Voice.kt), `natural_voice` and
@@ -2107,14 +2108,17 @@ The table of events, properties, flags and error reports: analytics/EVENTS.md. R
   ErrorsTest (nothing sent while not recording, beforeSend's scrub, test mark and limit across a restart),
   TesterWiringTest (the keyless door names no SDK; the door's error config; each risk point reports), TesterRulesTest updated.
 - Emulator (Fold_ET, a config-only copy of Fold_QA_GU on emulator-5566, deleted after; the keyed debug APK, so it sent to
-  Roy's project; Help Roy test on by default; nothing tapped). Sent, 2026-10-27 UTC, distinct_id
+  Roy's project; Help Roy test on by default; nothing tapped). Queued with `is_emulator` true, and the SDK's disk queue
+  drained after each run (that shows they left the phone; PostHog's acceptance is not visible from here: Activity filtered
+  by the distinct_id shows it), 2026-10-27 UTC, distinct_id
   `0a8925c2-82ea-4169-9cf4-5c7ae4b8f24a`, every event `is_emulator` true, `build_flavor` tester: 15:14:58 to 15:15:01
   Application Installed, tester_default_on, app_open, profile_kind, Application Opened, $screen (the onboarding), and a
   masked session replay; 15:15:25 `$exception` where error_test (handled, `is_error_test` true); the crash at 15:15:29 was not
   sent (the project's autocapture off, see above: the fix followed); 15:19:52 to 15:19:54 app_open, profile_kind, Application
   Opened, $screen; the second error_test at 15:19:52 limited, not sent; 15:19:56 `$exception` where uncaught (fatal,
-  `is_error_test` true), sent with 15:20:17 to 15:20:20's app_open, profile_kind, Application Opened and $screen after a plain
-  relaunch (the SDK's queue empty by 15:20:56); force-stopped 15:21:04. Three short replays. Logcat: `errors: reported
+  `is_error_test` true), queued at once and gone with 15:20:17 to 15:20:20's app_open, profile_kind, Application Opened and
+  $screen after a plain relaunch (the queue empty by 15:20:56); force-stopped 15:21:04. Three short replays. Not exercised:
+  an ANR (only the watermark was set) and a native crash. Logcat: `errors: reported
   error_test (ErrorTestException)`, `errors: error_test not sent (limited)`, `errors: reported uncaught (ErrorTestException)`;
   no "phc_", "sk-or-", "xkeysib", "Bearer" or "@" from the app; the crash buffer holds only the two test crashes.
 - Open for Roy: the PostHog clicks (docs/POSTHOG-SETUP.md); deleting the test events above if he wants them gone (they are

@@ -12,7 +12,6 @@ import com.bigpapituna.sharpears.engine.tester.ErrorReport
 import com.bigpapituna.sharpears.engine.tester.ErrorScrub
 import com.bigpapituna.sharpears.engine.tester.ExitRules
 import java.time.LocalDate
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** The debug route's test exception (`--es screen errortest`): every report of it carries is_error_test=true. */
 class ErrorTestException(message: String) : RuntimeException(message)
@@ -29,7 +28,8 @@ class ApplicationNotResponding(message: String) : RuntimeException(message)
  *   class and message in ten minutes, 30 a day, kept in tester.xml across starts), logged `errors: reported <where>`.
  * - Uncaught exceptions: [installCrashHandler] reports them itself (written to the SDK's queue at once, sent at the next
  *   start), whether or not the project's "Exception autocapture" lets the SDK's own handler act (Roy's project had it off on
- *   2026-10-27); when both act, the second copy is dropped ([fatalSent]). Native crashes: the SDK, from Android's tombstones.
+ *   2026-10-27); when both act, the second copy has the same place, class and message, and the limit drops it. Native
+ *   crashes: the SDK, from Android's tombstones.
  * - [beforeSend]: every event passes it last. It stamps the test marks, scrubs the messages of every exception (the SDK's own
  *   too), applies the limit to the ones the SDK caught, marks the debug route's test exception and logs a key-free line.
  *
@@ -42,8 +42,6 @@ object Errors {
     const val EXCEPTION = "\$exception"
 
     @Volatile private var limiter: ErrorLimiter? = null
-    /** The uncaught exception of this process went out already (by our handler or the SDK's): only one copy is sent. */
-    private val fatalSent = AtomicBoolean(false)
     @Volatile private var handlerInstalled = false
 
     private fun app(): Context? = Tester.appContext()
@@ -58,7 +56,7 @@ object Errors {
     private fun today(): Long = LocalDate.now().toEpochDay()
 
     /** Tests only: a new process (the limit is read back from tester.xml). */
-    internal fun resetForTest() { limiter = null; fatalSent.set(false) }
+    internal fun resetForTest() { limiter = null }
 
     /**
      * Ours in front of the SDK's (or Android's) uncaught exception handler, once the dashboard records (Tester): the crash is
@@ -77,7 +75,6 @@ object Errors {
     private fun reportFatal(t: Throwable) {
         val cls = ErrorScrub.className(t.javaClass.name)
         if (!Tester.capturingNow) { Tester.logcat("errors: uncaught not sent (${Tester.notSentWhy()})"); return }
-        if (!fatalSent.compareAndSet(false, true)) return
         val message = ErrorScrub.message(t.message, Tester.namesNow())
         val allowed = limiter().allow(ErrorLimiter.key("uncaught", cls, message), System.currentTimeMillis(), today())
         save()
@@ -133,7 +130,6 @@ object Errors {
         if (test) props[ErrorReport.IS_ERROR_TEST] = true
         val fatal = props["\$exception_level"] == "fatal"
         if (props[ErrorReport.WHERE] == null) {
-            if (fatal && !fatalSent.compareAndSet(false, true)) { Tester.logcat("errors: the SDK's copy of the uncaught exception dropped (sent already)"); return@runCatching false }
             val mechanism = ((first?.get("mechanism") as? Map<*, *>)?.get("type") as? String).orEmpty().lowercase()
             val where = when { "native" in mechanism || "signal" in mechanism || "tombstone" in mechanism -> "native_crash"; fatal -> "uncaught"; else -> "auto" }
             props[ErrorReport.WHERE] = where

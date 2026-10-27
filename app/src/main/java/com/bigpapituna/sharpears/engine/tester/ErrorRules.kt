@@ -97,9 +97,12 @@ class ErrorLimiter(private val perKeyMs: Long = PER_KEY_MS, private val perDay: 
             return l
         }
 
-        /** The limiter's key: the place, the class and a hash of the (scrubbed) message. */
+        /**
+         * The limiter's key: the place, the class's simple name (the SDK may give a full or a simple name, and the app's crash
+         * handler and the SDK's must meet on one key) and a hash of the (scrubbed) message.
+         */
         fun key(where: String, className: String, message: String): String =
-            "${ErrorScrub.where(where)}:${className.replace(Regex("[^\\w.$]"), "")}:${Integer.toHexString(message.hashCode())}"
+            "${ErrorScrub.where(where)}:${className.substringAfterLast('.').replace(Regex("[^\\w$]"), "")}:${Integer.toHexString(message.hashCode())}"
     }
 }
 
