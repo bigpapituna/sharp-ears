@@ -204,6 +204,8 @@ internal class EmailSections(
         }
         mix()?.let { (meter, line) -> blocks += meter; blocks += Block.Text(line, label = "Lessons and play:") }
         if (s.noisyRoom > 0) blocks += Block.Text("the microphone heard the room ${times(s.noisyRoom)} instead of the piano.", label = "Room:")
+        // 2.15: the times it could not hear the piano at all, by cause (none: nothing new in the email).
+        BriefFormat.notHeardLine(s.notHeardNoise, s.notHeardQuiet)?.let { blocks += Block.Text(it.replaceFirstChar(Char::lowercase), label = "Mic:") }
         if (blocks.isEmpty()) return null
         return section(SectionId.HABITS, if (week) "Habits and trends" else "Today's sessions", blocks)
     }

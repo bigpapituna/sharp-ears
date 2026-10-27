@@ -278,7 +278,7 @@ fun FullReport(brief: Brief, f: Findings, env: BriefEnv, modifier: Modifier = Mo
             BarList(parts.mapIndexed { i, p -> BarRow(BriefFormat.partLabel(p.part), BriefFormat.minutes(p.minutes), shares[i]) }, parts.map { BriefFormat.partHours(it.part) })
         }
         ReportTitle("The room and the hints")
-        Text(BriefFormat.noisyLine(s.noisyRoom), style = MaterialTheme.typography.bodyLarge)
+        BriefFormat.roomLines(s).forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
         val hints = BriefFormat.hintLines(s.hints)
         if (hints.isEmpty()) Text("No hints were needed.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
         else Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { hints.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) } }

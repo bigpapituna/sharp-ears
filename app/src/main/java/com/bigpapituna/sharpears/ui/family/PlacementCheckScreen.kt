@@ -2,8 +2,6 @@ package com.bigpapituna.sharpears.ui.family
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -132,10 +130,11 @@ fun PlacementCheckScreen(
 
     // The microphone is asked for once, up front; allowed or not, the check plays (the keys can be touched).
     var settled by remember { mutableStateOf(mic.hasPermission() || inject != null || !askMic) }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+    // 2.15: through the microphone card (a kid's: the gate first); Not now, or after it, the check plays on the keys.
+    val askMic = com.bigpapituna.sharpears.ui.rememberMicAsk(mic) { ok ->
         Log.d(TAG, "placement: microphone ${if (ok) "allowed" else "not allowed"}"); settled = true
     }
-    LaunchedEffect(Unit) { if (!settled) askMic.launch(android.Manifest.permission.RECORD_AUDIO) }
+    LaunchedEffect(Unit) { if (!settled) askMic.ask(auto = true) }
 
     var index by remember { mutableIntStateOf(startTask.coerceIn(0, tasks.lastIndex)) }
     val results = remember { mutableStateListOf<Result>() }

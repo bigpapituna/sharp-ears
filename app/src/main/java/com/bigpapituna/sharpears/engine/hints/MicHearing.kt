@@ -172,6 +172,9 @@ class RoomCheck(val startMs: Long) {
     val heard = linkedSetOf<Int>()
     var noisy = false
         private set
+    /** Why the room read as noisy, for the log: "jumps" (3 in 4 s) or "stretch" (the hint's own rule between notes). */
+    var noisyBy: String? = null
+        private set
 
     fun done(nowMs: Long) = nowMs - startMs >= DURATION_MS
     /** 0..1 of the ten seconds. */
@@ -185,13 +188,13 @@ class RoomCheck(val startMs: Long) {
         hearing.unpitched(nowMs)
         jumps.addLast(nowMs)
         while (jumps.isNotEmpty() && nowMs - jumps.first() > MicHearing.NOISE_MS) jumps.removeFirst()
-        if (jumps.size >= MicHearing.NOISE_JUMPS) noisy = true
+        if (jumps.size >= MicHearing.NOISE_JUMPS && !noisy) { noisy = true; noisyBy = "jumps" }
     }
 
     fun level(nowMs: Long, db: Double) {
         if (done(nowMs)) return
         hearing.observe(nowMs, db)
-        if (hearing.judge(nowMs) == NotHeard.NOISE) noisy = true
+        if (hearing.judge(nowMs) == NotHeard.NOISE && !noisy) { noisy = true; noisyBy = "stretch" }
     }
 
     fun verdict(): Verdict = when {

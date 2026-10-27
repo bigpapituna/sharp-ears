@@ -99,7 +99,8 @@ object MicTrust {
         TrustSection(STAYS, listOf(
             "Everything else stays in the app's own storage on this phone: the names of the people who play, and each one's progress, " +
                 "stars, minutes, stickers, settings and parent brief" + (if (f.keeps) ", and this test build's recordings." else "."),
-            "A child's profile holds a first name, an age group and their playing. No birthday, no photo, no voice.",
+            // A test build's recordings can hold voices in the room (never a name): then no "no voice".
+            "A child's profile holds a first name, an age group and their playing. No birthday, no photo" + (if (f.keeps) "." else ", no voice."),
             "The parent gate guards a child's brief and settings.",
             "Deleting a person in Settings, Family removes their progress and their brief. Uninstalling the app removes everything.",
             "If the phone's backup to your Google account is on, it can carry progress to a new phone, never recordings.",
@@ -121,6 +122,6 @@ object MicTrust {
         val items = leaving(f)
         val youtube = "Tutorial videos play in YouTube's own player, which connects to Google."
         return if (items.isEmpty()) "Nothing about you or your playing leaves this phone. $youtube"
-        else (listOf("Only these, and only on this build:") + items + youtube).joinToString(" ")
+        else (listOf(if (items.size == 1) "Only one thing, on this build:" else "Only these, on this build:") + items + youtube).joinToString(" ")
     }
 }

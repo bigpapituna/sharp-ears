@@ -1,6 +1,5 @@
 package com.bigpapituna.sharpears.ui
 
-import android.Manifest
 import android.util.Log
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -25,8 +24,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -84,13 +81,18 @@ private val FIXTURES = listOf(
 @Composable
 fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicCheck: () -> Unit, onBack: () -> Unit,
                    /** Wraps changes to the report token: the parent gate (ParentGateController.guard), even for grown-ups. */
-                   guardToken: (() -> Unit) -> Unit = { it() }) {
+                   guardToken: (() -> Unit) -> Unit = { it() },
+                   /** Debug (--es screen micsetup --es inject ...): the room check hears this instead of the microphone. */
+                   inject: String? = null) {
     BackHandler(onBack = onBack)
     var granted by remember { mutableStateOf(mic.hasPermission()) }
     // Refused twice, Android stops asking: "Allow microphone" then did nothing at all. Refused, the way to the phone's
     // settings shows; coming back from there checks again.
     var refused by remember { mutableStateOf(false) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it; refused = !it }
+    // 2.15: through the microphone card; its Not now leaves this screen as it is, with the card to read again below.
+    val ask = rememberMicAsk(mic) { granted = it; refused = !it && !mic.micNotNow }
+    var howItWorks by remember { mutableStateOf(false) }
+    if (howItWorks) MicCardInfo(mic) { howItWorks = false }
     var micAddress by remember { mutableStateOf(mic.micAddress) }
     var heard by remember { mutableIntStateOf(0) }
     var last by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
@@ -117,7 +119,7 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
     LaunchedEffect(mic) {
         mic.events.collect { e ->
             when (e) {
-                is MicEvent.Strike -> { heard++; last = "Heard ${noteName(e.midi)} (rise ${"%.0f".format(java.util.Locale.ROOT, e.riseDb)} dB)" to true; Log.d(TAG, "micsetup heard ${noteName(e.midi)} rise=${e.riseDb}") }
+                is MicEvent.Strike -> { if (e.midi == 60) heard++; last = "Heard ${noteName(e.midi)} (rise ${"%.0f".format(java.util.Locale.ROOT, e.riseDb)} dB)" to true; Log.d(TAG, "micsetup heard ${noteName(e.midi)} rise=${e.riseDb}") }
                 is MicEvent.Wrong -> { last = "Heard a different note" to false; Log.d(TAG, "micsetup wrong") }
             }
         }
@@ -133,11 +135,15 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         }
         if (!granted) {
             // Honest for this build: debug builds keep recordings by default (Keep the last four recordings, below once allowed).
-            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. " + if (mic.canRecord)
-                "This test build keeps recent sessions on the phone, and you can turn that off here." else "Nothing is recorded or sent anywhere.",
+            // 2.15: as the card says it, from what this phone does now (the keep switch can be off on a test build).
+            PupSays(Pose.LISTENING, "Sharp Ears listens to your piano through the microphone. " + when {
+                mic.keepRecordings -> "This test build keeps recent sessions on the phone, and you can turn that off here."
+                mic.canRecord -> "Keeping recordings is off on this test build."
+                else -> "Nothing is recorded or sent anywhere." },
                 size = 88.dp, style = MaterialTheme.typography.bodyLarge)
-            Button(onClick = { ask.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Allow microphone") }
+            Button(onClick = { ask.ask() }) { Text("Allow microphone") }
             if (refused) MicRefusedNote()
+            TextButton(onClick = { howItWorks = true }) { Text(com.bigpapituna.sharpears.engine.MicTrust.TITLE) }
             return@Column
         }
 
@@ -167,6 +173,9 @@ fun MicSetupScreen(mic: MicInput, midi: MidiDevices, debuggable: Boolean, onMicC
         Text("Heard C4 ${com.bigpapituna.sharpears.engine.times(heard)}", style = MaterialTheme.typography.bodySmall)
 
         FilledTonalButton(onClick = onMicCheck) { Text("Try it: C major scale in wait mode") }
+
+        RoomCheckSection(mic, inject)
+        TextButton(onClick = { howItWorks = true }) { Text(com.bigpapituna.sharpears.engine.MicTrust.TITLE) }
 
         Text("Sensitivity: %.0f dB".format(java.util.Locale.ROOT, sensitivity), style = MaterialTheme.typography.titleMedium)
         Text("Lower hears softer notes; raise it if room noise triggers notes.", style = MaterialTheme.typography.bodySmall)
@@ -345,5 +354,74 @@ fun MicRefusedNote(modifier: Modifier = Modifier) {
             context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 android.net.Uri.fromParts("package", context.packageName, null)))
         }) { Text("Open the phone's settings") }
+    }
+}
+
+/**
+ * 2.15, the room check: ten seconds to play C, E and G, judged by the could-not-hear rule (engine/hints/MicHearing.kt
+ * RoomCheck): "Heard clearly", "Heard, a bit noisy" or "Couldn't hear: try closer". It listens with strict keys, as the
+ * stages do, then gives the screen's middle C check back. [inject] (debug) plays instead of the microphone.
+ */
+@Composable
+private fun RoomCheckSection(mic: MicInput, inject: String?) {
+    var check by remember { mutableStateOf<com.bigpapituna.sharpears.engine.hints.RoomCheck?>(null) }
+    var verdict by remember { mutableStateOf<com.bigpapituna.sharpears.engine.hints.RoomCheck.Verdict?>(null) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var heard by remember { mutableStateOf(emptySet<Int>()) }
+    val running = check != null
+    Text("Room check", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+    Text(com.bigpapituna.sharpears.engine.hints.RoomCheck.PROMPT, style = MaterialTheme.typography.bodySmall)
+    LaunchedEffect(running) {
+        val c = check ?: return@LaunchedEffect
+        val keys = com.bigpapituna.sharpears.engine.hints.RoomCheck.KEYS
+        mic.matcher.strictKeys = true
+        mic.matcher.expected = keys; mic.matcher.groups = keys.map { setOf(it) }
+        if (inject != null) mic.startInjection(inject)
+        Log.d(TAG, "room check: started${if (inject != null) " (injected $inject)" else ""}")
+        try {
+            while (true) {
+                val now = android.os.SystemClock.uptimeMillis()
+                if (c.done(now)) break
+                c.level(now, mic.level.floatValue.toDouble())
+                progress = c.progress(now).toFloat()
+                heard = c.heard.toSet()
+                kotlinx.coroutines.delay(100)
+            }
+            val v = c.verdict()
+            verdict = v
+            Log.d(TAG, "room check: ${v.name} heard=${c.heard.map { noteName(it) }} noisy=${c.noisy}${c.noisyBy?.let { " ($it)" } ?: ""}")
+        } finally {
+            mic.matcher.strictKeys = false
+            mic.matcher.expected = setOf(60); mic.matcher.group = setOf(60)
+            if (inject != null) { mic.stop(); mic.start(autoRecord = false) }
+            check = null
+        }
+    }
+    LaunchedEffect(mic) {
+        mic.events.collect { e -> if (e is MicEvent.Strike) check?.note(e.midi) }
+    }
+    LaunchedEffect(mic) {
+        mic.noise.collect { val c = check ?: return@collect; c.unpitched(android.os.SystemClock.uptimeMillis()); Log.d(TAG, "room check: a sound with no note in it") }
+    }
+    if (running) {
+        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Room check, listening" })
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            for (k in com.bigpapituna.sharpears.engine.hints.RoomCheck.KEYS) {
+                val got = k in heard
+                Text(noteName(k).filter { it.isLetter() }, style = MaterialTheme.typography.titleLarge,
+                    color = if (got) Good else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics { contentDescription = "${noteName(k)} ${if (got) "heard" else "not heard yet"}" })
+            }
+        }
+    } else {
+        verdict?.let { v ->
+            Text(v.title, style = MaterialTheme.typography.titleMedium,
+                color = if (v == com.bigpapituna.sharpears.engine.hints.RoomCheck.Verdict.CLEAR) Good else MaterialTheme.colorScheme.primary)
+            Text(v.line, style = MaterialTheme.typography.bodyMedium)
+        }
+        FilledTonalButton(onClick = {
+            verdict = null; heard = emptySet(); progress = 0f
+            check = com.bigpapituna.sharpears.engine.hints.RoomCheck(android.os.SystemClock.uptimeMillis())
+        }) { Text(if (verdict == null) "Start the room check" else "Check again") }
     }
 }

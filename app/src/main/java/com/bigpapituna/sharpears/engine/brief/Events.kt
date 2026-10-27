@@ -169,6 +169,15 @@ sealed class BriefEvent {
         override fun body(m: MutableMap<String, Any?>) { m["screen"] = screen }
     }
 
+    /**
+     * 2.15: the microphone could not hear the piano while the learner was expected to play ("I can't hear the piano clearly.",
+     * engine/hints/MicHearing.kt), for [cause] only: noise without notes or near silence. The brief's room section counts them.
+     */
+    data class MicNotHeard(override val at: Long, val cause: com.bigpapituna.sharpears.engine.hints.NotHeard) : BriefEvent() {
+        override val name get() = "notHeard"
+        override fun body(m: MutableMap<String, Any?>) { m["cause"] = cause.wire }
+    }
+
     /** A toy of the play corner was open for [durationMs] on screen (written when it closes). */
     data class ToyOpened(override val at: Long, val toy: ToyKind, val durationMs: Long) : BriefEvent() {
         override val name get() = "toy"
@@ -293,6 +302,7 @@ sealed class BriefEvent {
             "wrong" -> WrongKey(at, f.intOrNull("expected")!!, f.intOrNull("played")!!, f.bool("slip"), f.int("count", 1), f.str("lesson"), f.str("song"))
             "octave" -> OctaveHint(at, f.str("lesson"), f.str("song"), f.int("count", 1))
             "noisy" -> NoisyRoom(at, f.str("screen")!!)
+            "notHeard" -> MicNotHeard(at, com.bigpapituna.sharpears.engine.hints.NotHeard.of(f.str("cause"))!!)
             "toy" -> ToyOpened(at, ToyKind.of(f.str("toy"))!!, f.long("ms"))
             "ear" -> EarRound(at, f.str("game")!!, f.bool("correct"), f.intOrNull("level"))
             "game" -> GameRound(at, f.str("game")!!, f.intOrNull("stars")!!, f.int("keys"), f.int("level"), f.long("ms"))

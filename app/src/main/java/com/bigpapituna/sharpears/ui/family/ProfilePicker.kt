@@ -173,14 +173,14 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
     val context = androidx.compose.ui.platform.LocalContext.current
     var made by remember { mutableStateOf<Profile?>(null) }
     var weeklyFor by remember { mutableStateOf<Profile?>(null) }
-    val askMic = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { allowed ->
+    // 2.15: the microphone card first, read by the grown-up making the kid (already past the gate here); Not now goes on.
+    val askMic = com.bigpapituna.sharpears.ui.rememberMicAsk(gated = false) { allowed ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "profiles: microphone for a new kid ${if (allowed) "allowed" else "not allowed"}")
         made?.let(onDone)
     }
     fun go(p: Profile) {
         if (p.isKid && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            made = p; askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+            made = p; askMic.ask(auto = true, child = p.name)
         } else onDone(p)
     }
     // The last question for a kid: when the grown-up wants their weekly brief (parent brief, ui/brief/WeeklyTime.kt).

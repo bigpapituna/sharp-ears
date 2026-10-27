@@ -1,9 +1,6 @@
 package com.bigpapituna.sharpears.ui
 
-import android.Manifest
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -163,7 +160,8 @@ private fun GameScreen(
     val scope = rememberCoroutineScope()
     // Settings > Vibration on touch keys; a buzz only ever answers a key touched on the screen.
     val haptics = com.bigpapituna.sharpears.ui.motion.rememberHaptics().also { it.enabled = prefs.haptics }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) micOn = true else line = MIC_REFUSED_LINE to false }
+    // 2.15: through the microphone card; its Not now stays on the keys, quietly.
+    val askMic = rememberMicAsk(mic) { if (it) micOn = true else if (!mic.micNotNow) line = MIC_REFUSED_LINE to false }
     val round = remember(version) { game.round }
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
     val xpAtStart = remember { progress?.xp ?: 0 }
@@ -318,7 +316,7 @@ private fun GameScreen(
             }, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2)
             FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(micOn, {
-                    if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.launch(Manifest.permission.RECORD_AUDIO)
+                    if (micOn) micOn = false else if (mic.hasPermission()) micOn = true else askMic.ask()
                 }, label = { Text(if (micOn) "Listening" else "Use mic") },
                     leadingIcon = { Icon(painterResource(if (micOn) R.drawable.ic_mic else R.drawable.ic_mic_off), contentDescription = null, modifier = Modifier.size(18.dp)) })
                 if (plays) OutlinedButton(onClick = { if (phase == Phase.ANSWER) replay++ }, enabled = phase == Phase.ANSWER) {

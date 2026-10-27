@@ -97,6 +97,17 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
         say(text, flush = false)
     }
 
+    /**
+     * 2.15: says [text] over the mic only in the pup's own voice (its recording, or the Kokoro model on the phone); otherwise
+     * nothing, and the screen's words stand alone (the "could not hear" hint: a kid hears the pup or reads it, never the
+     * platform voice). Returns whether it is said.
+     */
+    fun sayInPupVoice(text: String): Boolean {
+        if (!enabled || !(prefs.naturalVoice && natural.canSay(text))) { Log.d(TAG, "voice: shown, not said (no recording): $text"); return false }
+        speakOverMic(text)
+        return true
+    }
+
     fun stop() {
         queue.clear()
         beforeReady.clear()

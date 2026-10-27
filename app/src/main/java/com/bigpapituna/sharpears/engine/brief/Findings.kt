@@ -401,6 +401,9 @@ data class Stats(
      * event, and the last day while it is still unplayed, left out). "Back 5 of the last 7, the longest gap 2 days."
      */
     val longestGap: Int = 0,
+    /** 2.15: times the microphone could not hear the piano (engine/hints/MicHearing.kt), over noise and in near silence. */
+    val notHeardNoise: Int = 0,
+    val notHeardQuiet: Int = 0,
 )
 
 /**
@@ -527,7 +530,11 @@ internal object FindingsCodec {
         "sessionMinutes" to s.sessionMinutes, "sessionMinutesBefore" to s.sessionMinutesBefore,
         "mix" to linkedMapOf("lessons" to s.mix.lessons, "songs" to s.mix.songs, "toys" to s.mix.toys),
         "daysBackThisMonth" to s.daysBackThisMonth, "longestGap" to s.longestGap,
-    )
+    ).apply {
+        // 2.15: only when it happened, so a brief without it reads (and goes to the AI) exactly as before.
+        if (s.notHeardNoise > 0) put("notHeardNoise", s.notHeardNoise)
+        if (s.notHeardQuiet > 0) put("notHeardQuiet", s.notHeardQuiet)
+    }
 
     private fun hints(h: HintStats) = linkedMapOf("glow" to h.glow, "point" to h.point, "play" to h.play, "octave" to h.octave)
     private fun hand(h: HandStat) = linkedMapOf("notes" to h.notes, "clean" to h.clean, "hesitationMs" to h.hesitationMs)
@@ -607,6 +614,7 @@ internal object FindingsCodec {
         sessionMinutes = intOrNull(m["sessionMinutes"]), sessionMinutesBefore = intOrNull(m["sessionMinutesBefore"]),
         mix = (m["mix"] as? Map<*, *>)?.let { e -> PlayMix(int(e["lessons"]), int(e["songs"]), int(e["toys"])) } ?: PlayMix(),
         daysBackThisMonth = int(m["daysBackThisMonth"]), longestGap = int(m["longestGap"]),
+        notHeardNoise = int(m["notHeardNoise"]), notHeardQuiet = int(m["notHeardQuiet"]),
     )
 
     private fun readHints(m: Map<*, *>) = HintStats(int(m["glow"]), int(m["point"]), int(m["play"]), int(m["octave"]))

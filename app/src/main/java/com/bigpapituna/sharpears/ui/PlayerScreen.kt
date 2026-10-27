@@ -1,12 +1,9 @@
 package com.bigpapituna.sharpears.ui
 
-import android.Manifest
 import android.content.pm.ActivityInfo
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
@@ -491,6 +488,7 @@ private fun PlayerStage(args: PlayerArgs) {
     fun pause() { stallEnd("paused"); hintsEnd(); apply(transport.pause()); playing = false; rider?.stop(); savePosition(); flushPractice(); Log.d(TAG, "transport pause at ${transport.positionMs.toLong()} ms") }
     fun play() {
         recap = null
+        runsStarted++                                             // 2.15: a new run is a new step for the could-not-hear hint
         // A fresh run starts early so its first notes are seen falling: Perform counts in two bars (clicks and
         // a beat counter), the backing one bar, Wait and Listen run in two beats.
         val leadIn = when {
@@ -536,6 +534,7 @@ private fun PlayerStage(args: PlayerArgs) {
         // Juice on every note, whatever it was: the pups hop to its pitch, a soft tick (the sampler's sound rule, so it
         // never feeds the mic), a crumb in the treat jar.
         Juice.onStrike(midi, riseDb, sound = soundAllowed())
+        hearing?.pitched()                                        // 2.15: a key from anywhere: the piano (or the keys) are heard
         if (transport.playing && transport.mode != Mode.LISTEN) recorder.on(midi, transport.positionMs - latencyMs * transport.speed, velocity)
         // Perform: a note that raised the "good" count was on time (Perfect), any other right note was OK (Good).
         val good0 = transport.score?.goodCount ?: 0
@@ -800,6 +799,7 @@ private fun PlayerStage(args: PlayerArgs) {
                     keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
+                    hearing?.pitched()
                     val what = "wrong key ${noteName(e.midi)}, ${e.distance} from ${noteName(e.nearest)}, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB"
                     tail("mic: $what")
                     stallWatch.heard(System.currentTimeMillis(), what)
@@ -831,15 +831,18 @@ private fun PlayerStage(args: PlayerArgs) {
             checkNoise(now)
         }
     }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    // 2.15: the could-not-hear hint's clock (HearingWatch, below).
+    HearingWatch(v, mic, voice, transport, kid)
+    // 2.15: through the microphone card (a kid's: the gate first); its Not now keeps the screen's keys, nothing said.
+    val askMic = rememberMicAsk(mic) { granted ->
         Log.d(TAG, "mic permission granted=$granted")
         // Refused (twice, and Android stops asking): the mic button did nothing at all; the pup says where to allow it.
-        if (!granted) hintLine = MIC_REFUSED_LINE
+        if (!granted && !mic.micNotNow) hintLine = MIC_REFUSED_LINE
         if (granted) { micOn = true; prefs.micDefault = true; progress?.record(ProgressEvent.FeatureUsed("mic")); if (mode == Mode.LISTEN && embedded == null) setMode(Mode.WAIT) }
     }
     fun toggleMic() {
         if (micOn) { micOn = false; prefs.micDefault = false; Log.d(TAG, "mic off"); return }
-        if (!mic.hasPermission()) { askMic.launch(Manifest.permission.RECORD_AUDIO); return }
+        if (!mic.hasPermission()) { askMic.ask(); return }
         micOn = true; prefs.micDefault = true
         progress?.record(ProgressEvent.FeatureUsed("mic"))           // counted once (features are a set)
         // The mic listens in wait and perform mode.
@@ -1116,6 +1119,13 @@ private fun PlayerStage(args: PlayerArgs) {
                 onPause = if (offer.pauseListening && mode == Mode.WAIT) ({ noiseOffer = null; micOn = false; Log.d(TAG, "noise watch: listening paused") }) else null,
                 modifier = Modifier.align(Alignment.Center).padding(16.dp), kid = kid,
             )
+        }
+        // 2.15: the mic could not hear the piano: a calm line at the top of the lane, under the listening indicator.
+        notHeard?.let { cause ->
+            com.bigpapituna.sharpears.ui.hints.NotHeardHint(cause, kid,
+                onCloser = { notHeard = null; Log.d(TAG, "mic: not heard, move closer") },
+                onTouch = { notHeard = null; micOn = false; Log.d(TAG, "mic: not heard, this step on the screen's keys") },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp, start = 12.dp, end = 12.dp))
         }
         if (chordsOn && chords != null) ChordLabel(chords, position, song.preferFlats, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
         // 2.13: a song's cheer pop, in a top corner of the notes no deeper than CheerPlace.LANE_BAND of the lane (so it never
@@ -1413,6 +1423,10 @@ private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android
     /** 2.13: what the player tells the cheer pops (ui/CheerFeed.kt). */
     val cheer = CheerFeed()
     var rootTopPx by mutableFloatStateOf(0f)
+    /** 2.15: the could-not-hear rule ([HearingWatch]), the hint it shows now, and the runs started (each a step for it). */
+    var hearing: com.bigpapituna.sharpears.engine.hints.MicHearing? = null
+    var notHeard by mutableStateOf<com.bigpapituna.sharpears.engine.hints.NotHeard?>(null)
+    var runsStarted by mutableIntStateOf(0)
 }
 
 /**
@@ -1622,3 +1636,35 @@ private fun FlagDialog(onDismiss: () -> Unit, onSend: (what: String, note: Strin
 
 private fun Modifier.radioRow(selected: Boolean, onClick: () -> Unit) =
     this.then(Modifier.selectable(selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick))
+
+/**
+ * 2.15, "could not hear" (engine/hints/MicHearing.kt) in the player and a lesson's embedded player: while the mic listens and
+ * the learner is expected to play (a run under way past its count-in, in Wait only while the notes wait), the level meter
+ * feeds the rule every 100 ms and the matcher's unpitched jumps count as noise; keys from anywhere start it again
+ * (keyStruck). It holds during a demo or a hint played through the speaker (the mic deaf), the voice speaking, a recap, the
+ * noisy-room offer or the hint itself. Once per run (a lesson's step is a player of its own), twice a minute app-wide
+ * (MicInput.hearingLimit). Shown: `mic: could not hear the piano (noise|silence)`, the brief's MicNotHeard (which the tester
+ * analytics turn into `mic_not_heard`), and for a kid the pup's recorded line.
+ */
+@Composable
+private fun HearingWatch(v: PlayerVars, mic: MicInput, voice: Voice, transport: Transport, kid: Boolean) {
+    val h = remember(mic) { com.bigpapituna.sharpears.engine.hints.MicHearing(mic.hearingLimit).also { v.hearing = it } }
+    val tr by androidx.compose.runtime.rememberUpdatedState(transport)          // a transpose makes a new one
+    LaunchedEffect(v.runsStarted) { h.newStep(); v.notHeard = null }
+    LaunchedEffect(mic) { mic.noise.collect { if (v.micOn) h.unpitched(android.os.SystemClock.uptimeMillis()) } }
+    LaunchedEffect(mic, v.micOn) {
+        if (!v.micOn) { h.hold(); v.notHeard = null; return@LaunchedEffect }
+        while (true) {
+            delay(100)
+            val expecting = mic.listening && v.playing && v.mode != Mode.LISTEN && v.recap == null && v.replay == null &&
+                v.noiseOffer == null && v.notHeard == null && !voice.speaking.value && !mic.deaf &&
+                v.position >= tr.anchorMs && (v.mode != Mode.WAIT || tr.waiting)
+            if (!expecting) { h.hold(); continue }
+            val cause = h.level(android.os.SystemClock.uptimeMillis(), mic.level.floatValue.toDouble()) ?: continue
+            v.notHeard = cause
+            Log.d(TAG, "mic: could not hear the piano (${cause.wire})")
+            Briefs.log { com.bigpapituna.sharpears.engine.brief.BriefEvent.MicNotHeard(it, cause) }
+            if (kid) voice.sayInPupVoice(cause.line)
+        }
+    }
+}

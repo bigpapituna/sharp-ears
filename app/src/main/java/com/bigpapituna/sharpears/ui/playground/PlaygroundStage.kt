@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.ui.playground
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,8 +41,12 @@ val LocalStageMemo = androidx.compose.runtime.staticCompositionLocalOf<MutableMa
 fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: String?, onEnded: (Report) -> Unit, modifier: Modifier = Modifier) {
     // Time at the stage is practice, as the embedded player's is (engine/playground/StageTime.kt).
     if (com.bigpapituna.sharpears.engine.playground.StageTime.counts(step.game)) CountsAsPractice(step, deps)
+    // 2.15: the could-not-hear hint a stage sets (StageHearing), drawn over the stage's top; one per step.
+    val hearing = androidx.compose.runtime.remember(step) { StageHearing() }
+    val kid = com.bigpapituna.sharpears.ui.family.LocalProfile.current.kidSkin
     SharpEarsTheme(dark = true) {
         Box(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(Stage)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalStageHearing provides hearing) {
             when (step.game) {
                 Game.HIGH_LOW -> HighLowStage(step, lessonId, deps, inject, onEnded)
                 Game.KEY_HUNT -> KeyHuntStage(step, lessonId, deps, inject, onEnded)
@@ -70,6 +75,14 @@ fun PlaygroundStage(step: Step, lessonId: String, deps: LessonDeps, inject: Stri
                 Game.SKY_CHORD -> SkyChordStage(step, lessonId, deps, inject, onEnded)
                 Game.JAM -> StarJamStage(forStage(step), step, lessonId, deps, inject, onEnded)
                 null -> {}
+            }
+            }
+            hearing.cause?.let { cause ->
+                com.bigpapituna.sharpears.ui.hints.NotHeardHint(cause, kid,
+                    onCloser = { hearing.cause = null; android.util.Log.d(com.bigpapituna.sharpears.TAG, "playground: not heard, move closer") },
+                    onTouch = { hearing.cause = null; hearing.touchOnly = true
+                        android.util.Log.d(com.bigpapituna.sharpears.TAG, "playground: not heard, this step on the screen's keys") },
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(top = 8.dp, start = 10.dp, end = 10.dp))
             }
         }
     }

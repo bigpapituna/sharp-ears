@@ -102,6 +102,7 @@ object SpokenCatalog {
         addAll(com.bigpapituna.sharpears.engine.world.TreatJar.KID_LINES)
         add(com.bigpapituna.sharpears.engine.hints.NoiseWatch.LINE_KID)
         addAll(com.bigpapituna.sharpears.engine.hints.OctaveHint.KID_LINES)       // audit 2026-10-20: the octave hint, a kid's way
+        addAll(com.bigpapituna.sharpears.engine.hints.MicHearing.KID_LINES)       // 2.15: "could not hear", noise and silence
         add(RunWords.kidLessonLine(null))
         add(SessionWords.kidNext(SessionPart.Chords(listOf("c"))))
         for (lesson in COURSE.flatMap { it.lessons }) add(SessionWords.kidNext(SessionPart.Lesson(lesson.id, lesson.title)))

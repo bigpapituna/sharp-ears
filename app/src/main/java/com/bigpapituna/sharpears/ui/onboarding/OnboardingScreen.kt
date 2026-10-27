@@ -124,14 +124,17 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
     // "Microphone" picked: the microphone is asked for here, so the first lesson already hears the piano. It was not
     // asked at all: the lesson ran on the screen's keys and said nothing while the player played the real piano.
     var notifyOk by rememberSaveable { mutableStateOf(true) }
-    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    // 2.15: the microphone card first (ui/MicCard.kt); its "Not now" plays on the screen's keys, nothing asked again.
+    val micInput = com.bigpapituna.sharpears.ui.LocalMic.current
+    val askMic = com.bigpapituna.sharpears.ui.rememberMicAsk(micInput) { granted ->
         android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: microphone granted=$granted")
+        if (!granted && micInput?.micNotNow == true) useMic = false          // Not now: the screen's keys, no mic banner either
         finish(notifyOk)
     }
     fun afterNotify(ok: Boolean) {
         notifyOk = ok
         if (useMic && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-            askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+            askMic.ask()
         else finish(ok)
     }
     // Android 13 and up ask before an app may post notifications; asked here, when the reminder is chosen.
