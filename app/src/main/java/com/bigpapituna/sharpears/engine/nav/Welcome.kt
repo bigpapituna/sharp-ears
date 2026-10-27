@@ -100,6 +100,11 @@ object Welcome {
             "Parents get a family card on Today, a daily time limit for each child, and Lock now to close the grown-ups' corner at once.",
             "Tap the pup to see him cheer again, and after a song in Perform see your timing bar by bar.",
         ),
+        "2.15.0" to listOf(
+            "Prefer a quieter app? Turn on Plain look in Settings: no pup, cheers or streaks.",
+            "A clearer microphone card, a plain privacy page, a hint when the piano can't be heard, and a room check.",
+            "A short tour of what the app can do, and tips that show up when you need them.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

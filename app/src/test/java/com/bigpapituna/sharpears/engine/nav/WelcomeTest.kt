@@ -110,6 +110,17 @@ class WelcomeTest {
         lines.forEach { assertTrue(it, it.first().isUpperCase() && it.endsWith(".") && '!' !in it) }
     }
 
+    /** 2.15.0, three lines: the Plain look, the microphone, the tours and tips (sentence case, no dashes, no exclamation). */
+    @Test fun whatsNew2150IsPlainLookTheMicrophoneAndTheTours() {
+        val lines = Welcome.whatsNew("2.15.0")
+        assertEquals(listOf(
+            "Prefer a quieter app? Turn on Plain look in Settings: no pup, cheers or streaks.",
+            "A clearer microphone card, a plain privacy page, a hint when the piano can't be heard, and a room check.",
+            "A short tour of what the app can do, and tips that show up when you need them.",
+        ), lines)
+        lines.forEach { assertTrue(it, it.first().isUpperCase() && it.endsWith(".") && '!' !in it && '-' !in it) }
+    }
+
     /** 2.15.0 merge: the Plain look has no streak counter, so its tour skips "A streak that forgives"; the rest as they are. */
     @Test fun thePlainLooksTourSkipsTheStreakCard() {
         assertEquals(Welcome.TOUR, Welcome.tour(plain = false))
