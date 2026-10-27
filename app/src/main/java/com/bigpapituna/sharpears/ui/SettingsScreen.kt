@@ -154,6 +154,21 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 Text(Simple.SETTING_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
                 LayoutPicker(Modifier.padding(top = 4.dp, bottom = 4.dp).widthIn(max = 420.dp).fillMaxWidth())
             }
+            // 2.15, the Plain look (engine/family/PlainLook.kt): per profile, off by default, every layout; grown-ups and big kids
+            // only (a little kid's profile never shows it and ignores it). No pup, no cheers, no streak counter.
+            val plainOn = plainLook()
+            if (com.bigpapituna.sharpears.engine.family.PlainLook.offered(me.audience) && shows(Simple.SettingsPart.PLAIN_LOOK)) {
+                Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.TITLE, com.bigpapituna.sharpears.engine.family.PlainLook.LINE,
+                    prefs.plainLook && v >= 0) { on ->
+                    prefs.plainLook = on; if (on) voice?.stop()
+                    com.bigpapituna.sharpears.data.Briefs.setting("plainLook", on)
+                    android.util.Log.d(com.bigpapituna.sharpears.TAG, "plain: look ${if (on) "on" else "off"} for ${me.id}")
+                }
+                if (prefs.plainLook && v >= 0) Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND,
+                    com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND_LINE, prefs.plainStepSound) {
+                    prefs.plainStepSound = it; com.bigpapituna.sharpears.data.Briefs.setting("plainStepSound", it)
+                }
+            }
             if (shows(Simple.SettingsPart.KEYS)) {
             Sub("Keys")
             Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -194,19 +209,23 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                 prefs.haptics && v >= 0) { prefs.haptics = it; com.bigpapituna.sharpears.data.Briefs.setting("haptics", it) }
 
             Sub("Voice")
+            // 2.15: in the Plain look the switch is its own, off until turned on there (PlainLook.voiceOn); the usual one waits.
+            val voiceOn = com.bigpapituna.sharpears.engine.family.PlainLook.voiceOn(plainOn, prefs.voice, prefs.plainVoice)
             Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
-                prefs.voice && v >= 0) { prefs.voice = it; if (!it) voice?.stop(); com.bigpapituna.sharpears.data.Briefs.setting("voice", it) }
-            if (prefs.voice) Toggle("Natural voice",
+                voiceOn && v >= 0) { if (plainOn) prefs.plainVoice = it else prefs.voice = it; if (!it) voice?.stop(); com.bigpapituna.sharpears.data.Briefs.setting("voice", it) }
+            if (voiceOn) Toggle("Natural voice",
                 "A lifelike voice (Kokoro) that runs on this phone, nothing sent anywhere." +
                     if (voice?.naturalModelInstalled == false) " Lines that name notes and times use the phone's voice until the voice model is installed." else "",
                 prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it; com.bigpapituna.sharpears.data.Briefs.setting("naturalVoice", it) }
-            if (voice != null && prefs.voice && !prefs.naturalVoice) VoicePicker(voice, v)
+            if (voice != null && voiceOn && !prefs.naturalVoice) VoicePicker(voice, v)
 
             // 2.13: the cheer pops (ui/pup/CheerPop.kt), per profile; every layout shows them. Often for everyone by default.
             if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {
                 Sub("Encouragement")
-                Text(ENCOURAGEMENT_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
-                SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
+                // 2.15: off while the Plain look is on (its choice kept for later).
+                if (plainOn) Text(com.bigpapituna.sharpears.engine.family.PlainLook.ENCOURAGEMENT_OFF, style = MaterialTheme.typography.bodyMedium, color = dim)
+                else Text(ENCOURAGEMENT_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
+                if (!plainOn) SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
                     val opts = com.bigpapituna.sharpears.engine.lessons.CheerFrequency.entries
                     opts.forEachIndexed { i, f ->
                         SegmentedButton(prefs.cheerFrequency == f && v >= 0, { prefs.cheerFrequency = f; com.bigpapituna.sharpears.data.Briefs.setting("cheer", f.wire)
@@ -214,7 +233,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                             SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(f.title) }
                     }
                 }
-                if (prefs.cheerFrequency != com.bigpapituna.sharpears.engine.lessons.CheerFrequency.OFF && v >= 0)
+                if (!plainOn && prefs.cheerFrequency != com.bigpapituna.sharpears.engine.lessons.CheerFrequency.OFF && v >= 0)
                     Toggle("Say it aloud", "The pup says the words too, never while the microphone waits for your note.",
                         com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.kidSkin, prefs.cheerAloud)) {
                         prefs.cheerAloud = it; com.bigpapituna.sharpears.data.Briefs.setting("cheerAloud", it)

@@ -203,7 +203,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 if ((!kid || reader) && com.bigpapituna.sharpears.engine.nav.Simple.learnSideRows(com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, more))) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     theory?.invoke(Modifier.pressScale())
                     SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
-                        earStreak.takeIf { it > 0 }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
+                        earStreak.takeIf { it > 0 && !plainLook() }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
                     SideRow("Sight-read", if (sightStaff) "Four new bars, then notes on the staff. Eight levels." else
                         sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
                         null, R.drawable.ic_play_arrow, onSightRead)

@@ -191,6 +191,9 @@ fun rememberKidCardStep(profile: Profile, ready: Boolean): KidCardStep {
 fun KidCardStepHost(step: KidCardStep, profile: Profile, say: (String) -> Unit) {
     val go = step.next ?: return
     val card = step.card ?: return
+    // 2.15, a big kid's Plain look: the pup's card is the pup talking ("You played with me"), so it is not drawn; the button
+    // goes on at once. The grown-ups still read the session in the child's brief.
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) { LaunchedEffect(go) { step.next = null; go() }; return }
     val env = rememberBriefEnv()
     var mum by remember { mutableStateOf(false) }
     fun done() { step.next = null; go() }

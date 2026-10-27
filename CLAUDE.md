@@ -2215,3 +2215,91 @@ off) on 5562, deleted after.
 - Expected conflicts: `plain-mode` (PlayerScreen's lane overlays and its new HearingWatch; PlaygroundKit's rememberStage; Voice.kt; the
   hint's pup is shown only for kidSkin, so Plain's rule for grown-ups and big kids already holds); `show-off` (OnboardingScreen's mic ask,
   a few lines near the top; MainActivity's two CompositionLocalProviders gained `LocalMic`).
+
+## 2.15 plain look
+Branch `plain-mode` (2026-10-27, from 2.14.0 7f73a6f4; version and What's new left to the merger). docs/MIROFISH-REPORT-2026-10-26.md
+(untracked): in the simulated launch month 23 of 40 personas found the mascot, the cheers and the rewards childish and 25 of 40 asked for
+a plain mode with the pup, cheers and streaks off (10 to 12 year olds and adults most; under-sixes loved the pup, so a choice, not a
+removal). Emulator Fold_PL (a wiped copy of Fold_QA_GU, config only) on 5560, deleted after.
+- The switch: Settings > Playing > "Plain look" ("No pup, no cheers, no streak counter. Just you and the piano."), right under the layout,
+  per profile (Prefs `plainLook`), off by default, in every layout (`Simple.SettingsPart.PLAIN_LOOK` is an essential), offered to
+  grown-ups and big kids only (`PlainLook.offered`): a little kid's Settings never shows it and a little kid's profile ignores a stored
+  true (`PlainLook.on(audience, stored)`; a big kid made little again keeps the value, unused). While on, "Step sound" under it (Prefs
+  `plainStepSound`, off). Each change is a settings event (`Briefs.setting("plainLook"|"plainStepSound")`; the brief's "What you did":
+  "The Plain look was turned on."). Nothing else stored changes: rest days, freezes, XP, stickers, the wardrobe ledger, the brief's
+  events and the tester's events go on underneath.
+- One switch: ui/Plain.kt `LocalPlain` (`PlainMode(on, stepSound)`, a non-static local: it flips live), provided once by MainActivity
+  from `PlainLook.on(current.audience, prefs.plainLook)`; `Voice.plain` asks the same rule. Every entry point reads it itself, so the
+  eighty-odd call sites that draw the pup needed no change (PlainWiringTest lists them and fails on a new pup composable that does not):
+  `Pup`, `PupSays`, `SpeechBubble`, `ReplayPup`, `PupClip`, `PupBow`, `StagePup`, `PupAvatar`, `CheerPop`, `StepPopLine`,
+  `rememberCheerPops`, `StepPop`, `rememberStepPops`, `Confetti`, `Modifier.paper` (the paw prints), the streak and strip views
+  (TodayScreen, ProfileScreen's TodayPanel and WeekDots, `PawWeekRow`, `Paw`, the family wall's `Member`, FamilyTodayCard's row,
+  `WeekStrip`, BriefPage), the finishes (`Celebration`, `CheerBar`, `CalmRewards`, `RunRecap`, `Goodbye`), the rewards (`RewardsChip`,
+  `RewardsSheet`, `KidRewardStage`, `DropReveal`, `TomorrowSlot`, `WrappedGift`, `AchievementBadge`), `WelcomeBackCard`, the gate's
+  `HoldThePup` and `KidCardStepHost`.
+- The rule table (engine/family/PlainLook.kt `rule(part, audience, stored)`, PlainLookTest.theRuleTable; S shown, P a plain stand-in, H
+  hidden, R off until asked for; columns: little kid either way / grown-up or big kid, switch off / switch on):
+  pup S/S/H (nothing, or the app's mark `PlainMark` where a screen needs something to look at: a finish, the recap, Goodbye, the level
+  ring on You, the interstitial, the gate's hold ring), tap to replay S/S/H, the pup's bubble S/S/P (the words alone on a quiet surface),
+  cheer pops S/S/H (Encouragement reads Off, the choice kept: `PlainLook.cheerFrequency`), Settings' Encouragement S/S/P ("Off in Plain
+  look", its row and "Say it aloud" gone), step pop S/S/P (the check on its disc, still, 600 ms, then faded; no burst, confetti, rainbow
+  or paw), the step chime S/S/R ("Step sound"), confetti, sunburst, fanfare and flourish S/S/H (star chimes too), the streak counter and
+  streak lines S/S/H (Today's greeting, You's flame, count, freezes and rest-day line, the heatmap's frozen days, "Done for today"'s days
+  in a row, the lane's x12 combo, the ear workout's days in a row, the own week's streak praise), the comeback's ended streak line
+  H/S/H, the rest-day moon S/S/H (rest days still keep the streak, silently), days played S/S/P (dots, no paws: You, Goodbye, the family
+  wall and card, the brief's strip), sticker, wearable, egg and sparkle reveals S/S/H, "See rewards" H/S/H, the finish's XP line H/S/H,
+  the level-up screen and achievement banners H/S/H (consumed unseen, as a little kid's), XP and level on You S/S/S ("Level 10, Steady
+  Hands": progress, not decoration), tomorrow's surprise S/H/H, the pup's world card on You S/S/H, Pup's quest stars on Today S/S/H,
+  spoken lines S/S/R (`PlainLook.voiceOn`: Spoken guidance has its own value in Plain, Prefs `plainVoice`, off until turned on there;
+  the usual one waits), woof and exclamation lines S/S/P (`PlainLook.calm`: a plain bank for the cheer bar's titles, "High five!",
+  "Good try!", "Lesson complete!"; otherwise the pup's sentences go and a trailing "!" becomes ".", only the end, so "Oh! Susanna"
+  keeps its own; Celebration, CheerBar, RunRecap and every spoken line pass through it; said aloud, a line made only of the pup's
+  words is kept, calmed, since it may be an instruction), the comeback card S/S/P ("Welcome back." and
+  "Pick up where you left off: <item>."), the switch H/S/S, the offer H/S/H.
+- Also plain: Today's greeting is text (no "I'm your coach", the time of day in place of the streak and rest-day lines), avatars are the
+  person's colour with a plain figure (the picker, before anyone plays, keeps the pups), the family wall has no sticker or crown, the
+  gate's hold is "Hold for three seconds" round the app's mark, the Goodbye says "That's today's playing done, Leo. See you tomorrow."
+  (`PlainLook.goodbye`) with "Open the Jam", a big kid's pup card after a finish is not drawn (the button goes on; the grown-ups still
+  read the session in the brief), and the own week is written without the goal streak's praise (`PlainLook.withoutStreaks` on the
+  findings as BriefEnv loads them, a grown-up's own only; BriefPage also hides a fact or praise that `mentionsStreak`, for AI text).
+- The one-time offer (ui/Plain.kt `PlainOffer`, `PlainLook.offerDue`): "Prefer a plainer look? Turn off the pup, cheers and streaks."
+  with Try Plain look and No thanks, small and outlined, inline (never a dialog): under a grown-up's or big kid's calm lesson finish
+  (the first lesson finished after 2.15) or right under the Today card on opening the app after seven days played or more
+  (`OFFER_DAYS`, the practice log). Marked offered as it shows (Prefs `plainOffered`), so once per profile, answered or not; never to a little kid, never with Plain
+  on. Try turns it on there and then (the finish and Today redraw plain), logged like the switch.
+- Debug (keyless builds): `--ez plain true|false` (the opened profile's switch), `--ez plainoffer true` (the offer may show again),
+  `--es family "Leo:1:big"` (a third part makes a big kid).
+- Tests: PlainLookTest (the rule table for every part and audience, little kids unaffected, the overrides, the offer, the words, the
+  plain bank, the own week), PlainWiringTest (every entry point reads LocalPlain, no pup composable escapes, one provider from the rule,
+  cheers, step pop and voice, Settings in every layout, the offer, the quiet ones, Today's greeting); LayoutTest's essentials. 1880
+  JVM tests, all green but PopPrivateTest.privateSongsMustNotShipPublic (red by design on a keyless worktree); lint 0 errors, 30 warnings (as 2.14.0).
+- Emulator walk (Fold_PL, emulator-5560, fresh install, keyless; `--es midi` scripts; screenshots app/build/screens/pl-*.png, not
+  committed): Dana, a grown-up beginner, Plain on: Today (pl-02), You (pl-03, pl-09 after a week), Settings (pl-04), Finger numbers
+  step 3 by a MIDI script: the plain words, the check alone, "Passed.", `step pop: streak 1, chime SKIP`, no cheer pop, no combo (pl-06,
+  pl-06-lesson-steppop-check), the last step to "Lesson complete." with the mark and no chip or XP (pl-07), Twinkle in Perform to
+  its recap with the mark (pl-08), My week without the streak headline or praise and its dot strip (pl-14, pl-15), the comeback after a
+  seven-day streak and seven days away (pl-16); Plain off on day twelve: the offer under the Today card (pl-17), Try Plain look and Today redrawn
+  plain, `plainLook=true` in the log (pl-18). Leo, a big kid (`--es family "Leo:1:big"`), Plain on: a reading step (pl-11), Today
+  (pl-10), Finger numbers step 3 by the same script: the check alone, chime SKIP (pl-28, pl-29), Twinkle in Perform to its recap
+  (pl-30), the goodbye with wind down on (pl-12), the comeback (pl-13), You (pl-23), the gate (pl-24, pl-25) and Settings (pl-26); Plain
+  off and the offer reset: the offer under the lesson's finish (pl-21), Try Plain look and the finish redrawn (pl-22). Mia, a little
+  kid, with `--ez plain true` stored: the pup, the paws and the map as ever (pl-19, pl-20) and no Plain look in her Settings (pl-27). No
+  crash. A grown-up never reaches Goodbye (it is every kid's), so its plain words were walked on the big kid.
+- Decisions: the pup goes everywhere on the profile's screens, not only the places listed (one gate in the composable); avatars keep the
+  person's colour with a plain figure (the picker keeps the pups); the app's mark (the monochrome launcher icon on a quiet disc) stands in
+  where a screen is built round the pup; the step pop's check holds for the pop's 600 ms (the 150 ms calm fade was too quick to see);
+  Step sound covers the step chime only, the finish fanfare, recap flourish and star chimes are off in Plain; achievement banners go
+  with the level-up screen (both unlock underneath and show on You); Pup's quest, the lane's combo, the family wall's sticker and crown,
+  the ear workout's days in a row and the paw prints in the page are gone too (the simulation's "hooks"); the run's "Streak" chip on the
+  recap stays (a performance number, like Good and Missed); a big kid's pup card is skipped rather than reworded (it is the pup talking);
+  the offer is inline, not a dialog, right under the Today card (it counts as offered as it shows, so it sits where it is seen); an
+  offer shown is an offer made, answered or not; on a big kid's profile Try Plain look is not behind the parent gate (the Settings
+  switch is, as all of a kid's Settings): it is the kid's own look, and the 10 to 12 year olds were who asked; the own week drops the goal streak's praise at the findings (presentation, not data: the event log and
+  the stats are untouched, a kid's brief is as it was).
+- Open: the kid templates still say "streak" in a kid's brief a Plain grown-up reads (it is the kid's report); the AI writer is not told
+  about the Plain look (its text passes the page's `mentionsStreak` filter only); dark mode of the plain screens was not walked; nothing
+  on the Fold itself.
+- Expected conflicts: `mic-trust` (the mic privacy card and could-not-hear state: PlayerScreen and LessonScreen near the player and the
+  cheer bar, Settings > Microphone and the privacy page, MainActivity's providers and debug extras, the end of CLAUDE.md); `show-off`
+  (onboarding, the tour and What's new copy: TodayScreen's greeting, WelcomeTour's pups, Welcome's lines, the store listing doc; the
+  end of CLAUDE.md). The merger bumps the version and writes What's new (a line for the Plain look).

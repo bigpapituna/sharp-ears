@@ -77,15 +77,19 @@ private fun ChildRow(kid: Profile, row: ChildToday?, onOpen: (Profile) -> Unit) 
             Text(kid.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(line, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
+        // 2.15, the grown-up's Plain look: today played or not as a dot, no paw, rest-day moon or streak number.
+        val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clearAndSetSemantics { }) {
-            Canvas(Modifier.size(28.dp)) {
+            if (plain) Canvas(Modifier.size(16.dp)) {
+                if (row?.paw == TodayPaw.PLAYED) drawCircle(c.primary) else drawCircle(c.outline, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+            } else Canvas(Modifier.size(28.dp)) {
                 when (row?.paw) {
                     TodayPaw.PLAYED -> drawPaw(c.primary, filled = true)
                     TodayPaw.REST -> drawRestPaw(c.primary)
                     else -> drawPaw(c.outline, filled = false)
                 }
             }
-            if (row != null && row.streak >= 2) Text("${row.streak}", style = MaterialTheme.typography.labelSmall, color = c.primary)
+            if (!plain && row != null && row.streak >= 2) Text("${row.streak}", style = MaterialTheme.typography.labelSmall, color = c.primary)
         }
     }
 }

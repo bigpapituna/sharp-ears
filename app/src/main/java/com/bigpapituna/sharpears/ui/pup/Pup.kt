@@ -140,6 +140,9 @@ fun Pup(
     colorFilter: ColorFilter? = null,
     clips: Boolean = false,
 ) {
+    // 2.15, the Plain look (ui/Plain.kt): no pup anywhere on the profile's screens, no clips, moods or taps. Screens that need
+    // something in his place draw PlainMark themselves.
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     val still = reducedMotion()
     val alive = live && !still && size.isSpecified && size >= PupMotion.MIN_LIVE_DP.dp
     val ctl = controller ?: rememberPupController(idle && live)

@@ -232,9 +232,11 @@ internal fun HoldThePup(onHeld: () -> Unit) {
             onHeld()
         } else ring.animateTo(0f, tween(if (still) 0 else 350))
     }
-    SpeechBubble(if (pressed) "Keep holding" else "Hold me for three seconds", Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    // 2.15, the Plain look (a big kid's profile): the ring round the app's mark, and no "me".
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
+    SpeechBubble(if (pressed) "Keep holding" else if (plain) "Hold for three seconds" else "Hold me for three seconds", Modifier.semantics { liveRegion = LiveRegionMode.Polite })
     val c = MaterialTheme.colorScheme
-    Box(Modifier.size(232.dp).semantics(mergeDescendants = true) { contentDescription = "The pup. Press and hold for three seconds." }
+    Box(Modifier.size(232.dp).semantics(mergeDescendants = true) { contentDescription = if (plain) "Press and hold for three seconds." else "The pup. Press and hold for three seconds." }
         .pointerInput(Unit) { detectTapGestures(onPress = { pressed = true; tryAwaitRelease(); pressed = false }) },
         contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -246,7 +248,8 @@ internal fun HoldThePup(onHeld: () -> Unit) {
                 style = Stroke(w, cap = StrokeCap.Round))
         }
         val squeeze = if (still) 1f else 1f - 0.06f * ring.value
-        Pup(Pose.SHH, size = 176.dp, ground = false, idle = false, modifier = Modifier.graphicsLayer { scaleX = squeeze; scaleY = squeeze })
+        if (plain) com.bigpapituna.sharpears.ui.PlainMark(120.dp, Modifier.graphicsLayer { scaleX = squeeze; scaleY = squeeze })
+        else Pup(Pose.SHH, size = 176.dp, ground = false, idle = false, modifier = Modifier.graphicsLayer { scaleX = squeeze; scaleY = squeeze })
     }
     Text("Kids, ask a grown-up to help.", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
 }

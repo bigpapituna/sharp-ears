@@ -117,8 +117,13 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 /** 2.14: Family today (ui/family/FamilyTodayCard.kt) under the card, when the family has kids; null: none. */
                 family: (@Composable () -> Unit)? = null,
                 /** 2.14: "I know these chords" offered under the card (some and a lot, nothing known yet); null: not offered. */
-                knownChords: (@Composable () -> Unit)? = null) {
+                knownChords: (@Composable () -> Unit)? = null,
+                /** 2.15: the one-time "Prefer a plainer look?" card (ui/Plain.kt PlainOffer), under the rest; null: none. */
+                plainOffer: (@Composable () -> Unit)? = null) {
     val shown = if (emptyPlan && card.state == TodayCard.State.PLAN) card.copy(state = TodayCard.State.NOTHING_DUE, rows = emptyList()) else card
+    // 2.15, the Plain look: a plain text greeting (no pup, no streak, no "I'm your coach"), no Pup's quest stars in the card.
+    val plain = LocalPlain.current.on
+    @Suppress("NAME_SHADOWING") val quest = quest.takeIf { !plain }
     var tapLine by remember { mutableStateOf<String?>(null) }
     // 2.14: a big kid's words are plain: no woofs from the pup on their Today.
     val big = com.bigpapituna.sharpears.ui.family.LocalProfile.current.bigKid
@@ -145,13 +150,16 @@ fun TodayScreen(card: TodayCard, goal: GoalState?, cont: ContinueTile?, micBanne
                 Pup(pose, PupMood.IDLE, size = 48.dp, onTap = { tapLine = (taps - tapLine).random() }, sleepyAfterMs = 30_000, idle = false,
                     bounce = com.bigpapituna.sharpears.ui.motion.BounceSize.NONE)
                 val challenge = shown.rows.any { it.kind == TodayRow.Kind.CHALLENGE }
-                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name, freshChart, challenge) {
-                    greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name, easy = !freshChart, challenge = challenge) }, style = MaterialTheme.typography.bodyLarge,
+                Text(tapLine ?: remember(shown.state, goal, welcomeBack != null, name, freshChart, challenge, plain) {
+                    greeting(shown.state, goal, fresh, back = welcomeBack != null, name = name, easy = !freshChart, challenge = challenge, plain = plain) },
+                    style = if (plain) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f))
             }
             welcomeBack?.invoke()
             if (micBanner) MicBanner(a.onMic, a.onMicClose)
             TodayCardView(shown, goal, a, quest, showStart = welcomeBack == null)
+            // 2.15: right under the card, where it is seen (it is marked offered as it shows).
+            plainOffer?.invoke()
             family?.invoke()
             knownChords?.invoke()
             when (cont) {
@@ -357,17 +365,25 @@ internal fun greeting(state: TodayCard.State, goal: GoalState?, fresh: Boolean, 
                        /** 2.14: the first song offered is the easy one (a beginner); false: a song by chords (some, a lot). */
                        easy: Boolean = true,
                        /** 2.14: today's plan holds a next challenge (a player past the first steps): never "an easy song". */
-                       challenge: Boolean = false): String = when {
+                       challenge: Boolean = false,
+                       /** 2.15, the Plain look: no coach (the pup) introducing himself, no streak and no rest day; the time of day. */
+                       plain: Boolean = false): String = when {
     state == TodayCard.State.DONE -> "That's today done. Rest those hands, see you tomorrow."
     back -> "${Greeting.welcomeBack(name)} Good to see you."
-    fresh && challenge -> "${Greeting.hi(name)} I'm your coach. There's a challenge at your level in today's plan."
-    fresh && !easy -> "${Greeting.hi(name)} I'm your coach. Let's start with a song by chords."
-    fresh -> "${Greeting.hi(name)} I'm your coach. Let's start with an easy song."
+    fresh && challenge -> "${Greeting.hi(name)} ${if (plain) "" else "I'm your coach. "}There's a challenge at your level in today's plan."
+    fresh && !easy -> "${Greeting.hi(name)} ${if (plain) "" else "I'm your coach. "}Let's start with a song by chords."
+    fresh -> "${Greeting.hi(name)} ${if (plain) "" else "I'm your coach. "}Let's start with an easy song."
     goal?.met == true -> "That's today's goal. Rest those hands."
+    plain -> timeOfDay(hour, name)
     goal != null && goal.atRisk && goal.restYesterday -> "Yesterday was a rest day. Ready when you are."
     goal != null && goal.atRisk -> "Your ${goal.streak} day streak is waiting. ${goal.line.replaceFirstChar { it.uppercase() }}."
     goal != null && goal.streak >= 2 && goal.rest > 0 -> "${com.bigpapituna.sharpears.engine.PracticeStats.streakWords(goal.streak, goal.rest)}. Let's keep it going."
     goal != null && goal.streak >= 2 -> "${goal.streak} days in a row. Let's keep it going."
+    else -> timeOfDay(hour, name)
+}
+
+/** The time of day's greeting on Today ("Good evening, Dana. A short session before the day ends?"). */
+private fun timeOfDay(hour: Int, name: String?): String = when {
     hour < 12 -> "${Greeting.timeOfDay("Good morning", name)} A few minutes at the keys?"
     hour < 18 -> "${Greeting.timeOfDay("Good afternoon", name)} Ready when you are."
     else -> "${Greeting.timeOfDay("Good evening", name)} A short session before the day ends?"

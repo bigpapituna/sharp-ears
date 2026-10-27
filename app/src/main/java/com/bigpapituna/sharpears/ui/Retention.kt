@@ -114,6 +114,8 @@ val LocalRetention = staticCompositionLocalOf<Retention?> { null }
 @Composable
 fun TomorrowSlot(modifier: Modifier = Modifier, onDark: Boolean = false) {
     val r = LocalRetention.current ?: return
+    // 2.15: the Plain look never shows the gift (a little kid's only, where the Plain look is never on); the line stays.
+    if (r.kid && LocalPlain.current.on) return
     val progress = LocalProgress.current
     val v = progress?.version?.intValue ?: 0
     var gift by remember { mutableStateOf(false) }
@@ -139,6 +141,7 @@ fun TomorrowSlot(modifier: Modifier = Modifier, onDark: Boolean = false) {
 /** The wrapped gift on a kid's finish screen: a present that sways a little, "Something for tomorrow". */
 @Composable
 fun WrappedGift(modifier: Modifier = Modifier, /** 2.14: false for a child who cannot read yet: the present alone. */ captions: Boolean = true) {
+    if (LocalPlain.current.on) return        // 2.15: the surprise is off in the Plain look
     val c = MaterialTheme.colorScheme
     if (!captions) {
         Box(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = Surprise.WRAPPED_TITLE + ". " + Surprise.WRAPPED_LINE },
@@ -273,7 +276,14 @@ fun KidComebackCard(stone: String?, onPlay: () -> Unit, onLater: () -> Unit) {
  * away [streak] says in one line what became of the streak.
  */
 @Composable
-fun WelcomeBackCard(line: String, onStart: () -> Unit, onLater: () -> Unit, title: String = Comeback.GROWN_UP_TITLE, streak: String? = null) {
+fun WelcomeBackCard(line: String, onStart: () -> Unit, onLater: () -> Unit, title: String = Comeback.GROWN_UP_TITLE, streak: String? = null,
+                    /** 2.15: what the Plain look's line names ("Pick up where you left off: <item>."), the step it opens. */
+                    item: String? = null) {
+    // 2.15, the Plain look: "Welcome back." and "Pick up where you left off: <item>.", never a word about the streak.
+    val plain = LocalPlain.current.on
+    @Suppress("NAME_SHADOWING") val title = if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.COMEBACK_TITLE else title
+    @Suppress("NAME_SHADOWING") val line = if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.comebackLine(item) else line
+    @Suppress("NAME_SHADOWING") val streak = streak.takeIf { !plain }
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).border(1.5.dp, c.primary.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
         .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

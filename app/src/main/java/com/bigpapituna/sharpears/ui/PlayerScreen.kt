@@ -298,7 +298,7 @@ private fun PlayerStage(args: PlayerArgs) {
         else com.bigpapituna.sharpears.engine.ChordTrack(com.bigpapituna.sharpears.engine.labelBarsAligned(song), com.bigpapituna.sharpears.engine.barMs(song))
     }
     val transport = remember(song) { Transport(song, playable = range).apply { mode = start.mode; practice = start.practice } }
-    lights.showCombo = !kid                                       // a kid's lane counts no streak
+    lights.showCombo = !kid && !plainLook()                       // a kid's lane counts no streak; 2.15: nor the Plain look's
     // Wrong keys shown on the keyboard and the lane: yellow for a slip of up to two semitones, red further away.
     val wrongs = rememberWrongFlash(slow = start.lightSlow)
     LaunchedEffect(profile.id, profile.kind, profile.micOffsetDb) { mic.forProfile(profile.isKid, profile.micOffsetDb) }

@@ -200,7 +200,7 @@ private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last
                     style = MaterialTheme.typography.bodyMedium, color = c.onPrimaryContainer)
                 if (last != null && doneToday) Text("Today's score $last", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = c.primary)
             }
-            if (streak > 0) StreakBadge(streak)
+            if (streak > 0 && !com.bigpapituna.sharpears.ui.plainLook()) StreakBadge(streak)       // 2.15: no streak counter in the Plain look
         }
         Text(if (doneToday) "Next workout" else "Today", style = MaterialTheme.typography.labelLarge, color = c.onPrimaryContainer.copy(alpha = 0.75f))
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

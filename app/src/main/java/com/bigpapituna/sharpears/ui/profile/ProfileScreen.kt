@@ -117,6 +117,8 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
     var editGoal by remember { mutableStateOf(false) }
     var open by remember { mutableStateOf<Achievement?>(null) }
     val rows = remember { achievementRows() }
+    // 2.15, the Plain look: no pup's world card, no streak (counter, freezes, rest-day moon, frozen days); XP and level stay.
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (kid) {
@@ -131,7 +133,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
         }
         item(key = "today") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp, vertical = 20.dp)) { TodayPanel(data, onEditGoal = { editGoal = true }, kid = kid) } }
         if (!kid) brief?.let { b -> item(key = "brief") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { b() } } }
-        if (!kid) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
+        if (!kid && !plain) world?.let { w -> item(key = "world") { Column(Modifier.widthIn(max = 720.dp).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) { w() } } }
         item(key = "stats") { Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) { StatsRow(data.snap) } }
         item(key = "bars") {
             Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
@@ -144,7 +146,7 @@ fun ProfileScreen(store: ProgressStore, prefs: Prefs, songs: List<SongMeta>, onS
         item(key = "heat") {
             Column(Modifier.widthIn(max = 720.dp).padding(horizontal = 20.dp)) {
                 SectionTitle("Last 12 weeks", trailing = com.bigpapituna.sharpears.engine.plural(data.practicedDays.count { !it.isBefore(WeeklyGoal.weekStart(today).minusWeeks(11)) }, "day"))
-                Heatmap(data.log, today, store.goalMinutes, data.streak.frozenDays)
+                Heatmap(data.log, today, store.goalMinutes, if (plain) emptySet() else data.streak.frozenDays)
                 HeatLegend(Modifier.padding(top = 8.dp))
             }
         }
@@ -204,7 +206,10 @@ private fun Hero(d: ProfileData) {
     val toNext = Progression.xpToNext(d.xp)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(212.dp), contentAlignment = Alignment.Center) {
-            ProgressRing(Progression.fractionToNext(d.xp), Modifier.size(200.dp), stroke = 10.dp) { Pup(pose, size = 132.dp) }
+            ProgressRing(Progression.fractionToNext(d.xp), Modifier.size(200.dp), stroke = 10.dp) {
+                // 2.15: the app's mark in the Plain look; the level and its title stay (progress, not decoration).
+                if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) com.bigpapituna.sharpears.ui.PlainMark(104.dp) else Pup(pose, size = 132.dp)
+            }
             // The level sits on the ring's lower edge.
             Text("Level $level", style = MaterialTheme.typography.titleMedium.mono(), color = c.onPrimary,
                 modifier = Modifier.align(Alignment.BottomCenter).background(c.primary, CircleShape).padding(horizontal = 16.dp, vertical = 5.dp)
@@ -223,6 +228,8 @@ private fun Hero(d: ProfileData) {
 @Composable
 private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit, kid: Boolean = false) {
     val c = MaterialTheme.colorScheme
+    // 2.15: no streak counter, freezes or rest-day line in the Plain look; the week's days played and the month's count stay.
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
     val goal = d.store.goalMinutes
     val minutes = d.secondsToday / 60
     val met = DailyGoal.met(d.secondsToday, goal)
@@ -245,7 +252,7 @@ private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit, kid: Boolean = fa
                     modifier = Modifier.semantics { contentDescription = "Change your daily goal, now $goal minutes" }) { Text("Change goal") }
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (!plain) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Flame(color = if (d.streak.streak > 0) c.primary else c.outline, size = 40.dp)
             Column(Modifier.weight(1f)) {
                 val n = rememberCountUp(d.streak.streak, 800)
@@ -261,7 +268,7 @@ private fun TodayPanel(d: ProfileData, onEditGoal: () -> Unit, kid: Boolean = fa
         WeekDots(d)
         // 2.9: a rest day in the week is said in words under the strip, and the month's days played (grown-ups; a kid's You
         // has the paws).
-        val restThisWeek = d.streak.restDays.any { !it.isBefore(WeeklyGoal.weekStart(d.today)) && !it.isAfter(d.today) }
+        val restThisWeek = !plain && d.streak.restDays.any { !it.isBefore(WeeklyGoal.weekStart(d.today)) && !it.isAfter(d.today) }
         if (restThisWeek || !kid) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (restThisWeek) {
                 androidx.compose.foundation.Canvas(Modifier.size(18.dp)) { drawRestPaw(c.primary) }
@@ -303,6 +310,7 @@ private fun Freezes(held: Int) {
 @Composable
 private fun WeekDots(d: ProfileData) {
     val c = MaterialTheme.colorScheme
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on      // 2.15: a rest day is a plain empty dot
     val start = WeeklyGoal.weekStart(d.today)
     val done = WeeklyGoal.daysThisWeek(d.practicedDays, d.today)
     val goal = d.store.weeklyDays
@@ -318,7 +326,7 @@ private fun WeekDots(d: ProfileData) {
                 val day = start.plusDays(i.toLong())
                 val did = day in d.practicedDays
                 val future = day.isAfter(d.today)
-                val rest = !did && day in d.streak.restDays
+                val rest = !did && !plain && day in d.streak.restDays
                 // One node per day ("Tuesday, practised"): TalkBack read only the letters, never which days were done.
                 Column(Modifier.clearAndSetSemantics {
                     contentDescription = day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()) +
@@ -421,10 +429,12 @@ private fun drawableFor(name: String) = when (name) {
 @Composable
 fun AchievementBadge(icon: AchievementIcon, got: Boolean, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
+    // 2.15: a pup badge is its icon in the Plain look (drawableFor falls back to the check).
+    val pup = icon.isPose && !com.bigpapituna.sharpears.ui.LocalPlain.current.on
     Box(modifier.size(size)) {
-        val bg = when { !got -> c.surfaceContainerHighest; icon.isPose -> PupGold.copy(alpha = 0.28f); else -> c.primaryContainer }
+        val bg = when { !got -> c.surfaceContainerHighest; pup -> PupGold.copy(alpha = 0.28f); else -> c.primaryContainer }
         Box(Modifier.fillMaxSize().clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-            if (icon.isPose) {
+            if (pup) {
                 val pose = runCatching { Pose.valueOf(icon.name) }.getOrDefault(Pose.WELCOME)
                 Pup(pose, size = size * 0.78f, live = false, ground = false, colorFilter = if (got) null else GREY,
                     modifier = Modifier.graphicsLayer { alpha = if (got) 1f else 0.35f })

@@ -66,6 +66,7 @@ import kotlinx.coroutines.delay
 /** The small chip on a grown-up's finish: "See rewards (3)". It only opens the sheet; nothing waits on it. */
 @Composable
 fun RewardsChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (com.bigpapituna.sharpears.ui.LocalPlain.current.on) return       // 2.15: no "See rewards" chip in the Plain look
     val c = MaterialTheme.colorScheme
     Box(modifier.heightIn(min = 40.dp).clip(CircleShape).background(c.surfaceContainerHigh)
         .clickable(role = Role.Button, onClickLabel = "Open the rewards", onClick = onClick).padding(horizontal = 18.dp, vertical = 8.dp),
@@ -81,7 +82,8 @@ fun RewardsChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RewardsSheet(items: List<RewardItem>, onClose: () -> Unit, say: ((String) -> Unit)? = null) {
-    if (items.isEmpty()) { LaunchedEffect(Unit) { onClose() }; return }
+    // 2.15: no reveals in the Plain look (stickers, wearables, eggs and sparkles still land, unseen).
+    if (items.isEmpty() || com.bigpapituna.sharpears.ui.LocalPlain.current.on) { LaunchedEffect(Unit) { onClose() }; return }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var i by rememberSaveable { mutableIntStateOf(0) }
     val at = i.coerceIn(0, items.lastIndex)
@@ -187,7 +189,8 @@ fun TrailSticker(sticker: LevelSticker, reader: Boolean, placed: Boolean, say: (
  */
 @Composable
 fun KidRewardStage(items: List<RewardItem>, reader: Boolean, say: ((String) -> Unit)?, modifier: Modifier = Modifier, songTitle: (String) -> String? = { null }) {
-    if (items.isEmpty()) return
+    // 2.15: a little kid's (the Plain look is never on there); guarded all the same: no reveals in the Plain look.
+    if (items.isEmpty() || com.bigpapituna.sharpears.ui.LocalPlain.current.on) return
     var i by remember(items) { mutableIntStateOf(0) }
     val at = i.coerceIn(0, items.lastIndex)
     val still = reducedMotion()
