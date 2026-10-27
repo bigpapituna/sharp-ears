@@ -128,4 +128,18 @@ class TesterWiringTest {
         assertEquals("This test build sends screen recordings, app events and error reports to Roy to help improve the app. No sound is recorded. " +
             "You can turn this off in Settings, Testing.", com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
     }
+
+    /**
+     * 2.15.0 merge: what Help Roy test sends is said in one place (TesterRules.SENDS) and every place that names it reads it:
+     * the Settings line, the default-on notice, the microphone card and privacy page (MicTrust) and the onboarding's line.
+     */
+    @Test fun whatHelpRoyTestSendsIsSaidOnce() {
+        assertEquals("screen recordings, app events and error reports", com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS)
+        assertTrue(com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS in HELP_ROY_TEST_LINE)
+        assertTrue(com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS in com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
+        val trust = src("engine/MicTrust.kt")
+        assertEquals(2, Regex("""\$\{TesterRules\.SENDS\}""").findAll(trust).count())
+        assertTrue("TesterRules.SENDS + \" go to Roy. Never any sound.\"" in src("ui/onboarding/OnboardingScreen.kt"))
+        assertFalse("recordings of the screen" in trust)
+    }
 }
