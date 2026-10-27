@@ -52,7 +52,8 @@ object MicTrust {
     const val LEAVES = "What leaves this phone"
 
     /** Where the mic listens, said the same way on the card and the page. */
-    private const val ONLY_WHILE = "It listens only while a lesson, a song or a game is open with the mic on, never in the background."
+    private const val ONLY_WHILE = "It listens only while a lesson, a song, a game, the tuner or Microphone setup is open with the mic on, " +
+        "never in the background."
 
     /**
      * The card shown before the microphone is first asked for, and from Microphone setup and the privacy page. [child]: the

@@ -32,8 +32,10 @@ class MicTrustWiringTest {
             "ui/PlayerScreen.kt", "ui/ChordGamesScreen.kt", "ui/ChordsScreen.kt", "ui/ear/KeysPlay.kt", "ui/practice/TunerScreen.kt", "ui/MicSetupScreen.kt"))
             assertTrue("$f asks without the card", "rememberMicAsk(" in src(f))
         // Screens that ask by themselves say so (auto), so a Not now is never nagged; the picker's grown-up is already past the gate.
-        for (f in listOf("ui/family/ProfilePicker.kt", "ui/family/PlacementCheckScreen.kt", "ui/play/PlayCommon.kt")) assertTrue(f, "ask(auto = true" in src(f))
-        assertTrue("rememberMicAsk(gated = false)" in src("ui/family/ProfilePicker.kt"))
+        for (f in listOf("ui/family/PlacementCheckScreen.kt", "ui/play/PlayCommon.kt")) assertTrue(f, "ask(auto = true" in src(f))
+        // A new kid is a new decision: the picker shows the card for each, even after an earlier Not now (never auto).
+        val picker = src("ui/family/ProfilePicker.kt")
+        assertTrue("rememberMicAsk(gated = false)" in picker && "askMic.ask(child = p.name)" in picker && "ask(auto = true" !in picker)
         val card = src("ui/MicCard.kt")
         assertTrue("auto && mic.micNotNow -> " in card && "behindGate -> gate.guard(" in card && "val behindGate = gated ?: kid" in card)
         assertTrue("mic.micCardSeen = true; mic.micNotNow = true" in card)

@@ -2061,11 +2061,13 @@ off) on 5562, deleted after.
   request goes through `rememberMicAsk(mic)` (MicTrustWiringTest fails on any other; the brief's dictation, AskBox, is speech and keeps
   Android's prompt): granted at once when allowed, else the card first. Its answer is phone-wide in the "mic" prefs (`micCardSeen`,
   `micNotNow`). Not now answers false and the screen stays on its keys, quietly (no refused line; onboarding sets useMic false, so no
-  mic banner on Today); screens that ask by themselves (`ask(auto = true)`: the play corner's toys, the placement check, the picker
-  making a kid) never ask again after it; a mic button tapped later shows the card again. A kid's card is a grown-up's: the parent gate
+  mic banner on Today); screens that ask by themselves (`ask(auto = true)`: the play corner's toys, the placement check) never ask
+  again after it; a mic button tapped later shows the card again, and the picker making a kid shows it for each new kid (a new
+  child is a new decision; not walked: the AVD was gone, MicTrustWiringTest holds it). A kid's card is a grown-up's: the parent gate
   first (`ParentGateController.guard(action, onCancel)`, new: leaving the gate counts as Not now), the lead names the child ("Mia's
   games can listen..."); a kid's screen never puts Android's prompt up by itself once the card was answered. The picker making a kid
-  shows it with no second gate (`gated = false`). `LocalMic` (MainActivity, both roots) gives the onboarding and the picker the mic.
+  shows it with no second gate (`gated = false`: adding someone is behind the gate once a kid is on the phone; the first kid is
+  made by the grown-up who set the phone up). `LocalMic` (MainActivity, both roots) gives the onboarding and the picker the mic.
   Reached later as "How the microphone works" (`MicCardInfo`, one Close) from Microphone setup (both states) and the privacy page.
 - Privacy page (ui/AboutScreens.kt): "Sharp Ears has no account and no ads. In short:" then `MicTrust.privacy(facts)`: What the app
   listens to (with the card's button), What stays on this phone (names, progress; a child's profile holds a first name, an age group and
@@ -2112,7 +2114,11 @@ off) on 5562, deleted after.
   com.bigpapituna.sharpears sh -c 'cat > files/x.wav'"`, then `--es inject /data/user/0/com.bigpapituna.sharpears/files/x.wav`) and
   `synth:r,r,...@1000` (rests are near silence).
 - Tests: MicHearingTest (17), MicTrustTest (8), MicTrustWiringTest (6); SpokenCatalogTest with the two new kid lines. All green but
-  PopPrivateTest.privateSongsMustNotShipPublic (keyless worktree). Lint 0 errors.
+  PopPrivateTest.privateSongsMustNotShipPublic (keyless worktree): 1894 JVM tests. Lint 0 errors, 40 warnings, none on a line this
+  branch added (checked against `git diff 7f73a6f4 -U0`; the 2.14.0 note above says 30, the other ten predate this branch).
+- Decisions: the brief's event is `notHeard` (the log's short names), the tester event `mic_not_heard`; the card lists the tuner and
+  Microphone setup with lessons, songs and games (the page's list). After merging `show-off` or `plain-mode`, rerun SpokenCatalogTest
+  and `render_voice.py --check`: the catalog has to match the merged set of voice files.
 - Emulator walk (Fold_MT, 5562, fresh data; screenshots app/build/screens/mt-*.png, not committed): onboarding to "Microphone" and
   Finish, the card (mt-03), Not now to "You're all set" and Today with no mic banner (mt-04, mt-05); Microphone setup unallowed with the
   card's link (mt-06), Allow microphone showing the card again, Allow, Android's prompt (mt-07, mt-08), the room check: clear, a bit
