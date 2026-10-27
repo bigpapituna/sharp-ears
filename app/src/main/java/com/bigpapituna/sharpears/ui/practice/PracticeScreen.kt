@@ -127,6 +127,8 @@ fun PracticeScreen(
     onTab: (PracticeTab) -> Unit = {},
     /** Settings > App sound: off, "Play it" and the touch keys are silent (the tuner's A is the tool itself). */
     sound: () -> Boolean = { true },
+    /** 2.15: a one-time tip under the title (ui/TipCard.kt), or none. */
+    tip: (@Composable () -> Unit)? = null,
 ) {
     val first = remember { startTab ?: store.lastTool() }
     var tab by rememberSaveable { mutableStateOf(first) }
@@ -152,6 +154,7 @@ fun PracticeScreen(
     Column(modifier.fillMaxSize().wrapContentWidth().widthIn(max = 720.dp)) {
         Text("Practice", style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 2.dp).semantics { heading() })
+        tip?.let { Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 4.dp)) { it() } }
         PrimaryTabRow(selectedTabIndex = sections.indexOf(shownTab.section).coerceAtLeast(0), containerColor = Color.Transparent, divider = {}) {
             sections.forEach { s ->
                 Tab(shownTab.section == s, {

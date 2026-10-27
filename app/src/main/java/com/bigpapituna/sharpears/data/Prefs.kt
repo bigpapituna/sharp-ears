@@ -223,6 +223,35 @@ class Prefs(context: Context, val profileId: String) {
         get() = p.getString("whatsNewSeen", null)
         set(v) = edit { if (v == null) remove("whatsNewSeen") else putString("whatsNewSeen", v) }
 
+    /**
+     * 2.15: the one-time tips this profile has been shown or has no need for (engine/nav/Tips.kt), ids joined by commas. Written
+     * without bumping [version] (a tip is not a change any screen shows) and kept through Reset progress, like the tour.
+     */
+    val tipsSeen: Set<String> get() = com.bigpapituna.sharpears.engine.nav.Tips.parse(p.getString("tipsSeen", null))
+
+    /** [tip] is on a screen now: never again for this profile, and no other tip this session. */
+    fun tipShown(tip: com.bigpapituna.sharpears.engine.nav.Tips.Tip) {
+        tipUsed(tip)
+        com.bigpapituna.sharpears.engine.nav.TipSession.shown = true
+    }
+
+    /** The feature [tip] points at was used: its tip is not needed. */
+    fun tipUsed(tip: com.bigpapituna.sharpears.engine.nav.Tips.Tip) {
+        if (tip.id in tipsSeen) return
+        p.edit().putString("tipsSeen", com.bigpapituna.sharpears.engine.nav.Tips.encode(tipsSeen + tip.id)).apply()
+    }
+
+    /** Whether this profile has played any sight-reading level (the old pieces, 1 and 2, or a staff drill, 3 to 8). */
+    fun sightTried(): Boolean = (1..2).any { sightBest(it) != null } || (3..8).any { sightDrillBest(it) != null }
+
+    /** Debug (--ez tips true): the tips and the recap count start again. */
+    fun resetTips() { p.edit().remove("tipsSeen").remove("hardRecaps").apply() }
+
+    /** Song recaps with hard bars so far (the loop tip waits for the third); counted by the player's finish, grown-ups only. */
+    var hardRecaps: Int
+        get() = p.getInt("hardRecaps", 0)
+        set(v) { p.edit().putInt("hardRecaps", v).apply() }
+
     /** Today's "Set up the microphone" banner was put away by hand (2.7); it also goes for good once the mic is allowed. */
     var micBannerClosed: Boolean
         get() = p.getBoolean("micBannerClosed", false)

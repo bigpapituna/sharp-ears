@@ -62,8 +62,11 @@ class Profiles(
      * [switch]. Returns the stored profile, or null when there are already [Roster.MAX] or the name is blank.
      */
     fun create(profile: Profile, switch: Boolean = true): Profile? {
+        val hadKid = state.value.profiles.any { it.isKid }
         val r = state.value.add(profile.copy(createdAt = profile.createdAt.takeIf { it > 0 } ?: clock()), switch) ?: return null
         val added = r.profiles.last()
+        // 2.15: the first kid on the phone starts the short "For grown-ups" tour (a grown-up's screen shows it, once).
+        if (added.isKid) parentsTour = com.bigpapituna.sharpears.engine.nav.Welcome.parentsStateAfterAdd(hadKid, parentsTour)
         save(r, "added ${added.id} (${added.kind}, reader=${added.reader})")
         if (added.bigKid) com.bigpapituna.sharpears.analytics.Events.bigKidMade()
         return added
@@ -76,6 +79,14 @@ class Profiles(
     var ownerNameAsked: Boolean
         get() = p.getBoolean(KEY_NAME_ASKED, false)
         set(v) = p.edit().putBoolean(KEY_NAME_ASKED, v).apply()
+
+    /**
+     * 2.15: the "For grown-ups" tour (engine/nav/Welcome.kt): "pending" once the first kid is added, "done" when a grown-up has
+     * seen or skipped it. One per phone, kept apart from the roster like [ownerNameAsked].
+     */
+    var parentsTour: String?
+        get() = p.getString(KEY_PARENTS_TOUR, null)
+        set(v) = p.edit { if (v == null) remove(KEY_PARENTS_TOUR) else putString(KEY_PARENTS_TOUR, v) }
 
     /** Whether the one-time "What should we call you?" is due for [current] (OwnerName.askDue). */
     fun ownerNameDue(onboardingDone: Boolean): Boolean = OwnerName.askDue(current, ownerNameAsked, onboardingDone)
@@ -156,6 +167,7 @@ class Profiles(
         const val KEY_ROSTER = "roster"
         const val KEY_GATE = "gateAt"
         const val KEY_NAME_ASKED = "ownerNameAsked"
+        const val KEY_PARENTS_TOUR = "parentsTour"
         const val GATE_FILE = "gate"
         const val KEY_LOCKOUT = "lockout"
     }

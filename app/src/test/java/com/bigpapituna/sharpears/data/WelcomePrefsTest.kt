@@ -87,4 +87,31 @@ class WelcomePrefsTest {
         assertNull(Prefs(phone, "p2").layout)
         assertTrue(Simple.asks(kid = false, chosen = Prefs(phone, "p2").layout))
     }
+
+    /** 2.15: the tips are each person's own, are kept through a restart and through Reset progress, and a used feature counts as seen. */
+    @Test fun theTipsAreEachProfilesOwnAndSurviveAReset() {
+        val phone = FolderContext(tmp.root)
+        val a = Prefs(phone, "owner")
+        assertTrue(a.tipsSeen.isEmpty()); assertEquals(0, a.hardRecaps)
+        com.bigpapituna.sharpears.engine.nav.TipSession.reset()
+        a.tipShown(com.bigpapituna.sharpears.engine.nav.Tips.Tip.TIMING)
+        assertTrue(com.bigpapituna.sharpears.engine.nav.TipSession.shown)
+        a.tipUsed(com.bigpapituna.sharpears.engine.nav.Tips.Tip.LOOP)
+        a.hardRecaps = 2
+        a.resetProgress()
+        val again = Prefs(phone, "owner")
+        assertEquals(setOf("timing", "loop"), again.tipsSeen); assertEquals(2, again.hardRecaps)
+        assertTrue(Prefs(phone, "p2").tipsSeen.isEmpty())
+        again.resetTips()
+        assertTrue(Prefs(phone, "owner").tipsSeen.isEmpty())
+        com.bigpapituna.sharpears.engine.nav.TipSession.reset()
+    }
+
+    /** A sight-reading level played at any level (the old pieces or a staff drill) means the Practice tip has no job. */
+    @Test fun sightTriedFollowsAnyLevelPlayed() {
+        val p = Prefs(FolderContext(tmp.root), "owner")
+        assertFalse(p.sightTried())
+        p.saveSightDrillBest(4, com.bigpapituna.sharpears.engine.DrillScore(right = 12, wrong = 2))
+        assertTrue(p.sightTried())
+    }
 }
