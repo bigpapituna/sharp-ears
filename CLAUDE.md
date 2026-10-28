@@ -2476,3 +2476,4 @@ man, and a hook for the course narrated in the coach's voice.
 - For Roy: lines run 1.4 to 6 s; with the mic on the speaker, notes played during one are not heard (the rule asked for); MIDI or
   headphones avoid it. The step pop bubble keeps the cheer's hold (2.4 s at most) while some step passed lines run longer.
   "Eight in a row" (steady_03) can play on the 16th note in time.
+- Status: merged to main and pushed; released as v2.16.0 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.0, the keyed debug APK with AFTERDARK=true). Not on the Fold: it was not on adb or mDNS on 2026-10-28 (needs reconnecting: wireless debugging on, then adb connect or pair). Emulator 5558 only.
