@@ -99,6 +99,9 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     /** The voice is talking through the speaker: the mic should not start yet. Lines said over the mic do not hold it. */
     val holdsMic get() = policy.holdsMic
 
+    /** 2.18: the voice talks or holds lines for when the mic stops (a line of the build's extra waits for both). */
+    val talkingOrAboutTo get() = policy.talkingOrAboutTo
+
     /**
      * Says [text]. [interrupt] cuts off whatever is being said or waiting. [deferrable] false drops the line
      * (instead of holding it) when the mic is listening, for lines that are stale a moment later.

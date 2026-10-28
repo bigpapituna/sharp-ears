@@ -167,6 +167,19 @@ class VoicePolicyTest {
         assertEquals(1, order.size)
     }
 
+    @Test fun linesHeldForTheMicCountAsAboutToTalk() {
+        // A lesson's finish: "Clean." and "Lesson complete." are held for the moment the mic takes to stop; the coach's stars
+        // line must wait for them, not slip into the gap and play over them.
+        world.listening = true
+        policy.speak("Clean."); policy.speak("Lesson complete.")
+        assertFalse(policy.speaking)
+        assertTrue(policy.talkingOrAboutTo)
+        world.listening = false; policy.micStopped()
+        assertTrue(policy.talkingOrAboutTo)
+        system.finish(); system.finish()
+        assertFalse(policy.talkingOrAboutTo)
+    }
+
     @Test fun headphonesOrAQuietMicNeverHoldTheVoiceWhenItIsQuiet() {
         policy.speak("One.")
         assertTrue(policy.holdsMic)

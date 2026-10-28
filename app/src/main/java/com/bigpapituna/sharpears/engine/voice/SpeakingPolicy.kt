@@ -122,6 +122,13 @@ class SpeakingPolicy(
     /** Lines held while the mic listens. */
     val held: Int get() = queue.size
 
+    /**
+     * The voice talks or has lines held for when the mic stops: a line of the build's extra that waits for the voice
+     * (ExtraTurn) waits for these too. At a lesson's finish "Clean." and "Lesson complete." are held for the few ms the mic
+     * takes to stop; the coach's stars line started in that gap and played over them (seen on the emulator, 2.18).
+     */
+    val talkingOrAboutTo: Boolean get() = speaking || queue.size > 0
+
     private fun quiet() = world.listening && !world.headphones
     private fun plainText(text: String) = if (world.plain) PlainLook.calm(text, spoken = true) else text
 

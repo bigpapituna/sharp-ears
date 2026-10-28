@@ -215,7 +215,7 @@ internal object CoachHost {
     private fun step() {
         val p = pending ?: return
         val t = now()
-        when (p.turn.next(t, voiceTalking = voice?.speaking?.value == true, blocked = t < chimeUntil || playing != null)) {
+        when (p.turn.next(t, voiceTalking = voice?.talkingOrAboutTo == true, blocked = t < chimeUntil || playing != null)) {
             ExtraTurn.Next.DROP -> { Log.d(TAG, "coach: ${p.line.id} dropped, no quiet moment"); pending = null; settle() }
             ExtraTurn.Next.WAIT -> main.postDelayed(tick, POLL_MS)
             ExtraTurn.Next.GO -> { pending = null; play(p) }
