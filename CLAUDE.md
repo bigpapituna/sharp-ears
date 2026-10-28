@@ -2535,3 +2535,13 @@ decisions below are mine. Emulator Fold_ST (a config-only copy of Fold_QA_GU) on
   with it and only for grown-ups, owner's reminder, pick/parse, the session's tab); WelcomeTest 2.16.1; CoachWiringTest's What's
   new and its place in Playing; SettingsWiringTest, CheerPopWiringTest, LayoutWiringTest, PlainWiringTest, DepthWiringTest,
   TesterWiringTest, RecordingsTest, MicTrustTest, PerformTimingTest, EmailBriefTest re-pinned to the tabs and the new paths.
+- Checks: keyed main with the coach 2007 JVM tests, all green (2 skipped: TesterTest's keyless checks); `-Psharpears.afterdark=false`
+  1987, all green, and `checkNoAfterdarkDebug` passed (155 captions checked); lint 0 errors, 30 warnings.
+- Emulator (Fold_ST on 5560, a keyless build with `-Psharpears.afterdark=true`; screenshots app/build/screens/settings-*.png in the
+  settings-tabs worktree, not committed): every tab on the inner screen (settings-inner-*) and the cover screen (settings-cover-*),
+  the cover screen at font scale 1.5 (the row scrolls, settings-cover-largetext-family), Leo as a big kid (all five tabs; Look holds
+  only Plain look and Show all settings), Mia as a little kid (Playing, Look), the Plain look (Encouragement and Coach voice "Off in
+  Plain look"). The picker listed Liam, Rory, Claire and Sienna. A tab tap logged `settings: tab look`. No crash.
+- Status: merged to main and pushed; released as v2.16.1 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.1, the
+  keyed debug APK with AFTERDARK=true); installed on Roy's Fold over wireless adb (`adb-RFCY7029SWM-mlVgoX._adb-tls-connect._tcp`),
+  versionName 2.16.1, versionCode 33. Not walked on the Fold itself.
