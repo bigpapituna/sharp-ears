@@ -2545,3 +2545,45 @@ decisions below are mine. Emulator Fold_ST (a config-only copy of Fold_QA_GU) on
 - Status: merged to main and pushed; released as v2.16.1 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.1, the
   keyed debug APK with AFTERDARK=true); installed on Roy's Fold over wireless adb (`adb-RFCY7029SWM-mlVgoX._adb-tls-connect._tcp`),
   versionName 2.16.1, versionCode 33. Not walked on the Fold itself.
+
+## 2.16.2 Liam narrates the course
+Branch `course-voice` (2026-10-28, from 2.16.1 d9ba9a19, fast-forwarded to main; versionCode 34, 2.16.2). Roy's recordings:
+`tts-bakeoff/elevenlabs/course_male_us/` (2,631 MP3s, index.json [{key, orig, coach, for, file}]: 2,421 lines for anyone and
+105 lines with a woman's and a man's take; `coach` is the flirtier spoken text with ElevenLabs tags; read only). No follow-up
+questions, so the decisions below are mine.
+- Assets: `scripts/coach_bank.py` (extended) wrote them to `app/src/afterdark/assets/coach/male_us/course/<key>[_w|_m].ogg`, the
+  path the 2.16.0 hook reads (Opus mono 48 kHz 24 kb/s, two-pass loudnorm to -23 LUFS like the bank; spot checks -23.4 to -23.9
+  LUFS, the bank's start_01 -23.8). The script now reads `app/build/voice-lines.txt` (run SpokenCatalogTest first): keys no longer
+  in the catalog are skipped and named (orphans never ship), grown-up lines (speed 1.0) with no recording are listed, course .ogg
+  files no longer wanted are deleted, and the course converts on all cores (2,631 files in about 4 minutes). Without the catalog it
+  converts everything and says so. The other three voices' course folders stay empty (a .gitkeep): Rory, Claire and Sienna
+  narrate nothing, the normal voice does.
+- Coverage (catalog regenerated in the worktree, 3,972 lines, 2,526 at speed 1.0): 2,526 of 2,526 grown-up lines have Liam's
+  recording, 0 missing, 0 orphans. The 2.16.0/2.16.1 copy changes (privacy page, MIDI hint, KEEP_LINE, email footer) are not
+  spoken lines, so the catalog Roy recorded from (2026-10-27) and today's have the same keys. 56.75 MB of course audio; the
+  coach folder 63.7 MB in all. 24 kb/s kept (under the 80 MB ceiling).
+- Captions: unchanged. NaturalVoice swaps only the audio file; every bubble and caption shows the text the screen asked to say,
+  and the coach's flirtier words (index.json's `coach`) are not in the repo or the APK. NaturalVoice's log line now names the
+  asset: `voice: (narrated coach/male_us/course/<file>.ogg) <text>`.
+- Narration needs the Natural voice setting on (the default): with it off, the platform voice reads the lines and Liam does not
+  (the 2.16.0 hook sits in NaturalVoice; left as is). A grown-up with "for" unset hears Liam on the 2,421 lines for anyone and the
+  normal voice on the 105 with a woman's and a man's take.
+- Known: Liam's "Clean." plus "Lesson complete. Good girl..." fill the finish, so the coach's stars3/stars2 overlay line that used
+  to follow the short normal-voice lines usually waits out its 8 s and is dropped (`coach: stars3_xx dropped, no quiet moment`).
+  Left so: the narration already carries the praise; three Liam lines in a row would pile up.
+- What's new 2.16.2: only the afterdark build's (`Extras.WHATS_NEW`): "Liam now talks you through every lesson."; Welcome.WHATS_NEW
+  has no 2.16.2, so a build without the coach shows no sheet.
+- Tests: CoachRulesTest `theCourseFilesAreTheCatalogsGrownUpLines` (every course file's key is a grown-up line of the catalog,
+  variants come as a _w/_m pair and never beside a plain one, Liam covers at least 90%: re-run coach_bank.py after copy changes,
+  it removes orphans); CoachWiringTest (2.16.2 What's new); AfterdarkWallTest (no 2.16.2 line of the app's own). Keyed main with
+  the coach: 2008 JVM tests, all green (2 skipped, TesterTest's keyless checks); `-Psharpears.afterdark=false`: 1987, all green,
+  `checkNoAfterdarkDebug` passed (155 captions checked). Lint 0 errors, 31 warnings (+1: NewerVersionAvailable, network-dependent).
+  A keyless worktree fails PopPrivateTest by design.
+- APK (keyed debug, clean builds): 147.4 MB (2.16.1) to 204.6 MB with the coach (+57.2 MB); 140.2 MB without it.
+- Emulator (a `-read-only` copy of Fold_QA_GU on 5560, discarded after; the worktree's APK with `-Psharpears.afterdark=true`;
+  logs and screenshots app-side only, not committed): Dana with Liam, as a woman: Finger numbers step 1 "Both hands number their
+  fingers..." narrated; step 4 by a MIDI script (`--ei step 3`, notes 1.1 s apart): `voice: (narrated coach/male_us/course/
+  fdf69183879055c6.ogg) Once more, from memory...`, `.../5471cf4b5dc0c672.ogg) Clean.`, `.../3475061240571901_w.ogg) Lesson
+  complete.`; as a man the same run picked `3475061240571901_m.ogg`. The screen kept the original line in the pup's bubble while
+  Liam spoke (cv-liam-m). Claire, Rory and Sienna: `voice: (recorded)` for all three lines (their coach start lines still played).
+  Mia (little kid) with coachVoice=male_us, coachFor=w and coachNotice planted: `voice: (recorded)`, no coach line at all.
