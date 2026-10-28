@@ -2380,3 +2380,99 @@ checks them.
   behind the gate from a kid's own screen was not walked again (MicTrustWiringTest holds it); `mic_permission` counts Android's
   answers only, the card's Not now sends nothing; the new tour opens over whichever tab "Look around first" lands on (Learn);
   nothing on the Fold itself.
+
+## 2.16 coach voice
+Branch `coach-voice` (2026-10-28, from 2.15.0 fc784d0a, fast-forwarded to main; versionCode 32, 2.16.0). Roy recorded an adult-only
+"coach voice" with ElevenLabs: a low, flirty coach who praises the player ("Good girl", "You're stroking those keys so well"),
+suggestive, never explicit, for consenting adults. Same release, Roy's scope change: several voices, the player as a woman or a
+man, and a hook for the course narrated in the coach's voice.
+- The build-time wall (the PostHog pattern): `src/afterdark` (java: `extras/Extras.kt` the door, `afterdark/CoachRules.kt` the
+  Android-free rules, `CoachHost.kt` the player, `CoachUi.kt` the setting and the overlay; assets: `coach/<voice>/`; test: the
+  coach's JUnit tests) and `src/noafterdark` (the same door doing nothing, and its own test). app/build.gradle.kts takes
+  src/afterdark only with `AFTERDARK=true` in secrets.properties (added to Roy's; `secrets.properties.example` names it, empty);
+  `-Psharpears.afterdark=false` forces it off, `-Psharpears.afterdark=true` on (a worktree without secrets). Default: off.
+  `checkNoAfterdark<Debug|Profile|Release>` runs after every package task of a build without it (and on its own with
+  `-Psharpears.afterdark=false`): it opens the APK and fails on any asset under `assets/coach/`, any entry named afterdark, the
+  afterdark package in a dex, `coach_voice`/`coach_for`, or any caption of any voice's lines.json in the dex, resources or
+  manifest. Proved both ways: the keyless build passes (155 captions checked); the afterdark APK checked as if keyless fails on
+  its dex and assets. src/main knows only the door and `extras/Moment.kt` (the moments' names, no words). AfterdarkWallTest
+  (both builds) holds the sources to it: no afterdark package and no caption in src/main, the two doors with the same calls, the
+  empty door with no word of it, the gradle switch, What's new.
+- Assets: `scripts/coach_bank.py` converts Roy's `tts-bakeoff/elevenlabs/coach_bank_v2/<voice>/index.json` ([{file, moment, for,
+  text}], for = any, w, m; files starting with _ ignored) into `src/afterdark/assets/coach/<voice>/<stem>.ogg` (Opus mono 48 kHz
+  24 kb/s like the app's voice lines' Opus; two-pass loudnorm to -23 LUFS, metadata dropped), `lines.json` ([{id, moment, for,
+  caption, ms}], caption = text with every [...] tag removed) and `voice.json` ({id, name, order}). Voices now: male_us "Liam
+  (American)", male_irish "Rory (Irish)", female_us "Claire (American)" (157 lines each: 121 for anyone, 18 for a woman, 18 for
+  a man); female_au "Sienna (Australian)" is named in the script and appears in Settings once its folder is converted (the list
+  is the folders the build has, no code change). 5.4 MB of audio (24 kb/s rather than 32: three voices, a fourth coming). The
+  first, flat coach_bank layout is not used.
+- The profile wall: `CoachGate.offered(profile)` = ADULT and not `isKid` and not `bigKid` (the profile's own flags, never the
+  skin's `isKid()`); `CoachGate.on(profile, voice, Encouragement, plain)`. The door asks it at every moment of the profile read
+  live (MainActivity hands `{ profiles.current }`), so a grown-up made a kid in Family is walled at once and their stored choice
+  is kept, unused. Every caller in main also asks first (CheerPops' `profileKid` = Profile.isKid, LessonScreen's `anyKid`,
+  RunRecap's `who.isKid`, MainActivity's `current/profile.isKid`); CoachWiringTest counts the 10 call sites. Kids and big kids
+  never see the setting nor its words (the overlay checks `offered` too).
+- The setting (Settings > Playing, under Encouragement, every layout): "Coach voice": Off, Liam (American), Rory (Irish), Claire
+  (American) as radio rows; with a voice, "How should your coach talk to you?" As a woman / As a man. Off by default. From Off to
+  a voice: the parent gate every time (`LocalParentGate.guard`), then once per profile the notice "For adults only" (flirty and
+  suggestive, never explicit, keep it off on a child's profile, headphones around others; Turn it on / Not now), then once the
+  woman-or-man question. Changing voice while on, the woman or man answer, and Off need no gate. Plain look: "Off in Plain look."
+  Encouragement Off: the coach is quiet (it says so). Stored in the profile's progress file (`Prefs.extraString/extraFlag`, keys
+  coachVoice, coachFor, coachNotice: backed up and deleted with the profile); never `Briefs.setting` (the AI brief, the email).
+- Moments (main's `Moment`; the door's `line` for a bubble the screen has, `say` for the overlay): RUN (20/40 to run20/40; 5/10
+  roll between run5/run10 and the plain `run` bank as the cheer pops roll, other counts `run`), RECOVERY, HALFWAY, HARD_PASSED,
+  STEADY, FOCUS (5/10/15/20/30 min; 25 and past 30 keep the cheer's words), NUDGE: CheerPops.show, the caption in the cheer pop's
+  own bubble for the line's length, no pup voice and no sparkle under it. STEP_PASSED: the step pop's bubble (CheerPops.stepPassed),
+  the line starting after the chime. START: a grown-up's first playing step of a lesson visit, before its instruction (which waits,
+  Extras.afterLine). FINISH / STARS3 / STARS2: the lesson's finish with its stars (a neutral finish after a skip is FINISH) and a
+  song recap's 3 or 2 stars (1 star: nothing). MISTAKE: a wrong key or Perform miss (CheerPops.wrong) and a try that did not pass
+  (the first failure), once a step. HARD: the player's first hint glow on a held note, and a step's second failed try, once a
+  step. COMEBACK: the grown-up comeback card. STREAK / GOODNIGHT: Practice today's "Done for today" (two days or more in a row:
+  streak, else goodnight). Not hooked: wind down and bedtime (kids only); a step marked hard (no such flag; the hint and the
+  second failure stand in); START for songs on their own (the brief says lesson start; a line there would make the mic deaf
+  through the lead-in). The overlay (CoachOverlay, the gold CheerBubble at the top, no touches) shows lines with no bubble of
+  their own; MainActivity draws it under the gate, the song recap's dialog over itself.
+- Rates (CoachBrain): none with Encouragement Off; play moments keep CheerCoach.gapMs (15 s, Less 30 s) since the last line and
+  perMinute (4, Less 2); events (start, step passed, finish, stars, comeback, streak, goodnight) have no wait but count; mistake
+  and hard once a step (stepBegan). Never one of the last six lines while the bank has another. The woman or man picks the
+  variant: a woman never gets a "for m" line, a man never a "for w" one, unset only "any".
+- Sound (CoachHost): one MediaPlayer, one line at a time; a line waits for the voice to be quiet (8 s for overlay lines, 1.2 s past
+  its delay for a bubble line, else dropped) and never plays under the step pop's chime (`Extras.chime` from StepPops.fire stops a
+  playing line; one waiting waits it out). While a line waits or plays, `Voice.extraTalking` is true and a lesson step's
+  autoStart waits for it (PlayerScreen). The step's own feedback line and the high five wait for the coach's (`Extras.afterLine`).
+  Moving on (Continue, Next, Back, the finish, a lesson or song screen left, the app stopped) stops it (`Extras.hush`). The mic:
+  the step pop chime's rule for the line's whole length plus StepPopRules.ROOM_TAIL_MS whenever the phone's speaker plays it
+  (headphones: none), laid down in 500 ms slices renewed every 250 ms so a line cut short frees the mic within half a second
+  (logcat shows `mic: deaf for 500 ms` lines). App sound, Spoken guidance and Say it aloud do not mute it: its own switch does.
+- Course narration hook (Roy, a later drop): NaturalVoice asks `Extras.narration(SpokenCatalog key)` before assets/voice; on a
+  build with it, for a grown-up with a voice chosen and the Plain look off (`CoachGate.narrates`; Encouragement does not matter,
+  it is guidance), it plays `coach/<voice>/course/<key>_w|_m.ogg` (the player's variant) or `<key>.ogg`, else the normal
+  recording. The course folders ship empty (a .gitkeep; aapt leaves dot files out); coach_bank.py converts
+  `elevenlabs/course_<voice>/index.json` ([{key, orig, coach, for}], <key>[_w|_m].mp3) when it exists: course_male_us had 70
+  mp3s and no index.json on 2026-10-28, so nothing shipped yet. The screen keeps the original words.
+- Analytics: super properties `coach_voice` (true/false), `coach_voice_id` (folder or `off`), `coach_for` (`w`, `m`, `unset`)
+  through the new neutral `Tester.extra(key, value)`, from the door only (a build without it registers none). No line, caption or
+  id. Session replay masking unchanged (it masks all text). analytics/EVENTS.md lists the three.
+- What's new 2.16.0: one line, the door's own (`Extras.WHATS_NEW`, merged by `Welcome.merged`); Welcome.WHATS_NEW has no 2.16.0,
+  so a build without it shows no sheet for 2.16.0.
+- Tests: CoachRulesTest (the voices from folders, every moment for a woman and a man in every voice, clean captions, the wall for
+  little and big kids whatever is stored, a grown-up made a kid, the voice saved or first or off, each moment's bank, waits and
+  caps, Off, mistake and hard once a step, no repeats, the variants, seed, the mic rule, narration), CoachWiringTest (callers ask
+  the profile, the door asks the wall, the setting's gate, notice and question, the three properties, What's new),
+  AfterdarkWallTest (both builds), ExtrasDoorTest (noafterdark), StepPopWiringTest updated. Keyed main: 1995 JVM tests with the
+  coach, all green (TesterTest's two keyless checks skip); `-Psharpears.afterdark=false`: 1975, all green; 2.15 baseline 1968.
+  Lint 0 errors (StaticFieldLeak on CoachHost suppressed: the application context; mic and voice replaced at each profile
+  open). APK (keyed debug): 140.1 MB without, 145.7 MB with (+5.6 MB, the audio).
+- Emulator (5558 Fold_QA_GU, the worktree's APK built with `-Psharpears.afterdark=true`; screenshots app/build/screens/cv-*.png,
+  not committed): Dana's Settings showed Coach voice with the three voices (cv-01); Rory: the gate (hold, a sum), the notice, the
+  question, As a woman, on (cv-02 to cv-05; `coach: talks to owner as w`, `coach: voice male_irish`). Finger numbers step 3 by a
+  MIDI script: `coach: start male_irish/start_02` before the instruction, auto-start after it; five in a row in the cheer bubble
+  "Five in a row... good girl." (cv-06, run5_03_w); the step pop's bubble "Good girl." 470 ms after the pop, the step's "Clean."
+  spoken after the line (cv-07); a scripted slip gave one `coach: mistake`; the last step's finish played stars3 in the overlay
+  (cv-08). Walled: Mia (little kid) and Leo (a big kid, `--es family "Leo:1:big"`) with coachVoice=male_us, coachFor=w and
+  coachNotice=true planted in their progress files played the same step: cheers and step pops as ever, no `coach:` line; their
+  Settings show no Coach voice (the planted values removed after). Not proven: loudness against the piano and the pup on the
+  Fold, the deaf window with a real mic and room, the narration (no files yet), female_au.
+- For Roy: lines run 1.4 to 6 s; with the mic on the speaker, notes played during one are not heard (the rule asked for); MIDI or
+  headphones avoid it. The step pop bubble keeps the cheer's hold (2.4 s at most) while some step passed lines run longer.
+  "Eight in a row" (steady_03) can play on the 16th note in time.
