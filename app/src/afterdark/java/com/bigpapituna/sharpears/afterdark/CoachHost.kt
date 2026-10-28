@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.analytics.Tester
 import com.bigpapituna.sharpears.audio.MicInput
+import com.bigpapituna.sharpears.audio.Stage
 import com.bigpapituna.sharpears.audio.Voice
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.engine.family.PlainLook
@@ -26,8 +27,8 @@ import com.bigpapituna.sharpears.extras.Moment
  *
  * A line never plays over another, over the voice (it waits until Voice.speaking clears) or under the step pop's chime ([chime]:
  * a line playing stops, one waiting waits the chime out). While a line waits or plays, Voice.extraTalking is true, so a lesson
- * step does not start by itself under it (PlayerScreen's autoStart). The mic: deaf for the line and the room's ring after it
- * (CoachSound), renewed in short slices while it plays so a line cut short ([hush]) leaves the mic hearing again at once.
+ * step does not start by itself under it (PlayerScreen's autoStart). The mic: the Stage's (2.18, audio/Stage.kt): deaf from the
+ * line's start until exactly its end (or its cut, [hush]) plus the room's ring, the notes ducked under it, "Listening again" after.
  * All on the main thread.
  */
 @android.annotation.SuppressLint("StaticFieldLeak")    // the application context; the mic and voice are replaced at each profile open
@@ -62,9 +63,6 @@ internal object CoachHost {
     data class Caption(val seq: Int, val text: String, val ms: Long)
     val caption = mutableStateOf<Caption?>(null)
     private var seq = 0
-
-    /** 2.17 (M3): "Listening again" after a line that made the mic deaf, [listening] counting up per cue (0: none yet). */
-    val listening = mutableStateOf(0)
 
     /** 2.17 (M3): lines held (a profile's first lesson until a step is passed): none plays or waits. */
     private var held = false
@@ -233,11 +231,12 @@ internal object CoachHost {
         }.onFailure { Log.w(TAG, "coach: ${p.line.id} did not play", it) }.isSuccess
         if (!ok) { mp.release(); settle(); return }
         val lengthMs = mp.duration.toLong().takeIf { it > 0 } ?: p.line.ms
-        deafens = CoachSound.deafens(mic?.headphonesOn() ?: false)
+        deafens = CoachSound.deafens(Stage.headphones())
         player = mp
-        if (deafens) renew.run()
         mp.start()
-        com.bigpapituna.sharpears.audio.Duck.set(true)          // 2.17: the notes a little quieter under the line
+        // 2.18: the Stage holds the mic deaf from now until exactly the line's end plus the room's ring, ducks the notes under it
+        // (2.17) and shows "Listening again" after it (2.17), by its one rule (audio/Stage.kt).
+        Stage.lineStarts(mp, lengthMs, duck = true, cue = true)
         if (p.overlay) caption.value = Caption(++seq, p.line.caption, CoachSound.showMs(lengthMs))
         Log.d(TAG, "coach: ${p.moment.name.lowercase()} ${p.voice}/${p.line.id} \"${p.line.caption}\" $lengthMs ms, mic deaf " +
             if (deafens) "${CoachSound.deafMs(lengthMs, headphones = false)} ms" else "no (headphones)")
@@ -245,26 +244,11 @@ internal object CoachHost {
         main.postDelayed({ if (player === mp) done(mp) }, lengthMs + 2_000)
     }
 
-    /** The step pop chime's mic rule for the line's length: deaf a slice ahead, renewed while it plays. */
-    private val renew: Runnable = Runnable {
-        if (player == null || !deafens) return@Runnable
-        mic?.deafFor(CoachSound.SLICE_MS)
-        main.postDelayed(renew, CoachSound.RENEW_MS)
-    }
-
     private fun done(mp: MediaPlayer) {
         if (player === mp) {
             player = null
-            main.removeCallbacks(renew)
-            com.bigpapituna.sharpears.audio.Duck.set(false)
-            if (deafens) mic?.deafFor(StepPopRules.ROOM_TAIL_MS.toLong())   // the room's ring after the speaker stops
-            // 2.17 (M3): the mic hears again once the ring has passed; say so, quietly, when it is listening.
-            val wasDeaf = deafens
-            main.postDelayed({
-                if (player == null && CoachSound.listeningCue(wasDeaf, mic?.listening == true)) {
-                    listening.value = listening.value + 1; Log.d(TAG, "coach: listening again")
-                }
-            }, StepPopRules.ROOM_TAIL_MS.toLong())
+            // The room's ring after the speaker stops, then "Listening again" when the mic listens (the Stage's, 2.18).
+            Stage.lineEnds(mp, StepPopRules.ROOM_TAIL_MS.toLong())
         }
         runCatching { mp.release() }
         settle()
@@ -272,8 +256,7 @@ internal object CoachHost {
 
     private fun stopPlayer(mp: MediaPlayer) {
         player = null
-        main.removeCallbacks(renew)
-        com.bigpapituna.sharpears.audio.Duck.set(false)
+        Stage.lineEnds(mp, StepPopRules.ROOM_TAIL_MS.toLong(), finished = false)    // cut short: no "Listening again"
         runCatching { mp.stop() }
         runCatching { mp.release() }
         caption.value = null

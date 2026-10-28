@@ -149,7 +149,7 @@ internal fun SkyChordStage(step: Step, lessonId: String, deps: LessonDeps, injec
                 } },
                 last = run.last, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 84); scope.launch { delay(900); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 84, 900, deps.prefs.sound, st.listening)
                     st.tap(m)
                 },
                 overlay = { g -> for (m in chord) g.rect(m).let { r -> keyBadge(m, Offset(r.center.x, r.bottom - r.width * 0.55f), r.width * 0.34f, reader, colours, measurer) } })

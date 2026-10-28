@@ -93,7 +93,7 @@ internal fun StarJamStage(game: StageGame.Jam, step: Step, lessonId: String, dep
     val bandAt = remember { HashMap<Int, Long>() }
     fun say(text: String) { line = text; lineSeq++; voice.sayOnStage(text, mic) }
     fun play(keys: List<Int>, velocity: Int, ms: Long) {
-        if (phase == JamPhase.JAM) mic.deafFor(StarJam.DEAF_MS)
+        if (phase == JamPhase.JAM) com.bigpapituna.sharpears.audio.Stage.deafFor(StarJam.DEAF_MS)
         if (!deps.prefs.sound) return
         keys.forEach { deps.sampler.noteOn(it, velocity) }
         scope.launch { delay(ms); keys.forEach { deps.sampler.noteOff(it) } }
@@ -101,7 +101,7 @@ internal fun StarJamStage(game: StageGame.Jam, step: Step, lessonId: String, dep
 
     /** The pup's few notes: each draws a star of his own (in the demo) and sounds, the mic deaf for them. */
     suspend fun nudge(own: Boolean) {
-        mic.deafFor(StarJam.NUDGE.size * 380L + 600)
+        com.bigpapituna.sharpears.audio.Stage.deafFor(StarJam.NUDGE.size * 380L + 600)
         for ((i, k) in StarJam.NUDGE.withIndex()) {
             if (deps.prefs.sound) { deps.sampler.noteOn(k, 82); scope.launch { delay(340); deps.sampler.noteOff(k) } }
             fx.ripple(k, PupGold, fill = true)
@@ -162,7 +162,7 @@ internal fun StarJamStage(game: StageGame.Jam, step: Step, lessonId: String, dep
         if (phase != JamPhase.END) return@LaunchedEffect
         Log.d(TAG, "playground: jam ended, ${jam.stars.size} stars, ${jam.whites} white keys, ${jam.tries} quiet tries")
         if (jam.stars.isNotEmpty()) {
-            mic.deafFor(1_000); WorldSounds.ding()
+            com.bigpapituna.sharpears.audio.Stage.deafFor(1_000); WorldSounds.ding()
             say(TreeSkyLines.JAM_END)
             if (still) glow.snapTo(1f) else glow.animateTo(1f, tween(1_200))
             delay(2_400)
@@ -221,7 +221,7 @@ internal fun StarJamStage(game: StageGame.Jam, step: Step, lessonId: String, dep
             BigKeys(60, 83, "Piano keys from C4 to B5. Play any black keys.", Modifier.fillMaxWidth().height((roomH * 0.27f).coerceIn(100.dp, 180.dp)),
                 fill = { m -> if (isBlack(m)) PupGold.copy(alpha = 0.18f + 0.25f * bounce.value) else null }, fx = fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!listening || mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(500); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 500, deps.prefs.sound, listening)
                     if (phase == JamPhase.JAM) {
                         fx.heard(com.bigpapituna.sharpears.engine.playground.StageSound(SystemClock.uptimeMillis(), HeardBy.MATCHER, m, final = true))
                         jam.heard(m, (SystemClock.uptimeMillis() - startAt).toDouble())?.let { stars += it; fx.found(m) }

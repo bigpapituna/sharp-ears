@@ -7,7 +7,7 @@ import com.bigpapituna.sharpears.engine.pup.PupMood
 /**
  * How the step pop's chime may sound now (the mic rule). [PLAY]: through the speaker as it is (the mic is off, or
  * headphones are on, so the mic cannot hear it). [PLAY_DEAF]: the mic is listening with no headphones: it is made deaf for
- * the chime and the room's ring after it ([StepPopRules.DEAF_MS], MicInput.deafFor) before the first note, so the chime is
+ * the chime and the room's ring after it ([StepPopRules.DEAF_MS], Stage.deafFor) before the first note, so the chime is
  * never taken for the learner's note. [SKIP]: App sound is off (the burst still shows).
  */
 enum class ChimeMode { PLAY, PLAY_DEAF, SKIP }
@@ -155,14 +155,12 @@ object StepPopRules {
     fun degree(n: Int): Int = 12 * Math.floorDiv(n, 7) + MAJOR[Math.floorMod(n, 7)]
 
     /**
-     * The mic rule for the chime ([ChimeMode]). [micListening]: the mic (or the debug injector) feeds the matcher now;
-     * [headphones]: MicInput.headphonesOn(); [soundOn]: Settings > App sound.
+     * The mic rule for the chime ([ChimeMode]): a cue by the Stage's rule (2.18, engine/stage/StageRule.cue; audio/Stage.cue asks
+     * it with the phone's headphones). [micListening]: the mic (or the debug injector) feeds the matcher now; [soundOn]:
+     * Settings > App sound.
      */
-    fun chimeMode(micListening: Boolean, headphones: Boolean, soundOn: Boolean): ChimeMode = when {
-        !soundOn -> ChimeMode.SKIP
-        micListening && !headphones -> ChimeMode.PLAY_DEAF
-        else -> ChimeMode.PLAY
-    }
+    fun chimeMode(micListening: Boolean, headphones: Boolean, soundOn: Boolean): ChimeMode =
+        com.bigpapituna.sharpears.engine.stage.StageRule.cue(soundOn, micListening, headphones)
 
     /**
      * The lesson's key as a pitch class (0 = C), for the chime: the lowest key sounding at the last moment of its last

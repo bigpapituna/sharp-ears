@@ -209,7 +209,7 @@ internal fun BeatStarsStage(game: StageGame.Beat, step: Step, lessonId: String, 
         when (ClapTries.after(attempt, heardAny)) {
             ClapTries.Next.DONE -> {
                 say(when { lit.size == hits.size -> TreeSkyLines.BEAT_ALL; lit.isNotEmpty() -> TreeSkyLines.BEAT_SOME; else -> TreeSkyLines.BEAT_NEAR })
-                mic.deafFor(800); com.bigpapituna.sharpears.ui.world.WorldSounds.ding()
+                com.bigpapituna.sharpears.audio.Stage.deafFor(800); com.bigpapituna.sharpears.ui.world.WorldSounds.ding()
                 delay(1_800)
                 ended(stars.report())
             }
@@ -264,7 +264,7 @@ internal fun BeatStarsStage(game: StageGame.Beat, step: Step, lessonId: String, 
             BigKeys(57, 67, "Piano keys from A3 to G4. Play middle C on every beat.", Modifier.fillMaxWidth().height((roomH * 0.3f).coerceIn(110.dp, 190.dp)),
                 fill = { m -> if (m == 60) PupGold.copy(alpha = 0.25f + 0.45f * pulse.value) else null }, fx = fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!listening || mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(500); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 500, deps.prefs.sound, listening)
                     fx.heard(com.bigpapituna.sharpears.engine.playground.StageSound(SystemClock.uptimeMillis(), HeardBy.MATCHER, m, final = true))
                     key(m, SystemClock.uptimeMillis())
                 })

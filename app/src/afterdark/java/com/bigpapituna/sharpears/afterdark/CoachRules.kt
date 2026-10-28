@@ -199,31 +199,18 @@ class CoachBrain(seed: Long = System.nanoTime()) {
 /** How a line plays round the microphone and the other sounds. */
 object CoachSound {
     /**
-     * The step pop chime's mic rule (StepPopRules.chimeMode: PLAY_DEAF, MicInput.deafFor) for the line's whole length and the
+     * The step pop chime's mic rule (StepPopRules.chimeMode: PLAY_DEAF, Stage.deafFor) for the line's whole length and the
      * room's ring after it (StepPopRules.ROOM_TAIL_MS), whenever the phone's speaker plays it: with the mic listening, and with it
      * off too, since a step's mic can start while the line still plays (the deaf window outlives a start). Headphones on: 0.
      */
     fun deafMs(lineMs: Long, headphones: Boolean): Long = if (headphones) 0L else lineMs + StepPopRules.ROOM_TAIL_MS
 
-    /** Whether a line makes the mic deaf at all: the phone's speaker plays it (no headphones). */
-    fun deafens(headphones: Boolean): Boolean = !headphones
-
     /**
-     * 2.17 (audit M3): "Listening again" shows as the mic hears again after a line: the line made it deaf ([deafened]) and the
-     * mic is listening ([listening]: a lesson step, a song) when the room's ring has passed.
+     * Whether a line makes the mic deaf at all: the phone's speaker plays it (no headphones). 2.18: the Stage's rule
+     * (engine/stage/StageRule.deafens); the window itself, "Listening again" after it and the duck are the Stage's
+     * (audio/Stage.lineStarts, from the line's start until exactly its end plus StepPopRules.ROOM_TAIL_MS).
      */
-    fun listeningCue(deafened: Boolean, listening: Boolean): Boolean = deafened && listening
-
-    /** How long "Listening again" stays up. */
-    const val CUE_MS = 1_600L
-
-    /**
-     * The deaf window is laid down a [SLICE_MS] slice at a time, renewed every [RENEW_MS] while the line plays, then
-     * StepPopRules.ROOM_TAIL_MS after its end: [deafMs] in all, and a line cut short (Continue, a screen left) leaves the mic
-     * hearing again within a slice instead of for the rest of the line.
-     */
-    const val SLICE_MS = 500L
-    const val RENEW_MS = 250L
+    fun deafens(headphones: Boolean): Boolean = com.bigpapituna.sharpears.engine.stage.StageRule.deafens(headphones)
 
     /** How long a line with no bubble of its own may wait for the voice, the chime or another line, before it is dropped. */
     const val WAIT_MS = 8_000L

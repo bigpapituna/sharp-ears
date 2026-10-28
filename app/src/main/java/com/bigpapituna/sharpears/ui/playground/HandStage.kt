@@ -148,7 +148,7 @@ internal fun HandStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                 waitingKey = if (run.phase == RoundCoach.Phase.LISTEN) roundKey else null, waitingFinger = if (run.phase == RoundCoach.Phase.LISTEN) roundFinger else 0,
                 demoKey = demo.firstOrNull(), fx = st.fx, last = run.last,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, st.listening)
                     st.tap(m)
                 })
         }

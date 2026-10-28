@@ -154,9 +154,7 @@ internal fun LoudQuietStage(game: StageGame.LoudQuiet, step: Step, lessonId: Str
                 last = run.last, fx = st.fx,
                 onKey = { m ->
                     val want = game.rounds.getOrNull(run.done)
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) {
-                        deps.sampler.noteOn(m, when (want) { Loudness.SOFT -> 28; Loudness.LOUD -> 118; else -> 72 }); scope.launch { delay(600); deps.sampler.noteOff(m) }
-                    }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, when (want) { Loudness.SOFT -> 28; Loudness.LOUD -> 118; else -> 72 }, 600, deps.prefs.sound, st.listening)
                     // A tap is as loud or as quiet as the round asks (the screen cannot tell).
                     val base = tune.anchorDb ?: -32.0
                     st.tap(m, riseDb = when (want) { Loudness.SOFT -> base - 8; Loudness.LOUD -> base + 8; else -> base })

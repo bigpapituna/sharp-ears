@@ -80,7 +80,7 @@ internal fun PedalStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
         scope.launch {
             delay(450)
             val total = gaps.sum() + RING_MS + 600
-            deps.mic.deafFor(total)
+            com.bigpapituna.sharpears.audio.Stage.deafFor(total)
             st.call(WorkshopLines.REPLAY)
             delay(1_300)
             Log.d(TAG, "playground: pedal play back ${keys.map(::noteName)}")
@@ -159,7 +159,7 @@ internal fun PedalStage(step: Step, lessonId: String, deps: LessonDeps, inject: 
                         else if (colours && m in StageKeys.FIVE) com.bigpapituna.sharpears.ui.skin.noteColour(m).copy(alpha = 0.45f) else null },
                     last = run.last, fx = st.fx,
                     onKey = { m ->
-                        if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                        com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, st.listening)
                         st.tap(m)
                     })
             }

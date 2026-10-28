@@ -145,7 +145,7 @@ internal fun HighLowStage(step: Step, lessonId: String, deps: LessonDeps, inject
             } },
             last = run.last, topRoom = 0.dp, fx = st.fx,
             onKey = { m ->
-                if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(700); deps.sampler.noteOff(m) } }
+                com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 700, deps.prefs.sound, st.listening)
                 st.tap(m)
             },
             overlay = { g ->

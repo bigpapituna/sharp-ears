@@ -492,6 +492,7 @@ class MainActivity : ComponentActivity() {
         sampler = Sampler(this) { samplerReady.value = true }
         midi = MidiDevices(this).also { it.start() }
         mic = MicInput(this)
+        com.bigpapituna.sharpears.audio.Stage.attach(mic)   // 2.18: the Stage's rule is about this mic (audio/Stage.kt)
         repo = SongRepository(this)
         profiles = Profiles(this)
         gate = ParentGateController(profiles)

@@ -192,7 +192,7 @@ class CheerPops internal constructor(
         val side = if (s.place != null) s.place.invoke(c) else CheerSide.END
         if (side == null) { Log.d(TAG, "cheer: ${c.trigger.wire} $audience skipped, no room"); return }
         val listening = mic.listening
-        val phones = listening && mic.headphonesOn()
+        val phones = listening && !com.bigpapituna.sharpears.audio.Stage.quiet(listening)
         // 2.16: a grown-up's extra (extras/Extras.kt, the build's door) may take the moment: its words in this bubble for its
         // line's length and its own sound, so the pup says nothing and no sparkle plays under it. Never on a kid's profile.
         val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.of(c.trigger), c.count)
@@ -206,7 +206,7 @@ class CheerPops internal constructor(
             ChimeMode.SKIP -> {}
         }
         if (sound != ChimeMode.SKIP) {
-            if (sound == ChimeMode.PLAY_DEAF) mic.deafFor(CheerRules.SPARKLE_DEAF_MS.toLong())
+            if (sound == ChimeMode.PLAY_DEAF) com.bigpapituna.sharpears.audio.Stage.deafFor(CheerRules.SPARKLE_DEAF_MS.toLong())
             val before = sparkleJob
             sparkleJob = scope.launch { before?.join(); playSparkle(sampler, CheerRules.sparkle(tonic)) }
         }

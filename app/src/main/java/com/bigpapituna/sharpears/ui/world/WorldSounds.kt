@@ -1,8 +1,6 @@
 package com.bigpapituna.sharpears.ui.world
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.SoundPool
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -12,7 +10,7 @@ import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.world.Rarity
 
 /**
- * The world's sounds (res/raw, from scripts/gen_jingles.py) through one SoundPool for the whole app: the tick on
+ * The world's sounds (res/raw, from scripts/gen_jingles.py) through the Stage's bank (2.18, audio/Stage.kt): the tick on
  * every note, a jingle per rarity, a chime per star, the pup munching, the egg cracking, a pop, and (2.1.1) the
  * pitchless pop, ding and whoosh of the stages and the Jam. Loaded once, on
  * first use; nothing plays while [on] is false (the integrator follows the app's Sound setting), and callers that
@@ -22,27 +20,12 @@ object WorldSounds {
     /** The app's sound switch (Prefs.sound); off: silence. */
     @Volatile var on: Boolean = true
 
-    private var pool: SoundPool? = null
-    private val ids = HashMap<Int, Int>()
-
-    /** Loads the sounds (once; later calls do nothing). */
-    fun init(context: Context) {
-        if (pool != null) return
-        val p = SoundPool.Builder().setMaxStreams(6).setAudioAttributes(
-            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-        ).build()
-        val app = context.applicationContext
-        for (res in listOf(R.raw.tick, R.raw.jingle_common, R.raw.jingle_rare, R.raw.jingle_shiny, R.raw.chime_star, R.raw.munch, R.raw.egg_crack, R.raw.pop,
-                R.raw.stage_pop, R.raw.stage_ding, R.raw.jam_whoosh)) {
-            ids[res] = p.load(app, res, 1)
-        }
-        pool = p
-    }
+    /** Loads the sounds (2.18: the Stage's bank, audio/Stage.kt, loaded once; later calls do nothing). */
+    fun init(context: Context) = com.bigpapituna.sharpears.audio.Stage.init(context)
 
     private fun play(res: Int, volume: Float = 1f, rate: Float = 1f, what: String) {
         if (!on) return
-        val p = pool ?: return
-        p.play(ids[res] ?: return, volume, volume, 1, 0, rate.coerceIn(0.5f, 2f))
+        if (!com.bigpapituna.sharpears.audio.Stage.world(res, volume, rate.coerceIn(0.5f, 2f))) return
         if (res != R.raw.tick) Log.d(TAG, "world sound: $what")
     }
 
@@ -65,7 +48,7 @@ object WorldSounds {
 
     // 2.1.1: sounds with no pitch, made to play while the microphone listens (the Playground's stages, the Jam); the
     // note matcher never takes them for a key (StageSoundsTest). They still make a loudness jump: callers keep the mic
-    // deaf for a moment (MicInput.deafFor) so it is not shown as a sound the kid made.
+    // deaf for a moment (Stage.deafFor) so it is not shown as a sound the kid made.
     /** A key found in a stage: a soft puff. */
     fun stagePop() = play(R.raw.stage_pop, 0.8f, what = "stage pop")
     /** A stage's rounds all done: a shimmer, a ding with no note. */

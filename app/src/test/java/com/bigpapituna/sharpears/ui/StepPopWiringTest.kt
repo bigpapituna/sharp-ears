@@ -43,11 +43,11 @@ class StepPopWiringTest {
 
     @Test fun theChimeFollowsAppSoundAndTheMicRule() {
         val pop = src("ui/StepPop.kt")
-        assertTrue("StepPopRules.chimeMode(micListening = mic.listening, headphones = mic.headphonesOn(), soundOn = sound())" in pop)
+        assertTrue("val mode = com.bigpapituna.sharpears.audio.Stage.cue(sound())" in pop)      // 2.18: the Stage's rule (StepPopRules.chimeMode delegates to it)
         assertTrue("sound = { deps.prefs.sound }" in src("ui/LessonScreen.kt"))
         // The mic is deaf before the first note strikes, for the chime and the room's ring.
         val fire = pop.substringAfter("fun fire(streak: Int").substringBefore("\n    }\n")
-        assertTrue(fire.indexOf("mic.deafFor(StepPopRules.DEAF_MS.toLong())") in 0 until fire.indexOf("playChime("))
+        assertTrue(fire.indexOf("Stage.deafFor(StepPopRules.DEAF_MS.toLong())") in 0 until fire.indexOf("playChime("))
         assertTrue("if (mode != ChimeMode.SKIP)" in fire)
         // The chime does not depend on the picture: the same family, climbing with the streak.
         assertTrue("StepPopRules.chime(tonic, streak)" in fire)

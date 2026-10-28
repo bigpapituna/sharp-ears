@@ -335,7 +335,7 @@ private fun PlayerStage(args: PlayerArgs) {
 
     // While the mic listens, the app stays silent (it would hear itself), unless headphones are on.
     // A synced tutorial video carries the music itself.
-    fun soundAllowed() = prefs.sound && (!(micOn && mode != Mode.LISTEN) || mic.headphonesOn()) && !(videoOn && tutorial?.anchor != null)
+    fun soundAllowed() = com.bigpapituna.sharpears.audio.Stage.echo(prefs.sound, listening = micOn && mode != Mode.LISTEN) && !(videoOn && tutorial?.anchor != null)
     fun apply(events: List<NoteEvent>) {
         val sound = soundAllowed()
         events.forEach { e -> when (e) { is NoteEvent.On -> if (sound) sampler.noteOn(e.midi, e.velocity); is NoteEvent.Off -> sampler.noteOff(e.midi) } }
@@ -442,7 +442,7 @@ private fun PlayerStage(args: PlayerArgs) {
         val notes = transport.hintKeys                        // an any-of group: only its demonstration key
         if (notes.isEmpty()) return
         if (prefs.sound) {
-            if (micOn && !mic.headphonesOn()) mic.deafFor(1_700)
+            if (micOn) com.bigpapituna.sharpears.audio.Stage.deafFor(1_700)
             notes.forEach { sampler.noteOn(it, 80) }
             scope.launch { delay(900); notes.forEach { sampler.noteOff(it) } }
         }
@@ -1179,7 +1179,7 @@ private fun PlayerStage(args: PlayerArgs) {
             com.bigpapituna.sharpears.ui.pup.CheerPop(cheers.cue, Modifier.align(Alignment.TopStart).fillMaxWidth()
                 .height(com.bigpapituna.sharpears.engine.lessons.CheerPlace.laneHeightDp(maxHeight.value).dp), maxPupDp = 48f)
         }
-        if (showVideo) TutorialPip(tutorial!!, moving, speed, micOn && !mic.headphonesOn(), { transport.positionMs },
+        if (showVideo) TutorialPip(tutorial!!, moving, speed, com.bigpapituna.sharpears.audio.Stage.quiet(micOn), { transport.positionMs },
             onClose = { videoOn = false; Log.d(TAG, "video closed") }, maxHeight = maxHeight - 20.dp,
             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
         if (embedded == null) recap?.let { r ->
@@ -1245,7 +1245,7 @@ private fun PlayerStage(args: PlayerArgs) {
                 lowMidi = range.first, highMidi = range.last, lit = lit,
                 onNoteOn = { m, v ->
                     Log.d(TAG, "NoteOn ${noteName(m)} midi=$m vel=$v src=touch")
-                    touched[m] = RightHandColor; if (prefs.sound && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v)
+                    touched[m] = RightHandColor; if (com.bigpapituna.sharpears.audio.Stage.echo(prefs.sound, listening = micOn)) sampler.noteOn(m, v)
                     touchRun = true
                     when (keyStruck(m, velocity = v)) {
                         InputResult.CORRECT, InputResult.GROUP_DONE -> haptics.tick()
@@ -1361,7 +1361,7 @@ private fun PlayerStage(args: PlayerArgs) {
     val density = LocalDensity.current
     Column(Modifier.fillMaxSize().background(LaneBackground).safeDrawingPadding()
         .onGloballyPositioned { rootTopPx = it.positionInWindow().y }) {
-        val muted = micOn && !mic.headphonesOn()
+        val muted = com.bigpapituna.sharpears.audio.Stage.quiet(micOn)
         if (tabletop != null) {
             // Above the hinge: video and lane. Below: controls and keyboard, the keyboard under the lane so columns line up.
             val topH = with(density) { (tabletop.hingeTopPx - rootTopPx).coerceAtLeast(120f).toDp() }

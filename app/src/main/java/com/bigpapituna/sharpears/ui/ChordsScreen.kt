@@ -509,7 +509,7 @@ private fun ChordTrainer(
         }
         Keyboard(
             LOW, HIGH, lit = lit,
-            onNoteOn = { m, v -> touched[m] = Good; if (sound() && (!micOn || mic.headphonesOn())) sampler.noteOn(m, v); strike(m, "touch") },
+            onNoteOn = { m, v -> touched[m] = Good; if (com.bigpapituna.sharpears.audio.Stage.echo(sound(), listening = micOn)) sampler.noteOn(m, v); strike(m, "touch") },
             onNoteOff = { m -> touched.remove(m); sampler.noteOff(m) },
             modifier = Modifier.fillMaxWidth().height(220.dp),
             flash = keyFlash,

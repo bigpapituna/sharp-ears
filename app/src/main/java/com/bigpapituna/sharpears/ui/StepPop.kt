@@ -81,7 +81,7 @@ class StepPops internal constructor(
      * page goes on as it would without it.
      */
     fun fire(streak: Int, seed: Long, force: PopVariant? = null, line: String? = null): StepPopCue {
-        val mode = StepPopRules.chimeMode(micListening = mic.listening, headphones = mic.headphonesOn(), soundOn = sound())
+        val mode = com.bigpapituna.sharpears.audio.Stage.cue(sound())
         val variant = force ?: StepPopRules.variant(streak, cue?.variant, seed)
         val next = StepPopCue((cue?.seq ?: 0) + 1, streak, variant, mode, line)
         cue = next
@@ -90,7 +90,7 @@ class StepPops internal constructor(
         if (mode != ChimeMode.SKIP) {
             // 2.16: a line of the build's extra never plays under the chime (extras/Extras.kt).
             com.bigpapituna.sharpears.extras.Extras.chime(StepPopRules.CHIME_MS.toLong())
-            if (mode == ChimeMode.PLAY_DEAF) mic.deafFor(StepPopRules.DEAF_MS.toLong())
+            if (mode == ChimeMode.PLAY_DEAF) com.bigpapituna.sharpears.audio.Stage.deafFor(StepPopRules.DEAF_MS.toLong())
             val before = chimeJob
             chimeJob = scope.launch {
                 before?.cancelAndJoin()            // its notes let go before these strike (two pops close together)

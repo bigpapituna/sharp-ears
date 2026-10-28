@@ -178,7 +178,7 @@ internal fun BalloonStage(step: Step, lessonId: String, deps: LessonDeps, inject
                 fill = { m -> if (m in StageKeys.FIVE) noteColour(m).copy(alpha = if (st.demoIndex?.let { demo.getOrNull(it) } == m) 1f else 0.45f) else null },
                 last = run.last, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, st.listening)
                     st.tap(m)
                 })
         }
@@ -293,7 +293,7 @@ internal fun CarouselStage(step: Step, lessonId: String, deps: LessonDeps, injec
                 fill = { m -> if (m == st.demoIndex?.let { demo.getOrNull(it) }) PupGold else if (colours && m in StageKeys.FIVE) noteColour(m).copy(alpha = 0.45f) else null },
                 last = run.last, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, st.listening)
                     st.tap(m)
                 })
         }
@@ -426,7 +426,7 @@ internal fun StrongmanStage(step: Step, lessonId: String, deps: LessonDeps, inje
             BigKeys(57, 71, "Piano keys from A3 to B4. Middle C is lit.", Modifier.fillMaxWidth().height((roomH * 0.2f).coerceIn(84.dp, 150.dp)),
                 fill = { m -> if (m == 60) PupGold.copy(alpha = 0.6f) else null }, last = run.last, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 110); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 110, 600, deps.prefs.sound, st.listening)
                     st.tap(m, riseDb = -30.0)
                 })
         }

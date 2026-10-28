@@ -235,8 +235,6 @@ class CoachRulesTest {
         assertEquals(0L, CoachSound.deafMs(3_000, headphones = true))
         assertTrue(CoachSound.deafens(headphones = false))
         assertFalse(CoachSound.deafens(headphones = true))
-        // Each slice is renewed before it runs out, so the window never has a gap while the line plays.
-        assertTrue(CoachSound.RENEW_MS < CoachSound.SLICE_MS)
         // The words stay up for the line, between the cheer pop's 1.6 s and 6.5 s.
         assertEquals(1_600L, CoachSound.showMs(900))
         assertEquals(4_000L, CoachSound.showMs(4_000))

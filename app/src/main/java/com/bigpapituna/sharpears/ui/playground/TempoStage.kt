@@ -162,7 +162,7 @@ internal fun TempoStage(game: StageGame.Tempo, step: Step, lessonId: String, dep
                 fill = { m -> if (st.demoIndex?.let { st.demoKeys.getOrNull(it) } == m) PupGold else null },
                 last = run.last, fx = st.fx,
                 onKey = { m ->
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(500); deps.sampler.noteOff(m) } }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 500, deps.prefs.sound, st.listening)
                     st.tap(m)
                 })
         }

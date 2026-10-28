@@ -1,8 +1,6 @@
 package com.bigpapituna.sharpears.ui.playground
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.SoundPool
 import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -62,7 +60,6 @@ import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.engine.Report
 import com.bigpapituna.sharpears.engine.Step
-import com.bigpapituna.sharpears.engine.Wav
 import com.bigpapituna.sharpears.engine.parseTokens
 import com.bigpapituna.sharpears.engine.playground.ClapCounter
 import com.bigpapituna.sharpears.engine.playground.Place
@@ -82,19 +79,16 @@ import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import com.bigpapituna.sharpears.ui.pup.Pose
 
-/** The pup's drum: a low tom ([drumSamples]) synthesized once into the cache and played through SoundPool. */
+/** The pup's drum: a low tom ([drumSamples]) through the Stage's bank (2.18, audio/Stage.kt; synthesized once). */
 internal class DrumSound(context: Context) {
-    private val pool = SoundPool.Builder().setMaxStreams(2).setAudioAttributes(
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
-    private val sound = pool.load(File(context.cacheDir, "pup-drum.wav").also { Wav.write(it, drumSamples(), 48_000) }.path, 1)
-    fun play(accent: Boolean) { pool.play(sound, if (accent) 1f else 0.8f, if (accent) 1f else 0.8f, 1, 0, 1f) }
-    fun release() = pool.release()
+    init { com.bigpapituna.sharpears.audio.Stage.init(context) }
+    fun play(accent: Boolean) = com.bigpapituna.sharpears.audio.Stage.drum(accent)
+    fun release() {}
 }
 
 private enum class ClapPhase { DEMO, READY, COUNT_IN, PLAYING, DONE, NOTHING_HEARD }

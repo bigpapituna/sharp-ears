@@ -167,7 +167,7 @@ private fun GameScreen(
     val xpAtStart = remember { progress?.xp ?: 0 }
     val finished = remember(version) { game.finished }
 
-    fun sound() = prefs.sound && (!(micOn && phase == Phase.ANSWER) || mic.headphonesOn())
+    fun sound() = com.bigpapituna.sharpears.audio.Stage.echo(prefs.sound, listening = micOn && phase == Phase.ANSWER)
     suspend fun voiceDone() { delay(250); while (voice.speaking.value) delay(50) }
     suspend fun playChord() {
         val groups = game.toPlay()

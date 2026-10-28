@@ -66,7 +66,6 @@ internal object CoachCopy {
     /** 2.17 (audit M4): neither: the lines for anyone. */
     const val BY_NAME = "Just use my name"
     /** 2.17 (audit M3): the mic hears again after a line. */
-    const val LISTENING = "Listening again"
 }
 
 /**
@@ -179,21 +178,12 @@ internal fun CoachOverlay() {
         delay(c.ms)
         visible = false
     }
-    // 2.17 (audit M3): "Listening again", small and quiet, as the mic hears again after a line.
-    val cue = CoachHost.listening.value
-    var cueShown by remember { mutableStateOf(false) }
-    LaunchedEffect(cue) { if (cue == 0) return@LaunchedEffect; cueShown = true; delay(CoachSound.CUE_MS); cueShown = false }
     Box(Modifier.fillMaxSize().safeDrawingPadding().padding(top = 8.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.TopCenter) {
         val words = shown?.text
         if (words != null) AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {
             CheerBubble(words, BubbleTail.BOTTOM, Modifier.widthIn(max = 340.dp), MaterialTheme.typography.titleSmall)
         }
-        AnimatedVisibility(cueShown && !visible, enter = fadeIn(), exit = fadeOut()) {
-            androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f)) {
-                Text(CoachCopy.LISTENING, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
-            }
-        }
+        // 2.17 (audit M3): "Listening again" as the mic hears again after a line (the Stage's since 2.18).
+        com.bigpapituna.sharpears.ui.ListeningAgain(hidden = visible)
     }
 }

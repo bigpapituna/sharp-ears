@@ -106,7 +106,7 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
     val usesKeys = trainer.answering == Answering.KEYS || trainer.answering == Answering.KEYS_AND_CHOICES
     val usesChoices = trainer.answering == Answering.CHOICES || trainer.answering == Answering.KEYS_AND_CHOICES
 
-    fun touchSound() = env.sound() && (!(micOn && usesKeys && phase == Phase.ANSWER) || env.mic.headphonesOn())
+    fun touchSound() = com.bigpapituna.sharpears.audio.Stage.echo(env.sound(), listening = micOn && usesKeys && phase == Phase.ANSWER)
     suspend fun voiceDone() { delay(250); while (env.voice.speaking.value) delay(50) }
 
     // Keys light only where seeing them is the point: melody memory's demonstration, and the key's chord and scale

@@ -318,7 +318,7 @@ class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequenc
  * The sounds of a cheer pop by the mic rules (2.13, the 2.11 chime's [ChimeMode]), one table for the sparkle and the voice.
  * During the learner's turn with the mic listening through the speaker, nothing sounds (making the mic deaf then would
  * swallow their note): the bubble alone. Between notes (a stage between its rounds, a rest in the music) the mic is made
- * deaf for it ([ChimeMode.PLAY_DEAF]: speakOverMic, deafFor). With the mic off or headphones on it plays as it is.
+ * deaf for it ([ChimeMode.PLAY_DEAF]: speakOverMic, Stage.deafFor). With the mic off or headphones on it plays as it is.
  */
 object CheerRules {
     /** The sparkle's two notes, quieter than the step pop's chime (72 to 88). */
@@ -348,8 +348,9 @@ object CheerRules {
         else -> micRule(micListening, headphones, betweenNotes)
     }
 
+    // The Stage's rule (2.18, engine/stage/StageRule.kt), with one twist: during the learner's turn a cue is skipped, not deaf.
     private fun micRule(micListening: Boolean, headphones: Boolean, betweenNotes: Boolean): ChimeMode = when {
-        !micListening || headphones -> ChimeMode.PLAY
+        !com.bigpapituna.sharpears.engine.stage.StageRule.quiet(micListening, headphones) -> ChimeMode.PLAY
         betweenNotes -> ChimeMode.PLAY_DEAF
         else -> ChimeMode.SKIP
     }

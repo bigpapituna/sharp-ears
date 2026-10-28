@@ -8,7 +8,6 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -34,7 +33,7 @@ import java.io.File
  * synthesized notes through the same matcher at real-time pace, and a recorder saves mic audio plus MIDI
  * truth as test fixtures.
  */
-class MicInput(private val context: Context) {
+class MicInput(private val context: Context) : com.bigpapituna.sharpears.engine.stage.StageSound.Ear {
     companion object {
         const val RATE = 48_000
         /** Space for stuck-moment clips (WAV, ~5.6 MB a minute); the oldest are deleted past it. */
@@ -134,38 +133,20 @@ class MicInput(private val context: Context) {
         synchronized(octave) { octave.check(sampleMs(matcher.samplesProcessed)) }
 
     /**
-     * Ignore what the mic hears for [ms] (the app is playing a note through the speaker as a hint: the mic must not
-     * take it for the player's). The matcher keeps listening so nothing is stale afterwards; its events are dropped.
+     * 2.18: what the mic drops because the app makes sound on the speaker (engine/stage/DeafWindow.kt). Only the Stage writes it
+     * (audio/Stage.kt: a hint's notes, a chime, a line said over the mic, the coach's lines), by the one rule; the matcher keeps
+     * listening meanwhile so nothing is stale afterwards, its events are dropped.
      */
-    fun deafFor(ms: Long) { deafUntil = maxOf(deafUntil, System.nanoTime() + ms * 1_000_000); Log.d(TAG, "mic: deaf for $ms ms") }
-    @Volatile private var deafUntil = 0L
-
-    /**
-     * Deaf while the voice says a line over the listening mic ([Voice.speakOverMic], 2.1.1: the Playground's call-outs
-     * and demos), and [VOICE_TAIL_MS] after it ends (the room rings on). Set by the voice; a line that never reports its
-     * end is cut off by [voiceDeafLimit].
-     */
-    fun deafWhileSpeaking(on: Boolean) {
-        val now = System.nanoTime()
-        if (on) { voiceDeaf = true; voiceDeafLimit = now + 8_000_000_000L }
-        else if (voiceDeaf) { voiceDeaf = false; deafUntil = maxOf(deafUntil, now + VOICE_TAIL_MS * 1_000_000) }
-    }
-    @Volatile private var voiceDeaf = false
-    @Volatile private var voiceDeafLimit = 0L
+    override val window = com.bigpapituna.sharpears.engine.stage.DeafWindow { android.os.SystemClock.uptimeMillis() }
 
     /** Whether what the mic hears is being dropped now (a hint note, a demo, a line over the mic). */
-    val deaf: Boolean get() {
-        val now = System.nanoTime()
-        if (voiceDeaf && now > voiceDeafLimit) voiceDeaf = false
-        return now < deafUntil || voiceDeaf
-    }
+    val deaf: Boolean get() = window.deaf()
 
     /**
      * Deaf now or within the last [ms] (for readers of [rawFrames] that decide late, like the pitch tracker, whose note
      * started while the phone was playing).
      */
-    fun deafWithin(ms: Long): Boolean = deaf || System.nanoTime() - lastDeafNanos < ms * 1_000_000
-    @Volatile private var lastDeafNanos = Long.MIN_VALUE / 2
+    fun deafWithin(ms: Long): Boolean = window.deafWithin(ms)
 
     /**
      * Raw input for whoever reads the audio itself (the Playground's clap counter and pitch tracker, Clap along, the
@@ -228,17 +209,12 @@ class MicInput(private val context: Context) {
             .map { it.address to (it.address.replaceFirstChar(Char::uppercase).ifBlank { "Built-in" } + " mic") }
             .distinctBy { it.first }
 
-    /** Headphones of any kind: then the app may make sound while the mic listens. */
-    fun headphonesOn() = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-        it.type in setOf(AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) || (Build.VERSION.SDK_INT >= 31 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
-    }
 
     @Volatile private var thread: Thread? = null
     @Volatile private var stop = false
 
     /** True while the mic (or the debug injector) feeds the matcher. The voice holds its lines meanwhile. */
-    val listening: Boolean get() = thread != null
+    override val listening: Boolean get() = thread != null
 
     /** Called on the main thread after the mic stops (the voice speaks what it held back). */
     var onStopped: (() -> Unit)? = null
@@ -399,7 +375,6 @@ class MicInput(private val context: Context) {
         }
         if (ringOn) for (i in 0 until n) { ring[(ringFrames % ring.size).toInt()] = buf[i]; ringFrames++ }
         val deaf = this.deaf
-        if (deaf) lastDeafNanos = System.nanoTime()
         for (e in matcher.process(buf, n)) {
             if (deaf) continue
             when (e) {

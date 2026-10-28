@@ -116,7 +116,7 @@ fun ArcadeGameScreen(
     /** The pup plays [keys] for the kid ([gapMs] apart), the mic deaf meanwhile; [light] rings each gold as it sounds. */
     fun pupPlays(keys: List<Int>, gapMs: Long, leadMs: Long = 0, light: Boolean = true) = scope.launch {
         delay(leadMs)
-        mic.deafFor(keys.size * gapMs + 900)
+        com.bigpapituna.sharpears.audio.Stage.deafFor(keys.size * gapMs + 900)
         play.demoKeys = keys
         for ((i, k) in keys.withIndex()) {
             if (deps.prefs.sound) deps.sampler.noteOn(k, 80)
@@ -151,7 +151,7 @@ fun ArcadeGameScreen(
                     play.add(Fx(FxKind.HIT, c.target, c.key, t, c.target.phrase))
                     play.react(if (c.streak >= 5 && c.streak % 5 == 0) Pose.DANCING else Pose.CLAPPING, 650, t)
                     if (c.streak >= 5 && c.streak % 5 == 0) play.show(ArcadeLines.STREAK[(c.streak / 5 - 1) % ArcadeLines.STREAK.size])
-                    if (hitSound(game)) mic.deafFor(220)
+                    if (hitSound(game)) com.bigpapituna.sharpears.audio.Stage.deafFor(220)
                 }
                 is Cue.Half -> { play.fx.found(c.key); play.add(Fx(FxKind.HALF, c.target, c.key, t)) }
                 is Cue.Slip -> {
@@ -181,7 +181,7 @@ fun ArcadeGameScreen(
                 is Cue.LineDone -> {
                     play.add(Fx(FxKind.LINE, null, -1, t, c.phrase))
                     play.react(Pose.DANCING, 1_100, t)
-                    if (lineSound(game)) mic.deafFor(400)
+                    if (lineSound(game)) com.bigpapituna.sharpears.audio.Stage.deafFor(400)
                     val call = round as? CallRound
                     call?.let { afterLine(it.plan, c.phrase, it.linesDone) }?.let(::say)
                     if (game == ArcadeGame.TOWER && call != null) {
@@ -255,7 +255,7 @@ fun ArcadeGameScreen(
     DisposableEffect(play) { onDispose { (round.keys + play.demoKeys).forEach { deps.sampler.noteOff(it) } } }
 
     fun touch(m: Int) {
-        if (deps.prefs.sound && (!listening || mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(500); deps.sampler.noteOff(m) } }
+        com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 500, deps.prefs.sound, listening)
         if (phase == Phase.PLAY) key(m, "touched")
     }
     if (bot && phase == Phase.PLAY) LaunchedEffect(play) {

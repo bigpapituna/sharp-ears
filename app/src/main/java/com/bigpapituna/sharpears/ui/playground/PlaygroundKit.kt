@@ -444,7 +444,7 @@ internal fun rememberStage(
                     st.demoKeys = ks
                     Log.d(TAG, "playground: demo ${ks.map(::noteName)} at velocity $vel")
                     // The phone plays the keys: the mic must not take them for the kid's.
-                    mic.deafFor(ks.size * demoGapMs + 900)
+                    com.bigpapituna.sharpears.audio.Stage.deafFor(ks.size * demoGapMs + 900)
                     // Each key the phone plays rings gold on the keys as it sounds (with the sound off, the rings alone show it).
                     // A phrase's notes each ring for their own beat; a chord's or a single key's ring together.
                     for ((i, k) in ks.withIndex()) {
@@ -499,7 +499,7 @@ internal fun rememberStage(
                 cheers?.right(round, null, com.bigpapituna.sharpears.ui.pup.CheerSituation(busy = run.demoing))
                 clips.reset(now()); clipMark[0] = mic.clipMark()
                 // The pop for a round found (a phrase's notes in between go by quietly: the next may come at once).
-                if (!phrases || run.rounds.doneInRound == 0) { mic.deafFor(250); WorldSounds.stagePop() }
+                if (!phrases || run.rounds.doneInRound == 0) { com.bigpapituna.sharpears.audio.Stage.deafFor(250); WorldSounds.stagePop() }
                 foundLine(run, a.key)?.let { sayOver(it) }
                 if (run.finished) end(mic)
             }
@@ -593,7 +593,7 @@ private fun StageHearingWatch(st: StageState, hearing: com.bigpapituna.sharpears
 
 /** The stage's rounds are all done: the ding (the mic deaf for it). */
 private fun end(mic: MicInput) {
-    mic.deafFor(800)
+    com.bigpapituna.sharpears.audio.Stage.deafFor(800)
     WorldSounds.ding()
 }
 

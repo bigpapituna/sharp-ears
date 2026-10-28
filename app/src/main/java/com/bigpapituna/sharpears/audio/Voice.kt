@@ -54,7 +54,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     /** The voice is (or is not) talking now; a line said over the mic lets the mic hear again when it ends. */
     private fun settle(now: Boolean) {
         speaking.value = now
-        if (!now && overMic) { overMic = false; mic.deafWhileSpeaking(false) }
+        if (!now && overMic) { overMic = false; Stage.lineEnds(this, MicInput.VOICE_TAIL_MS) }
     }
 
     /** The Kokoro model is on the phone (else only the recorded lines use the natural voice). */
@@ -73,9 +73,9 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     }
 
     /** The voice is talking through the speaker: the mic should not start yet. Lines said over the mic do not hold it. */
-    val holdsMic get() = speaking.value && !mic.headphonesOn() && !overMic
+    val holdsMic get() = speaking.value && !Stage.headphones() && !overMic
 
-    private fun canSpeak() = !mic.listening || mic.headphonesOn()
+    private fun canSpeak() = !Stage.quiet(mic.listening)
 
     /**
      * Says [text]. [interrupt] cuts off whatever is being said or waiting. [deferrable] false drops the line
@@ -101,11 +101,11 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     fun speakOverMic(text: String) {
         if (!enabled) { Log.d(TAG, "voice: (off) $text"); return }
         @Suppress("NAME_SHADOWING") val text = plainText(text)
-        if (!mic.listening || mic.headphonesOn()) { speak(text); return }
+        if (!Stage.quiet(mic.listening)) { speak(text); return }
         // Only a line that can start now: a call-out said seconds later, once the platform voice has started, is stale.
         if (!(prefs.naturalVoice && natural.canSay(text)) && !ready) { engine(); Log.d(TAG, "voice: over the mic, not ready yet, dropped: $text"); return }
         overMic = true
-        mic.deafWhileSpeaking(true)
+        Stage.lineStarts(this, null)
         Log.d(TAG, "voice: over the mic, deaf meanwhile: $text")
         say(text, flush = false)
     }
@@ -132,6 +132,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     }
 
     fun release() {
+        if (overMic) { overMic = false; Stage.lineEnds(this, 0L) }      // 2.18: a profile closed mid-line never leaves the mic deaf
         natural.release()
         tts?.shutdown()
         tts = null

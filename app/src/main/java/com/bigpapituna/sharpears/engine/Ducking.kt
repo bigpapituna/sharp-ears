@@ -13,6 +13,6 @@ object Ducking {
     /** The notes' volume factor: [DB] as a gain while ducked, 1 otherwise. */
     fun gain(ducked: Boolean): Float = if (ducked) 10.0.pow(DB / 20.0).toFloat() else 1f
 
-    /** A note's SoundPool volume: its struck volume times the gain, kept in 0..1. */
+    /** A note's volume in the Stage's bank: its struck volume times the gain, kept in 0..1. */
     fun volume(struck: Float, ducked: Boolean): Float = (struck * gain(ducked)).coerceIn(0f, 1f)
 }

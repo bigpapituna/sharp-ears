@@ -205,7 +205,7 @@ internal fun CopyStage(game: StageGame.Copy, step: Step, lessonId: String, deps:
                     } },
                     last = run.last, fx = st.fx,
                     onKey = { m ->
-                        if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                        com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, st.listening)
                         st.tap(m)
                     })
                 HandOverKeys(low, high, hand, Modifier.fillMaxSize())

@@ -148,7 +148,7 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
                 if (pi > 0) delay(TapRound.PART_GAP_MS)
                 playingPart = pi
                 for (s in part) {
-                    if (playing) mic.deafFor(s.ms + 500L)
+                    if (playing) com.bigpapituna.sharpears.audio.Stage.deafFor(s.ms + 500L)
                     if (s.finger != null) hand = HandShow(s.right, s.finger, s.keys.first(), pressed = true, number = revealNumber)
                     held = s.keys
                     if (deps.prefs.sound) s.keys.forEach { deps.sampler.noteOn(it, s.velocity) }
@@ -224,7 +224,7 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
                 }
                 is TapQuiz.Cue.Played -> {
                     fx.found(cue.key); playKey = null; cheer++
-                    mic.deafFor(250); WorldSounds.stagePop()
+                    com.bigpapituna.sharpears.audio.Stage.deafFor(250); WorldSounds.stagePop()
                     say(TreeSkyLines.PLAYED[cue.index % TreeSkyLines.PLAYED.size])
                 }
                 is TapQuiz.Cue.PlayMiss -> {
@@ -237,7 +237,7 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
                     playKey = null
                 }
                 TapQuiz.Cue.Done -> scope.launch {
-                    mic.deafFor(800); WorldSounds.ding()
+                    com.bigpapituna.sharpears.audio.Stage.deafFor(800); WorldSounds.ding()
                     delay(1_600)
                     Log.d(TAG, "playground: tap game done, ${quiz.right} answered (${quiz.firstTry} first time), ${quiz.letGo.size} shown, ${quiz.played} keys")
                     ended(quiz.report())
@@ -307,7 +307,7 @@ internal fun TapStage(game: StageGame.Tap, step: Step, lessonId: String, deps: L
                             } },
                             fx = fx,
                             onKey = { m ->
-                                if (deps.prefs.sound && (!listening || mic.headphonesOn())) { deps.sampler.noteOn(m, 90); scope.launch { delay(600); deps.sampler.noteOff(m) } }
+                                com.bigpapituna.sharpears.audio.Stage.tap(m, 90, 600, deps.prefs.sound, listening)
                                 if (quiz.phase == TapQuiz.Phase.PLAY) { fx.heard(com.bigpapituna.sharpears.engine.playground.StageSound(now(), HeardBy.MATCHER, m, final = true)); handle(quiz.key(m, now())) }
                             })
                         HandOverKeys(low, high, hand, Modifier.fillMaxSize())

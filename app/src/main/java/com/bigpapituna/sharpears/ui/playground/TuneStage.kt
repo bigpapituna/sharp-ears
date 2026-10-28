@@ -186,9 +186,7 @@ internal fun TuneStage(step: Step, lessonId: String, deps: LessonDeps, inject: S
                 last = run.last, fx = st.fx,
                 onKey = { m ->
                     val want = TuneLoudness.ROUNDS.getOrNull(run.done)
-                    if (deps.prefs.sound && (!st.listening || deps.mic.headphonesOn())) {
-                        deps.sampler.noteOn(m, when (want) { Loudness.SOFT -> 30; Loudness.LOUD -> 118; else -> 72 }); scope.launch { delay(600); deps.sampler.noteOff(m) }
-                    }
+                    com.bigpapituna.sharpears.audio.Stage.tap(m, when (want) { Loudness.SOFT -> 30; Loudness.LOUD -> 118; else -> 72 }, 600, deps.prefs.sound, st.listening)
                     // A tap is as soft or as loud as the round asks (the screen cannot tell).
                     val base = tune.anchorDb ?: -32.0
                     st.tap(m, riseDb = when (want) { Loudness.SOFT -> base - 8; Loudness.LOUD -> base + 8; else -> base })

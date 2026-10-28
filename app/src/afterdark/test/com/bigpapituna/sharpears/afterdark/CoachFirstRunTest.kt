@@ -52,18 +52,21 @@ class CoachFirstRunTest {
     }
 
     @Test fun listeningAgainOnlyAfterALineThatMadeTheListeningMicDeaf() {
-        assertTrue(CoachSound.listeningCue(deafened = true, listening = true))
-        assertFalse(CoachSound.listeningCue(deafened = false, listening = true))      // headphones: never deaf
-        assertFalse(CoachSound.listeningCue(deafened = true, listening = false))      // nothing was listening
+        // 2.18: the rule is the Stage's (StageSoundTest drives it through lines); the coach's lines ask for it.
+        assertTrue(com.bigpapituna.sharpears.engine.stage.StageRule.listeningCue(deafened = true, listening = true))
+        assertFalse(com.bigpapituna.sharpears.engine.stage.StageRule.listeningCue(deafened = false, listening = true))      // headphones: never deaf
+        assertFalse(com.bigpapituna.sharpears.engine.stage.StageRule.listeningCue(deafened = true, listening = false))      // nothing was listening
     }
 
     @Test fun theHostHoldsLinesDucksTheNotesAndCuesTheMic() {
         val host = File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachHost.kt").readText()
         assertTrue("if (!on() || busy || held) return null" in host)
         assertTrue("if (!on() || busy || held) return" in host)
-        assertTrue("com.bigpapituna.sharpears.audio.Duck.set(true)" in host)
-        assertEquals(2, Regex("""com\.bigpapituna\.sharpears\.audio\.Duck\.set\(false\)""").findAll(host).count())
-        assertTrue("CoachSound.listeningCue(wasDeaf, mic?.listening == true)" in host)
+        // 2.18: the duck, the deaf window and "Listening again" are the Stage's, asked as a line starts and ends.
+        assertTrue("Stage.lineStarts(mp, lengthMs, duck = true, cue = true)" in host)
+        assertEquals(2, Regex("""Stage\.lineEnds\(mp, StepPopRules\.ROOM_TAIL_MS\.toLong\(\)""").findAll(host).count())
+        assertTrue("finished = false" in host)
+        assertTrue("ListeningAgain(hidden = visible)" in File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachUi.kt").readText())
         val door = File("src/afterdark/java/com/bigpapituna/sharpears/extras/Extras.kt").readText()
         assertTrue("fun hold(on: Boolean) = CoachHost.hold(on)" in door)
         val lesson = File("src/main/java/com/bigpapituna/sharpears/ui/LessonScreen.kt").readText()

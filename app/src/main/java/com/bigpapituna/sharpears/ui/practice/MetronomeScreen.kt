@@ -1,8 +1,6 @@
 package com.bigpapituna.sharpears.ui.practice
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.SoundPool
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -65,8 +63,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.PracticeStore
-import com.bigpapituna.sharpears.engine.Wav
-import com.bigpapituna.sharpears.engine.clickSamples
 import com.bigpapituna.sharpears.engine.practice.MAX_BPM
 import com.bigpapituna.sharpears.engine.practice.MIN_BPM
 import com.bigpapituna.sharpears.engine.practice.MetronomeConfig
@@ -85,7 +81,6 @@ import com.bigpapituna.sharpears.ui.motion.pressScale
 import com.bigpapituna.sharpears.ui.motion.rememberHaptics
 import com.bigpapituna.sharpears.ui.onScreen
 import com.bigpapituna.sharpears.ui.reducedMotion
-import java.io.File
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -96,34 +91,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The metronome's sounds through SoundPool, with a volume per [TickLevel]. It uses the same synthesized clicks as
- * audio/Clicks.kt (accent and beat samples from engine/Metronome.kt) but needs more than two loudnesses, so it
- * keeps its own small pool.
+ * The metronome's sounds, with a volume per [TickLevel]: the same synthesized clicks as audio/Clicks.kt (accent and beat
+ * samples from engine/Metronome.kt) through the Stage's bank (2.18, audio/Stage.kt), at more than two loudnesses.
  */
 class MetronomeVoice(context: Context) {
-    private val pool = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-    ).build()
-    private val accent: Int
-    private val beat: Int
-
-    init {
-        fun load(name: String, isAccent: Boolean) =
-            pool.load(File(context.cacheDir, name).also { Wav.write(it, clickSamples(isAccent), 48_000) }.path, 1)
-        accent = load("practice-click-accent.wav", true)
-        beat = load("practice-click-beat.wav", false)
-    }
+    init { com.bigpapituna.sharpears.audio.Stage.init(context) }
 
     fun play(level: TickLevel) {
+        val stage = com.bigpapituna.sharpears.audio.Stage
         when (level) {
-            TickLevel.STRONG -> pool.play(accent, 1f, 1f, 2, 0, 1f)
-            TickLevel.MEDIUM -> pool.play(accent, 0.55f, 0.55f, 2, 0, 1f)
-            TickLevel.WEAK -> pool.play(beat, 0.9f, 0.9f, 2, 0, 1f)
-            TickLevel.SUB -> pool.play(beat, 0.35f, 0.35f, 2, 0, 0.9f)
+            TickLevel.STRONG -> stage.click(true, 1f)
+            TickLevel.MEDIUM -> stage.click(true, 0.55f)
+            TickLevel.WEAK -> stage.click(false, 0.9f)
+            TickLevel.SUB -> stage.click(false, 0.35f, rate = 0.9f)
         }
     }
 
-    fun release() = pool.release()
+    fun release() {}
 }
 
 private val MUTE_CHANCES = listOf(0.15, 0.25, 0.4)

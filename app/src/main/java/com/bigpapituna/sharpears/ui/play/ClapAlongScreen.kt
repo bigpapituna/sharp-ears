@@ -111,7 +111,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
         beat = -1
         line = when (mode) {
             ClapMode.TAP -> if (kid) "Tap the drum with me!" else "Tap the drum on my beat."
-            ClapMode.CLAP -> if (mic.headphonesOn()) "Clap with my drum!" else "Clap with me! I'll drum quietly so I can hear you."
+            ClapMode.CLAP -> if (!com.bigpapituna.sharpears.audio.Stage.quiet(listening = true)) "Clap with my drum!" else "Clap with me! I'll drum quietly so I can hear you."
         }
         voice?.speak(line, interrupt = true)
         var i = 0
@@ -119,7 +119,7 @@ fun ClapAlongScreen(mic: MicInput, frames: FrameTap?, clicks: Clicks?, voice: Vo
             val wait = along.beatAt(i) - nowMs()
             if (wait > 0) delay(wait)
             beat = i
-            if (sound() && (mode == ClapMode.TAP || mic.headphonesOn())) clicks?.play(i % 4 == 0)
+            if (com.bigpapituna.sharpears.audio.Stage.echo(sound(), listening = mode == ClapMode.CLAP)) clicks?.play(i % 4 == 0)
             if (along.tick(nowMs())) version++
             i++
         }

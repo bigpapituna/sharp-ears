@@ -229,7 +229,7 @@ private fun PupSaysGameScreen(
         onKeyDown = { m ->
             touched[m] = noteColour(m)
             // Through the speaker only when the mic is not listening (or with headphones), so the mic does not hear it twice.
-            if (sound() && (!listening || mic.headphonesOn())) sampler?.noteOn(m, 90)
+            if (com.bigpapituna.sharpears.audio.Stage.echo(sound(), listening)) sampler?.noteOn(m, 90)
             input(m, "touch")
         },
         onKeyUp = { m -> touched.remove(m); sampler?.noteOff(m) })

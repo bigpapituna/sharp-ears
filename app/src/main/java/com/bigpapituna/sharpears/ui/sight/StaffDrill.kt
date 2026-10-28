@@ -238,7 +238,7 @@ fun StaffDrill(level: Int, deps: LessonDeps, seed: Long, onDone: (DrillScore) ->
         Spacer(Modifier.weight(1f, fill = false))
         // The keys, names hidden.
         Keyboard(keys.first, keys.last, lit = touched + flash, onNoteOn = { m, _ ->
-            if (deps.prefs.sound && (!listen || deps.mic.headphonesOn())) deps.sampler.noteOn(m, 80)
+            if (com.bigpapituna.sharpears.audio.Stage.echo(deps.prefs.sound, listen)) deps.sampler.noteOn(m, 80)
             answer(m, src = "touch")
         }, onNoteOff = { m -> deps.sampler.noteOff(m) }, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp).height(150.dp),
             flash = flash, sheen = false, colours = false, reader = true)
