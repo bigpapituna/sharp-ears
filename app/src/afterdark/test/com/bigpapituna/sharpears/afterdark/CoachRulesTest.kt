@@ -280,4 +280,21 @@ class CoachRulesTest {
             if (dir.name == "male_us") assertTrue("Liam narrates nearly all of it: ${byKey.size} of ${grown.size}", byKey.size >= grown.size * 9 / 10)
         }
     }
+
+    /**
+     * 2.18, bug 1: at a lesson's finish Liam narrates "Clean." and "Lesson complete... good girl" (more than the old 8 s wait),
+     * then the stars line plays: at most one coach line after it (one waits at a time), none once the page moves on (hush).
+     */
+    @Test fun theStarsLineWaitsOutLiamsNarrationAndPlaysAfterIt() {
+        val host = File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachHost.kt").readText()
+        assertTrue("overlay = true, ExtraTurn(startAt = now(), waitMs = CoachSound.WAIT_MS, outlastsTheVoice = true)" in host)
+        assertTrue("overlay = false, ExtraTurn(startAt = now() + afterMs, waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = false)" in host)
+        assertTrue("if (!on() || busy || held) return" in host)                       // one line waits at a time
+        val turn = com.bigpapituna.sharpears.engine.voice.ExtraTurn(0, CoachSound.WAIT_MS, outlastsTheVoice = true)
+        var t = 0L
+        while (t < 12_500) { assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.WAIT, turn.next(t, voiceTalking = true, blocked = false)); t += 50 }
+        assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.GO, turn.next(t, voiceTalking = false, blocked = false))
+        // The lesson page and the song recap hush it as they go.
+        assertTrue("onDispose { com.bigpapituna.sharpears.extras.Extras.hush() }" in File("src/main/java/com/bigpapituna/sharpears/ui/RunRecap.kt").readText())
+    }
 }

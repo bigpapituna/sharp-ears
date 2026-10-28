@@ -1,8 +1,6 @@
 package com.bigpapituna.sharpears.afterdark
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -10,6 +8,7 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.analytics.Tester
+import com.bigpapituna.sharpears.audio.ClipPlayer
 import com.bigpapituna.sharpears.audio.MicInput
 import com.bigpapituna.sharpears.audio.Stage
 import com.bigpapituna.sharpears.audio.Voice
@@ -18,12 +17,13 @@ import com.bigpapituna.sharpears.engine.family.PlainLook
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.lessons.CheerFrequency
 import com.bigpapituna.sharpears.engine.lessons.StepPopRules
+import com.bigpapituna.sharpears.engine.voice.ExtraTurn
 import com.bigpapituna.sharpears.extras.ExtraLine
 import com.bigpapituna.sharpears.extras.Moment
 
 /**
  * The coach voice on the phone (2.16): the profile open ([open]), the wall ([on]: CoachGate for the profile read live at every
- * moment), the bank (assets/coach/lines.json, read once), the picks ([CoachBrain]) and one MediaPlayer at a time.
+ * moment), the bank (assets/coach/lines.json, read once), the picks ([CoachBrain]) and one clip at a time (2.18: audio/ClipPlayer.kt, the voice's too).
  *
  * A line never plays over another, over the voice (it waits until Voice.speaking clears) or under the step pop's chime ([chime]:
  * a line playing stops, one waiting waits the chime out). While a line waits or plays, Voice.extraTalking is true, so a lesson
@@ -52,10 +52,10 @@ internal object CoachHost {
     private val banks = HashMap<String, CoachBank>()
     private var voiceList: List<CoachVoice>? = null
 
-    private class Pending(val line: CoachLine, val voice: String, val moment: Moment, val overlay: Boolean, val startAt: Long, val deadline: Long)
+    private class Pending(val line: CoachLine, val voice: String, val moment: Moment, val overlay: Boolean, val turn: ExtraTurn)
     private var pending: Pending? = null
-    private var player: MediaPlayer? = null
-    private var deafens = false
+    /** The line loading or playing in [clips]. */
+    private var playing: Pending? = null
     private var chimeUntil = 0L
     private val waiters = ArrayList<() -> Unit>()
 
@@ -67,8 +67,6 @@ internal object CoachHost {
     /** 2.17 (M3): lines held (a profile's first lesson until a step is passed): none plays or waits. */
     private var held = false
 
-    private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
 
     private fun now() = SystemClock.uptimeMillis()
 
@@ -124,7 +122,7 @@ internal object CoachHost {
         return on
     }
 
-    private val busy get() = pending != null || player != null
+    private val busy get() = pending != null || playing != null
 
     private fun bank(): CoachBank? {
         val v = voice() ?: return null
@@ -144,7 +142,7 @@ internal object CoachHost {
         if (afterMs == 0L && voice?.speaking?.value == true) return null
         val b = bank() ?: return null
         val l = brain.pick(m, count, now(), frequency(), b, forWho()) ?: return null
-        queue(Pending(l, voice()!!, m, overlay = false, startAt = now() + afterMs, deadline = now() + afterMs + CoachSound.SHOWN_WAIT_MS))
+        queue(Pending(l, voice()!!, m, overlay = false, ExtraTurn(startAt = now() + afterMs, waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = false)))
         return ExtraLine(l.caption, CoachSound.showMs(l.ms))
     }
 
@@ -153,7 +151,7 @@ internal object CoachHost {
         if (!on() || busy || held) return
         val b = bank() ?: return
         val l = brain.pick(m, null, now(), frequency(), b, forWho()) ?: return
-        queue(Pending(l, voice()!!, m, overlay = true, startAt = now(), deadline = now() + CoachSound.WAIT_MS))
+        queue(Pending(l, voice()!!, m, overlay = true, ExtraTurn(startAt = now(), waitMs = CoachSound.WAIT_MS, outlastsTheVoice = true)))
     }
 
     /** Each voice's course narration files (assets/coach/<voice>/course), listed once; read on the voice's worker thread too. */
@@ -181,7 +179,7 @@ internal object CoachHost {
     /** The step pop's chime sounds for [ms]: a line playing stops, a line waiting waits it out. */
     fun chime(ms: Long) {
         chimeUntil = now() + ms
-        player?.let { mp -> Log.d(TAG, "coach: stopped for the step pop's chime"); stopPlayer(mp); settle() }
+        if (playing != null) { Log.d(TAG, "coach: stopped for the step pop's chime"); clips?.stop() }
     }
 
     /** 2.17 (M3): hold every line (none plays or waits) or let them go again; holding stops what plays. */
@@ -196,7 +194,7 @@ internal object CoachHost {
     fun hush() {
         main.removeCallbacks(tick)
         pending = null
-        player?.let { stopPlayer(it) }
+        clips?.stop()
         caption.value = null
         settle()
     }
@@ -210,56 +208,50 @@ internal object CoachHost {
 
     private val tick = Runnable { step() }
 
+    /**
+     * 2.18 (bug 1): the turn is the speaking policy's rule (engine/voice ExtraTurn): an overlay line (the finish's stars) waits
+     * the voice out however long Liam narrates, then plays; a bubble line keeps its short wait; a page moving on hushes it.
+     */
     private fun step() {
         val p = pending ?: return
         val t = now()
-        if (t > p.deadline) { Log.d(TAG, "coach: ${p.line.id} dropped, no quiet moment"); pending = null; settle(); return }
-        if (t < p.startAt || t < chimeUntil || voice?.speaking?.value == true || player != null) { main.postDelayed(tick, POLL_MS); return }
-        pending = null
-        play(p)
+        when (p.turn.next(t, voiceTalking = voice?.speaking?.value == true, blocked = t < chimeUntil || playing != null)) {
+            ExtraTurn.Next.DROP -> { Log.d(TAG, "coach: ${p.line.id} dropped, no quiet moment"); pending = null; settle() }
+            ExtraTurn.Next.WAIT -> main.postDelayed(tick, POLL_MS)
+            ExtraTurn.Next.GO -> { pending = null; play(p) }
+        }
     }
+
+    /** The clip player the voice uses too (audio/ClipPlayer.kt), one line at a time. */
+    private var clips: ClipPlayer? = null
 
     private fun play(p: Pending) {
         val c = context ?: return settle()
-        val mp = MediaPlayer()
-        val ok = runCatching {
-            c.assets.openFd("coach/${p.voice}/${p.line.id}.ogg").use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
-            mp.setAudioAttributes(attrs)
-            mp.setOnCompletionListener { done(it) }
-            mp.setOnErrorListener { m, _, _ -> done(m); true }
-            mp.prepare()
-        }.onFailure { Log.w(TAG, "coach: ${p.line.id} did not play", it) }.isSuccess
-        if (!ok) { mp.release(); settle(); return }
-        val lengthMs = mp.duration.toLong().takeIf { it > 0 } ?: p.line.ms
-        deafens = CoachSound.deafens(Stage.headphones())
-        player = mp
-        mp.start()
-        // 2.18: the Stage holds the mic deaf from now until exactly the line's end plus the room's ring, ducks the notes under it
-        // (2.17) and shows "Listening again" after it (2.17), by its one rule (audio/Stage.kt).
-        Stage.lineStarts(mp, lengthMs, duck = true, cue = true)
-        if (p.overlay) caption.value = Caption(++seq, p.line.caption, CoachSound.showMs(lengthMs))
-        Log.d(TAG, "coach: ${p.moment.name.lowercase()} ${p.voice}/${p.line.id} \"${p.line.caption}\" $lengthMs ms, mic deaf " +
-            if (deafens) "${CoachSound.deafMs(lengthMs, headphones = false)} ms" else "no (headphones)")
-        // Should its end never be reported, the line still ends.
-        main.postDelayed({ if (player === mp) done(mp) }, lengthMs + 2_000)
+        val player = clips ?: ClipPlayer(c).also { clips = it }
+        playing = p
+        player.play("coach/${p.voice}/${p.line.id}.ogg", started = { length ->
+            if (playing !== p) return@play
+            val lengthMs = length ?: p.line.ms
+            val deafens = CoachSound.deafens(Stage.headphones())
+            // 2.18: the Stage holds the mic deaf from now until exactly the line's end plus the room's ring, ducks the notes under
+            // it (2.17) and shows "Listening again" after it (2.17), by its one rule (audio/Stage.kt).
+            Stage.lineStarts(p, lengthMs, duck = true, cue = true)
+            if (p.overlay) caption.value = Caption(++seq, p.line.caption, CoachSound.showMs(lengthMs))
+            Log.d(TAG, "coach: ${p.moment.name.lowercase()} ${p.voice}/${p.line.id} \"${p.line.caption}\" $lengthMs ms, mic deaf " +
+                if (deafens) "${CoachSound.deafMs(lengthMs, headphones = false)} ms" else "no (headphones)")
+        }, ended = { finished -> done(p, finished) })
     }
 
-    private fun done(mp: MediaPlayer) {
-        if (player === mp) {
-            player = null
+    /** [p]'s line is over: played to its end ([finished]), failed, or cut short (the chime, a hush: no "Listening again"). */
+    private fun done(p: Pending, finished: Boolean) {
+        if (playing === p) {
+            playing = null
+            if (!finished && !Stage.linePlaying(p)) Log.d(TAG, "coach: ${p.line.id} did not play")
             // The room's ring after the speaker stops, then "Listening again" when the mic listens (the Stage's, 2.18).
-            Stage.lineEnds(mp, StepPopRules.ROOM_TAIL_MS.toLong())
+            Stage.lineEnds(p, StepPopRules.ROOM_TAIL_MS.toLong(), finished)
+            if (!finished) caption.value = null
         }
-        runCatching { mp.release() }
         settle()
-    }
-
-    private fun stopPlayer(mp: MediaPlayer) {
-        player = null
-        Stage.lineEnds(mp, StepPopRules.ROOM_TAIL_MS.toLong(), finished = false)    // cut short: no "Listening again"
-        runCatching { mp.stop() }
-        runCatching { mp.release() }
-        caption.value = null
     }
 
     /** Nothing waits or plays: what waited on the line goes on (first, so a step never starts in the gap), then the voice's hold ends. */

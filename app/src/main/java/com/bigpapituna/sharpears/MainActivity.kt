@@ -659,6 +659,8 @@ class MainActivity : ComponentActivity() {
         voice.speed = com.bigpapituna.sharpears.engine.family.Ages.voiceSpeed(profile.audience)   // big and slow for little kids (KIDS-PLAN 3.8)
         // 2.15, the Plain look (engine/family/PlainLook.kt): spoken lines off by default, the plain bank's words; never a little kid's.
         voice.plain = { com.bigpapituna.sharpears.engine.family.PlainLook.on(profiles.current.audience, prefs.plainLook) }
+        // 2.18: the profile's own kind, read live (never the skin's): a kid never hears the coach's narration (engine/voice).
+        voice.kid = { profiles.current.let { it.isKid || it.bigKid } }
         val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly

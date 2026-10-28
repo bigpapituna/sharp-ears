@@ -63,9 +63,10 @@ class CoachFirstRunTest {
         assertTrue("if (!on() || busy || held) return null" in host)
         assertTrue("if (!on() || busy || held) return" in host)
         // 2.18: the duck, the deaf window and "Listening again" are the Stage's, asked as a line starts and ends.
-        assertTrue("Stage.lineStarts(mp, lengthMs, duck = true, cue = true)" in host)
-        assertEquals(2, Regex("""Stage\.lineEnds\(mp, StepPopRules\.ROOM_TAIL_MS\.toLong\(\)""").findAll(host).count())
-        assertTrue("finished = false" in host)
+        assertTrue("Stage.lineStarts(p, lengthMs, duck = true, cue = true)" in host)
+        assertTrue("Stage.lineEnds(p, StepPopRules.ROOM_TAIL_MS.toLong(), finished)" in host)
+        // One clip player for the voice and the coach (audio/ClipPlayer.kt); a line cut short (chime, hush) ends as not finished.
+        assertTrue("ClipPlayer(c)" in host && "clips?.stop()" in host)
         assertTrue("ListeningAgain(hidden = visible)" in File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachUi.kt").readText())
         val door = File("src/afterdark/java/com/bigpapituna/sharpears/extras/Extras.kt").readText()
         assertTrue("fun hold(on: Boolean) = CoachHost.hold(on)" in door)

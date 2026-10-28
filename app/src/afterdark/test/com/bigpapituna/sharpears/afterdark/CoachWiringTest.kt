@@ -55,8 +55,11 @@ class CoachWiringTest {
     }
 
     @Test fun theVoiceAsksTheDoorForANarrationFirst() {
-        val natural = src("audio/NaturalVoice.kt")
-        assertTrue("com.bigpapituna.sharpears.extras.Extras.narration(key) ?: \"voice/\$key.ogg\".takeIf { \"\$key.ogg\" in recorded }" in natural)
+        // 2.18: the speaking policy picks the narration before the recording (engine/voice RecordingChoice), the host asks the door.
+        assertTrue("override fun narration(key: String) = com.bigpapituna.sharpears.extras.Extras.narration(key)" in src("audio/Voice.kt"))
+        val policy = src("engine/voice/SpeakingPolicy.kt")
+        assertTrue("narration != null && !kid -> Source.NARRATION to narration" in policy)
+        assertTrue(policy.indexOf("Source.NARRATION to narration") < policy.indexOf("Source.RECORDING to recording"))
         val host = mine("afterdark/CoachHost.kt")
         assertTrue("if (!CoachGate.narrates(p, v, PlainLook.on(p.audience, pr.plainLook))) return null" in host)
     }

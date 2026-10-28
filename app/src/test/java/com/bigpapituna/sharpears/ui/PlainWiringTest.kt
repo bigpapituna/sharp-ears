@@ -132,7 +132,7 @@ class PlainWiringTest {
         assertTrue("if (plain) { drawCheckDisc(box.center, 1f, StepPopMotion.fade(ms), 1f); return@Canvas }" in step)
         val voice = src("audio/Voice.kt")
         assertTrue("PlainLook.voiceOn(plain(), prefs.voice, prefs.plainVoice)" in voice)
-        assertTrue("PlainLook.calm(text, spoken = true)" in voice)
+        assertTrue("PlainLook.calm(text, spoken = true)" in src("engine/voice/SpeakingPolicy.kt"))      // 2.18: the speaking policy's
         // Lessons, the player and songs keep their own calls (the entry points decide).
         assertTrue("rememberStepPops(deps.sampler, deps.mic, sound = { deps.prefs.sound }" in src("ui/LessonScreen.kt"))
     }
