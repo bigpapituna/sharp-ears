@@ -157,4 +157,36 @@ class SpokenCatalogTest {
         assertTrue("unrecorded: ${(keys - files).take(10)}", (keys - files).isEmpty())
         assertTrue("left over: ${(files - keys).take(10)}", (files - keys).isEmpty())
     }
+
+    /**
+     * 2.18, bug 2: the voice switched mid-lesson from the natural voice to the phone's own on a line nobody recorded. The phone's
+     * voice stays the fallback, but a gap is caught here at build time: every catalogued grown-up line and every kid line has
+     * its natural recording, and the speaking policy picks it over the model and the phone (engine/voice RecordingChoice).
+     * The Plain look calms some words (PlainLook.calm), which makes lines the catalog does not have: those are pinned here
+     * (CLAUDE.md "2.18 Stage sound and voice" lists them), so a new one fails.
+     */
+    @Test fun everyGrownUpAndKidLineHasItsNaturalRecording() {
+        val files = File("src/main/assets/voice").listFiles { f -> f.extension == "ogg" }!!.map { it.nameWithoutExtension }.toSet()
+        val all = SpokenCatalog.all(library())
+        val kid = SpokenCatalog.kidLines().map(SpokenCatalog::normalize).toSet()
+        val grown = all.filter { it !in kid }
+        assertTrue("both halves: ${grown.size} grown-up, ${kid.size} kid", grown.size > 2_000 && kid.size > 1_000)
+        val grownMissing = grown.filter { SpokenCatalog.key(it) !in files }
+        val kidMissing = kid.filter { SpokenCatalog.key(it) !in files }
+        assertTrue("grown-up lines with no recording, said in the phone's voice: ${grownMissing.take(10)}", grownMissing.isEmpty())
+        assertTrue("kid lines with no recording, said in the phone's voice: ${kidMissing.take(10)}", kidMissing.isEmpty())
+        // A recorded line plays its recording, never the phone's voice, whatever else is there.
+        val pick = com.bigpapituna.sharpears.engine.voice.RecordingChoice.pick(natural = true, kid = false, narration = null, recording = "voice/x.ogg", model = false)
+        assertEquals(com.bigpapituna.sharpears.engine.voice.Source.RECORDING, pick.first)
+        // The Plain look's own words.
+        val catalog = all.toSet()
+        fun calmGaps(lines: Collection<String>) = lines.map { SpokenCatalog.normalize(com.bigpapituna.sharpears.engine.family.PlainLook.calm(it, spoken = true)) }
+            .filter { it !in catalog }.toSet()
+        assertEquals("the Plain look's grown-up words nobody recorded", setOf("You stuck with it.", "Step passed.", "Well played.", "Nicely done."), calmGaps(grown))
+        val kidGaps = calmGaps(kid)
+        assertTrue("kid lines the Plain look rewords into unrecorded words: ${kidGaps.size} (a big kid with the Plain look and the voice on)", kidGaps.size <= KID_PLAIN_GAPS)
+    }
+
+    /** 2.18: kid lines whose Plain look wording nobody recorded (calmed exclamations, the pup's own words cut). Never more. */
+    private val KID_PLAIN_GAPS = 654
 }

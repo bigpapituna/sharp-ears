@@ -277,7 +277,10 @@ class CoachRulesTest {
                 assertTrue("${dir.name}: $key is a grown-up line in the catalog", key in grown)
                 assertTrue("${dir.name}: $key has $variants", variants == listOf(key) || variants.sorted() == listOf("${key}_m", "${key}_w"))
             }
-            if (dir.name == "male_us") assertTrue("Liam narrates nearly all of it: ${byKey.size} of ${grown.size}", byKey.size >= grown.size * 9 / 10)
+            // 2.18, bug 2: Liam narrates every grown-up line (a gap would switch to the pup's recording mid-lesson): re-run
+            // coach_bank.py and record the missing ones before a copy change ships. Kid lines never have his narration.
+            if (dir.name == "male_us") assertTrue("Liam narrates every grown-up line; missing: ${(grown - byKey.keys).take(10)} of ${(grown - byKey.keys).size}",
+                (grown - byKey.keys).isEmpty())
         }
     }
 
