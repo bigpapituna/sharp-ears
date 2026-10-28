@@ -475,8 +475,7 @@ fun LessonScreen(
                     com.bigpapituna.sharpears.analytics.Events.inputChosen(true); Log.d(TAG, "first run: use my piano (mic)"); micAsk.ask()
                 }, onKeys = {
                     com.bigpapituna.sharpears.analytics.Events.inputChosen(false); Log.d(TAG, "first run: use screen keys"); answerInput(false)
-                }, modifier = Modifier.weight(1f).fillMaxWidth()) else
-                androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.pup.LocalCheers provides cheerPops) {
+                }, modifier = Modifier.weight(1f).fillMaxWidth()) else androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.pup.LocalCheers provides cheerPops) {
                 Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { stepArea.value = it.boundsInRoot() }, contentAlignment = Alignment.TopCenter) {
                     // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
                     if (com.bigpapituna.sharpears.ui.playground.hasPlaygroundStage(step)) key(index, run) {

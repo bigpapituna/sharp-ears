@@ -2570,7 +2570,7 @@ questions, so the decisions below are mine.
   normal voice on the 105 with a woman's and a man's take.
 - Known: Liam's "Clean." plus "Lesson complete. Good girl..." fill the finish, so the coach's stars3/stars2 overlay line that used
   to follow the short normal-voice lines usually waits out its 8 s and is dropped (`coach: stars3_xx dropped, no quiet moment`).
-  Left so: the narration already carries the praise; three Liam lines in a row would pile up.
+  Left so: the narration already carries the praise; three Liam lines in a row would pile up. 2.18: the stars line now waits the narration out and plays after it (bug 1).
 - What's new 2.16.2: only the afterdark build's (`Extras.WHATS_NEW`): "Liam now talks you through every lesson."; Welcome.WHATS_NEW
   has no 2.16.2, so a build without the coach shows no sheet.
 - Tests: CoachRulesTest `theCourseFilesAreTheCatalogsGrownUpLines` (every course file's key is a grown-up line of the catalog,
@@ -2646,7 +2646,75 @@ The rules are one pure file, engine/nav/FirstRun.kt (FirstRunTest, FirstRunWirin
   `tts-bakeoff/elevenlabs/course_male_us_2.17/` (coach_bank.py now also reads `course_<voice>_*` beside Roy's folder);
   56 credits used (27,109 remaining before, 27,053 after; cap 3,000). Coverage 2,528 of 2,528 grown-up lines, 0 orphans.
 - What's new 2.17.0: two lines of the app's own, one of the coach's.
-- Known: Learn's lesson sheet still says "3 steps" for lesson 1 where a Never grown-up gets five (the sheet reads the course's lesson).
+- Known: Learn's lesson sheet still says "3 steps" for lesson 1 where a Never grown-up gets five (the sheet reads the course's lesson). Fixed in 2.18.
 - Tests: FirstRunTest (23), FirstRunWiringTest (4), CoachFirstRunTest (7, afterdark); PlainLookTest, NavTest, MicTrustWiringTest, TesterWiringTest, LevelsAgesWiringTest, PolishWiringTest, ShowOffWiringTest, CoachWiringTest re-pinned. Keyed main with the coach: 2042 JVM tests, all green (2 skipped, TesterTest's keyless checks); `-Psharpears.afterdark=false`: 2014, all green; `checkNoAfterdarkDebug` passed (155 captions checked). SpokenCatalogTest: 3,974 lines, 3,974 files. Lint not re-run.
 - Emulator: a `-read-only` Pixel7_API37 on 5580 (airplane mode, never emulator-5554), the keyed APK with the coach; screenshots in sharp-ears-audits/2.17-screens/. Me with the mic (me-01 to me-17): the welcome card with Who is this for and Continue clear, the tester sheet after it, Never, goal, the calm You're all set, Listen C, the question, the short card, Android's prompt, the wait cue, middle C by touch (`first note: touch, 155 s after the first open`), "Your first note!", Skip to playing, the finish with the nudge, Yes, Android's notification prompt (`nudge: granted, reminder on`), Learn and Today with no chooser, no tour, no chord badge and no Continue tile. Me with the screen keys (keys-01 to 04): Skip on card 1 to You're all set, the tester sheet over the lesson (Turn off: `tester: help Roy test off`), Use screen keys, the early-key hint. My child (child-01 to 06): Who is this for, the form without the gate, the weekly time, the mic card naming Mia, then her first lesson (playground-1) at once. The coach's lines were not heard (no voice chosen on the emulator; the hold logged `coach: held until a step is passed` and `coach: free to talk`).
 - Status: merged to main and pushed; released as v2.17.0 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.17.0, the keyed debug APK with AFTERDARK=true). Not on the Fold: it was on wireless adb at the start of the session but had dropped off adb and mDNS by install time (needs wireless debugging re-enabled, then adb connect or pair, then `adb install -r`). Note: the GitHub repo reported visibility PUBLIC on 2026-10-28 (gh api), not private as assumed; not changed here.
+
+## 2.18 Stage sound and voice
+2.18.0, versionCode 36 (2026-10-28, on main). From `sharp-ears-audits/architecture-review-2026-10-28.html`, candidates 3 (Stage sound)
+and 6 (Voice split), as a behaviour-preserving refactor that fixes four audio bugs players hear. Roy approved the scope and asked for
+no follow-up questions; the decisions are below.
+- Stage sound (new): `engine/stage/StageRule.kt` (the one speaker-and-mic rule: an echo is quiet while the mic listens on the
+  speaker, a cue plays with the mic deaf for it, nothing with App sound off, headphones lift both), `engine/stage/DeafWindow.kt`
+  (timed windows for sounds of known length, held windows for lines that end when their playback ends, a limit for a lost end,
+  closeAll), `engine/stage/StageSound.kt` (the logic, no Android: the rule with the phone's headphones, lines on the speaker with
+  their deaf window, the 2.17 duck of the notes and "Listening again", the piano's streams; the `SoundBank` port), and
+  `audio/Stage.kt` (the Android host: two SoundPools, piano CONTENT_TYPE_MUSIC and everything else SONIFICATION, loaded once per
+  process; the headphones check). MicInput's deaf state is a DeafWindow (`mic.window`) that only the Stage writes. Sampler, Clicks,
+  BandPlayer, MetronomeVoice, DrumSound and WorldSounds are handles on the Stage (six SoundPool setups gone); audio/Duck.kt is gone
+  (the Stage ducks while a line asks for it); "Listening again" is `ui/ListeningAgain.kt`, drawn by the coach's overlay.
+  Screens ask `Stage.tap(midi, velocity, holdMs, sound, listening)` (a touched key's echo, 20 call sites), `Stage.echo`,
+  `Stage.quiet`, `Stage.cue`, `Stage.deafFor`; StepPopRules.chimeMode and CheerRules' mic rule delegate to StageRule.
+  StageWiringTest: no SoundPool outside audio/Stage.kt, no headphones read, deafFor or window opened outside the Stage.
+  To add a sound: load it in `Stage.load` (a res/raw file, an asset, or PCM through its `synth`, cached by hash) and give it a call.
+- Voice split (new): `engine/voice/SpeakingPolicy.kt` (no Android): guidance on/off and the Plain look's words, the mic hold
+  (SpeechQueue), one line at a time in order whichever speaker says it, a line that starts on the speaker while the mic listens
+  (speakOverMic) deaf for exactly its length through the Stage, `RecordingChoice` (the coach's narration for a grown-up, never for
+  the profile's own isKid or bigKid, then the recording, then the Kokoro model, then the phone), the pup-only rule, `ExtraTurn`
+  (when a line of the build's extra may start). Speakers behind `engine/voice/Speaker`: `audio/SystemSpeaker.kt` (TextToSpeech,
+  the voice list), `audio/ClipPlayer.kt` (one recorded clip at a time, MediaPlayer; the coach's CoachHost uses it too),
+  `audio/KokoroSpeaker.kt` (the optional model, was NaturalVoice). `audio/Voice.kt` is the host and keeps its interface for the
+  callers; MainActivity sets `voice.kid` (the profile's own isKid or bigKid). To add a speaker: implement Speaker and map its
+  Source in Voice.
+- Bug 1 (stars line dropped after Liam's narration): CoachHost waited at most 8 s (CoachSound.WAIT_MS) for the voice, and Liam's
+  "Clean." plus "Lesson complete... good girl" run longer, so `stars3/stars2 dropped, no quiet moment`. Now an overlay line waits
+  the voice out (ExtraTurn: only time blocked by something else counts, 30 s cap), one line at a time as before, and the lesson
+  page and the song recap (new DisposableEffect) hush it as they go. Found on the emulator: the finish's lines are held for the
+  mic's last ms, and the stars line slipped into that gap and played over the narration; it now also waits for held lines
+  (`Voice.talkingOrAboutTo`). VoicePolicyTest red with the 2.17 rule, green after.
+- Bug 2 (natural voice to phone voice mid-lesson): the phone's voice stays the fallback. SpokenCatalogTest
+  `everyGrownUpAndKidLineHasItsNaturalRecording` (2,528 grown-up and 1,446 kid lines all recorded, 0 missing) and CoachRulesTest
+  (Liam narrates every grown-up line, was at least 90%). Gaps that remain, by design or pinned: lines made at run time (notes,
+  percents, a kid's name: "You did it, Mia!") are the model's, else the phone's, and the emulator (no Kokoro model) said them in
+  the phone's voice; the Plain look rewords 4 grown-up lines ("You stuck with it.", "Step passed.", "Well played.", "Nicely
+  done.") and up to 654 kid lines into words nobody recorded (pinned so a new one fails); a grown-up whose coach uses their name
+  or "for" unset hears the pup's recording on the 105 lines Liam recorded only as a woman's and a man's take.
+- Bug 3 (deaf window): the voice's window over the mic was capped at 8 s (a long narrated line let the mic hear its end) and
+  the coach's 500 ms slices left the mic deaf up to half a second past a line cut short; a profile closed mid-line left it to
+  the cap. Now every line's window is held from its start until exactly its end (finished, failed or stopped) plus the room's
+  tail (voice 300 ms, coach StepPopRules.ROOM_TAIL_MS), with a limit of the clip's length plus 2 s for a lost end; Voice.stop and
+  release, the coach's hush and Stage.release close it. Decision: the Playground's and arcade's fixed deaf windows (dings, demos)
+  now follow the headphones rule too (with headphones the mic keeps hearing).
+- Bug 4: Learn's lesson card shows `FirstRun.lessonFor` (the lesson LessonScreen plays): lesson 1 reads 5 steps for a Never
+  grown-up. FirstRunWiringTest red first.
+- Logs: `mic: deaf for N ms`, `mic: deaf while a line plays (N ms)`, `mic: hears again in N ms`, `mic: lines hushed`,
+  `duck: notes down -4 dB` / `back to full`, `stage: listening again`; the voice's and the coach's lines as before.
+- What's new 2.18.0: two lines of the app's own; the coach's door adds one (the stars line after the lesson's last words).
+- Tests: StageSoundTest (8), DeafWindowTest (3), VoicePolicyTest (12), StageWiringTest (3), FirstRunWiringTest +1, WelcomeTest
+  +1, SpokenCatalogTest +1, CoachRulesTest +1 (and the Liam check tightened), CoachFirstRunTest, StepPopWiringTest,
+  CheerPopWiringTest, PlainWiringTest, TesterWiringTest, CoachWiringTest re-pinned. With the coach: 2072 JVM tests, all green (2
+  skipped, TesterTest's keyless checks); `-Psharpears.afterdark=false`: 2043, all green; `checkNoAfterdarkDebug` passed (155
+  captions checked). Lint 0 errors, 32 warnings (the one error, SuspiciousIndentation in LessonScreen from 2.17, fixed by
+  joining its else onto one line).
+- Emulator: a `-read-only` Pixel7_API37 on 5580 (airplane mode, never emulator-5554), the keyed APK with the coach; logs and
+  screenshots in sharp-ears-audits/2.18-checks/: lesson 1's card with 5 steps (01), Liam as a woman on Finger numbers step 4 by
+  injected mic (02 to 05: deaf windows matching each line to the ms, the duck, "stage: listening again", the stars3 line after
+  the narrated Clean. and Lesson complete.; 04 is the overlap before the held-lines fix), Mia (little kid) with the coach planted
+  in her progress file on playground-1 (06: no coach line, recorded lines, stage pops and dings with their deaf windows), the
+  metronome (07: the app has exactly two SoundPools), the band on Riptide (08). No crash.
+- Status: committed locally on main, not pushed and not released: the GitHub repo is public and Roy has not decided on its
+  visibility. The APK is in sharp-ears-audits/sharp-ears-2.18.0.apk for sideloading. Not on the Fold: no mDNS service and adb
+  connect to 10.0.0.171:5555 timed out on 2026-10-28.
+- Later: the Ear (candidate 2) would own the DeafWindow and the listening state; screens still hold Sampler and Clicks handles (a
+  rename to the Stage across 38 files was left out); the Plain look's 4 grown-up wordings could be recorded with render_voice.py.
