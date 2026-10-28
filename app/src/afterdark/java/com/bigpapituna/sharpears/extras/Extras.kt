@@ -28,6 +28,8 @@ object Extras {
         "2.16.2" to listOf("Liam now talks you through every lesson."),
         // 2.17.0: a third answer, a louder Liam, the notes a little quieter under him, quiet until the first step is passed.
         "2.17.0" to listOf("The coach can now just use your name, Liam is a little louder over the notes, and the coach waits for your first note before talking."),
+        // 2.18.0: the stars line waits out the lesson's last words (it used to be skipped after Liam's finish).
+        "2.18.0" to listOf("Finish a lesson with two or three stars and your coach now has the last word, after the lesson's own."),
     )
 
     /** MainActivity opened a profile: [who] is read live at every moment (a profile made a kid is a kid at once). */

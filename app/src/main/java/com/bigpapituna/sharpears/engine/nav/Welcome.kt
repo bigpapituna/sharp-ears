@@ -114,6 +114,11 @@ object Welcome {
             "A shorter start: three questions, then your first note. The app asks about your piano and a reminder when they matter.",
             "Setting up for your child? Pick My child on the first screen and their first lesson comes straight away.",
         ),
+        // 2.18.0: Stage sound and the voice split (the architecture review's candidates 3 and 6), with the audio fixes players hear.
+        "2.18.0" to listOf(
+            "The microphone listens again the moment the app stops talking, and the app's sounds stay out of its way.",
+            "Lesson cards now count the steps you will actually play.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

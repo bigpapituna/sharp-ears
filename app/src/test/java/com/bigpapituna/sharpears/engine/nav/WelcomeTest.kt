@@ -188,4 +188,11 @@ class WelcomeTest {
         (Welcome.TOUR.map { it.line } + Welcome.parentsTour(true).map { it.line } + Welcome.WHATS_NEW.values.flatten()).forEach { assertTrue(it, it.endsWith(".")) }
         (Welcome.TOUR + Welcome.parentsTour(true)).forEach { assertFalse(it.title, it.title.endsWith(".")); assertFalse(it.title, it.title.first().isLowerCase()) }
     }
+
+    /** 2.18.0: two plain lines of the app's own (the coach's, on a build with it, come from its door). */
+    @Test fun whatsNew218() {
+        val lines = Welcome.WHATS_NEW.getValue("2.18.0")
+        assertEquals(2, lines.size)
+        assertTrue(lines.none { "coach" in it.lowercase() || "Liam" in it })
+    }
 }
