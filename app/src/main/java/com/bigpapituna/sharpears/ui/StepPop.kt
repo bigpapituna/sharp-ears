@@ -88,6 +88,8 @@ class StepPops internal constructor(
         Log.d(TAG, "step pop: streak $streak, chime $mode, ${variant.name.lowercase()}")
         if (telemetry) Tester.stepPop(streak)
         if (mode != ChimeMode.SKIP) {
+            // 2.16: a line of the build's extra never plays under the chime (extras/Extras.kt).
+            com.bigpapituna.sharpears.extras.Extras.chime(StepPopRules.CHIME_MS.toLong())
             if (mode == ChimeMode.PLAY_DEAF) mic.deafFor(StepPopRules.DEAF_MS.toLong())
             val before = chimeJob
             chimeJob = scope.launch {

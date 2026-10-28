@@ -134,6 +134,8 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     var tipOpen by remember(e) { mutableStateOf(e.tip != null && !kid) }
     val wordsKind = if (kid) ProfileKind.KID else ProfileKind.ADULT
     val stars = Stars.of(e.recap, e.wrongKeys)
+    // 2.16: two or three stars may have a line of the build's extra for a grown-up (extras/Extras.kt); never a kid's or a big kid's.
+    if (!who.isKid && stars >= 2) LaunchedEffect(e) { com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.finish(stars)) }
     val seed = remember(e) { e.hashCode() }
     // 2.15, the Plain look: no pup (the app's mark in his place), no party, no star chimes, plain words, no reward line or chip.
     val plain = LocalPlain.current.on

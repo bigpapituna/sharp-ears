@@ -109,6 +109,13 @@ object Welcome {
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)
 
+    /**
+     * 2.16: [WHATS_NEW] with [extra]'s lines after the app's own for each version (the build's optional extra,
+     * extras/Extras.kt: its own lines only on a build with it, so a build without it never mentions it).
+     */
+    fun merged(extra: Map<String, List<String>>, table: Map<String, List<String>> = WHATS_NEW): Map<String, List<String>> =
+        (table.keys + extra.keys).associateWith { table[it].orEmpty() + extra[it].orEmpty() }
+
     enum class Show { NOTHING, WHATS_NEW, TOUR, PARENTS }
 
     /**

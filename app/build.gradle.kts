@@ -1,5 +1,6 @@
 import java.security.MessageDigest
 import java.util.Properties
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -24,6 +25,18 @@ fun secret(name: String, default: String = "") = (secrets.getProperty(name) ?: d
 val withPostHog = secret("POSTHOG_KEY").isNotBlank() && providers.gradleProperty("sharpears.posthog").orNull != "false" ||
     providers.gradleProperty("sharpears.posthog").orNull == "true"
 
+// 2.16, the coach voice (CLAUDE.md "2.16 coach voice"): an adult-only extra whose code, captions and audio live only in
+// src/afterdark (src/afterdark/java, src/afterdark/assets/coach, src/afterdark/test). It is compiled in only when
+// secrets.properties has AFTERDARK=true; otherwise the build takes src/noafterdark (a door that does nothing) and the APK holds
+// no coach class, caption or sound. `-Psharpears.afterdark=false` forces it off on a PC that has the key (and
+// `-Psharpears.afterdark=true` forces it on, for a worktree without secrets.properties). `checkNoAfterdark<Type>` runs after
+// every APK packaged without it and fails if any of it got in.
+val afterdark = when (providers.gradleProperty("sharpears.afterdark").orNull) {
+    "false" -> false
+    "true" -> true
+    else -> secret("AFTERDARK").trim().equals("true", ignoreCase = true)
+}
+
 // The debug routes' key (security review 2026-10-22, finding 1; engine/DebugRoutes.kt). With DEBUG_ROUTE_KEY in
 // secrets.properties (scripts/set-debug-key.ps1) the debug build acts on `--es screen ...` and the other launch extras only
 // with `--es dk <key>` (scripts/adb-route.ps1); without it (keyless worktree builds) they work as before. BuildConfig keeps
@@ -41,8 +54,8 @@ android {
         applicationId = "com.bigpapituna.sharpears"
         minSdk = 28   // Android 9: microphone addresses (bottom/back) need API 28
         targetSdk = 37
-        versionCode = 31
-        versionName = "2.15.0"
+        versionCode = 32
+        versionName = "2.16.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The Fold's ABI only: the x86_64 emulators run arm64 apps through their ARM translation (the speech library loads
         // only with the Kokoro model installed, which the emulators never have). x86_64 cost 26 MB of every install.
@@ -82,6 +95,11 @@ android {
 
     // The tester SDK's door (analytics/TesterSdk.kt): the real one with the SDK, the stub without it.
     sourceSets.getByName("main").kotlin.srcDir(if (withPostHog) "src/posthog/java" else "src/noposthog/java")
+    // The coach voice's door (extras/Extras.kt): the real one with its code, captions and sounds, or the empty one; each side's
+    // JUnit tests come with it.
+    sourceSets.getByName("main").kotlin.srcDir(if (afterdark) "src/afterdark/java" else "src/noafterdark/java")
+    if (afterdark) sourceSets.getByName("main").assets.srcDir("src/afterdark/assets")
+    sourceSets.getByName("test").kotlin.srcDir(if (afterdark) "src/afterdark/test" else "src/noafterdark/test")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -106,4 +124,46 @@ dependencies {
     androidTestImplementation(libs.test.runner)
     androidTestImplementation(libs.espresso.core)   // Compose test pulls 3.5.0, which breaks on API 37
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// 2.16, the wall around the coach voice: an APK packaged without it (no AFTERDARK=true, or -Psharpears.afterdark=false) must
+// hold none of it. Each check opens that build type's APK and fails on an asset under coach/ or named afterdark, on any class
+// of the afterdark package, or on any caption from src/afterdark/assets/coach/<voice>/lines.json or the super property's name found in
+// its dex, resources or manifest. It runs by itself after every such package task, and on its own as
+// `.\gradlew.bat :app:checkNoAfterdarkDebug "-Psharpears.afterdark=false"`.
+val coachBanks = file("src/afterdark/assets/coach")
+for (type in listOf("debug", "profile", "release")) {
+    val cap = type.replaceFirstChar { it.uppercase() }
+    val apkDir = layout.buildDirectory.dir("outputs/apk/$type")
+    val built = afterdark
+    val banks = coachBanks          // a local: the task must not hold the script (configuration cache)
+    val check = tasks.register("checkNoAfterdark$cap") {
+        group = "verification"
+        description = "Fails if the coach voice (src/afterdark) got into the $type APK built without it."
+        doLast {
+            if (built) throw GradleException("checkNoAfterdark$cap checks a build without the coach voice: run it with -Psharpears.afterdark=false")
+            val apks = apkDir.get().asFile.listFiles { f -> f.name.endsWith(".apk") }.orEmpty()
+            if (apks.isEmpty()) throw GradleException("checkNoAfterdark$cap: no APK in ${apkDir.get().asFile}")
+            // The needles: every caption (from the bank's own captions file), the property's name and the package's path, as
+            // UTF-8 bytes read one to one (ISO 8859-1), so a plain indexOf finds them in dex strings (MUTF-8) and resources.
+            @Suppress("UNCHECKED_CAST")
+            val files = banks.listFiles().orEmpty().map { it.resolve("lines.json") }.filter { it.isFile }
+            val captions = files.flatMap { f -> (groovy.json.JsonSlurper().parse(f) as List<Map<String, Any?>>).map { it["caption"].toString() } }.distinct()
+            if (banks.exists() && captions.size < 100) throw GradleException("checkNoAfterdark$cap: read only ${captions.size} captions from $banks")
+            val needles = (captions + listOf("coach_voice", "coach_for", "sharpears/afterdark")).map { String(it.toByteArray(Charsets.UTF_8), Charsets.ISO_8859_1) }
+            val found = mutableListOf<String>()
+            for (apk in apks) ZipFile(apk).use { zip ->
+                for (e in zip.entries()) {
+                    val name = e.name
+                    if (name.startsWith("assets/coach/") || name.contains("afterdark", ignoreCase = true)) { found += "${apk.name}: $name"; continue }
+                    if (!(name.endsWith(".dex") || name.endsWith(".arsc") || name.endsWith(".xml") || name.endsWith(".json") || name.endsWith(".txt") || name.endsWith(".properties"))) continue
+                    val text = String(zip.getInputStream(e).use { it.readBytes() }, Charsets.ISO_8859_1)
+                    for (n in needles) if (text.indexOf(n) >= 0) found += "${apk.name}: $name holds \"${String(n.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)}\""
+                }
+            }
+            if (found.isNotEmpty()) throw GradleException("The coach voice got into a build without it: " + found.joinToString("; "))
+            println("checkNoAfterdark$cap: ${apks.joinToString { it.name }} holds no coach asset, class or caption (${captions.size} captions checked)")
+        }
+    }
+    if (!afterdark) tasks.matching { it.name == "package$cap" }.configureEach { finalizedBy(check) }
 }

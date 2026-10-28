@@ -80,6 +80,15 @@ class Prefs(context: Context, val profileId: String) {
         set(v) = edit { if (v == null) remove("cheerAloud") else putBoolean("cheerAloud", v) }
 
     /**
+     * 2.16: a per-profile switch or choice an optional extra keeps here under its own [key] (extras/Extras.kt, the build's door), so
+     * backup, import and deleting the profile carry it with the rest; null until set.
+     */
+    fun extraFlag(key: String): Boolean? = if (p.contains(key)) p.getBoolean(key, false) else null
+    fun setExtraFlag(key: String, v: Boolean?) = edit { if (v == null) remove(key) else putBoolean(key, v) }
+    fun extraString(key: String): String? = p.getString(key, null)
+    fun setExtraString(key: String, v: String?) = edit { if (v == null) remove(key) else putString(key, v) }
+
+    /**
      * 2.15, Settings > Playing > Plain look (engine/family/PlainLook.kt): the switch as saved. Off by default; a little kid's
      * profile ignores it (PlainLook.on asks the audience), and nothing else stored changes when it flips.
      */

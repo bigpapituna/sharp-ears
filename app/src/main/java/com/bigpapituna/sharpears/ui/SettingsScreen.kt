@@ -238,6 +238,8 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                         com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.kidSkin, prefs.cheerAloud)) {
                         prefs.cheerAloud = it; com.bigpapituna.sharpears.data.Briefs.setting("cheerAloud", it)
                     }
+                // 2.16: the build's extra has its part here, for a grown-up's profile only (extras/Extras.kt; nothing on a build without it).
+                com.bigpapituna.sharpears.extras.Extras.SettingsPart(prefs) { Sub(it) }
             }
 
             if (showReminder) Sub("Reminder")

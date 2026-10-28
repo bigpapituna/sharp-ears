@@ -903,7 +903,7 @@ private fun PlayerStage(args: PlayerArgs) {
     // Practice today sums the seconds a part played when it is left: they are written before the caller moves on.
     if (embedded == null) BackHandler { flushPractice(); onBack() }
     // A lesson step starts by itself once the voice has read it out (and the sounds are loaded).
-    val voiceSpeaking = voice.speaking.value
+    val voiceSpeaking = voice.speaking.value || voice.extraTalking.value     // 2.16: or the build's extra (extras/Extras.kt)
     if (embedded?.autoStart == true) LaunchedEffect(ready, voiceSpeaking) {
         if (autoStarted || !ready || voiceSpeaking) return@LaunchedEffect
         delay(700)
@@ -967,6 +967,7 @@ private fun PlayerStage(args: PlayerArgs) {
                     transport.tally.hint(step.ordinal)
                     Log.d(TAG, "hints: $step on ${transport.expected.map { noteName(it.midi) }} after ${hintPlan.stepsMs[step.ordinal - 1] / 1000} s")
                     if (step == HintStep.PLAY) playHint()
+                    if (step == HintStep.GLOW) cheers?.hint()          // 2.16: the build's extra may take the moment (Moment.HARD)
                 }
                 // Perform mode: what the mic listens for moves with the song.
                 if (mode == Mode.PERFORM && transport.listenFor != listening) { listening = transport.listenFor; version++ }
@@ -1178,6 +1179,8 @@ private fun PlayerStage(args: PlayerArgs) {
                     val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
                     com.bigpapituna.sharpears.ui.family.ParentGateHost(gate)
                     DisposableEffect(gate) { onDispose { if (gate.pending != null) gate.cancel() } }
+                    // 2.16: the words of the build's extra over the recap's own window (the activity's are under it).
+                    com.bigpapituna.sharpears.extras.Extras.Overlay()
                 }
             }
         }

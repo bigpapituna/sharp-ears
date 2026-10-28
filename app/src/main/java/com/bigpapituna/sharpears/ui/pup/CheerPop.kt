@@ -142,7 +142,7 @@ class CheerPops internal constructor(
     private fun sync() { coach.frequency = com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plain(), prefs.cheerFrequency) }
 
     /** A step opened, a try began, a song's run started fresh: [part] is the exercise or song (its bars are remembered). */
-    fun stepBegan(part: String) { sync(); coach.stepBegan(part, now()) }
+    fun stepBegan(part: String) { sync(); coach.stepBegan(part, now()); com.bigpapituna.sharpears.extras.Extras.stepBegan() }
 
     /** A right note (a chord once): [bar] its bar (a stage: its round), [onTime] in the good window where timing is graded. */
     fun right(bar: Int?, onTime: Boolean?, s: CheerSituation) { sync(); show(coach.right(moment(s), bar, onTime), s) }
@@ -150,8 +150,14 @@ class CheerPops internal constructor(
     /** A pass is over without a new bar (an A-B loop wrapped): the bar played last is judged (CheerCoach.passEnded). */
     fun passEnded(s: CheerSituation) { sync(); show(coach.passEnded(moment(s)), s) }
 
-    /** A wrong key or a Perform note let pass. */
-    fun wrong(bar: Int?) = coach.wrong(CheerMoment(now()), bar)
+    /** A wrong key or a Perform note let pass (2.16: a grown-up's extra may take it, at most once a step). */
+    fun wrong(bar: Int?) {
+        coach.wrong(CheerMoment(now()), bar)
+        if (!profileKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.MISTAKE)
+    }
+
+    /** 2.16: the player's first hint on a held note (the key glows): a grown-up's extra may take it, once a step. */
+    fun hint() { if (!profileKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.HARD) }
 
     /** [fraction] of a [long] step's or song's notes are behind. */
     fun progress(fraction: Double, long: Boolean, s: CheerSituation) { sync(); show(coach.progress(moment(s), fraction, long), s) }
@@ -168,7 +174,10 @@ class CheerPops internal constructor(
         val c = coach.stepPassed(now()) ?: return null
         Log.d(TAG, "cheer: ${c.trigger.wire} $audience \"${c.line}\" voice=${ChimeMode.SKIP}")
         if (telemetry) Tester.cheerPop(c.trigger, profileKid)
-        return c.line
+        // 2.16: a grown-up's extra (extras/Extras.kt) may take the line: its words in the bubble, its sound after the chime.
+        val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.STEP_PASSED,
+            afterMs = com.bigpapituna.sharpears.engine.lessons.StepPopRules.CHIME_MS.toLong())
+        return extra?.words ?: c.line
     }
 
     /** The pop on screen goes (a step ended, the page moved on); its line, if said, finishes. */
@@ -184,8 +193,11 @@ class CheerPops internal constructor(
         if (side == null) { Log.d(TAG, "cheer: ${c.trigger.wire} $audience skipped, no room"); return }
         val listening = mic.listening
         val phones = listening && mic.headphonesOn()
-        val said = CheerRules.voiceMode(prefs.voice && CheerRules.aloud(kid, prefs.cheerAloud), listening, phones, s.betweenNotes)
-        val sound = CheerRules.soundMode(prefs.sound, chiming(), listening, phones, s.betweenNotes)
+        // 2.16: a grown-up's extra (extras/Extras.kt, the build's door) may take the moment: its words in this bubble for its
+        // line's length and its own sound, so the pup says nothing and no sparkle plays under it. Never on a kid's profile.
+        val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.of(c.trigger), c.count)
+        val said = if (extra != null) ChimeMode.SKIP else CheerRules.voiceMode(prefs.voice && CheerRules.aloud(kid, prefs.cheerAloud), listening, phones, s.betweenNotes)
+        val sound = if (extra != null) ChimeMode.SKIP else CheerRules.soundMode(prefs.sound, chiming(), listening, phones, s.betweenNotes)
         Log.d(TAG, "cheer: ${c.trigger.wire} $audience \"${c.line}\" voice=$said")
         if (telemetry) Tester.cheerPop(c.trigger, profileKid)
         when (said) {
@@ -199,7 +211,8 @@ class CheerPops internal constructor(
             sparkleJob = scope.launch { before?.join(); playSparkle(sampler, CheerRules.sparkle(tonic)) }
         }
         // A place with one corner (s.place null) comes in from the top edge every other pop; one with two alternates corners.
-        cue = CheerCue((cue?.seq ?: 0) + 1, c, side, fromTop = s.place == null && c.other, kid = kid, voice = said)
+        val shown = if (extra == null) c else c.copy(line = extra.words, holdMs = extra.ms)
+        cue = CheerCue((cue?.seq ?: 0) + 1, shown, side, fromTop = s.place == null && c.other, kid = kid, voice = said)
     }
 }
 
@@ -214,6 +227,8 @@ fun rememberCheerPops(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Pref
     val scope = rememberCoroutineScope()
     // 2.15: the Plain look turns the pops off (PlainLook.cheerFrequency), read at each moment so a change in Settings holds.
     val plainNow = androidx.compose.runtime.rememberUpdatedState(com.bigpapituna.sharpears.ui.LocalPlain.current.on)
+    // 2.16: leaving the screen stops a line of the build's extra (extras/Extras.kt) still playing.
+    androidx.compose.runtime.DisposableEffect(key) { onDispose { com.bigpapituna.sharpears.extras.Extras.hush() } }
     return remember(key, kid, profileKid) {
         CheerPops(CheerCoach(kid, com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plainNow.value, prefs.cheerFrequency)),
             sampler, mic, voice, prefs, scope, tonic, telemetry, profileKid).also { it.plain = { plainNow.value } }
@@ -432,7 +447,8 @@ internal fun CheerBubble(line: String, tail: BubbleTail, modifier: Modifier = Mo
         BubbleTail.END -> Modifier.padding(start = 14.dp, end = 8.dp + 12.dp, top = 9.dp, bottom = 10.dp)
         BubbleTail.BOTTOM -> Modifier.padding(start = 16.dp, end = 16.dp, top = 9.dp, bottom = 8.dp + 10.dp)
     }
-    Text(line, style = style, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis,
+    // Two lines; three for a long line (2.16: the extra's lines run to 70 characters).
+    Text(line, style = style, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = if (line.length > 56) 3 else 2, overflow = TextOverflow.Ellipsis,
         modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite }.background(MaterialTheme.colorScheme.primaryContainer, shape).then(pad))
 }
 

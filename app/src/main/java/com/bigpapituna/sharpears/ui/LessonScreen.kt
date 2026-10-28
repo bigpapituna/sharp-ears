@@ -245,12 +245,18 @@ fun LessonScreen(
     // "More?" appears once the first scene has played.
     val firstSceneDone = scenes?.let { pb -> remember(pb) { androidx.compose.runtime.derivedStateOf { pb.fraction() >= 1f } }.value } ?: false
 
+    // 2.16: the build's extra greets a grown-up's first playing step of this visit (extras/Extras.kt, Moment.START).
+    var greeted by remember(lesson.id) { mutableStateOf(false) }
     // Read each exercise step out as it opens. After an automatic advance the feedback line is already queued, so no interrupt.
     LaunchedEffect(index) {
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1}/${lesson.steps.size} ${step.kind}" +
             if (kid) " kid" + (step.exercise?.let { e -> if (e != lesson.steps[index].exercise) " bite ${Bites.beats(e.right).coerceAtLeast(Bites.beats(e.left))} beats" else "" } ?: "") else "")
         onStep(index)
-        if (step.scenes.isEmpty()) voice.speak(step.text.replace("\n\n", " "), interrupt = !advancedByItself)
+        val interrupt = !advancedByItself
+        val instruction = { voice.speak(step.text.replace("\n\n", " "), interrupt = interrupt) }
+        // 2.16: the extra's greeting first, then the step's own words (Extras.afterLine: at once when it took none).
+        if (step.exercise != null && !anyKid && !greeted) { greeted = true; com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.START); if (step.scenes.isEmpty()) com.bigpapituna.sharpears.extras.Extras.afterLine(instruction) }
+        else if (step.scenes.isEmpty()) instruction()
         advancedByItself = false
     }
 
@@ -258,10 +264,11 @@ fun LessonScreen(
     // again when its run starts). The part is the exercise, so a bar that went astray is remembered across the tries.
     LaunchedEffect(index, run) { cheerPops.stepBegan("${lesson.id}-${index + 1}") }
 
-    fun go(to: Int) { pops.flush(); cheerPops.clear(); feedback = null; bar = null; finished = false; index = to; fails = 0 }
+    fun go(to: Int) { pops.flush(); cheerPops.clear(); com.bigpapituna.sharpears.extras.Extras.hush(); feedback = null; bar = null; finished = false; index = to; fails = 0 }
     fun complete() {
         pops.flush()
         cheerPops.clear()
+        com.bigpapituna.sharpears.extras.Extras.hush()      // 2.16: moving on stops a line of the extra (what waited on it is said now)
         Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = true))
         progress?.record(com.bigpapituna.sharpears.engine.progress.ProgressEvent.LessonStepPassed)
         if (last) {
@@ -279,6 +286,8 @@ fun LessonScreen(
             Log.d(TAG, "lesson ${lesson.id} done")
             // 2.14: a skip is never "You did it!": the neutral finish says nothing (its words are on screen; no new recorded line).
             if (skippedGraded == 0) voice.speak(if (kid) RunWords.kidLessonLine(who.name) else "Lesson complete.")
+            // 2.16: the extra's finish for a grown-up, with its stars (a neutral finish after a skip is the plain one).
+            if (!anyKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.finish(if (skippedGraded == 0) lessonStars else 0))
         } else { advancedByItself = true; feedback = null; index++ }
     }
     fun exerciseEnded(s: Step, report: Report) {
@@ -315,15 +324,21 @@ fun LessonScreen(
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1} ended passed=$passed${if (letGo) " (let go after ${fails + 1} tries)" else ""} feedback=\"${line?.text}\"")
         feedback = line?.text
         // The pup's line waits for the chime when one plays (it never talks over it).
-        line?.let { l -> pops.afterChime { voice.speak(l.spoken) } }
+        // 2.16: and after a line of the extra's (the step passed one follows the chime), so they never talk over each other.
+        line?.let { l -> pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(l.spoken) } } }
         if (s.kind != StepKind.LISTEN) reaction = if (judged) Pose.GREAT_JOB else if (kid || letGo) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
-        if (!passed) { fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text); return }
+        if (!passed) {
+            fails++; retries++; bar = Triple(Cheer.MISS, if (kid) "Once more!" else "Not quite", line?.text)
+            // 2.16: a grown-up's extra on a try that did not pass: a mistake the first time, the hard part after that (once a step each).
+            if (!anyKid) com.bigpapituna.sharpears.extras.Extras.say(if (fails >= 2) com.bigpapituna.sharpears.extras.Moment.HARD else com.bigpapituna.sharpears.extras.Moment.MISTAKE)
+            return
+        }
         // 2.14: notes the player let go after three tries keep the third star away too (Stars.three).
         stepStars += if (letGo) com.bigpapituna.sharpears.engine.kid.LessonStars.LET_GO else com.bigpapituna.sharpears.engine.kid.LessonStars.ofRun(report, tally?.letGos ?: 0)
         // Passing a step that took a few tries earns the high-five (not a step let go).
         val highFive = fails >= 2 && !letGo
-        if (highFive) { pops.afterChime { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) }; Log.d(TAG, "pup: high five after $fails tries") }
+        if (highFive) { pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) } }; Log.d(TAG, "pup: high five after $fails tries") }
         fails = 0
         // The last step goes straight to the celebration; any other waits on Continue.
         if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!" else cheerTitle(cheers++),

@@ -24,6 +24,11 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     /** True while a line is being spoken. */
     val speaking = mutableStateOf(false)
     /**
+     * 2.16: the build's extra (extras/Extras.kt) has a line of its own waiting or playing through the speaker: a lesson step
+     * waits for it before it starts by itself, as for this voice (PlayerScreen's autoStart). Never true on a build without it.
+     */
+    val extraTalking = mutableStateOf(false)
+    /**
      * 2.15: the Plain look is on for the profile (set by MainActivity: PlainLook.on, never for a little kid). Spoken guidance
      * is then off unless turned on there (PlainLook.voiceOn), and a line said goes through the plain bank (PlainLook.calm).
      */

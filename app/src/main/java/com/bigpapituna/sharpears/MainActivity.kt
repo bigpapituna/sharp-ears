@@ -639,8 +639,11 @@ class MainActivity : ComponentActivity() {
         // The mic follows the player: a kid's offset and report tag for every mic screen (chords, ear games, tuner,
         // playground), and a new player starts with wrong keys painted again (the last one's room may have been noisier).
         mic.forProfile(profile.isKid, profile.micOffsetDb, newSession = newPlayer)
+        com.bigpapituna.sharpears.extras.Extras.close()
         openVoice?.release()
         val voice = Voice(this, prefs, mic).also { openVoice = it }   // the speech engine itself starts on the first line
+        // 2.16: the build's extra (extras/Extras.kt; nothing on a build without it) follows the profile, read live at each moment.
+        com.bigpapituna.sharpears.extras.Extras.open(this, { profiles.current }, prefs, mic, voice)
         voice.speed = com.bigpapituna.sharpears.engine.family.Ages.voiceSpeed(profile.audience)   // big and slow for little kids (KIDS-PLAN 3.8)
         // 2.15, the Plain look (engine/family/PlainLook.kt): spoken lines off by default, the plain bank's words; never a little kid's.
         voice.plain = { com.bigpapituna.sharpears.engine.family.PlainLook.on(profiles.current.audience, prefs.plainLook) }
@@ -657,6 +660,8 @@ class MainActivity : ComponentActivity() {
         // 2.7, What's new and the tour (engine/nav/Welcome.kt): a newcomer has nothing new to hear about (they get the tour after
         // the first-run questions), and a kid sees neither (the tour waits for grown-up mode).
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        // 2.16: What's new with the build's extra's lines after the app's own (none on a build without it).
+        val whatsNewTable = com.bigpapituna.sharpears.engine.nav.Welcome.merged(com.bigpapituna.sharpears.extras.Extras.WHATS_NEW)
         if ((profile.isKid || !progress.onboardingDone && progress.xp == 0) && prefs.whatsNewSeen != appVersion) prefs.whatsNewSeen = appVersion
         // Debug --ez welcome true: What's new and the tour again for this profile.
         // Debug --ez plain true|false: this profile's Plain look (2.15); --ez plainoffer true: its one-time offer may show again.
@@ -1189,6 +1194,8 @@ class MainActivity : ComponentActivity() {
                         voice.speak(if (profile.kidSkin) com.bigpapituna.sharpears.engine.SessionWords.kidSessionDone(profile.name)
                             else "Done for today: " + summary.removePrefix("Done today: ").replace(" min.", " minutes."))
                         dailyDone = Triple(done.size, secs / 60, progress.streak().streak)
+                        // 2.16: the build's extra closes a grown-up's day: two days or more in a row, the streak; else good night.
+                        if (!profile.isKid) com.bigpapituna.sharpears.extras.Extras.say(if ((dailyDone?.third ?: 0) >= 2) com.bigpapituna.sharpears.extras.Moment.STREAK else com.bigpapituna.sharpears.extras.Moment.GOODNIGHT)
                         screen = Screen.Home()
                     }
                     /** On to the next part: this one [completed], passed over with Skip ([skip]), or left part way (neither). */
@@ -1952,7 +1959,10 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 }
-                                                LaunchedEffect(Unit) { comebackGreeted(); Log.d(TAG, "comeback: opens $r") }
+                                                LaunchedEffect(Unit) {
+                                                    comebackGreeted(); Log.d(TAG, "comeback: opens $r")
+                                                    if (!current.isKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.COMEBACK)   // 2.16: a grown-up's only
+                                                }
                                                 val title = when (r) {
                                                     is com.bigpapituna.sharpears.engine.Comeback.Resume.LessonStep -> path.lesson(r.id)?.title
                                                     is com.bigpapituna.sharpears.engine.Comeback.Resume.NextLesson -> path.lesson(r.id)?.title
@@ -2128,9 +2138,10 @@ class MainActivity : ComponentActivity() {
                             val nameDue = !nameAnswered && current.isOwner && profiles.ownerNameDue(progress.onboardingDone)
                             if (nameDue) com.bigpapituna.sharpears.ui.onboarding.OwnerNameAsk { typed -> nameAnswered = true; profiles.nameOwner(typed); Log.d(TAG, "profiles: owner name asked, ${if (typed.isBlank()) "none given" else "given"}") }
                             else                             when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion,
+                                table = whatsNewTable,
                                 parentsTourDue = parentsTourOpen && com.bigpapituna.sharpears.engine.nav.Welcome.parentsTourDue(profiles.parentsTour))) {
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.WHATS_NEW -> com.bigpapituna.sharpears.ui.WhatsNewSheet(appVersion,
-                                    com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew(appVersion)) {
+                                    com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew(appVersion, whatsNewTable)) {
                                     prefs.whatsNewSeen = appVersion; Log.d(TAG, "welcome: what's new $appVersion seen")
                                 }
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.TOUR -> {
@@ -2375,6 +2386,8 @@ class MainActivity : ComponentActivity() {
                         !isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         com.bigpapituna.sharpears.analytics.TesterDefaultNotice { com.bigpapituna.sharpears.analytics.Tester.noticeSeen(this@MainActivity) }
                     }
+                    // 2.16: the words of the build's extra (extras/Extras.kt), over every screen but under the gate.
+                    SharpEarsTheme(dark = isSystemInDarkTheme()) { com.bigpapituna.sharpears.extras.Extras.Overlay() }
                     // The parent gate, over everything while an action waits for a grown-up.
                     SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }
                 }
@@ -2635,6 +2648,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         Briefs.sessionEnd(); com.bigpapituna.sharpears.engine.ForegroundClock.app.stop(); com.bigpapituna.sharpears.analytics.Tester.away()
         gate.away()
+        com.bigpapituna.sharpears.extras.Extras.hush()                // 2.16: the app off screen says nothing more
         super.onStop()
     }
 

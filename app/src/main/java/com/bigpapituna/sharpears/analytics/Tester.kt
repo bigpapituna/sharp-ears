@@ -281,6 +281,16 @@ object Tester {
         if (capturing) next.forEach { (k, v) -> runCatching { TesterSdk.register(k, v) } }
     }
 
+    /**
+     * 2.16: a super property the build's extra adds (extras/Extras.kt; analytics/EVENTS.md), with every later event like the
+     * look's; again only when its value changes. A build without the extra adds none.
+     */
+    fun extra(key: String, value: Any) {
+        if (look[key] == value) return
+        look[key] = value
+        if (capturing) runCatching { TesterSdk.register(key, value) }
+    }
+
     /** One of the app's own 2.15 events (engine/tester/AppEvents.kt; analytics/Events.kt sends them). */
     fun track(e: TesterEvent) = capture(e)
 

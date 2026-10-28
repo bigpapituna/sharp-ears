@@ -27,6 +27,9 @@ sends an event the catalog does not list.
 | `app_version` | the version name, `2.14.0` | `Tester.marks` |
 | `is_emulator` | `true` on an emulator, `false` on a phone (never missing) | `Tester.marks` (`BuildMarks.isEmulator`) |
 | `build_flavor` | `debug` (keyless, agents), `tester` (a keyed build: Roy's phone and the testers'), `profile`, `release` | `Tester.marks` |
+| `coach_voice` | `true` (the coach voice plays for the profile open), `false` | `Tester.extra`, from the 2.16 extra's door at each profile open, setting change and moment; only on a build with AFTERDARK=true (absent otherwise). Never a line, its words or its id |
+| `coach_voice_id` | the voice's folder (`male_us`, `male_irish`, `female_us`, later `female_au`), or `off` | `Tester.extra`, the same door and times; only on a build with AFTERDARK=true |
+| `coach_for` | `w` (the coach talks to a woman), `m` (to a man), `unset` | `Tester.extra`, the same door and times; only on a build with AFTERDARK=true |
 
 `Errors.beforeSend` also stamps `is_emulator`, `build_flavor` and `app_version` on any event that left before they were
 registered. PostHog adds its own `$is_emulator`, `$app_version` and the rest; ours are the ones the setup page filters on.

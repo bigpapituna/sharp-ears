@@ -29,8 +29,8 @@ class StepPopWiringTest {
         assertTrue("StepPopRules.pupBeat(pop.variant)" in ended && "else if (still) PupMood.IDLE" in ended)
         assertEquals("one pop in the lesson", 1, Regex("""pops\.fire\(""").findAll(lesson).count())
         // The pup's line and the high five wait for the chime; a page left early says them first.
-        assertTrue("line?.let { l -> pops.afterChime { voice.speak(l.spoken) } }" in ended)
-        assertTrue("pops.afterChime { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) }" in ended)
+        assertTrue("line?.let { l -> pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(l.spoken) } } }" in ended)   // 2.16: and after the extra's line
+        assertTrue("pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) } }" in ended)
         assertTrue("fun go(to: Int) { pops.flush();" in lesson && "fun complete() {\n        pops.flush()" in lesson)
         // A new lesson starts a new streak; a graded step skipped starts the climb again.
         assertTrue("key = lesson.id" in lesson && "pops.streak.skipped()" in lesson)

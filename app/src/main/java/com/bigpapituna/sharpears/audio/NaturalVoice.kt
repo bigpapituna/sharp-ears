@@ -45,7 +45,14 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
     val modelInstalled get() = File(modelDir, "model.int8.onnx").exists()
     val busy get() = pending.get() > 0
 
-    private fun recording(text: String) = "${SpokenCatalog.key(text)}.ogg".takeIf { it in recorded }
+    /**
+     * The asset a line plays from: 2.16, the build's extra's own narration of it when it has one for the profile open
+     * (extras/Extras.kt narration: a grown-up's coach voice; null on a build without it and for anyone else), else its
+     * recording in assets/voice; null when neither has it.
+     */
+    private fun recording(text: String): String? = SpokenCatalog.key(text).let { key ->
+        com.bigpapituna.sharpears.extras.Extras.narration(key) ?: "voice/$key.ogg".takeIf { "$key.ogg" in recorded }
+    }
 
     /** True when this voice can say [text]: it is recorded, or the model is on the phone. */
     fun canSay(text: String) = recording(text) != null || (modelInstalled && !modelFailed)
@@ -79,7 +86,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
 
     private fun speakNow(text: String, gen: Int, speed: Float) {
         val file = recording(text)
-        if (file != null) { Log.d(TAG, "voice: (recorded) $text"); playRecording(file, gen); return }
+        if (file != null) { Log.d(TAG, "voice: (${if (file.startsWith("voice/")) "recorded" else "narrated"}) $text"); playRecording(file, gen); return }
         val tts = modelLoad.value ?: return
         // Sentence by sentence: the first one plays while the next is made.
         val rate = tts.sampleRate()
@@ -114,7 +121,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
         val done = CountDownLatch(1)
         val mp = MediaPlayer()
         try {
-            context.assets.openFd("voice/$file").use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            context.assets.openFd(file).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
             mp.setAudioAttributes(attrs)
             mp.setOnCompletionListener { done.countDown() }
             mp.setOnErrorListener { _, _, _ -> done.countDown(); true }

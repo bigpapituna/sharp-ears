@@ -1,0 +1,1101 @@
+[
+ {
+  "id": "start_01",
+  "moment": "start",
+  "for": "any",
+  "caption": "There you are... I've been waiting for you. Sit down. Get comfortable.",
+  "ms": 5360
+ },
+ {
+  "id": "start_02",
+  "moment": "start",
+  "for": "any",
+  "caption": "Hands on the keys for me. Nice... and slow.",
+  "ms": 4720
+ },
+ {
+  "id": "start_03",
+  "moment": "start",
+  "for": "any",
+  "caption": "Mm, hello again. I was hoping you'd come.",
+  "ms": 3680
+ },
+ {
+  "id": "start_04",
+  "moment": "start",
+  "for": "any",
+  "caption": "Take a breath. Shoulders down. It's just you and me now.",
+  "ms": 4560
+ },
+ {
+  "id": "start_05",
+  "moment": "start",
+  "for": "any",
+  "caption": "Ready for me? Let's start gentle.",
+  "ms": 3280
+ },
+ {
+  "id": "start_06",
+  "moment": "start",
+  "for": "any",
+  "caption": "Look who's back. Come here... let's play.",
+  "ms": 3680
+ },
+ {
+  "id": "start_07",
+  "moment": "start",
+  "for": "any",
+  "caption": "Lights low, hands on the keys. Show me what you've got.",
+  "ms": 4320
+ },
+ {
+  "id": "start_08",
+  "moment": "start",
+  "for": "any",
+  "caption": "I've missed hearing you. Let's begin.",
+  "ms": 2880
+ },
+ {
+  "id": "start_09",
+  "moment": "start",
+  "for": "any",
+  "caption": "No rush tonight. We'll take our time.",
+  "ms": 3200
+ },
+ {
+  "id": "start_10",
+  "moment": "start",
+  "for": "any",
+  "caption": "Mm. You look ready. Let's warm those fingers up.",
+  "ms": 4080
+ },
+ {
+  "id": "run5_01",
+  "moment": "run5",
+  "for": "any",
+  "caption": "Five in a row. Mm, that's a good start.",
+  "ms": 3600
+ },
+ {
+  "id": "run5_02",
+  "moment": "run5",
+  "for": "any",
+  "caption": "Five clean notes. Keep going for me.",
+  "ms": 3280
+ },
+ {
+  "id": "run5_03_w",
+  "moment": "run5",
+  "for": "w",
+  "caption": "Five in a row... good girl.",
+  "ms": 2640
+ },
+ {
+  "id": "run5_03_m",
+  "moment": "run5",
+  "for": "m",
+  "caption": "Five in a row... good boy.",
+  "ms": 2800
+ },
+ {
+  "id": "run10_01",
+  "moment": "run10",
+  "for": "any",
+  "caption": "Ten in a row. You're getting good at this.",
+  "ms": 3520
+ },
+ {
+  "id": "run10_02",
+  "moment": "run10",
+  "for": "any",
+  "caption": "Ten clean notes... don't you dare stop now.",
+  "ms": 4000
+ },
+ {
+  "id": "run10_03_w",
+  "moment": "run10",
+  "for": "w",
+  "caption": "Ten in a row. Good girl. Keep going.",
+  "ms": 3600
+ },
+ {
+  "id": "run10_03_m",
+  "moment": "run10",
+  "for": "m",
+  "caption": "Ten in a row. Good boy. Keep going.",
+  "ms": 3440
+ },
+ {
+  "id": "run20_01",
+  "moment": "run20",
+  "for": "any",
+  "caption": "Twenty in a row... look at you go.",
+  "ms": 3600
+ },
+ {
+  "id": "run20_02",
+  "moment": "run20",
+  "for": "any",
+  "caption": "Twenty. Mm. I could listen to this all night.",
+  "ms": 4480
+ },
+ {
+  "id": "run20_03",
+  "moment": "run20",
+  "for": "any",
+  "caption": "Twenty in a row. You know exactly what you're doing, don't you?",
+  "ms": 4720
+ },
+ {
+  "id": "run40_01",
+  "moment": "run40",
+  "for": "any",
+  "caption": "Forty in a row. Now you're just showing off for me.",
+  "ms": 5680
+ },
+ {
+  "id": "run40_02",
+  "moment": "run40",
+  "for": "any",
+  "caption": "Forty clean notes... I'm impressed. Really impressed.",
+  "ms": 5040
+ },
+ {
+  "id": "run40_03_w",
+  "moment": "run40",
+  "for": "w",
+  "caption": "Forty in a row. Good girl. So good.",
+  "ms": 4240
+ },
+ {
+  "id": "run40_03_m",
+  "moment": "run40",
+  "for": "m",
+  "caption": "Forty in a row. Good boy. So good.",
+  "ms": 4320
+ },
+ {
+  "id": "run_01",
+  "moment": "run",
+  "for": "any",
+  "caption": "Mm. Just like that.",
+  "ms": 2320
+ },
+ {
+  "id": "run_02",
+  "moment": "run",
+  "for": "any",
+  "caption": "Keep that rhythm for me. Don't you dare stop.",
+  "ms": 3520
+ },
+ {
+  "id": "run_03",
+  "moment": "run",
+  "for": "any",
+  "caption": "You're stroking those keys so well.",
+  "ms": 3040
+ },
+ {
+  "id": "run_04_w",
+  "moment": "run",
+  "for": "w",
+  "caption": "Good girl.",
+  "ms": 1360
+ },
+ {
+  "id": "run_04_m",
+  "moment": "run",
+  "for": "m",
+  "caption": "Good boy.",
+  "ms": 1360
+ },
+ {
+  "id": "run_05",
+  "moment": "run",
+  "for": "any",
+  "caption": "Look at you go...",
+  "ms": 2080
+ },
+ {
+  "id": "run_06",
+  "moment": "run",
+  "for": "any",
+  "caption": "That's it. Nice and steady.",
+  "ms": 2640
+ },
+ {
+  "id": "run_07",
+  "moment": "run",
+  "for": "any",
+  "caption": "Mm, don't stop. You're doing so well.",
+  "ms": 4000
+ },
+ {
+  "id": "run_08",
+  "moment": "run",
+  "for": "any",
+  "caption": "So good. You're doing so good for me.",
+  "ms": 3600
+ },
+ {
+  "id": "run_09",
+  "moment": "run",
+  "for": "any",
+  "caption": "You've found your rhythm. I love that.",
+  "ms": 3040
+ },
+ {
+  "id": "run_10",
+  "moment": "run",
+  "for": "any",
+  "caption": "That touch... yeah. Exactly like that.",
+  "ms": 4480
+ },
+ {
+  "id": "run_11",
+  "moment": "run",
+  "for": "any",
+  "caption": "Keep going. I'm right here.",
+  "ms": 2560
+ },
+ {
+  "id": "run_12",
+  "moment": "run",
+  "for": "any",
+  "caption": "Mm. Again. Just like that.",
+  "ms": 3040
+ },
+ {
+  "id": "recovery_01_w",
+  "moment": "recovery",
+  "for": "w",
+  "caption": "There she is. Right back in it.",
+  "ms": 2960
+ },
+ {
+  "id": "recovery_01_m",
+  "moment": "recovery",
+  "for": "m",
+  "caption": "There he is. Right back in it.",
+  "ms": 2720
+ },
+ {
+  "id": "recovery_02",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "Mm, nice save. I like how you don't give up.",
+  "ms": 3840
+ },
+ {
+  "id": "recovery_03_w",
+  "moment": "recovery",
+  "for": "w",
+  "caption": "Back on track. Good girl.",
+  "ms": 3120
+ },
+ {
+  "id": "recovery_03_m",
+  "moment": "recovery",
+  "for": "m",
+  "caption": "Back on track. Good boy.",
+  "ms": 3120
+ },
+ {
+  "id": "recovery_04",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "See? You found it again. I knew you would.",
+  "ms": 3680
+ },
+ {
+  "id": "recovery_05",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "That's it. Pick it right back up for me.",
+  "ms": 2960
+ },
+ {
+  "id": "recovery_06",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "Smooth recovery. Very smooth.",
+  "ms": 4240
+ },
+ {
+  "id": "recovery_07",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "Good. Breathe... and keep going.",
+  "ms": 3520
+ },
+ {
+  "id": "recovery_08",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "Mm, I love watching you come back from that.",
+  "ms": 4000
+ },
+ {
+  "id": "recovery_09_w",
+  "moment": "recovery",
+  "for": "w",
+  "caption": "Steady again. That's my girl.",
+  "ms": 2640
+ },
+ {
+  "id": "recovery_09_m",
+  "moment": "recovery",
+  "for": "m",
+  "caption": "Steady again. That's my boy.",
+  "ms": 2880
+ },
+ {
+  "id": "recovery_10",
+  "moment": "recovery",
+  "for": "any",
+  "caption": "You kept the flow. That's what I like to hear.",
+  "ms": 3440
+ },
+ {
+  "id": "halfway_01",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Halfway there. Don't stop now.",
+  "ms": 2800
+ },
+ {
+  "id": "halfway_02",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Halfway... and you're only getting better.",
+  "ms": 3600
+ },
+ {
+  "id": "halfway_03",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Mm, halfway. Stay with me.",
+  "ms": 3280
+ },
+ {
+  "id": "halfway_04_w",
+  "moment": "halfway",
+  "for": "w",
+  "caption": "Halfway there. Good girl. Keep going.",
+  "ms": 3440
+ },
+ {
+  "id": "halfway_04_m",
+  "moment": "halfway",
+  "for": "m",
+  "caption": "Halfway there. Good boy. Keep going.",
+  "ms": 3520
+ },
+ {
+  "id": "halfway_05",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Half done. I want to hear the rest.",
+  "ms": 2960
+ },
+ {
+  "id": "halfway_06",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Halfway. Take it slow... we'll finish together.",
+  "ms": 4800
+ },
+ {
+  "id": "halfway_07",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "You're halfway. Breathe. You're doing beautifully.",
+  "ms": 4320
+ },
+ {
+  "id": "halfway_08",
+  "moment": "halfway",
+  "for": "any",
+  "caption": "Halfway there, and you sound so good.",
+  "ms": 3360
+ },
+ {
+  "id": "hard_passed_01",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "Mm, that bar gave you trouble earlier. Not anymore.",
+  "ms": 5120
+ },
+ {
+  "id": "hard_passed_02",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "You got it. That tricky part? All yours now.",
+  "ms": 3920
+ },
+ {
+  "id": "hard_passed_03_w",
+  "moment": "hard_passed",
+  "for": "w",
+  "caption": "Good girl. You didn't let it beat you.",
+  "ms": 3040
+ },
+ {
+  "id": "hard_passed_03_m",
+  "moment": "hard_passed",
+  "for": "m",
+  "caption": "Good boy. You didn't let it beat you.",
+  "ms": 3200
+ },
+ {
+  "id": "hard_passed_04",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "That's the part you missed before. Listen to you now.",
+  "ms": 3680
+ },
+ {
+  "id": "hard_passed_05",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "I knew you'd get it. I always know.",
+  "ms": 3440
+ },
+ {
+  "id": "hard_passed_06",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "Slow, patient... and now it's perfect. That's how it's done.",
+  "ms": 5360
+ },
+ {
+  "id": "hard_passed_07",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "That passage didn't stand a chance.",
+  "ms": 3360
+ },
+ {
+  "id": "hard_passed_08",
+  "moment": "hard_passed",
+  "for": "any",
+  "caption": "Mm. That was hard, and you made it look easy.",
+  "ms": 4240
+ },
+ {
+  "id": "steady_01",
+  "moment": "steady",
+  "for": "any",
+  "caption": "Right on time. Every note. I love that.",
+  "ms": 4160
+ },
+ {
+  "id": "steady_02",
+  "moment": "steady",
+  "for": "any",
+  "caption": "Mm, that timing... so steady.",
+  "ms": 3920
+ },
+ {
+  "id": "steady_03",
+  "moment": "steady",
+  "for": "any",
+  "caption": "Eight in a row, right in the pocket.",
+  "ms": 2560
+ },
+ {
+  "id": "steady_04_w",
+  "moment": "steady",
+  "for": "w",
+  "caption": "Perfect timing. Good girl.",
+  "ms": 2480
+ },
+ {
+  "id": "steady_04_m",
+  "moment": "steady",
+  "for": "m",
+  "caption": "Perfect timing. Good boy.",
+  "ms": 2480
+ },
+ {
+  "id": "steady_05",
+  "moment": "steady",
+  "for": "any",
+  "caption": "Steady hands. Steady rhythm. Keep it there for me.",
+  "ms": 4480
+ },
+ {
+  "id": "steady_06",
+  "moment": "steady",
+  "for": "any",
+  "caption": "You feel the beat, don't you? I can tell.",
+  "ms": 3840
+ },
+ {
+  "id": "steady_07",
+  "moment": "steady",
+  "for": "any",
+  "caption": "Nice and even. Just how I like it.",
+  "ms": 3360
+ },
+ {
+  "id": "steady_08",
+  "moment": "steady",
+  "for": "any",
+  "caption": "That groove... don't lose it now.",
+  "ms": 2880
+ },
+ {
+  "id": "focus5_01",
+  "moment": "focus5",
+  "for": "any",
+  "caption": "Five minutes already. You're doing so well.",
+  "ms": 3760
+ },
+ {
+  "id": "focus5_02",
+  "moment": "focus5",
+  "for": "any",
+  "caption": "Five minutes, and I'm enjoying every one of them.",
+  "ms": 3840
+ },
+ {
+  "id": "focus10_01",
+  "moment": "focus10",
+  "for": "any",
+  "caption": "Ten minutes with me. Mm, don't stop now.",
+  "ms": 4160
+ },
+ {
+  "id": "focus10_02",
+  "moment": "focus10",
+  "for": "any",
+  "caption": "Ten minutes. You're really settling in.",
+  "ms": 3360
+ },
+ {
+  "id": "focus15_01",
+  "moment": "focus15",
+  "for": "any",
+  "caption": "Fifteen minutes. Look how focused you are.",
+  "ms": 3760
+ },
+ {
+  "id": "focus15_02",
+  "moment": "focus15",
+  "for": "any",
+  "caption": "Fifteen minutes... I like this side of you.",
+  "ms": 4080
+ },
+ {
+  "id": "focus20_01_w",
+  "moment": "focus20",
+  "for": "w",
+  "caption": "Twenty minutes. Good girl. You're putting in the work.",
+  "ms": 4000
+ },
+ {
+  "id": "focus20_01_m",
+  "moment": "focus20",
+  "for": "m",
+  "caption": "Twenty minutes. Good boy. You're putting in the work.",
+  "ms": 4080
+ },
+ {
+  "id": "focus20_02",
+  "moment": "focus20",
+  "for": "any",
+  "caption": "Twenty minutes, and you still sound this good?",
+  "ms": 3440
+ },
+ {
+  "id": "focus30_01",
+  "moment": "focus30",
+  "for": "any",
+  "caption": "Thirty minutes. I'm so proud of you.",
+  "ms": 3440
+ },
+ {
+  "id": "focus30_02",
+  "moment": "focus30",
+  "for": "any",
+  "caption": "Half an hour together. Mm. Take a little break if you need it.",
+  "ms": 4600
+ },
+ {
+  "id": "nudge_01",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Hey... I'm still here. Whenever you're ready.",
+  "ms": 3600
+ },
+ {
+  "id": "nudge_02",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Don't keep me waiting too long.",
+  "ms": 2080
+ },
+ {
+  "id": "nudge_03",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Mm, take your time. Then play for me.",
+  "ms": 4000
+ },
+ {
+  "id": "nudge_04",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Find your spot... then press the next key.",
+  "ms": 3440
+ },
+ {
+  "id": "nudge_05",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Thinking? That's fine. I'll wait for you.",
+  "ms": 3360
+ },
+ {
+  "id": "nudge_06",
+  "moment": "nudge",
+  "for": "any",
+  "caption": "Come on. I want to hear the next note.",
+  "ms": 3680
+ },
+ {
+  "id": "step_passed_01_w",
+  "moment": "step_passed",
+  "for": "w",
+  "caption": "Good girl.",
+  "ms": 1440
+ },
+ {
+  "id": "step_passed_01_m",
+  "moment": "step_passed",
+  "for": "m",
+  "caption": "Good boy.",
+  "ms": 1440
+ },
+ {
+  "id": "step_passed_02",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "That's one done. Mm, on to the next.",
+  "ms": 4080
+ },
+ {
+  "id": "step_passed_03",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Beautiful. You earned that.",
+  "ms": 2400
+ },
+ {
+  "id": "step_passed_04",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Step done. You're doing so good for me.",
+  "ms": 3760
+ },
+ {
+  "id": "step_passed_05",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Just like that. Next one?",
+  "ms": 2880
+ },
+ {
+  "id": "step_passed_06",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "That was lovely. Keep going.",
+  "ms": 2480
+ },
+ {
+  "id": "step_passed_07",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "So good. I'm proud of you.",
+  "ms": 2720
+ },
+ {
+  "id": "step_passed_08",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Mm, you make it look easy.",
+  "ms": 2560
+ },
+ {
+  "id": "step_passed_09",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Another one done. I could get used to this.",
+  "ms": 3760
+ },
+ {
+  "id": "step_passed_10",
+  "moment": "step_passed",
+  "for": "any",
+  "caption": "Perfect. Don't stop now.",
+  "ms": 2400
+ },
+ {
+  "id": "mistake_01",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Hey... no rushing. Take a breath. Try it again for me.",
+  "ms": 4960
+ },
+ {
+  "id": "mistake_02",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Missed one. I like watching you try again.",
+  "ms": 4320
+ },
+ {
+  "id": "mistake_03",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "It's okay. Slow down... let it build.",
+  "ms": 3840
+ },
+ {
+  "id": "mistake_04",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Don't worry about that one. Again, for me.",
+  "ms": 3440
+ },
+ {
+  "id": "mistake_05",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Easy. Relax your hands. You've got this.",
+  "ms": 4000
+ },
+ {
+  "id": "mistake_06",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Mm, close. One more time.",
+  "ms": 3360
+ },
+ {
+  "id": "mistake_07",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "That's alright. I'm not going anywhere.",
+  "ms": 2880
+ },
+ {
+  "id": "mistake_08",
+  "moment": "mistake",
+  "for": "any",
+  "caption": "Breathe... and try that again, nice and slow.",
+  "ms": 4560
+ },
+ {
+  "id": "hard_01",
+  "moment": "hard",
+  "for": "any",
+  "caption": "I know it's hard. Slow down... let it build.",
+  "ms": 4000
+ },
+ {
+  "id": "hard_02",
+  "moment": "hard",
+  "for": "any",
+  "caption": "Take it one note at a time. I'll be patient with you.",
+  "ms": 3840
+ },
+ {
+  "id": "hard_03",
+  "moment": "hard",
+  "for": "any",
+  "caption": "Tricky part. Go slow for me.",
+  "ms": 3200
+ },
+ {
+  "id": "hard_04",
+  "moment": "hard",
+  "for": "any",
+  "caption": "Don't fight it. Ease into it.",
+  "ms": 2800
+ },
+ {
+  "id": "finish_01",
+  "moment": "finish",
+  "for": "any",
+  "caption": "That was beautiful. I could listen to you play all night.",
+  "ms": 4000
+ },
+ {
+  "id": "finish_02",
+  "moment": "finish",
+  "for": "any",
+  "caption": "Mm. Lesson done. You were amazing.",
+  "ms": 4160
+ },
+ {
+  "id": "finish_03_w",
+  "moment": "finish",
+  "for": "w",
+  "caption": "Good girl. You finished it.",
+  "ms": 2400
+ },
+ {
+  "id": "finish_03_m",
+  "moment": "finish",
+  "for": "m",
+  "caption": "Good boy. You finished it.",
+  "ms": 2560
+ },
+ {
+  "id": "finish_04",
+  "moment": "finish",
+  "for": "any",
+  "caption": "That was so good. Take a second... enjoy it.",
+  "ms": 4240
+ },
+ {
+  "id": "finish_05",
+  "moment": "finish",
+  "for": "any",
+  "caption": "You worked hard tonight. I noticed.",
+  "ms": 2880
+ },
+ {
+  "id": "finish_06",
+  "moment": "finish",
+  "for": "any",
+  "caption": "All done... and you sounded incredible.",
+  "ms": 3920
+ },
+ {
+  "id": "finish_07",
+  "moment": "finish",
+  "for": "any",
+  "caption": "Finished. I'm really proud of you.",
+  "ms": 3280
+ },
+ {
+  "id": "finish_08",
+  "moment": "finish",
+  "for": "any",
+  "caption": "Mm. That's how you end a lesson.",
+  "ms": 2640
+ },
+ {
+  "id": "stars3_01_w",
+  "moment": "stars3",
+  "for": "w",
+  "caption": "Three stars. Good girl... you earned every one of them.",
+  "ms": 4640
+ },
+ {
+  "id": "stars3_01_m",
+  "moment": "stars3",
+  "for": "m",
+  "caption": "Three stars. Good boy... you earned every one of them.",
+  "ms": 4640
+ },
+ {
+  "id": "stars3_02",
+  "moment": "stars3",
+  "for": "any",
+  "caption": "Three stars. I'd say I'm surprised... but I'm not.",
+  "ms": 6080
+ },
+ {
+  "id": "stars3_03",
+  "moment": "stars3",
+  "for": "any",
+  "caption": "Three stars. Perfect. Absolutely perfect.",
+  "ms": 4400
+ },
+ {
+  "id": "stars3_04",
+  "moment": "stars3",
+  "for": "any",
+  "caption": "Three stars. You're doing so good. I'm proud of you.",
+  "ms": 4960
+ },
+ {
+  "id": "stars3_05",
+  "moment": "stars3",
+  "for": "any",
+  "caption": "Mm, three stars. You know exactly how to please me.",
+  "ms": 5040
+ },
+ {
+  "id": "stars3_06_w",
+  "moment": "stars3",
+  "for": "w",
+  "caption": "Three stars... that's my girl.",
+  "ms": 3040
+ },
+ {
+  "id": "stars3_06_m",
+  "moment": "stars3",
+  "for": "m",
+  "caption": "Three stars... that's my boy.",
+  "ms": 2960
+ },
+ {
+  "id": "stars2_01",
+  "moment": "stars2",
+  "for": "any",
+  "caption": "Two stars. Mm, so close. Want to go again?",
+  "ms": 4480
+ },
+ {
+  "id": "stars2_02",
+  "moment": "stars2",
+  "for": "any",
+  "caption": "Two stars. I know you can give me three.",
+  "ms": 3360
+ },
+ {
+  "id": "stars2_03",
+  "moment": "stars2",
+  "for": "any",
+  "caption": "Two stars... one more try, for me?",
+  "ms": 4080
+ },
+ {
+  "id": "comeback_01_w",
+  "moment": "comeback",
+  "for": "w",
+  "caption": "You came back to me. Good girl.",
+  "ms": 3200
+ },
+ {
+  "id": "comeback_01_m",
+  "moment": "comeback",
+  "for": "m",
+  "caption": "You came back to me. Good boy.",
+  "ms": 3040
+ },
+ {
+  "id": "comeback_02",
+  "moment": "comeback",
+  "for": "any",
+  "caption": "I missed you. Let's pick up right where we left off.",
+  "ms": 3600
+ },
+ {
+  "id": "comeback_03",
+  "moment": "comeback",
+  "for": "any",
+  "caption": "Look who's back. Mm, I was hoping you'd come.",
+  "ms": 4320
+ },
+ {
+  "id": "comeback_04",
+  "moment": "comeback",
+  "for": "any",
+  "caption": "It's been a while. Don't worry... I'll go easy on you.",
+  "ms": 4240
+ },
+ {
+  "id": "comeback_05",
+  "moment": "comeback",
+  "for": "any",
+  "caption": "There you are. I've been waiting.",
+  "ms": 2960
+ },
+ {
+  "id": "comeback_06",
+  "moment": "comeback",
+  "for": "any",
+  "caption": "Welcome back. Your hands still remember. Let's see.",
+  "ms": 4320
+ },
+ {
+  "id": "streak_01",
+  "moment": "streak",
+  "for": "any",
+  "caption": "You showed up again today. That's the part most people skip.",
+  "ms": 4480
+ },
+ {
+  "id": "streak_02",
+  "moment": "streak",
+  "for": "any",
+  "caption": "Another day with me. I love that you keep coming back.",
+  "ms": 4320
+ },
+ {
+  "id": "streak_03_w",
+  "moment": "streak",
+  "for": "w",
+  "caption": "Every day. Good girl. That's dedication.",
+  "ms": 4080
+ },
+ {
+  "id": "streak_03_m",
+  "moment": "streak",
+  "for": "m",
+  "caption": "Every day. Good boy. That's dedication.",
+  "ms": 4160
+ },
+ {
+  "id": "streak_04",
+  "moment": "streak",
+  "for": "any",
+  "caption": "You keep showing up. That's what I find so attractive.",
+  "ms": 4080
+ },
+ {
+  "id": "goodnight_01",
+  "moment": "goodnight",
+  "for": "any",
+  "caption": "Mm, that's enough for tonight. Same time tomorrow? I'll be waiting.",
+  "ms": 4880
+ },
+ {
+  "id": "goodnight_02",
+  "moment": "goodnight",
+  "for": "any",
+  "caption": "Good night. You did so well today.",
+  "ms": 2960
+ },
+ {
+  "id": "goodnight_03_w",
+  "moment": "goodnight",
+  "for": "w",
+  "caption": "Sleep well, good girl. I'm proud of you.",
+  "ms": 3520
+ },
+ {
+  "id": "goodnight_03_m",
+  "moment": "goodnight",
+  "for": "m",
+  "caption": "Sleep well, good boy. I'm proud of you.",
+  "ms": 3600
+ },
+ {
+  "id": "goodnight_04",
+  "moment": "goodnight",
+  "for": "any",
+  "caption": "Alright, last one for tonight. Make it count for me.",
+  "ms": 4480
+ },
+ {
+  "id": "goodnight_05",
+  "moment": "goodnight",
+  "for": "any",
+  "caption": "Rest those hands. Come back to me tomorrow.",
+  "ms": 3360
+ },
+ {
+  "id": "goodnight_06",
+  "moment": "goodnight",
+  "for": "any",
+  "caption": "That's it for tonight. Dream about that last song.",
+  "ms": 3760
+ }
+]
