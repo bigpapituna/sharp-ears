@@ -75,6 +75,7 @@ import com.bigpapituna.sharpears.engine.CoursePath
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_ID
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
 import com.bigpapituna.sharpears.engine.kid.KidPages
+import com.bigpapituna.sharpears.engine.nav.FirstRun
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.ui.world.PlaceScene
 import com.bigpapituna.sharpears.engine.CourseLesson
@@ -130,6 +131,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 chords: (@Composable () -> Unit)? = null) {
     val next = pinned ?: path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
+    val who = com.bigpapituna.sharpears.ui.family.profile()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
     var open by remember { mutableStateOf<String?>(null) }
     // A kid walks the Playground through the pup's world (the places drawn from their own stickers).
@@ -230,7 +232,9 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                             MapStop(l, i + 1, state) { open = if (open == l.id) null else l.id }
                         }
                     })
-                is PathRow.Card -> LessonCard(r.lesson, done(r.lesson.id) && !skipped(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
+                // 2.18 (bug 4): the lesson as this player gets it (2.17: a Never grown-up's lesson 1 has middle C first), so the
+                // card's steps and count are the ones they play.
+                is PathRow.Card -> LessonCard(FirstRun.lessonFor(r.lesson, who.level, who.isKid), done(r.lesson.id) && !skipped(r.lesson.id), r.lesson == next, { open = null; onOpen(r.lesson) },
                     extra = path.levelOf(r.lesson)?.let(path::isExtra) == true)
                 is PathRow.Trophy -> if (r.level.lessons.all { skipped(it.id) }) Spacer(Modifier.height(4.dp)) else UnitTrophy(r.level, r.level.lessons.all { done(it.id) && !skipped(it.id) })
             }

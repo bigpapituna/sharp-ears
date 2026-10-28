@@ -48,4 +48,20 @@ class FirstRunWiringTest {
         assertTrue("com.bigpapituna.sharpears.analytics.Events.profilePrefs = prefs" in a)
         assertTrue("if (firstOpen && (progress.xp > 0 || progress.onboardingDone)) prefs.firstNoteSent = true" in a)
     }
+
+    /**
+     * 2.18, bug 4: Learn's lesson card said "3 steps" for lesson 1 where a Never grown-up gets five (2.17 puts middle C first).
+     * The card shows the lesson as this player gets it (FirstRun.lessonFor, the same call LessonScreen makes), so its icons and
+     * its count are the steps they play.
+     */
+    @Test fun theLessonCardCountsTheStepsThePlayerGets() {
+        val learn = src("ui/LearnScreen.kt")
+        val card = learn.lines().first { "is PathRow.Card -> LessonCard(" in it }
+        assertTrue(card, "LessonCard(FirstRun.lessonFor(r.lesson, who.level, who.isKid)," in card)
+        assertTrue("val lesson = remember(lessonIn, who.level, anyKid) { FirstRun.lessonFor(lessonIn, who.level, anyKid) }" in src("ui/LessonScreen.kt"))
+        val sit = com.bigpapituna.sharpears.engine.COURSE.flatMap { it.lessons }.first { it.id == com.bigpapituna.sharpears.engine.nav.FirstRun.FIRST_LESSON }
+        val never = com.bigpapituna.sharpears.engine.family.Level.NEVER
+        assertEquals(sit.steps.size + 2, com.bigpapituna.sharpears.engine.nav.FirstRun.lessonFor(sit, never, kid = false).steps.size)
+        assertEquals(sit.steps.size, com.bigpapituna.sharpears.engine.nav.FirstRun.lessonFor(sit, never, kid = true).steps.size)
+    }
 }
