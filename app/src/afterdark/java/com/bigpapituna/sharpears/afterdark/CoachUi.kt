@@ -63,6 +63,10 @@ internal object CoachCopy {
     const val ASK = "How should your coach talk to you?"
     const val AS_WOMAN = "As a woman"
     const val AS_MAN = "As a man"
+    /** 2.17 (audit M4): neither: the lines for anyone. */
+    const val BY_NAME = "Just use my name"
+    /** 2.17 (audit M3): the mic hears again after a line. */
+    const val LISTENING = "Listening again"
 }
 
 /**
@@ -85,7 +89,7 @@ internal fun CoachSettings(prefs: Prefs, sub: @Composable (String) -> Unit) {
     val plain = LocalPlain.current.on
     val v = prefs.version.intValue
     val chosen = if (v >= 0) CoachGate.voiceOf(prefs.extraString(CoachGate.KEY), voices.map { it.id }) else null
-    val forWho = if (v >= 0) CoachGate.forOf(prefs.extraString(CoachGate.FOR_KEY)) else null
+    val forStored = if (v >= 0) prefs.extraString(CoachGate.FOR_KEY)?.takeIf { CoachGate.answered(it) } else null
     // Turning on: the voice waiting for the notice and the question, and which of the two shows.
     var turningOn by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf(false) }
@@ -101,7 +105,7 @@ internal fun CoachSettings(prefs: Prefs, sub: @Composable (String) -> Unit) {
     fun proceed(voice: String) {
         when {
             prefs.extraFlag(CoachGate.NOTICE_KEY) != true -> { turningOn = voice; notice = true; Log.d(TAG, "coach: the notice") }
-            CoachGate.forOf(prefs.extraString(CoachGate.FOR_KEY)) == null -> { turningOn = voice; notice = false; Log.d(TAG, "coach: asks how to talk") }
+            !CoachGate.answered(prefs.extraString(CoachGate.FOR_KEY)) -> { turningOn = voice; notice = false; Log.d(TAG, "coach: asks how to talk") }
             else -> { turningOn = null; set(voice) }
         }
     }
@@ -120,9 +124,11 @@ internal fun CoachSettings(prefs: Prefs, sub: @Composable (String) -> Unit) {
     }
     if (chosen != null) {
         Text(CoachCopy.ASK, style = MaterialTheme.typography.bodySmall, color = dim, modifier = Modifier.padding(top = 8.dp))
-        SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
-            SegmentedButton(forWho == "w", { setFor("w") }, SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text(CoachCopy.AS_WOMAN) }
-            SegmentedButton(forWho == "m", { setFor("m") }, SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text(CoachCopy.AS_MAN) }
+        // 2.17: three answers as radio rows (a third segment did not fit the cover screen with its words).
+        Column(Modifier.selectableGroup().padding(top = 4.dp)) {
+            ChoiceRow(CoachCopy.AS_WOMAN, forStored == "w") { setFor("w") }
+            ChoiceRow(CoachCopy.AS_MAN, forStored == "m") { setFor("m") }
+            ChoiceRow(CoachCopy.BY_NAME, forStored == CoachGate.NAME) { setFor(CoachGate.NAME) }
         }
         if (PlainLook.cheerFrequency(false, prefs.cheerFrequency) == CheerFrequency.OFF)
             Text(CoachCopy.QUIET, style = MaterialTheme.typography.bodySmall, color = dim)
@@ -135,8 +141,13 @@ internal fun CoachSettings(prefs: Prefs, sub: @Composable (String) -> Unit) {
         dismissButton = { TextButton(onClick = { turningOn = null; notice = false; Log.d(TAG, "coach: the notice, not now") }) { Text(CoachCopy.NOTICE_NO) } })
     else if (waiting != null) AlertDialog(onDismissRequest = { turningOn = null },
         title = { Text(CoachCopy.ASK) },
-        confirmButton = { TextButton(onClick = { setFor("m"); turningOn = null; set(waiting) }) { Text(CoachCopy.AS_MAN) } },
-        dismissButton = { TextButton(onClick = { setFor("w"); turningOn = null; set(waiting) }) { Text(CoachCopy.AS_WOMAN) } })
+        text = {
+            Column {
+                for ((w, label) in listOf("w" to CoachCopy.AS_WOMAN, "m" to CoachCopy.AS_MAN, CoachGate.NAME to CoachCopy.BY_NAME))
+                    TextButton(onClick = { setFor(w); turningOn = null; set(waiting) }, modifier = Modifier.fillMaxWidth()) { Text(label) }
+            }
+        },
+        confirmButton = {})
 }
 
 /** One choice of a list: the whole row selects it, TalkBack reads it as a radio button. */
@@ -168,10 +179,21 @@ internal fun CoachOverlay() {
         delay(c.ms)
         visible = false
     }
-    val words = shown?.text ?: return
+    // 2.17 (audit M3): "Listening again", small and quiet, as the mic hears again after a line.
+    val cue = CoachHost.listening.value
+    var cueShown by remember { mutableStateOf(false) }
+    LaunchedEffect(cue) { if (cue == 0) return@LaunchedEffect; cueShown = true; delay(CoachSound.CUE_MS); cueShown = false }
     Box(Modifier.fillMaxSize().safeDrawingPadding().padding(top = 8.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.TopCenter) {
-        AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {
+        val words = shown?.text
+        if (words != null) AnimatedVisibility(visible, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {
             CheerBubble(words, BubbleTail.BOTTOM, Modifier.widthIn(max = 340.dp), MaterialTheme.typography.titleSmall)
+        }
+        AnimatedVisibility(cueShown && !visible, enter = fadeIn(), exit = fadeOut()) {
+            androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f)) {
+                Text(CoachCopy.LISTENING, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+            }
         }
     }
 }

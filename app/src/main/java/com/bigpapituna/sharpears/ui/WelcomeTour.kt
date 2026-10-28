@@ -87,10 +87,15 @@ fun WhatsNewSheet(version: String, lines: List<String>, onDone: () -> Unit) {
  * streak card is left out (four cards).
  */
 @Composable
-fun TourDialog(onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null) {
+fun TourDialog(onDone: (skipped: Boolean) -> Unit, /** 2.14: the hello on the first card reads the grown-up's name ("Hi, Dana."), or "Hi there." without one. */ name: String? = null,
+               /** 2.17: the player's plan has chords (DayOne.chordsOpen): without them no band card and no chords row in the plan's picture. */
+               chords: Boolean = true) {
     // 2.15.0 merge: in the Plain look (no streak counter) the streak card is skipped (Welcome.tour).
     val plain = LocalPlain.current.on
-    TourCards(remember(plain) { Welcome.tour(plain) }, label = "tour", hello = com.bigpapituna.sharpears.engine.family.Greeting.hi(name), onDone = onDone)
+    androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.tour.LocalTourChords provides chords) {
+        TourCards(remember(plain, chords) { com.bigpapituna.sharpears.engine.nav.FirstRun.tour(plain, chords) }, label = "tour",
+            hello = com.bigpapituna.sharpears.engine.family.Greeting.hi(name), onDone = onDone)
+    }
 }
 
 /**

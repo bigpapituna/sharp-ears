@@ -56,8 +56,9 @@ class PolishWiringTest {
 
     @Test fun onboardingAsksTheNameOnTheFirstCardForTheOwnerOnly() {
         val ob = src("ui/onboarding/OnboardingScreen.kt")
-        assertTrue("askName: Boolean = askReminder" in ob && "if (askName) onName(name)" in ob)
-        assertTrue("OwnerName.QUESTION" in ob && "WelcomeStep(if (askName) name else null)" in ob)
+        // 2.17: the reminder left the onboarding, so askName is the owner's own flag (MainActivity passes profile.isOwner).
+        assertTrue("askName: Boolean = true, onName: (String) -> Unit = {}" in ob && "if (askName) onName(name)" in ob)
+        assertTrue("OwnerName.QUESTION" in ob && "WelcomeStep(if (askName) name else null" in ob)
         assertTrue("askName = profile.isOwner, onName = { n -> profiles.nameOwner(n) }" in src("MainActivity.kt"))
         // A phone from before asks once, before the What's new and tour sheets.
         val main = src("MainActivity.kt")

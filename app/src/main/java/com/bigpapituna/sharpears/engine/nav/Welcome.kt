@@ -109,6 +109,11 @@ object Welcome {
         "2.16.1" to listOf(
             "Settings are now grouped into tabs: Playing, Look, Sound, Family and About.",
         ),
+        // 2.17.0: the first run (sharp-ears-audits/onboarding-audit-2026-10-28.md).
+        "2.17.0" to listOf(
+            "A shorter start: three questions, then your first note. The app asks about your piano and a reminder when they matter.",
+            "Setting up for your child? Pick My child on the first screen and their first lesson comes straight away.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

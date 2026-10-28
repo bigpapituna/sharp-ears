@@ -123,7 +123,7 @@ fun PlainOffer(prefs: com.bigpapituna.sharpears.data.Prefs, audience: com.bigpap
                modifier: Modifier = Modifier, daysPlayed: () -> Int = { 0 }) {
     val due = androidx.compose.runtime.remember {
         // 2.15 merge: the dashboard's plain_look_offer flag (default yes) asked last; no means not shown and not marked offered.
-        PlainLook.offerDue(audience, prefs.plainLook, prefs.plainOffered, moment, if (moment == PlainLook.Moment.APP_OPENED) daysPlayed() else 0,
+        PlainLook.offerDue(audience, prefs.plainLook, prefs.plainOffered, moment, daysPlayed(),
             flag = { com.bigpapituna.sharpears.analytics.AppFlags.plainLookOffer })
     }
     var answered by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }

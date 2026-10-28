@@ -65,7 +65,10 @@ fun micFacts(mic: MicInput): MicFacts = MicFacts(
  * Allow and Not now; otherwise ("How the microphone works" from Microphone setup or the privacy page) one Close.
  */
 @Composable
-fun MicCardDialog(copy: MicCardCopy, asking: Boolean, onAllow: () -> Unit, onNotNow: () -> Unit) {
+fun MicCardDialog(copy: MicCardCopy, asking: Boolean, onAllow: () -> Unit, onNotNow: () -> Unit,
+                  /** 2.17: the short card (MicTrust.shortCard): its three lines, the sections behind "More". */
+                  short: Boolean = false) {
+    var more by remember { mutableStateOf(!short) }
     Dialog(onDismissRequest = onNotNow, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         SharpEarsTheme(dark = isSystemInDarkTheme()) {
             DialogBarsFollowTheme()
@@ -76,10 +79,10 @@ fun MicCardDialog(copy: MicCardCopy, asking: Boolean, onAllow: () -> Unit, onNot
                             verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(copy.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
                             Text(copy.lead, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            copy.sections.forEach { s ->
+                            if (more) copy.sections.forEach { s ->
                                 Text(s.heading, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp).semantics { heading() })
                                 Text(s.text, style = MaterialTheme.typography.bodyLarge)
-                            }
+                            } else androidx.compose.material3.TextButton(onClick = { more = true; Log.d(TAG, "mic card: more") }) { Text(MicTrust.MORE) }
                         }
                         Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (asking) {
@@ -118,7 +121,9 @@ class MicAsk internal constructor(private val askNow: (Boolean, String?) -> Unit
 }
 
 @Composable
-fun rememberMicAsk(mic: MicInput? = LocalMic.current, gated: Boolean? = null, onResult: (granted: Boolean) -> Unit): MicAsk {
+fun rememberMicAsk(mic: MicInput? = LocalMic.current, gated: Boolean? = null,
+                   /** 2.17: the short card (three lines and More) for a grown-up's first playing step. */
+                   short: Boolean = false, onResult: (granted: Boolean) -> Unit): MicAsk {
     val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
     val profileNow = com.bigpapituna.sharpears.ui.family.LocalProfile.current
     val profile by rememberUpdatedState(profileNow)
@@ -150,8 +155,9 @@ fun rememberMicAsk(mic: MicInput? = LocalMic.current, gated: Boolean? = null, on
         }
     }
     if (showing && mic != null) {
-        val copy = remember(forChild) { MicTrust.card(micFacts(mic), forChild) }
-        MicCardDialog(copy, asking = true,
+        val shortCard = short && forChild == null
+        val copy = remember(forChild, shortCard) { if (shortCard) MicTrust.shortCard(micFacts(mic)) else MicTrust.card(micFacts(mic), forChild) }
+        MicCardDialog(copy, asking = true, short = shortCard,
             onAllow = {
                 showing = false; mic.micCardSeen = true; mic.micNotNow = false
                 Log.d(TAG, "mic card: allow")

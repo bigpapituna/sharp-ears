@@ -28,7 +28,7 @@ class MicTrustWiringTest {
         val offenders = main.walkTopDown().filter { it.extension == "kt" && it.name !in allowed && "launch(Manifest.permission.RECORD_AUDIO)" in it.readText().replace("android.Manifest", "Manifest") }
             .map { it.name }.toList()
         assertEquals(emptyList<String>(), offenders)
-        for (f in listOf("ui/onboarding/OnboardingScreen.kt", "ui/family/ProfilePicker.kt", "ui/family/PlacementCheckScreen.kt", "ui/play/PlayCommon.kt",
+        for (f in listOf("ui/LessonScreen.kt", "ui/family/ProfilePicker.kt", "ui/family/PlacementCheckScreen.kt", "ui/play/PlayCommon.kt",
             "ui/PlayerScreen.kt", "ui/ChordGamesScreen.kt", "ui/ChordsScreen.kt", "ui/ear/KeysPlay.kt", "ui/practice/TunerScreen.kt", "ui/MicSetupScreen.kt"))
             assertTrue("$f asks without the card", "rememberMicAsk(" in src(f))
         // Screens that ask by themselves say so (auto), so a Not now is never nagged; the picker's grown-up is already past the gate.
@@ -41,8 +41,14 @@ class MicTrustWiringTest {
         assertTrue("mic.micCardSeen = true; mic.micNotNow = true" in card)
         // A kid never gets Android's prompt by itself once the card was answered: only through the gate and the card again.
         assertTrue("auto && mic.micCardSeen -> if (behindGate)" in card)
-        // Onboarding's Not now is touch mode with no mic banner (useMic false), a refusal of Android's prompt keeps the banner.
-        assertTrue("if (!granted && micInput?.micNotNow == true) useMic = false" in src("ui/onboarding/OnboardingScreen.kt"))
+        // 2.17 (audit H1, H2): the onboarding asks Android for nothing; a grown-up's first playing step asks how they play, with
+        // the short card (three lines and More), and its answer (Not now included) is kept as the mic default.
+        val onboarding = src("ui/onboarding/OnboardingScreen.kt")
+        assertTrue("rememberMicAsk(" !in onboarding && "POST_NOTIFICATIONS" !in onboarding && "RequestPermission" !in onboarding)
+        val lesson = src("ui/LessonScreen.kt")
+        assertTrue("val micAsk = rememberMicAsk(deps.mic, short = true) { granted -> answerInput(granted) }" in lesson)
+        assertTrue("deps.prefs.micDefault = mic" in lesson && "deps.prefs.inputAsked = true" in lesson)
+        assertTrue("if (shortCard) MicTrust.shortCard(micFacts(mic)) else MicTrust.card(micFacts(mic), forChild)" in card)
     }
 
     @Test fun theCardIsReachableFromMicSetupAndThePrivacyPage() {

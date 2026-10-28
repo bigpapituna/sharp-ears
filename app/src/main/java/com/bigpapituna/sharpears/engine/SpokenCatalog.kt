@@ -41,6 +41,8 @@ object SpokenCatalog {
             lesson.steps.forEach { step -> add(step.text.replace("\n\n", " ")); step.scenes.forEach { add(spokenTheory(it.say)) } }
             add("Next: the lesson ${spokenNumerals(lesson.title)}")
         }
+        // 2.17 (engine/nav/FirstRun.kt): a grown-up who never played hears middle C and plays it before the first lesson's posture.
+        com.bigpapituna.sharpears.engine.nav.FirstRun.FIRST_NOTE_STEPS.forEach { add(it.text) }
         listOf("Lesson complete.", "Clean.", "Clean. On to the next step.", "Full speed. Lesson done.", "Full speed. On to the next step.",
             "Passed.", "Passed. On to the next step.", "No notes were heard in time.", "Next: chords").forEach(::add)
 

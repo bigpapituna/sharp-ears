@@ -29,7 +29,8 @@ sends an event the catalog does not list.
 | `build_flavor` | `debug` (keyless, agents), `tester` (a keyed build: Roy's phone and the testers'), `profile`, `release` | `Tester.marks` |
 | `coach_voice` | `true` (the coach voice plays for the profile open), `false` | `Tester.extra`, from the 2.16 extra's door at each profile open, setting change and moment; only on a build with AFTERDARK=true (absent otherwise). Never a line, its words or its id |
 | `coach_voice_id` | the voice's folder (`male_us`, `male_irish`, `female_us`, later `female_au`), or `off` | `Tester.extra`, the same door and times; only on a build with AFTERDARK=true |
-| `coach_for` | `w` (the coach talks to a woman), `m` (to a man), `unset` | `Tester.extra`, the same door and times; only on a build with AFTERDARK=true |
+| `coach_for` | `w` (the coach talks to a woman), `m` (to a man), `name` (2.17: "Just use my name", the lines for anyone), `unset` | `Tester.extra`, the same door and times; only on a build with AFTERDARK=true |
+| `input_mode` | `mic`, `midi`, `touch` (2.17: how the person open plays now: a MIDI keyboard plugged in, else the mic when it is on and allowed, else the screen's keys) | `Tester.input`, at each profile open and when the first playing step's question is answered |
 
 `Errors.beforeSend` also stamps `is_emulator`, `build_flavor` and `app_version` on any event that left before they were
 registered. PostHog adds its own `$is_emulator`, `$app_version` and the rest; ours are the ones the setup page filters on.
@@ -74,7 +75,10 @@ Buckets: minutes are `0`, `1-4`, `5-9`, `10-19`, `20-29`, `30-59`, `60+`; accura
 
 | Event | Properties | When |
 |---|---|---|
-| `onboarding_step` | `step` (welcome, experience, goal, habit), `result` (completed, skipped) | an onboarding card is left with Continue, Finish or Skip |
+| `onboarding_step` | `step` (welcome, experience, goal; 2.16 and before also habit), `result` (completed, skipped), and the card's answer (2.17): `who` (me, child; the welcome card, only when "Who is this for?" was asked), `level` (never, a_little, some, a_lot; the experience card), `goal` (minutes a day; the goal card) | an onboarding card is left with Continue, Finish or Skip |
+| `first_note` | `input` (mic, midi, touch), `seconds_since_first_open` (since this profile first opened on this phone; profiles from before 2.17 never send it) | the profile's first right note in a player (a lesson step, a song, the placement check), once per profile (2.17) |
+| `input_chosen` | `answer` (mic: "Use my piano", touch: "Use screen keys") | a grown-up answers "Got a piano or keyboard here?" on their first playing step (2.17; not asked with MIDI plugged in, nor of kids) |
+| `notification_ask` | `result` (granted, denied, not_now) | the owner answers "Want a nudge tomorrow at ...?" under their first finished lesson: Yes with notifications allowed (granted), Yes and Android said no (denied), Not now (2.17; the onboarding no longer asks) |
 | `placement_result` | `level` (never, a_little, some, a_lot) | a piano level is set (the onboarding's answer, the placement check, Family > Piano level) |
 | `layout_chosen` | `layout` | a layout is chosen (at launch or in Settings) |
 | `big_kid_made` | none | a kid profile is made as a big kid |

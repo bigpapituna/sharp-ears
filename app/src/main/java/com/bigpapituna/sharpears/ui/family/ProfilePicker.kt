@@ -152,12 +152,14 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                    /** A kid's weekly brief: asked at the end ("When should we send you Mia's weekly brief?"); the caller stores it once the profile exists. Null: not asked. */
                    onWeekly: ((com.bigpapituna.sharpears.engine.brief.WeeklySlot) -> Unit)? = null,
                    /** A kid whose parent asked for the short listen ("Let them try"): told just before the profile is handed back; the caller keeps it for the kid's first open. Null: not offered. */
-                   onCheck: ((Boolean) -> Unit)? = null) {
+                   onCheck: ((Boolean) -> Unit)? = null,
+                   /** 2.17 (audit H4): "My child" on the first card: a kid's profile only, the kid-or-grown-up question not asked. */
+                   kidOnly: Boolean = false) {
     BackHandler(onBack = onCancel)
     val still = reducedMotion()
     var name by rememberSaveable { mutableStateOf("") }
     var avatar by rememberSaveable { mutableIntStateOf(1) }
-    var kind by rememberSaveable { mutableStateOf<ProfileKind?>(null) }
+    var kind by rememberSaveable { mutableStateOf(if (kidOnly) ProfileKind.KID else null) }
     var reader by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var levelName by rememberSaveable { mutableStateOf<String?>(null) }
     var bandName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -201,6 +203,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
         if (named && imeOpen && kind == null) { kotlinx.coroutines.delay(300); runCatching { askKind.bringIntoView() } }
     }
     val line = when {
+        clean.isEmpty() && kidOnly -> "Hi! What's your child's name?"
         clean.isEmpty() -> "Hi! What's your name?"
         kind == null -> "Hi, $clean! Who is this for?"
         kind == ProfileKind.KID && band == null -> com.bigpapituna.sharpears.engine.family.AgeBand.question(clean)
@@ -217,7 +220,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                 IconButton(onClick = onCancel, modifier = Modifier.padding(start = 0.dp)) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                 }
-                Text("Someone new", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                Text(if (kidOnly) "Your child" else "Someone new", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PupAvatar(avatar, size = 96.dp)
@@ -236,7 +239,7 @@ fun NewProfileFlow(onDone: (Profile) -> Unit, onCancel: () -> Unit,
                     }
                 }
             }
-            Column(Modifier.bringIntoViewRequester(askKind), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (!kidOnly) Column(Modifier.bringIntoViewRequester(askKind), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Question("Who is this for?")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BigPill("A kid", kind == ProfileKind.KID, Modifier.weight(1f)) { kind = ProfileKind.KID }

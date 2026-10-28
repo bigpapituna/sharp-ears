@@ -221,6 +221,8 @@ private sealed interface Screen {
     data class EarTraining(val back: Screen, val start: EarStart? = null) : Screen
     /** First run: four questions, then the suggested lesson. */
     data object Onboarding : Screen
+    /** 2.17 (audit H4): "My child" on the first card: the add-a-kid form, no gate for the first kid; then the kid's first lesson or map. */
+    data object FirstKid : Screen
     /** "Let's hear you play" (2.6): the short listen after the piano level was said ([said]); [startTask] and [inject] are debug. */
     data class Placement(val said: com.bigpapituna.sharpears.engine.family.Level, val startTask: Int = 0, val inject: String? = null) : Screen
     data class Theory(val back: Screen) : Screen
@@ -257,7 +259,7 @@ private fun toyKind(t: Toy) = when (t) { Toy.JAM -> ToyKind.JAM; Toy.PUP_SAYS ->
 /** Order of screens for the transitions: deeper goes forward, shallower goes back, the player gets the curtain. */
 private fun depthOf(s: Screen) = when (s) {
     is Screen.Home -> 0
-    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidChords, is Screen.KidStickers, is Screen.PopSong,
+    is Screen.Settings, is Screen.EarTraining, is Screen.Theory, Screen.Onboarding, Screen.FirstKid, is Screen.Placement, is Screen.World, is Screen.KidSongs, is Screen.KidChords, is Screen.KidStickers, is Screen.PopSong,
     is Screen.LearnChords, is Screen.ChordGames, is Screen.Progressions -> 1
     is Screen.Arcade -> 1
     is Screen.Player, is Screen.Lesson, is Screen.SightRead, is Screen.Daily, is Screen.Privacy, is Screen.Licences, is Screen.MicSetup, is Screen.Play,
@@ -282,6 +284,7 @@ private fun routeOf(s: Screen): String = when (s) {
     is Screen.Settings -> "${routeOf(s.back)}/settings"
     is Screen.EarTraining -> "${routeOf(s.back)}/ear"
     Screen.Onboarding -> "onboarding"
+    Screen.FirstKid -> "onboarding"
     is Screen.Placement -> "home:TODAY"
     is Screen.Theory -> "${routeOf(s.back)}/theory"
     is Screen.World -> "${routeOf(s.back)}/world:${s.tab.name}"
@@ -636,6 +639,11 @@ class MainActivity : ComponentActivity() {
         com.bigpapituna.sharpears.analytics.Tester.profile(profile.isKid, profile.id)     // "kid" or "adult" only, never the name
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
+        // 2.17 (audit M5): when this profile first opened, for first_note's seconds; and how it plays now (input_mode).
+        val firstOpen = prefs.firstOpenAt == 0L
+        if (firstOpen) prefs.firstOpenAt = System.currentTimeMillis()
+        com.bigpapituna.sharpears.analytics.Events.profilePrefs = prefs
+        com.bigpapituna.sharpears.analytics.Tester.input(com.bigpapituna.sharpears.engine.nav.FirstRun.inputOf(midi.connected.value != null, prefs.micDefault && mic.hasPermission()).wire)
         // Placement (2.6): the lessons this person's level skips are marked "done, skipped" (idempotent; a played lesson is never touched).
         prefs.applyPlacement(com.bigpapituna.sharpears.engine.family.Placement.planOf(profile))
         openLevel = profile.level
@@ -653,6 +661,8 @@ class MainActivity : ComponentActivity() {
         val lessons = LessonStore(this, profile.id)
         val progress = ProgressStore(this, prefs, songIds = { repo.all().map { it.id } })
         progress.catchUp()                             // once ever: XP for practice, lessons and songs from before 2.0, quietly
+        // 2.17: a profile that played before 2.17 had its first note long ago: first_note is for new profiles only.
+        if (firstOpen && (progress.xp > 0 || progress.onboardingDone)) prefs.firstNoteSent = true
         // The parent brief's log follows the player: a switch ends the last one's session (with their practice) and, on
         // screen, starts this one's; events from here on go to this profile's log.
         if (Briefs.currentId != profile.id) Briefs.sessionEnd()
@@ -1530,10 +1540,15 @@ class MainActivity : ComponentActivity() {
                                 onReport = ::earEvent, sound = { prefs.sound }, start = s.start)
                         }
                         Screen.Onboarding -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                            OnboardingScreen(progress, prefs, onReminderChanged = { com.bigpapituna.sharpears.reminder.Reminder.schedule(this@MainActivity) },
-                                askReminder = profile.isOwner,
+                            OnboardingScreen(progress, prefs,
                                 // 2.14: the owner is asked their name on the first card (optional); anyone else was named when they were added.
                                 askName = profile.isOwner, onName = { n -> profiles.nameOwner(n) },
+                                // 2.17 (audit H4): "Who is this for?" while the phone has no kid; "My child" opens the add-a-kid form,
+                                // with no gate for the first kid (FirstRun.addKidNeedsGate: nothing to protect yet).
+                                onForChild = if (com.bigpapituna.sharpears.engine.nav.FirstRun.asksWho(profile.isOwner, roster.profiles.any { it.isKid })) ({
+                                    if (com.bigpapituna.sharpears.engine.nav.FirstRun.addKidNeedsGate(roster.profiles.any { it.isKid })) gate.guard { screen = Screen.FirstKid }
+                                    else screen = Screen.FirstKid
+                                }) else null,
                                 // How much they have played (2.6): the profile keeps it and the flow below re-plans the marks in place.
                                 onLevel = { l -> profiles.update(profile.id) { it.copy(level = l) } },
                                 onCheck = { l -> screen = Screen.Placement(l) }) { lessonId ->
@@ -1543,6 +1558,26 @@ class MainActivity : ComponentActivity() {
                                 screen = lessonId?.let { id -> COURSE.flatMap { it.lessons }.firstOrNull { it.id == id } }
                                     ?.let { Screen.Lesson(it, Screen.Home(HomeTab.LEARN)) } ?: Screen.Home(if (songsFirst) HomeTab.SONGS else HomeTab.LEARN)
                             }
+                        }
+                        // 2.17 (audit H4): the parent's first kid, made straight from the first card. The kid's profile opens at once
+                        // (its first lesson or the map); the grown-up's own cards wait for the next time they open as themselves.
+                        Screen.FirstKid -> Box(Modifier.fillMaxSize()) {
+                            var weekly by remember { mutableStateOf<com.bigpapituna.sharpears.engine.brief.WeeklySlot?>(null) }
+                            var wantsCheck by remember { mutableStateOf(false) }
+                            com.bigpapituna.sharpears.ui.family.NewProfileFlow(kidOnly = true,
+                                onDone = { p ->
+                                    val made = profiles.create(p)
+                                    if (made != null && made.isKid) {
+                                        com.bigpapituna.sharpears.data.BriefStore(this@MainActivity, made.id).weekly = weekly ?: com.bigpapituna.sharpears.engine.brief.WeeklySlot.DEFAULT
+                                        com.bigpapituna.sharpears.reminder.BriefReminder.schedule(this@MainActivity, made)
+                                        if (wantsCheck) Prefs(this@MainActivity, made.id).placementCheckPending = true
+                                    }
+                                    Log.d(TAG, "first run: first kid ${made?.id} made from the first card")
+                                    // The roster's switch reopens the app as the kid by itself (the current profile's collector).
+                                    if (made == null) screen = Screen.Onboarding
+                                },
+                                onCancel = { screen = Screen.Onboarding },
+                                onWeekly = { weekly = it }, onCheck = { wantsCheck = it })
                         }
                         // "Let's hear you play" (2.6): two or three tiny things, then where they begin; it counts as a first lesson.
                         is Screen.Placement -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -1560,7 +1595,8 @@ class MainActivity : ComponentActivity() {
                                 finishLabel = if (profile.mapHome) "To the map" else if (songsFirst) "Show me the songs" else "Start learning",
                                 inject = s.inject, startTask = s.startTask,
                                 // 2.14: someone who chose the screen's keys or MIDI is not asked for the microphone.
-                                askMic = com.bigpapituna.sharpears.engine.nav.DayOne.checkAsksMic(progress.useMic, profile.isKid),
+                                // 2.17: someone never asked how they play (no fourth card any more) is asked through the mic card, unless MIDI is in.
+                                askMic = com.bigpapituna.sharpears.engine.nav.FirstRun.checkAsksMic(progress.useMic, profile.isKid, prefs.inputAsked || prefs.micDefaultChosen, midi.connected.value != null),
                                 onDone = { begin, played ->
                                     Log.d(TAG, "placement: ${profile.id} begins at $begin (check ${if (played) "played" else "skipped"})")
                                     // Only a check played through moves the level: skipped or left, the level said stays (it is already
@@ -1854,7 +1890,8 @@ class MainActivity : ComponentActivity() {
                                 roster.profiles.filter { it.isKid }, initial = current.id,
                                 // Closed, the phone is the kid's again: the gate shuts as it does with the corner.
                                 onClose = { briefOpen = false; gate.close(); Log.d(TAG, "gate: closed with the parent brief") })
-                        } else if (com.bigpapituna.sharpears.engine.nav.Simple.asks(current.isKid, chosenLayout)) {
+                        } else if (com.bigpapituna.sharpears.engine.nav.FirstRun.asksLayout(current.isKid, chosenLayout, current.level,
+                                path.counted.count { prefs.lessonPlayed(it.id) }, progress.practiceLog().size)) {
                             // 2.8, the launch chooser: a grown-up who never chose a layout picks one before the tabs (Today); a
                             // tap saves it and the home opens under it. Kids never see it; 2.7's Simple switch counts as chosen.
                             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -1872,7 +1909,9 @@ class MainActivity : ComponentActivity() {
                             val due = remember(lv, lessons.songPacks.value, layout) {
                                 chordCurriculum().queue(lessons.mastery(), System.currentTimeMillis()).size
                             }
-                            HomeShell(s.tab, { screen = s.copy(tab = it) }, badge = mapOf(HomeTab.LEARN to due)) { tab ->
+                            // 2.17 (audit L2): no chord count on Learn until the plan has chords (a beginner's, after two lessons).
+                            val chordsOpen = current.isKid || com.bigpapituna.sharpears.engine.nav.DayOne.chordsOpen(current.level, path.counted.count { prefs.lessonPlayed(it.id) })
+                            HomeShell(s.tab, { screen = s.copy(tab = it) }, badge = mapOf(HomeTab.LEARN to if (chordsOpen) due else 0)) { tab ->
                                 when (tab) {
                                     // 2.7: Today, the grown-ups' home. One main action: the plan and its Start.
                                     HomeTab.TODAY -> {
@@ -1899,8 +1938,9 @@ class MainActivity : ComponentActivity() {
                                                 is com.bigpapituna.sharpears.engine.nav.ContinueWith.Song -> songs.first { it.id == with.id }.let { com.bigpapituna.sharpears.ui.ContinueTile.Song(entry(it), fresh = false) }
                                                 is com.bigpapituna.sharpears.engine.nav.ContinueWith.PopSong ->
                                                     com.bigpapituna.sharpears.ui.ContinueTile.PopSong(com.bigpapituna.sharpears.ui.chords.PopCatalogue.songs.first { it.id == with.id })
+                                                // 2.17 (audit L2): a lesson already finished is not offered to continue beside the plan's Start.
                                                 is com.bigpapituna.sharpears.engine.nav.ContinueWith.Lesson -> path.lesson(with.id)!!.let { l ->
-                                                    com.bigpapituna.sharpears.ui.ContinueTile.Lesson(l, path.levelOf(l)?.title, prefs.lessonPlayed(l.id))
+                                                    if (prefs.lessonPlayed(l.id)) null else com.bigpapituna.sharpears.ui.ContinueTile.Lesson(l, path.levelOf(l)?.title, false)
                                                 }
                                                 // A fresh install: a challenge in today's plan wins (2.14 depth: no "Start here" beside it); else an
                                                 // easy first song for a beginner; a song by chords for some, a lot and a big kid (2.14 levels-ages,
@@ -2076,7 +2116,7 @@ class MainActivity : ComponentActivity() {
                                             path = path,
                                             // 2.7: the Chords tab's places, at the top of Learn (a kid's chords are on their own Songs).
                                             chords = if (current.mapHome) null else ({
-                                                com.bigpapituna.sharpears.ui.ChordsSection(due, onLearnChords = { screen = Screen.LearnChords(s) },
+                                                com.bigpapituna.sharpears.ui.ChordsSection(if (chordsOpen) due else 0, onLearnChords = { screen = Screen.LearnChords(s) },
                                                     onGames = { screen = Screen.ChordGames(s) }, onProgressions = { screen = Screen.Progressions(s) })
                                             }),
                                             grownUp = if (!CoursePath.offerGrownUp(current.isKid, grownUpOffered, { pv >= 0 && prefs.lessonDone(it) })) null else { {
@@ -2144,7 +2184,10 @@ class MainActivity : ComponentActivity() {
                             var nameAnswered by remember { mutableStateOf(false) }
                             val nameDue = !nameAnswered && current.isOwner && profiles.ownerNameDue(progress.onboardingDone)
                             if (nameDue) com.bigpapituna.sharpears.ui.onboarding.OwnerNameAsk { typed -> nameAnswered = true; profiles.nameOwner(typed); Log.d(TAG, "profiles: owner name asked, ${if (typed.isBlank()) "none given" else "given"}") }
-                            else                             when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && prefs.tourDone, prefs.whatsNewSeen, appVersion,
+                            // 2.17 (audit M2): the tour waits until two lessons are played or a second day (FirstRun.tourReady).
+                            val tourReady = remember(wv, progress.version.intValue) {
+                                com.bigpapituna.sharpears.engine.nav.FirstRun.tourReady(path.counted.count { prefs.lessonPlayed(it.id) }, progress.practiceLog().size) }
+                            if (!nameDue) when (com.bigpapituna.sharpears.engine.nav.Welcome.next(current.isKid, wv >= 0 && (prefs.tourDone || !tourReady), prefs.whatsNewSeen, appVersion,
                                 table = whatsNewTable,
                                 parentsTourDue = parentsTourOpen && com.bigpapituna.sharpears.engine.nav.Welcome.parentsTourDue(profiles.parentsTour))) {
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.WHATS_NEW -> com.bigpapituna.sharpears.ui.WhatsNewSheet(appVersion,
@@ -2152,7 +2195,7 @@ class MainActivity : ComponentActivity() {
                                     prefs.whatsNewSeen = appVersion; Log.d(TAG, "welcome: what's new $appVersion seen")
                                 }
                                 com.bigpapituna.sharpears.engine.nav.Welcome.Show.TOUR -> {
-                                    com.bigpapituna.sharpears.ui.TourDialog(name = current.greetName,
+                                    com.bigpapituna.sharpears.ui.TourDialog(name = current.greetName, chords = chordsOpen,
                                         onDone = { skipped ->
                                             prefs.tourDone = true
                                             Log.d(TAG, "welcome: tour ${if (skipped) "skipped" else "done"}")
@@ -2389,7 +2432,8 @@ class MainActivity : ComponentActivity() {
                     BriefFromNotification(roster, openKid = current.isKid)
                     // 2.13: Help Roy test came on by default in this test build: a one-time notice, to a grown-up only (a kid's
                     // profile leaves it for the next grown-up one), never over the stage. OK and it is gone for good.
-                    if (com.bigpapituna.sharpears.engine.tester.TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid) &&
+                    if (com.bigpapituna.sharpears.engine.tester.TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid,
+                            onboarding = screen == Screen.Onboarding || screen == Screen.FirstKid) &&
                         !isStage(screen)) SharpEarsTheme(dark = isSystemInDarkTheme()) {
                         com.bigpapituna.sharpears.analytics.TesterDefaultNotice { com.bigpapituna.sharpears.analytics.Tester.noticeSeen(this@MainActivity) }
                     }

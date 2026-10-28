@@ -67,7 +67,9 @@ object NavGraph {
         "KidStickers" to setOf("Player", KID_HOME),
         "Finale" to setOf(KID_HOME),
         LAUNCH to setOf("Onboarding", "Placement", "Lesson", tab(NavTab.TODAY), KID_HOME),
-        "Onboarding" to setOf("Placement", "Lesson", tab(NavTab.SONGS), tab(NavTab.LEARN)),
+        // 2.17: "My child" on the first card opens the add-a-kid form, which opens the app as the kid (their first lesson or map).
+        "Onboarding" to setOf("Placement", "Lesson", tab(NavTab.SONGS), tab(NavTab.LEARN), "FirstKid"),
+        "FirstKid" to setOf("Onboarding", "Lesson", KID_HOME),
         "Placement" to setOf("Lesson", tab(NavTab.SONGS), tab(NavTab.LEARN), KID_HOME),
         "Player" to emptySet(), "ChordGames" to emptySet(), "Theory" to emptySet(), "EarTraining" to emptySet(),
         "SightRead" to emptySet(), "Licences" to emptySet(), "Play" to emptySet(),

@@ -105,8 +105,10 @@ class PlainLookTest {
     @Test fun theOfferOncePerProfileNeverToALittleKid() {
         val m = PlainLook.Moment.LESSON_FINISHED
         val o = PlainLook.Moment.APP_OPENED
-        assertTrue(PlainLook.offerDue(grown, stored = false, offeredBefore = false, moment = m, daysPlayed = 0))
-        assertTrue(PlainLook.offerDue(big, stored = false, offeredBefore = false, moment = m, daysPlayed = 1))
+        // 2.17 (audit M6): a lesson's finish offers it at the end of session 2 (the second day played), not the first lesson's peak.
+        assertFalse(PlainLook.offerDue(grown, stored = false, offeredBefore = false, moment = m, daysPlayed = 1))
+        assertTrue(PlainLook.offerDue(grown, stored = false, offeredBefore = false, moment = m, daysPlayed = PlainLook.SESSION_TWO_DAYS))
+        assertTrue(PlainLook.offerDue(big, stored = false, offeredBefore = false, moment = m, daysPlayed = 2))
         assertFalse("never a little kid", PlainLook.offerDue(little, false, false, m, 30))
         assertFalse("never a little kid", PlainLook.offerDue(little, false, false, o, 30))
         assertFalse("once", PlainLook.offerDue(grown, false, offeredBefore = true, moment = m, daysPlayed = 30))
@@ -120,15 +122,17 @@ class PlainLookTest {
     /** 2.15 merge: the dashboard's plain_look_offer flag says no: not due, and it is asked only when all else says yes. */
     @Test fun theOfferFollowsTheDashboardsFlag() {
         val m = PlainLook.Moment.LESSON_FINISHED
-        assertFalse("the flag says no", PlainLook.offerDue(grown, false, false, m, 0, flag = { false }))
-        assertTrue("the flag says yes", PlainLook.offerDue(grown, false, false, m, 0, flag = { true }))
+        assertFalse("the flag says no", PlainLook.offerDue(grown, false, false, m, 2, flag = { false }))
+        assertTrue("the flag says yes", PlainLook.offerDue(grown, false, false, m, 2, flag = { true }))
         var asked = 0
         val counting = { asked++; true }
         PlainLook.offerDue(little, false, false, m, 30, flag = counting)
         PlainLook.offerDue(grown, false, offeredBefore = true, moment = m, daysPlayed = 30, flag = counting)
         PlainLook.offerDue(grown, false, false, PlainLook.Moment.APP_OPENED, 2, flag = counting)
         assertEquals("not asked for anyone the card would not reach", 0, asked)
-        PlainLook.offerDue(grown, false, false, m, 0, flag = counting)
+        PlainLook.offerDue(grown, false, false, m, 1, flag = counting)
+        assertEquals("not asked on the first day", 0, asked)
+        PlainLook.offerDue(grown, false, false, m, 2, flag = counting)
         assertEquals(1, asked)
     }
 

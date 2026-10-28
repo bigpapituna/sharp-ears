@@ -2,6 +2,7 @@ package com.bigpapituna.sharpears.ui
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,6 +84,7 @@ import com.bigpapituna.sharpears.ui.pup.mood
 import com.bigpapituna.sharpears.engine.pup.PupMood
 import com.bigpapituna.sharpears.engine.lessons.StepOutcome
 import com.bigpapituna.sharpears.engine.lessons.StepPopRules
+import com.bigpapituna.sharpears.engine.nav.FirstRun
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -118,7 +120,7 @@ class LessonDeps(val sampler: Sampler, val midi: MidiDevices, val mic: MicInput,
  */
 @Composable
 fun LessonScreen(
-    lesson: CourseLesson, startStep: Int, deps: LessonDeps, inject: String?,
+    lessonIn: CourseLesson, startStep: Int, deps: LessonDeps, inject: String?,
     /** Debug: MIDI input played into the first step (see MidiDevices.debugPlay). */
     midiScript: String? = null,
     /** Debug (--ei scene n): the scene a reading step opened first starts on. */
@@ -146,8 +148,11 @@ fun LessonScreen(
     // 2.14: the kid skin (bites, the pup's words, one button) is a little kid's; bedtime and the brief's card are every kid's.
     val kid = who.kidSkin
     val anyKid = who.isKid
+    // 2.17 (audit H3, engine/nav/FirstRun.kt): a grown-up who never played hears middle C and plays it first, posture second.
+    val lesson = remember(lessonIn, who.level, anyKid) { FirstRun.lessonFor(lessonIn, who.level, anyKid) }
+    val firstNoteStep = remember(lessonIn, who.level, anyKid) { FirstRun.firstNoteStep(lessonIn, who.level, anyKid) }
     val path = remember(who.firstUnitId, who.reader) { com.bigpapituna.sharpears.engine.CoursePath(who.firstUnitId, bigKid = kid && who.reader) }
-    val level = path.levelOf(lesson) ?: ALL.first { it.second == lesson }.first
+    val level = path.levelOf(lessonIn) ?: ALL.first { it.second == lessonIn }.first      // the course's own lesson (2.17: [lesson] may have the first note first)
     val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
     var reward by remember { mutableStateOf<com.bigpapituna.sharpears.engine.world.Reward?>(null) }
     var index by remember { mutableIntStateOf(startStep.coerceIn(0, lesson.steps.lastIndex)) }
@@ -245,8 +250,32 @@ fun LessonScreen(
     // "More?" appears once the first scene has played.
     val firstSceneDone = scenes?.let { pb -> remember(pb) { androidx.compose.runtime.derivedStateOf { pb.fraction() >= 1f } }.value } ?: false
 
+    // 2.17 (audit H1, engine/nav/FirstRun.kt): "Got a piano or keyboard here?" on a grown-up's first playing step (never a kid's,
+    // never with a MIDI keyboard plugged in, never someone who already chose: 2.16's fourth card, or the mic button in a song).
+    // "Use my piano" shows the short mic card, then Android's prompt; the answer is kept.
+    var askingInput by remember(index) { mutableStateOf(!finished && step.exercise != null &&
+        !com.bigpapituna.sharpears.ui.playground.hasPlaygroundStage(step) &&
+        FirstRun.asksInput(anyKid, deps.prefs.inputAsked || deps.prefs.micDefaultChosen, deps.midi.connected.value != null, step.kind)) }
+    fun answerInput(mic: Boolean) {
+        deps.prefs.micDefault = mic
+        progress?.useMic = mic
+        deps.prefs.inputAsked = true
+        askingInput = false
+        val mode = FirstRun.inputOf(deps.midi.connected.value != null, mic && deps.mic.hasPermission())
+        com.bigpapituna.sharpears.analytics.Tester.input(mode.wire)
+        Log.d(TAG, "first run: plays by ${mode.wire}")
+    }
+    val micAsk = rememberMicAsk(deps.mic, short = true) { granted -> answerInput(granted) }
+
     // 2.16: the build's extra greets a grown-up's first playing step of this visit (extras/Extras.kt, Moment.START).
     var greeted by remember(lesson.id) { mutableStateOf(false) }
+    // 2.17 (audit M3): in a profile's first lesson the extra's lines wait until a step is passed (the first note heard first).
+    val firstLesson = remember(lesson.id) { !anyKid && com.bigpapituna.sharpears.engine.COURSE.flatMap { it.lessons }.none { deps.prefs.lessonPlayed(it.id) } }
+    var passedSteps by remember(lesson.id) { mutableIntStateOf(0) }
+    DisposableEffect(firstLesson) {
+        com.bigpapituna.sharpears.extras.Extras.hold(FirstRun.holdsExtra(firstLesson, 0))
+        onDispose { com.bigpapituna.sharpears.extras.Extras.hold(false) }
+    }
     // Read each exercise step out as it opens. After an automatic advance the feedback line is already queued, so no interrupt.
     LaunchedEffect(index) {
         Log.d(TAG, "lesson ${lesson.id} step ${index + 1}/${lesson.steps.size} ${step.kind}" +
@@ -295,6 +324,8 @@ fun LessonScreen(
         // Pup's Playground (2.1.1, no dead ends): the third try that does not pass lets the step go on.
         val letGo = !judged && s.kind != StepKind.LISTEN && com.bigpapituna.sharpears.engine.playground.StepRetry.letGo(lesson.id, fails + 1)
         val passed = judged || letGo
+        // 2.17 (M3): a step passed where the player played lets the extra speak again (its step passed line included).
+        if (passed && s.kind != StepKind.LISTEN) { passedSteps++; com.bigpapituna.sharpears.extras.Extras.hold(FirstRun.holdsExtra(firstLesson, passedSteps)) }
         val tally = runTally[0]
         runTally[0] = null
         stepLog.run(report, tally, letGo)
@@ -341,7 +372,8 @@ fun LessonScreen(
         if (highFive) { pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(com.bigpapituna.sharpears.engine.HIGH_FIVE) } }; Log.d(TAG, "pup: high five after $fails tries") }
         fails = 0
         // The last step goes straight to the celebration; any other waits on Continue.
-        if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!" else cheerTitle(cheers++),
+        if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!"
+            else if (index == firstNoteStep) FirstRun.FIRST_NOTE_TITLE else cheerTitle(cheers++),
             if (highFive) "You stuck with it. " + (line?.text ?: "") else line?.text)
     }
 
@@ -354,7 +386,7 @@ fun LessonScreen(
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = arrowLabel ?: if (kid) "Back to the map" else "Back to lessons")
                 }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    if (!kid) Text("${level.title}, lesson ${path.numberOf(lesson)}", style = MaterialTheme.typography.labelLarge,
+                    if (!kid) Text("${level.title}, lesson ${path.numberOf(lessonIn)}", style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
                     Text(lesson.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.semantics { heading() })
                 }
@@ -385,6 +417,13 @@ fun LessonScreen(
                     if (scenes.scenes.size > 1) SceneBar(scenes.scenes.size, scenes.index, scenes::fraction)
                     PupSays(scenes.scene.mood.pose(), scenes.scene.caption, Modifier.padding(top = 12.dp, bottom = 12.dp).heightIn(min = 72.dp), size = 72.dp)
                     SceneStage(scenes, Modifier.weight(1f), roomier = true)
+                    // 2.17 (audit H3): a grown-up can go straight to the next step where they play.
+                    val playAt = if (kid) null else FirstRun.skipToPlaying(lesson.steps, index)
+                    if (playAt != null) androidx.compose.material3.TextButton(onClick = {
+                        voice.stop(); Log.d(TAG, "lesson ${lesson.id} step ${index + 1} skip to playing (step ${playAt + 1})")
+                        Briefs.logAll(stepLog.events(Briefs.now(), ForegroundClock.app.nowMs(), passed = true))
+                        go(playAt); run++
+                    }, modifier = Modifier.align(Alignment.End)) { Text(FirstRun.SKIP_TO_PLAYING) }
                     // A kid's bite: the rest of the step only if they ask.
                     if (bite) androidx.compose.animation.AnimatedVisibility(firstSceneDone,
                         enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.7f),
@@ -431,6 +470,12 @@ fun LessonScreen(
                         else -> shown.mood
                     })
                 val ex = step.exercise
+                // 2.17 (audit H1): a grown-up's first playing step asks how they play, in context, before the player starts.
+                if (askingInput) InputAsk(firstC = ex.right.trim().startsWith("C4:"), onMic = {
+                    com.bigpapituna.sharpears.analytics.Events.inputChosen(true); Log.d(TAG, "first run: use my piano (mic)"); micAsk.ask()
+                }, onKeys = {
+                    com.bigpapituna.sharpears.analytics.Events.inputChosen(false); Log.d(TAG, "first run: use screen keys"); answerInput(false)
+                }, modifier = Modifier.weight(1f).fillMaxWidth()) else
                 androidx.compose.runtime.CompositionLocalProvider(com.bigpapituna.sharpears.ui.pup.LocalCheers provides cheerPops) {
                 Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { stepArea.value = it.boundsInRoot() }, contentAlignment = Alignment.TopCenter) {
                     // A Playground game draws its own stage (the pup flying, the key hunt, the drum, the nap, the concert).
@@ -625,9 +670,13 @@ fun LessonScreen(
                 items, say = { line -> deps.voice.speak(line) }, onLeave = { progress?.consumeLevelUp() },
                 below = {
                     com.bigpapituna.sharpears.ui.TomorrowSlot()
-                    // 2.15: the first lesson finished after the update offers the Plain look, once (a grown-up or big kid).
-                    PlainOffer(deps.prefs, who.audience, com.bigpapituna.sharpears.engine.family.PlainLook.Moment.LESSON_FINISHED,
-                        Modifier.widthIn(max = 420.dp).padding(top = 4.dp))
+                    // 2.17 (audit H2): the owner's first finished lesson offers tomorrow's nudge; only Yes asks Android.
+                    val nudge = remember { FirstRun.asksNudge(who.isOwner, anyKid, deps.prefs.nudgeAsked, deps.prefs.reminderOn) }
+                    if (nudge) NudgeOffer(deps.prefs, Modifier.widthIn(max = 420.dp).padding(top = 4.dp))
+                    // 2.15: the Plain look's offer, once (a grown-up or big kid); 2.17 (audit M6): at the end of session 2 (a
+                    // lesson finished on the second day played or later), never beside the nudge.
+                    else PlainOffer(deps.prefs, who.audience, com.bigpapituna.sharpears.engine.family.PlainLook.Moment.LESSON_FINISHED,
+                        Modifier.widthIn(max = 420.dp).padding(top = 4.dp), daysPlayed = { progress?.practiceLog()?.size ?: 0 })
                 })
             // A big kid (grown-up skin) still gets the pup's card for the brief after the button (levels-ages: cardStep).
             Celebration(
@@ -726,6 +775,68 @@ private fun StepDots(count: Int, current: Int, finished: Boolean, modifier: Modi
                     i < current || finished -> MaterialTheme.colorScheme.onSurfaceVariant
                     else -> MaterialTheme.colorScheme.outlineVariant
                 }))
+        }
+    }
+}
+
+/**
+ * 2.17 (audit H1): the in-context question on a grown-up's first playing step, where the player will be: "Got a piano or
+ * keyboard here? Play middle C and I'll listen." with "Use my piano (mic)" and "Use screen keys", and that a MIDI keyboard
+ * connects by itself. [firstC]: the step starts on middle C (else "Play along and I'll listen.").
+ */
+@Composable
+private fun InputAsk(firstC: Boolean, onMic: () -> Unit, onKeys: () -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Column(Modifier.widthIn(max = 460.dp).fillMaxWidth().clip(MaterialTheme.shapes.large).background(c.surfaceContainerHigh)
+            .padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(FirstRun.INPUT_TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(if (firstC) FirstRun.INPUT_LINE else FirstRun.INPUT_LINE_ANY, style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant)
+            ChunkyButton(onClick = onMic, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text(FirstRun.USE_MIC) }
+            OutlinedButton(onClick = onKeys, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(FirstRun.USE_KEYS) }
+            Text(FirstRun.MIDI_LINE, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * 2.17 (audit H2): "Want a nudge tomorrow at 6:30 PM?" under the owner's first finished lesson, small and inline like the Plain
+ * look's offer. Yes asks Android for notifications when they are not allowed yet and turns the reminder on only once they are;
+ * Not now leaves it off. Asked once ([Prefs.nudgeAsked], marked at the answer).
+ */
+@Composable
+private fun NudgeOffer(prefs: Prefs, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var answered by remember { mutableStateOf(false) }
+    if (answered) return
+    fun done(result: FirstRun.NudgeResult) {
+        answered = true
+        prefs.nudgeAsked = true
+        prefs.reminderOn = FirstRun.reminderAfter(result)
+        com.bigpapituna.sharpears.reminder.Reminder.schedule(context)
+        com.bigpapituna.sharpears.analytics.Events.notificationAsk(result.wire)
+        Log.d(TAG, "nudge: ${result.wire}, reminder ${if (prefs.reminderOn) "on" else "off"}")
+    }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        done(if (granted) FirstRun.NudgeResult.GRANTED else FirstRun.NudgeResult.DENIED)
+    }
+    val m = prefs.reminderMinutes
+    val time = remember(m) {
+        android.text.format.DateFormat.getTimeFormat(context).format(java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, m / 60); set(java.util.Calendar.MINUTE, m % 60) }.time).replace('\u202F', ' ')
+    }
+    val c = MaterialTheme.colorScheme
+    Column(modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+        .border(1.dp, c.outlineVariant, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+        .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(FirstRun.nudgeLine(time), style = MaterialTheme.typography.bodyMedium, color = c.onSurface)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.TextButton(onClick = { done(FirstRun.NudgeResult.NOT_NOW) }) { Text(FirstRun.NUDGE_NO, color = c.onSurfaceVariant) }
+            Spacer(Modifier.size(4.dp))
+            androidx.compose.material3.TextButton(onClick = {
+                if (com.bigpapituna.sharpears.reminder.Reminder.canNotify(context)) done(FirstRun.NudgeResult.GRANTED)
+                else launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }) { Text(FirstRun.NUDGE_YES) }
         }
     }
 }

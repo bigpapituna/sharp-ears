@@ -83,8 +83,20 @@ object CoachGate {
         else -> voices.firstOrNull()
     }
 
-    /** How the coach talks to the player: "w" or "m" as saved, else null (only the lines for anyone). */
+    /**
+     * 2.17 (audit M4): the third answer, "Just use my name": only the lines for anyone, and the course's lines with a woman's
+     * and a man's take in the normal voice (as unset). Stored as [NAME].
+     */
+    const val NAME = "name"
+
+    /** How the coach talks to the player: "w" or "m" as saved, else null (only the lines for anyone: unset, or [NAME]). */
     fun forOf(stored: String?): String? = stored?.takeIf { it == "w" || it == "m" }
+
+    /** The question "How should your coach talk to you?" was answered: as a woman, as a man, or just by name. */
+    fun answered(stored: String?): Boolean = stored == "w" || stored == "m" || stored == NAME
+
+    /** The tester's `coach_for`: "w", "m", "name", or "unset". */
+    fun forProperty(stored: String?): String = stored?.takeIf { answered(it) } ?: "unset"
 
     /**
      * Lines play: a grown-up ([offered]) who chose a [voice] (null: Off, the default), with Encouragement not Off ([frequency],
@@ -195,6 +207,15 @@ object CoachSound {
 
     /** Whether a line makes the mic deaf at all: the phone's speaker plays it (no headphones). */
     fun deafens(headphones: Boolean): Boolean = !headphones
+
+    /**
+     * 2.17 (audit M3): "Listening again" shows as the mic hears again after a line: the line made it deaf ([deafened]) and the
+     * mic is listening ([listening]: a lesson step, a song) when the room's ring has passed.
+     */
+    fun listeningCue(deafened: Boolean, listening: Boolean): Boolean = deafened && listening
+
+    /** How long "Listening again" stays up. */
+    const val CUE_MS = 1_600L
 
     /**
      * The deaf window is laid down a [SLICE_MS] slice at a time, renewed every [RENEW_MS] while the line plays, then

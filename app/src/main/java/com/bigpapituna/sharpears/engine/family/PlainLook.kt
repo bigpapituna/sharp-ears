@@ -106,6 +106,12 @@ object PlainLook {
     /** The moments the offer may show: the first lesson finished after 2.15, or opening the app after [OFFER_DAYS] days played. */
     enum class Moment { LESSON_FINISHED, APP_OPENED }
 
+    /**
+     * 2.17 (audit M6): a lesson's finish offers it at the end of session 2, not at the first lesson's peak: on the second day
+     * played or later (days in the practice log, today included).
+     */
+    const val SESSION_TWO_DAYS = 2
+
     /** Days played (any practice) before opening the app brings the offer. */
     const val OFFER_DAYS = 7
 
@@ -118,7 +124,7 @@ object PlainLook {
      */
     fun offerDue(a: Audience, stored: Boolean, offeredBefore: Boolean, moment: Moment, daysPlayed: Int, flag: () -> Boolean = { true }): Boolean =
         offered(a) && !stored && !offeredBefore && when (moment) {
-            Moment.LESSON_FINISHED -> true
+            Moment.LESSON_FINISHED -> daysPlayed >= SESSION_TWO_DAYS
             Moment.APP_OPENED -> daysPlayed >= OFFER_DAYS
         } && flag()
 

@@ -21,7 +21,9 @@ object AppEvents {
     const val APP_VERSION = "app_version"
     const val IS_EMULATOR = "is_emulator"
     const val BUILD_FLAVOR = "build_flavor"
-    val SUPER = listOf(PROFILE_KIND, LAYOUT, PLAIN_LOOK, APP_VERSION, IS_EMULATOR, BUILD_FLAVOR)
+    /** 2.17: how the person open plays now: mic, midi or touch (engine/nav/FirstRun.inputOf). */
+    const val INPUT_MODE = "input_mode"
+    val SUPER = listOf(PROFILE_KIND, LAYOUT, PLAIN_LOOK, APP_VERSION, IS_EMULATOR, BUILD_FLAVOR, INPUT_MODE)
 
     // ---- 2.15 events ----
     const val APP_OPEN = "app_open"
@@ -48,6 +50,13 @@ object AppEvents {
     const val MIC_PERMISSION = "mic_permission"
     /** mic-trust's could-not-hear hint (TesterRules.MIC_NOT_HEARD): one per hint shown, the cause only. */
     const val MIC_NOT_HEARD = TesterRules.MIC_NOT_HEARD
+    // ---- 2.17 onboarding (engine/nav/FirstRun.kt) ----
+    /** The profile's first right note, once: how it was played and how long after the profile first opened. */
+    const val FIRST_NOTE = "first_note"
+    /** The first playing step's question answered: the piano through the mic, or the screen's keys. */
+    const val INPUT_CHOSEN = "input_chosen"
+    /** The nudge under the first finished lesson answered: granted (on), denied (Android said no) or not_now. */
+    const val NOTIFICATION_ASK = "notification_ask"
 
     /** A song of the person's own, as every event names it. */
     const val MY_SONG = "my_song"
@@ -93,7 +102,7 @@ object AppEvents {
         SIGHT_DRILL_DONE to listOf("level", "score", "kind"),
         DAILY_PLAN_STARTED to listOf("parts"),
         DAILY_PLAN_FINISHED to listOf("parts", "of", "minutes_bucket", "complete"),
-        ONBOARDING_STEP to listOf("step", "result"),
+        ONBOARDING_STEP to listOf("step", "result", "who", "level", "goal"),
         PLACEMENT_RESULT to listOf("level"),
         LAYOUT_CHOSEN to listOf("layout"),
         BIG_KID_MADE to emptyList(),
@@ -106,6 +115,10 @@ object AppEvents {
         TOUR_CARD_SEEN to listOf("which"),
         MIC_PERMISSION to listOf("result"),
         MIC_NOT_HEARD to listOf("cause"),
+        // 2.17
+        FIRST_NOTE to listOf("input", "seconds_since_first_open"),
+        INPUT_CHOSEN to listOf("answer"),
+        NOTIFICATION_ASK to listOf("result"),
     )
 
     // ---- the privacy rule ----
@@ -197,12 +210,27 @@ object AppEvents {
     fun dailyPlanFinished(done: Int, of: Int, practiceSec: Long, complete: Boolean) =
         TesterEvent(DAILY_PLAN_FINISHED, mapOf("parts" to done, "of" to of, "minutes_bucket" to minutesBucket(practiceSec), "complete" to complete))
 
-    /** The onboarding's cards, in order (OnboardingScreen's steps). */
-    val ONBOARDING_STEPS = listOf("welcome", "experience", "goal", "habit")
+    /** The onboarding's cards, in order (OnboardingScreen's steps; 2.17 dropped "habit", the reminder and how you play). */
+    val ONBOARDING_STEPS = listOf("welcome", "experience", "goal")
 
-    /** An onboarding card left forward ([completed]) or with Skip. */
-    fun onboardingStep(step: Int, completed: Boolean) = TesterEvent(ONBOARDING_STEP, mapOf(
-        "step" to (ONBOARDING_STEPS.getOrNull(step) ?: "step_$step"), "result" to if (completed) "completed" else "skipped"))
+    /**
+     * An onboarding card left forward ([completed]) or with Skip, with the answer it holds (2.17): the welcome card's [who]
+     * ("me" or "child", when it was asked), the experience card's [level] (never, a_little, some, a_lot), the goal card's
+     * [goal] (minutes a day).
+     */
+    fun onboardingStep(step: Int, completed: Boolean, who: String? = null, level: String? = null, goal: Int? = null) = TesterEvent(ONBOARDING_STEP, buildMap {
+        put("step", ONBOARDING_STEPS.getOrNull(step) ?: "step_$step"); put("result", if (completed) "completed" else "skipped")
+        who?.let { put("who", it) }; level?.let { put("level", it.lowercase()) }; goal?.let { put("goal", it) }
+    })
+
+    /** 2.17: the profile's first right note ([input] mic, midi or touch), [seconds] after it first opened. */
+    fun firstNote(input: String, seconds: Long) = TesterEvent(FIRST_NOTE, mapOf("input" to input, "seconds_since_first_open" to seconds))
+
+    /** 2.17: the first playing step's question: "mic" (Use my piano) or "touch" (Use screen keys). */
+    fun inputChosen(mic: Boolean) = TesterEvent(INPUT_CHOSEN, mapOf("answer" to if (mic) "mic" else "touch"))
+
+    /** 2.17: the nudge's answer: granted, denied or not_now. */
+    fun notificationAsk(result: String) = TesterEvent(NOTIFICATION_ASK, mapOf("result" to result))
 
     fun bigKidMade() = TesterEvent(BIG_KID_MADE)
     fun familyCardOpened() = TesterEvent(FAMILY_CARD_OPENED)

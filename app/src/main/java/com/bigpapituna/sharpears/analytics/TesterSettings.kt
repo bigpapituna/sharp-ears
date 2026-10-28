@@ -36,25 +36,32 @@ const val DEFAULT_ON_NOTICE = "This test build sends " + com.bigpapituna.sharpea
     "You can turn this off in Settings, About, Testing."
 
 /**
- * 2.13: the notice that the default turned Help Roy test on, once, to a grown-up (MainActivity shows it while
- * [Tester.noticePending] and the profile is a grown-up's, never on the stage): a small card at the bottom of the screen with OK.
- * It holds nothing up: the screen under it works as before, and only the card itself takes touches.
+ * 2.13: the notice that the default turned Help Roy test on, once, to a grown-up. 2.17 (audit M1): a bottom sheet with OK and
+ * Turn off (the same opt-out as Settings, About, Testing: [Tester.setOn] false), so it never sits over a screen's main button.
+ * The onboarding shows it after the welcome card; MainActivity shows it elsewhere while [Tester.noticePending] and the profile
+ * is a grown-up's, never on the stage and never during the first-run cards (TesterRules.showsNotice).
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun TesterDefaultNotice(onOk: () -> Unit) {
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
-        contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
-        androidx.compose.material3.Surface(Modifier.widthIn(max = 560.dp).fillMaxWidth().testerMask(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 6.dp) {
-            Column(Modifier.padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Help Roy test is on", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                Text(DEFAULT_ON_NOTICE, style = MaterialTheme.typography.bodyMedium)
-                TextButton(onClick = onOk, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) { Text("OK") }
+    val context = LocalContext.current
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onOk, sheetState = sheet, modifier = Modifier.testerMask()) {
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(NOTICE_TITLE, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            Text(DEFAULT_ON_NOTICE, style = MaterialTheme.typography.bodyMedium)
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End)) {
+                androidx.compose.material3.OutlinedButton(onClick = { Tester.setOn(context, false) }) { Text(NOTICE_OFF) }
+                androidx.compose.material3.Button(onClick = onOk) { Text("OK") }
             }
         }
     }
 }
+
+const val NOTICE_TITLE = "Help Roy test is on"
+const val NOTICE_OFF = "Turn off"
 
 /**
  * The tester switches (analytics/Tester.kt): "Help Roy test", "Email Roy a daily diary" (only on a build with DIARY_TO) and,

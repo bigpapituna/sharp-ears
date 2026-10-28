@@ -62,7 +62,7 @@ class NavTest {
         // the first-run questions and "Let's hear you play" come with the launch.
         val kids = setOf("KidSongs", "KidChords", "KidStickers", "Finale", "Arcade", "ArcadeRound", NavGraph.KID_HOME)
         val fromTabs = NavGraph.reachable(NavTab.entries.map(NavGraph::tab), avoid = setOf(NavGraph.LAUNCH))
-        assertEquals(setOf("Onboarding", "Placement"), all - kids - fromTabs)
+        assertEquals(setOf("Onboarding", "Placement", "FirstKid"), all - kids - fromTabs)
         // 2.7's moves: chords at the top of Learn, songs by chords and the Play corner in Songs, Practice today from Today.
         assertTrue(NavGraph.OPENS.getValue(NavGraph.tab(NavTab.LEARN)).containsAll(listOf("LearnChords", "ChordGames", "Progressions")))
         assertTrue(NavGraph.OPENS.getValue(NavGraph.tab(NavTab.SONGS)).containsAll(listOf("PopSong", "Play")))
@@ -129,7 +129,8 @@ class NavTest {
     @Test fun theLayoutChooserComesBeforeTodayForAGrownUpWhoNeverChose() {
         // 2.14: the map is a little kid's home; a big kid gets the tabs, never the chooser (Simple.asks is false for every kid).
         val kidHome = activity.indexOf("is Screen.Home -> if (current.mapHome) {")
-        val chooser = activity.indexOf("} else if (com.bigpapituna.sharpears.engine.nav.Simple.asks(current.isKid, chosenLayout)) {")
+        // 2.17 (audit M2): a beginner is asked only after two lessons (FirstRun.asksLayout, Simple.asks inside it).
+        val chooser = activity.indexOf("} else if (com.bigpapituna.sharpears.engine.nav.FirstRun.asksLayout(current.isKid, chosenLayout, current.level,")
         val tabs = activity.indexOf("HomeShell(s.tab,")
         val welcome = activity.indexOf("Welcome.next(current.isKid")
         assertTrue("$kidHome $chooser $tabs $welcome", kidHome in 1 until chooser && chooser < tabs && tabs < welcome)

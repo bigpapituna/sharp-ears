@@ -67,6 +67,9 @@ fun TourPicture(art: TourArt, modifier: Modifier = Modifier) {
 
 val PICTURE_HEIGHT = 192.dp
 
+/** 2.17: the plan picture as this player's plan is: no chords row (and an easy song) while their plan has no chords yet. */
+val LocalTourChords = androidx.compose.runtime.staticCompositionLocalOf { true }
+
 /** What each picture shows, for TalkBack (the card's words say the rest). */
 fun describe(art: TourArt): String = when (art) {
     TourArt.PLAN -> "Picture: the Today card with chords, a lesson and a song, and a Start button."
@@ -88,9 +91,10 @@ private fun PlanPicture() {
             Text("Your plan", style = MaterialTheme.typography.labelLarge, color = c.primary, modifier = Modifier.weight(1f))
             Text("About 10 min", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant)
         }
-        PlanRow(R.drawable.ic_piano, "Chords", "Four to warm up")
+        val chords = LocalTourChords.current
+        if (chords) PlanRow(R.drawable.ic_piano, "Chords", "Four to warm up")
         PlanRow(R.drawable.ic_school, "Lesson", "Your next one")
-        PlanRow(R.drawable.ic_music_note, "Song", "A song by chords")
+        PlanRow(R.drawable.ic_music_note, "Song", if (chords) "A song by chords" else "An easy song")
         Box(Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(15.dp)).background(c.primary), contentAlignment = Alignment.Center) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(painterResource(R.drawable.ic_play_arrow), null, tint = c.onPrimary, modifier = Modifier.size(16.dp))

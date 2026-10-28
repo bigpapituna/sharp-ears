@@ -59,6 +59,7 @@ import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.ProgressStore
 import com.bigpapituna.sharpears.engine.COURSE
 import com.bigpapituna.sharpears.engine.progress.DailyGoal
+import com.bigpapituna.sharpears.engine.nav.FirstRun
 import com.bigpapituna.sharpears.engine.family.HomeFirst
 import com.bigpapituna.sharpears.engine.family.Level
 import com.bigpapituna.sharpears.engine.family.OwnerName
@@ -66,7 +67,6 @@ import com.bigpapituna.sharpears.engine.family.Placement
 import com.bigpapituna.sharpears.engine.family.PlacementCheck
 import com.bigpapituna.sharpears.engine.family.Profile
 import com.bigpapituna.sharpears.engine.family.ProfileKind
-import com.bigpapituna.sharpears.reminder.Reminder
 import com.bigpapituna.sharpears.ui.Celebration
 import com.bigpapituna.sharpears.ui.ChunkyButton
 import com.bigpapituna.sharpears.ui.pup.Pose
@@ -76,69 +76,47 @@ import com.bigpapituna.sharpears.ui.paper
 import com.bigpapituna.sharpears.ui.profile.mono
 import com.bigpapituna.sharpears.ui.reducedMotion
 
-private const val STEPS = 4
+private const val STEPS = 3
 
 /**
- * First run, four short steps with the pup talking: welcome, have you played before, a daily goal, then a reminder and
- * how you will play. It ends with a celebration. Answers go to [store] (experience, goal, input choice, onboardingDone);
- * the reminder and microphone choices are set on [prefs] through its setters, and [onReminderChanged] lets the app set
- * the alarm. [onDone] gets the lesson to open first (null to just look around). Skip leaves everything at its default.
- * [askReminder] is false for profiles other than the phone owner's: the reminder is one alarm per phone, the owner's.
+ * First run, three short cards with the pup talking: welcome (the owner's name; 2.17, while the phone has no kid, "Who is this
+ * for? Me / My child"), have you played before, and a daily goal. It ends on a calm "You're all set" (2.17, audit L1: the
+ * trophy waits for the first lesson's finish). Answers go to [store] (experience, goal, onboardingDone).
+ *
+ * 2.17 (sharp-ears-audits/onboarding-audit-2026-10-28.md): the fourth card is gone. How someone plays is asked in context on
+ * their first playing step (engine/nav/FirstRun.kt, H1), and the daily reminder after their first finished lesson (H2), so
+ * nothing here asks Android for a permission. "Help Roy test is on" comes as a sheet after the welcome card, never over its
+ * Continue (M1). Skip on any card goes to "You're all set" as a beginner (Never unless answered) with the first lesson's button
+ * (L4). [onForChild]: "My child" was picked (null: the question is not asked): the caller opens the add-a-kid form.
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -> Unit = {}, askReminder: Boolean = true,
+fun OnboardingScreen(store: ProgressStore, prefs: Prefs,
                      /** The level they said (2.6, engine/family/Placement.kt), once the questions are answered: the profile keeps it and the course is placed. */
                      onLevel: (Level) -> Unit = {},
                      /** Offered after the questions to anyone above "never": the short listen ("Let's hear you play", ui/family/PlacementCheckScreen.kt). Null: not offered. */
                      onCheck: ((Level) -> Unit)? = null,
-                     /** 2.14: ask the grown-up's name on the welcome card (the phone owner only, like the reminder); [onName] gets what was typed, blank when nothing was. */
-                     askName: Boolean = askReminder, onName: (String) -> Unit = {},
+                     /** 2.14: ask the grown-up's name on the welcome card (the phone owner only); [onName] gets what was typed, blank when nothing was. */
+                     askName: Boolean = true, onName: (String) -> Unit = {},
+                     /** 2.17 (H4): "Who is this for?" on the welcome card; "My child" calls this. Null: not asked. */
+                     onForChild: (() -> Unit)? = null,
                      onDone: (startLessonId: String?) -> Unit) {
     val context = LocalContext.current
     val still = reducedMotion()
     var step by rememberSaveable { mutableIntStateOf(0) }
     var experience by rememberSaveable { mutableIntStateOf(-1) }
     var goal by rememberSaveable { mutableIntStateOf(store.goalMinutes.takeIf { it in DailyGoal.OPTIONS } ?: DailyGoal.DEFAULT) }
-    var reminderOn by rememberSaveable { mutableStateOf(askReminder) }
-    var reminderMinutes by rememberSaveable { mutableIntStateOf(prefs.reminderMinutes) }
-    var useMic by rememberSaveable { mutableStateOf(false) }
     var finished by rememberSaveable { mutableStateOf(false) }
-    var pickTime by remember { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
+    var forChild by rememberSaveable { mutableStateOf(false) }
+    var notice by rememberSaveable { mutableStateOf(false) }
 
-    fun finish(notifyOk: Boolean) {
+    fun finish() {
         Level.entries.getOrNull(experience)?.let(onLevel)
         if (askName) onName(name)
         store.goalMinutes = goal
-        store.useMic = useMic
-        prefs.micDefault = useMic
-        if (askReminder) {
-            prefs.reminderMinutes = reminderMinutes
-            prefs.reminderOn = reminderOn && notifyOk
-            onReminderChanged()
-        }
         store.onboardingDone = true
         finished = true
     }
-    // "Microphone" picked: the microphone is asked for here, so the first lesson already hears the piano. It was not
-    // asked at all: the lesson ran on the screen's keys and said nothing while the player played the real piano.
-    var notifyOk by rememberSaveable { mutableStateOf(true) }
-    // 2.15: the microphone card first (ui/MicCard.kt); its "Not now" plays on the screen's keys, nothing asked again.
-    val micInput = com.bigpapituna.sharpears.ui.LocalMic.current
-    val askMic = com.bigpapituna.sharpears.ui.rememberMicAsk(micInput) { granted ->
-        android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: microphone granted=$granted")
-        if (!granted && micInput?.micNotNow == true) useMic = false          // Not now: the screen's keys, no mic banner either
-        finish(notifyOk)
-    }
-    fun afterNotify(ok: Boolean) {
-        notifyOk = ok
-        if (useMic && context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-            askMic.ask()
-        else finish(ok)
-    }
-    // Android 13 and up ask before an app may post notifications; asked here, when the reminder is chosen.
-    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> afterNotify(granted) }
 
     if (finished) {
         val level = Level.entries.getOrNull(experience) ?: Level.NEVER
@@ -150,15 +128,13 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
         val songsFirst = plan.homeFirst == HomeFirst.SONGS
         val start = { onDone(if (songsFirst) null else lesson?.id) }
         val firstLine = if (songsFirst) "The songs are ready for you." else lesson?.let { "Your first lesson is ready: ${it.title}." } ?: "Your first lesson is ready."
-        Celebration(
-            title = "You're all set",
+        AllSet(
             line = if (level != Level.NEVER) "${plan.line} $firstLine" else firstLine,
-            stats = listOf(Stat("$goal min", "Daily goal"), Stat(unit?.title ?: "Basics", "Start at")),
+            detail = "$goal minutes a day, starting at ${unit?.title ?: "Basics"}.",
             primary = if (check != null) "Let's hear you play" else if (songsFirst) "Show me the songs" else "Start learning",
             onPrimary = { if (check != null) check(level) else start() },
             secondary = if (check != null) (if (songsFirst) "Skip, show me the songs" else "Skip, start learning") else "Look around first",
             onSecondary = { if (check != null) start() else onDone(null) },
-            pose = Pose.LEVEL_UP,
         )
         return
     }
@@ -177,7 +153,13 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
                         }
                     }
                 }
-                TextButton(onClick = { com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = false); if (askName) onName(name); store.onboardingDone = true; onDone(null) }) { Text("Skip") }
+                // 2.17 (L4): Skip is "You're all set" as a beginner (or at the level already answered), with the first lesson's button.
+                TextButton(onClick = {
+                    com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = false)
+                    if (experience < 0) experience = FirstRun.SKIP_LEVEL.ordinal
+                    android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: skipped at card ${step + 1}")
+                    finish()
+                }) { Text("Skip") }
             }
             AnimatedContent(
                 step, Modifier.weight(1f),
@@ -191,40 +173,62 @@ fun OnboardingScreen(store: ProgressStore, prefs: Prefs, onReminderChanged: () -
             ) { s ->
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     when (s) {
-                        0 -> WelcomeStep(if (askName) name else null) { name = it }
+                        0 -> WelcomeStep(if (askName) name else null, { name = it }, if (onForChild != null) forChild else null) { forChild = it }
                         1 -> ExperienceStep(experience) { experience = it }
-                        2 -> GoalStep(goal) { goal = it }
-                        else -> HabitStep(
-                            askReminder, reminderOn, reminderMinutes, useMic,
-                            onReminder = { reminderOn = it }, onPickTime = { pickTime = true }, onMic = { useMic = it },
-                        )
+                        else -> GoalStep(goal) { goal = it }
                     }
                 }
             }
             ChunkyButton(
                 onClick = {
-                    com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = true)
-                    if (step < STEPS - 1) step++
-                    else if (reminderOn && !Reminder.canNotify(context)) askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    else afterNotify(true)
+                    when (step) {
+                        0 -> {
+                            com.bigpapituna.sharpears.analytics.Events.onboardingStep(0, completed = true,
+                                who = if (onForChild != null) (if (forChild) "child" else "me") else null)
+                            if (forChild && onForChild != null) {
+                                // H4: the child's profile first (the add-a-kid form); the grown-up's own cards wait, optional.
+                                if (askName) onName(name)
+                                android.util.Log.d(com.bigpapituna.sharpears.TAG, "onboarding: for my child, to the add-a-kid form")
+                                onForChild()
+                            } else {
+                                // M1: Help Roy test's notice as a sheet, now that the welcome card's Continue was pressed.
+                                if (com.bigpapituna.sharpears.engine.tester.TesterRules.noticeAfterWelcome(
+                                        com.bigpapituna.sharpears.analytics.Tester.noticePending.value, step)) notice = true
+                                step++
+                            }
+                        }
+                        1 -> {
+                            com.bigpapituna.sharpears.analytics.Events.onboardingStep(1, completed = true, level = Level.entries.getOrNull(experience)?.name)
+                            step++
+                        }
+                        else -> { com.bigpapituna.sharpears.analytics.Events.onboardingStep(step, completed = true, goal = goal); finish() }
+                    }
                 },
                 enabled = canContinue, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp),
             ) { Text(if (step == STEPS - 1) "Finish" else "Continue") }
         }
     }
+    if (notice && com.bigpapituna.sharpears.analytics.Tester.noticePending.value)
+        com.bigpapituna.sharpears.analytics.TesterDefaultNotice { com.bigpapituna.sharpears.analytics.Tester.noticeSeen(context); notice = false }
+}
 
-    if (pickTime) {
-        val state = androidx.compose.material3.rememberTimePickerState(reminderMinutes / 60, reminderMinutes % 60,
-            is24Hour = android.text.format.DateFormat.is24HourFormat(context))
-        AlertDialog(
-            onDismissRequest = { pickTime = false },
-            title = { Text("Reminder time") },
-            text = { androidx.compose.material3.TimePicker(state, colors = androidx.compose.material3.TimePickerDefaults.colors(
-                periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer)) },
-            confirmButton = { TextButton(onClick = { reminderMinutes = state.hour * 60 + state.minute; pickTime = false }) { Text("Set") } },
-            dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
-        )
+/**
+ * 2.17 (audit L1): "You're all set", calm: the pup standing, one line, the plan in a sentence, the way in. No trophy, no
+ * confetti, no fanfare: those wait for the first lesson's finish.
+ */
+@Composable
+private fun AllSet(line: String, detail: String, primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit) {
+    Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)) {
+            PupSays(Pose.STANDING, line, Modifier.fillMaxWidth(), size = 112.dp)
+            StepTitle("You're all set")
+            Text(detail, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ChunkyButton(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primary) }
+            TextButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(secondary) }
+        }
     }
 }
 
@@ -233,7 +237,7 @@ private fun StepTitle(text: String) =
     Text(text, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
 
 @Composable
-private fun WelcomeStep(name: String?, onName: (String) -> Unit) {
+private fun WelcomeStep(name: String?, onName: (String) -> Unit, forChild: Boolean? = null, onForChild: (Boolean) -> Unit = {}) {
     PupSays(Pose.WELCOME, "Hi, I'm your coach. I'll help you learn piano, a few minutes a day.", Modifier.fillMaxWidth(), size = 132.dp)
     StepTitle("Welcome to Sharp Ears")
     Text("Lessons that start from the very first key, songs that fall onto the keyboard, chords, ear training and theory. " +
@@ -246,6 +250,14 @@ private fun WelcomeStep(name: String?, onName: (String) -> Unit) {
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
                 imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focus.clearFocus() }), modifier = Modifier.fillMaxWidth())
+    }
+    // 2.17 (H4): who it is for, while the phone has no kid; "My child" goes to the add-a-kid form next.
+    if (forChild != null) {
+        Text(FirstRun.WHO_QUESTION, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp).semantics { heading() })
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1f)) { Choice(!forChild, FirstRun.WHO_ME, "I'm learning myself.") { onForChild(false) } }
+            Box(Modifier.weight(1f)) { Choice(forChild, FirstRun.WHO_CHILD, "Set up my child first.") { onForChild(true) } }
+        }
     }
     // True on every build: one with an AI key sends the parent brief's numbers (never a name or a sound), and says so.
     val ai = com.bigpapituna.sharpears.data.BriefAi.hasKey
@@ -302,35 +314,6 @@ private fun GoalStep(goal: Int, onPick: (Int) -> Unit) {
     Text(DailyGoal.name(goal), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
     Text(DailyGoal.note(goal), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text("You can change it any time on the You tab.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-@Composable
-private fun HabitStep(
-    askReminder: Boolean, reminderOn: Boolean, reminderMinutes: Int, useMic: Boolean,
-    onReminder: (Boolean) -> Unit, onPickTime: () -> Unit, onMic: (Boolean) -> Unit,
-) {
-    val c = MaterialTheme.colorScheme
-    // As the phone shows times: its 12 or 24-hour setting, as the picker uses (java.time's localized format ignores it).
-    val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
-        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, reminderMinutes / 60); set(java.util.Calendar.MINUTE, reminderMinutes % 60) }.time).replace(' ', ' ')
-    PupSays(Pose.LISTENING, if (askReminder) "Nearly there. Two quick choices and we can start." else "Nearly there. One quick choice and we can start.",
-        Modifier.fillMaxWidth(), size = 96.dp)
-    StepTitle(if (askReminder) "A reminder, and how you play" else "How you play")
-    if (askReminder) Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(reminderOn, role = Role.Switch, onValueChange = onReminder),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("Daily reminder", style = MaterialTheme.typography.titleSmall)
-            Text("A nudge to practise, once a day.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
-        }
-        Switch(reminderOn, onCheckedChange = null)
-    }
-    if (askReminder && reminderOn) TextButton(onClick = onPickTime, modifier = Modifier.semantics { contentDescription = "Reminder time, $timeLabel, tap to change" }) {
-        Text("Remind me at $timeLabel")
-    }
-    Text("How will you play?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-    Choice(!useMic, "Keys on screen or MIDI", "I'll tap the keys on the screen, or plug in a MIDI keyboard.") { onMic(false) }
-    Choice(useMic, "Microphone", "I play a real piano or keyboard and the app listens.") { onMic(true) }
-    Text(if (askReminder) "You can change both in Settings." else "You can change it in Settings.", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, textAlign = TextAlign.Start)
 }
 
 /** One answer: an outlined row that fills with the accent tint when picked. */

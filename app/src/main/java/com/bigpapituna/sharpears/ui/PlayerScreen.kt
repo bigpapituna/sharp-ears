@@ -530,7 +530,9 @@ private fun PlayerStage(args: PlayerArgs) {
     }
     fun keyReleased(midi: Int) { if (transport.playing) recorder.off(midi, transport.positionMs) }
     /** [midiOffsetMs] (2.14): the MIDI timing offset, given to Perform's scoring alone (never the recording or Wait mode). */
-    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80, riseDb: Double = Juice.DEFAULT_RISE, midiOffsetMs: Double = 0.0): InputResult {
+    fun keyStruck(midi: Int, latencyMs: Double = 0.0, velocity: Int = 80, riseDb: Double = Juice.DEFAULT_RISE, midiOffsetMs: Double = 0.0,
+                  /** 2.17: where the key came from, for `first_note` (engine/nav/FirstRun.Input: mic, midi or touch). */
+                  src: com.bigpapituna.sharpears.engine.nav.FirstRun.Input = com.bigpapituna.sharpears.engine.nav.FirstRun.Input.TOUCH): InputResult {
         // Juice on every note, whatever it was: the pups hop to its pitch, a soft tick (the sampler's sound rule, so it
         // never feeds the mic), a crumb in the treat jar.
         Juice.onStrike(midi, riseDb, sound = soundAllowed())
@@ -567,13 +569,26 @@ private fun PlayerStage(args: PlayerArgs) {
                 if (struggle.right()) { highFive++; Log.d(TAG, "pup: high five, through a hard passage") }
                 if (kid) kidPup.play(com.bigpapituna.sharpears.engine.pup.PupMood.WAG)
                 onRightKey(midi)
+                rightThisRun++
+                earlyHint = false
+                // 2.17 (audit M5): the profile's first right note, once, with how it was played.
+                com.bigpapituna.sharpears.analytics.Events.firstNoteHeard(src.wire)
                 // 2.14: in Perform the hit's early or late mark goes under the hit line (HitLights.tick).
                 val off = if (grade != null) transport.score?.lastOffset else null
                 if (prefs.feedbackLight) { val h = handOf(midi); lights.hit(midi, handColor(h), grade, tickMs = off); Log.d(TAG, "light hit ${noteName(midi)} $h" + (grade?.let { " $it" } ?: "") + (off?.let { " ${it.toInt()} ms" } ?: "")) }
                 else scope.launch { flashes[midi] = Good; delay(200); flashes.remove(midi) }
             }
             // Listen mode, a count-in, a key between groups: no grade, a soft glow up its column.
-            InputResult.IGNORED -> if (prefs.feedbackLight) lights.touch(midi, handColor(handOf(midi)))
+            InputResult.IGNORED -> {
+                if (prefs.feedbackLight) lights.touch(midi, handColor(handOf(midi)))
+                // 2.17 (audit H3): a key played while a lesson's note is still on its way lights up and says to wait for it.
+                if (embedded != null && transport.mode == Mode.WAIT && transport.playing && !transport.waiting && transport.nextGroup != null) {
+                    earlyHint = true
+                    Log.d(TAG, "early key ${noteName(midi)}: wait for the note")
+                    scope.launch { flashes[midi] = handColor(handOf(midi)); delay(300); flashes.remove(midi) }
+                    scope.launch { delay(2200); earlyHint = false }
+                }
+            }
         }
         // 2.13: the cheer pops hear it (a chord once, a Perform note with its timing).
         cheer.struck(cheers, transport, song, result, grade == HitLights.PERFECT, embedded != null, hintStep == HintStep.PLAY)
@@ -753,7 +768,8 @@ private fun PlayerStage(args: PlayerArgs) {
                     else {
                         Log.d(TAG, "NoteOn ${noteName(e.midi)} midi=${e.midi} vel=${e.velocity} src=midi")
                         if (transport.playing) midiRun = true
-                        keyStruck(e.midi, velocity = e.velocity, riseDb = Juice.riseOf(e.velocity), midiOffsetMs = com.bigpapituna.sharpears.engine.MidiOffset.latencyMs(midi.offsetMs))
+                        keyStruck(e.midi, velocity = e.velocity, riseDb = Juice.riseOf(e.velocity), midiOffsetMs = com.bigpapituna.sharpears.engine.MidiOffset.latencyMs(midi.offsetMs),
+                            src = com.bigpapituna.sharpears.engine.nav.FirstRun.Input.MIDI)
                     }
                 }
                 is NoteEvent.Off -> { held.remove(e.midi); if (!micOn) keyReleased(e.midi) }
@@ -810,7 +826,7 @@ private fun PlayerStage(args: PlayerArgs) {
                     stallWatch.heard(System.currentTimeMillis(), "${noteName(e.midi)} heard, rise ${"%.1f".format(java.util.Locale.ROOT, e.riseDb)} dB" +
                         (e.inferredFrom?.let { " (credited from ${noteName(it)})" } ?: ""))
                     mic.noiseWatch.right(android.os.SystemClock.elapsedRealtime())
-                    keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb)
+                    keyStruck(e.midi, latencyMs = e.delayMs ?: 0.0, riseDb = e.riseDb, src = com.bigpapituna.sharpears.engine.nav.FirstRun.Input.MIC)
                 }
                 is MicEvent.Wrong -> if (transport.waiting) {
                     hearing?.pitched()
@@ -1126,6 +1142,11 @@ private fun PlayerStage(args: PlayerArgs) {
         if (!playing && transport.fresh && position < transport.anchorMs && embedded?.autoStart != true)
             Text("Press play", style = MaterialTheme.typography.titleMedium, color = InkDim,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
+        // 2.17 (audit H3): in a lesson, while the run's first note falls toward the line: wait for it; a key too early says so.
+        if (embedded != null && (earlyHint || com.bigpapituna.sharpears.engine.nav.FirstRun.waitCue(mode == Mode.WAIT, playing, rightThisRun, transport.waiting)))
+            Text(if (earlyHint) com.bigpapituna.sharpears.engine.nav.FirstRun.EARLY_HINT else com.bigpapituna.sharpears.engine.nav.FirstRun.WAIT_CUE,
+                style = MaterialTheme.typography.titleMedium, color = if (earlyHint) Color.White else InkDim,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp, start = 16.dp, end = 16.dp))
         noiseOffer?.let { offer ->
             NoiseSheet(
                 onKeep = { noiseOffer = null; Log.d(TAG, "noise watch: keep showing wrong keys") },
@@ -1387,6 +1408,9 @@ private class PlayerVars(start: PlayerStart, autoPercent0: Int, context: android
     val touched = mutableStateMapOf<Int, Color>()
     val held = mutableStateMapOf<Int, Color>()      // keys held on the MIDI keyboard
     val flashes = mutableStateMapOf<Int, Color>()    // short green flash on a correct key
+    /** 2.17: right notes in this run (a lesson step's player is new each try), and a key played before the note arrived. */
+    var rightThisRun by mutableIntStateOf(0)
+    var earlyHint by mutableStateOf(false)
     val lights = HitLights(slow = start.lightSlow)    // the hit-line light (on by default)
     val struggle = com.bigpapituna.sharpears.engine.Struggle()
     var hintStep by mutableStateOf(HintStep.NONE)

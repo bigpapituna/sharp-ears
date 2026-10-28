@@ -291,6 +291,9 @@ object Tester {
         if (capturing) runCatching { TesterSdk.register(key, value) }
     }
 
+    /** 2.17: how the person open plays now (the super property `input_mode`: mic, midi or touch; engine/nav/FirstRun.inputOf). */
+    fun input(mode: String) = extra(AppEvents.INPUT_MODE, mode)
+
     /** One of the app's own 2.15 events (engine/tester/AppEvents.kt; analytics/Events.kt sends them). */
     fun track(e: TesterEvent) = capture(e)
 

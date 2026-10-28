@@ -52,7 +52,8 @@ class LevelsAgesWiringTest {
     @Test fun dayOneFollowsPlacement() {
         assertTrue("DayOne.chordsFor(level, played," in activity && "lessonFirst = !profile.mapHome && com.bigpapituna.sharpears.engine.nav.DayOne.lessonFirst(level)" in activity)
         assertTrue("DayOne.micBanner(progress.useMic, micAllowed, prefs.micBannerClosed)" in activity)
-        assertTrue("askMic = com.bigpapituna.sharpears.engine.nav.DayOne.checkAsksMic(progress.useMic, profile.isKid)" in activity)
+        // 2.17: the fourth card is gone; someone never asked how they play is asked unless MIDI is in (FirstRun.checkAsksMic).
+        assertTrue("askMic = com.bigpapituna.sharpears.engine.nav.FirstRun.checkAsksMic(progress.useMic, profile.isKid, prefs.inputAsked || prefs.micDefaultChosen, midi.connected.value != null)" in activity)
         assertTrue("plain = com.bigpapituna.sharpears.engine.nav.DayOne.plainChords(placed())" in activity)
         assertTrue("ChordWords.ask(current)" in src("ui/ChordsScreen.kt") && "ChordWords.keysLine(current)" in src("ui/ChordsScreen.kt"))
         assertTrue("continueMeta(easy = easyFirstSong())" in activity && "startHere = easyFirstSong()" in activity)

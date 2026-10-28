@@ -48,6 +48,9 @@ object Extras {
     /** Whatever the extra plays stops (a page moving on, a screen left). */
     fun hush() {}
 
+    /** Holds the extra's lines until let go (a profile's first lesson, until a step is passed): nothing to hold here. */
+    fun hold(on: Boolean) {}
+
     /** Its part of Settings > Playing, under Encouragement: nothing. */
     @Composable fun SettingsPart(prefs: Prefs, sub: @Composable (String) -> Unit) {}
 

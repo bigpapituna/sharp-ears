@@ -26,6 +26,8 @@ object Extras {
         "2.16.1" to listOf("Grown-ups can turn on a coach voice in Settings, Playing, under Encouragement: Liam, Rory, Claire or Sienna, low and flirty, to cheer you on. Adults only, and off until you turn it on."),
         // 2.16.2: the course narrated in Liam's voice (assets/coach/male_us/course); the app itself has nothing new to say.
         "2.16.2" to listOf("Liam now talks you through every lesson."),
+        // 2.17.0: a third answer, a louder Liam, the notes a little quieter under him, quiet until the first step is passed.
+        "2.17.0" to listOf("The coach can now just use your name, Liam is a little louder over the notes, and the coach waits for your first note before talking."),
     )
 
     /** MainActivity opened a profile: [who] is read live at every moment (a profile made a kid is a kid at once). */
@@ -62,6 +64,12 @@ object Extras {
 
     /** Whatever plays or waits stops (a page moving on, a screen left). */
     fun hush() = CoachHost.hush()
+
+    /**
+     * 2.17 (audit M3): [on] holds every line (none plays or waits) until it is let go: a profile's first lesson holds them until
+     * a step is passed, so the first note is heard. What is held is dropped, not kept for later.
+     */
+    fun hold(on: Boolean) = CoachHost.hold(on)
 
     /** Settings > Playing, under Encouragement: Coach voice (a grown-up's profile only). */
     @Composable fun SettingsPart(prefs: Prefs, sub: @Composable (String) -> Unit) = CoachSettings(prefs, sub)

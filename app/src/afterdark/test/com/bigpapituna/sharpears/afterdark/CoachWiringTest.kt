@@ -45,8 +45,9 @@ class CoachWiringTest {
     @Test fun theDoorAsksTheWallAtEveryMoment() {
         val host = mine("afterdark/CoachHost.kt")
         val flat = host.replace(Regex("""\s+"""), " ")
-        assertTrue("fun line(m: Moment, count: Int?, afterMs: Long): ExtraLine? { if (!on() || busy) return null" in flat)
-        assertTrue("fun say(m: Moment) { if (!on() || busy) return" in flat)
+        // 2.17: held lines (a profile's first lesson until a step is passed) are asked with the wall.
+        assertTrue("fun line(m: Moment, count: Int?, afterMs: Long): ExtraLine? { if (!on() || busy || held) return null" in flat)
+        assertTrue("fun say(m: Moment) { if (!on() || busy || held) return" in flat)
         assertTrue("CoachGate.on(p, v, PlainLook.cheerFrequency(plain, pr.cheerFrequency), plain)" in host)
         assertTrue("private fun voice(): String? = CoachGate.voiceOf(prefs?.extraString(CoachGate.KEY), voices().map { it.id })" in host)
         // The profile is read live (MainActivity hands { profiles.current }), so a kind changed in Family holds at once.
@@ -66,10 +67,11 @@ class CoachWiringTest {
         // From Off to a voice: the gate, then the notice once, then the question once.
         assertTrue("else -> gate.guard { proceed(voice.id) }" in ui)
         assertTrue("prefs.extraFlag(CoachGate.NOTICE_KEY) != true -> { turningOn = voice; notice = true" in ui)
-        assertTrue("CoachGate.forOf(prefs.extraString(CoachGate.FOR_KEY)) == null -> { turningOn = voice; notice = false" in ui)
+        assertTrue("!CoachGate.answered(prefs.extraString(CoachGate.FOR_KEY)) -> { turningOn = voice; notice = false" in ui)
         assertTrue("prefs.setExtraFlag(CoachGate.NOTICE_KEY, true); proceed(waiting)" in ui)
         assertEquals("How should your coach talk to you?", CoachCopy.ASK)
-        assertEquals(listOf("As a woman", "As a man"), listOf(CoachCopy.AS_WOMAN, CoachCopy.AS_MAN))
+        // 2.17 (audit M4): a third answer.
+        assertEquals(listOf("As a woman", "As a man", "Just use my name"), listOf(CoachCopy.AS_WOMAN, CoachCopy.AS_MAN, CoachCopy.BY_NAME))
         assertTrue(CoachCopy.NOTICE.contains("flirty") && CoachCopy.NOTICE.contains("grown-ups") && CoachCopy.NOTICE_TITLE == "For adults only")
         assertTrue("if (!CoachGate.offered(LocalProfile.current) || LocalPlain.current.on) return" in ui)
         // Under Encouragement, in every layout that shows it.
@@ -86,7 +88,7 @@ class CoachWiringTest {
         val all = here.walkTopDown().filter { it.extension == "kt" }.joinToString("\n") { it.readText() }
         assertFalse("never the brief's settings log (it reaches the AI brief and the email)", "Briefs." in all)
         assertEquals(listOf("Tester.extra(PROPERTY, on)", "Tester.extra(VOICE_PROPERTY, if (on && v != null) v else CoachGate.OFF)",
-            "Tester.extra(FOR_PROPERTY, forWho() ?: \"unset\")"), Regex("""Tester\.\w+\(.*\)$""", RegexOption.MULTILINE).findAll(all).map { it.value }.toList())
+            "Tester.extra(FOR_PROPERTY, CoachGate.forProperty(prefs?.extraString(CoachGate.FOR_KEY)))"), Regex("""Tester\.\w+\(.*\)$""", RegexOption.MULTILINE).findAll(all).map { it.value }.toList())
         assertEquals(listOf("coach_voice", "coach_voice_id", "coach_for"), listOf(CoachHost.PROPERTY, CoachHost.VOICE_PROPERTY, CoachHost.FOR_PROPERTY))
         val events = File(main, "analytics/EVENTS.md").readText()
         for (k in listOf("coach_voice", "coach_voice_id", "coach_for")) assertTrue(k, "`$k`" in events)

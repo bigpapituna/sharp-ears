@@ -51,8 +51,15 @@ object TesterRules {
     /** 2.15: the microphone could not hear the piano; one property, "cause": "noise" or "silence". */
     const val MIC_NOT_HEARD = "mic_not_heard"
 
-    /** The default turned the switch on: a grown-up sees the notice once, never a kid (it waits for a grown-up's profile). */
-    fun showsNotice(pending: Boolean, kid: Boolean): Boolean = pending && !kid
+    /**
+     * The default turned the switch on: a grown-up sees the notice once, never a kid (it waits for a grown-up's profile). 2.17
+     * (audit M1): never during the first-run cards ([onboarding]): the onboarding shows it itself, as a sheet after the welcome
+     * card, so it never covers the welcome card's Continue.
+     */
+    fun showsNotice(pending: Boolean, kid: Boolean, onboarding: Boolean = false): Boolean = pending && !kid && !onboarding
+
+    /** 2.17: the onboarding's sheet comes as the welcome card ([step] 0) is left forward, while the notice waits. */
+    fun noticeAfterWelcome(pending: Boolean, step: Int): Boolean = pending && step == 0
 
     /** "Email Roy a daily diary" shows only on a build with the diary's address. */
     fun diaryShown(diaryTo: String): Boolean = diaryTo.isNotBlank()

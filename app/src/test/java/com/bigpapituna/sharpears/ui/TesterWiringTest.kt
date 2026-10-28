@@ -122,7 +122,13 @@ class TesterWiringTest {
         // The event's mark is saved with the default, so a background process that applied it cannot lose the event.
         assertTrue("putBoolean(ON, true); putBoolean(NOTICE, true); putBoolean(DEFAULT_EVENT, true)" in tester && "sendDefaultEvent(prefs(a))" in tester)
         val main = src("MainActivity.kt")
-        assertTrue("TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid)" in main)
+        // 2.17 (audit M1): never over the first-run cards (the onboarding shows it as a sheet after the welcome card).
+        assertTrue("TesterRules.showsNotice(com.bigpapituna.sharpears.analytics.Tester.noticePending.value, current.isKid," in main &&
+            "onboarding = screen == Screen.Onboarding || screen == Screen.FirstKid)" in main)
+        val onboarding = src("ui/onboarding/OnboardingScreen.kt")
+        assertTrue("TesterRules.noticeAfterWelcome(" in onboarding && "TesterDefaultNotice {" in onboarding)
+        val sheet = src("analytics/TesterSettings.kt")
+        assertTrue("ModalBottomSheet(" in sheet && "Tester.setOn(context, false)" in sheet && "NOTICE_OFF = \"Turn off\"" in sheet)
         assertTrue(main.indexOf("TesterDefaultNotice {") in 1 until main.indexOf("SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }"))
         assertTrue("!isStage(screen)) SharpEarsTheme" in main)
         assertEquals("This test build sends screen recordings, app events and error reports to Roy to help improve the app. No sound is recorded. " +

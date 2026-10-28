@@ -22,6 +22,11 @@ class Sampler(context: Context, onReady: () -> Unit = {}) {
     private val streams = HashMap<Int, Int>()                  // midi -> playing stream id
     private val volumes = HashMap<Int, Float>()                // midi -> the volume it was struck at
     private var loaded = 0
+    /** 2.17: notes sounding follow the duck (audio/Duck.kt) as a line of the build's extra starts and ends. */
+    private val reduck: () -> Unit = {
+        val g = com.bigpapituna.sharpears.engine.Ducking.gain(Duck.on)
+        streams.toMap().forEach { (midi, id) -> val v = ((volumes[midi] ?: 1f) * g).coerceIn(0f, 1f); pool.setVolume(id, v, v) }
+    }
 
     init {
         val files = context.assets.list("samples").orEmpty()
@@ -31,6 +36,7 @@ class Sampler(context: Context, onReady: () -> Unit = {}) {
         samples = files.associate { name ->
             name.removePrefix("p").removeSuffix(".ogg").toInt() to context.assets.openFd("samples/$name").use { pool.load(it, 1) }
         }
+        Duck.follow(reduck)
     }
 
     fun noteOn(midi: Int, velocity: Int) {
@@ -38,19 +44,20 @@ class Sampler(context: Context, onReady: () -> Unit = {}) {
         val (sample, rate) = sampleFor(midi, samples.keys)
         val volume = 0.3f + 0.7f * velocity / 127f
         streams.remove(midi)?.let(pool::stop)
-        streams[midi] = pool.play(samples.getValue(sample), volume, volume, 1, 0, rate)
+        val played = com.bigpapituna.sharpears.engine.Ducking.volume(volume, Duck.on)
+        streams[midi] = pool.play(samples.getValue(sample), played, played, 1, 0, rate)
         volumes[midi] = volume
     }
 
     /** A sounding note turned down to [share] of the volume it was struck at (the step pop's chime fades before its noteOff). */
     fun noteVolume(midi: Int, share: Float) {
         val id = streams[midi] ?: return
-        val v = (volumes[midi] ?: 1f) * share.coerceIn(0f, 1f)
+        val v = com.bigpapituna.sharpears.engine.Ducking.volume((volumes[midi] ?: 1f) * share.coerceIn(0f, 1f), Duck.on)
         pool.setVolume(id, v, v)
     }
 
     // ponytail: hard stop on release (no damper fade); add a short volume ramp if the cut-off clicks
     fun noteOff(midi: Int) { streams.remove(midi)?.let(pool::stop) }
 
-    fun release() = pool.release()
+    fun release() { Duck.unfollow(reduck); pool.release() }
 }

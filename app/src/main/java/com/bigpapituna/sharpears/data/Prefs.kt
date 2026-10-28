@@ -103,6 +103,26 @@ class Prefs(context: Context, val profileId: String) {
     var plainStepSound: Boolean
         get() = p.getBoolean("plainStepSound", false)
         set(v) = edit { putBoolean("plainStepSound", v) }
+    /**
+     * 2.17 (engine/nav/FirstRun.kt): the first playing step asked how this grown-up plays ("Got a piano or keyboard here?"),
+     * answered either way; never asked again (the mic button and Settings change it).
+     */
+    var inputAsked: Boolean
+        get() = p.getBoolean("inputAsked", false)
+        set(v) = edit { putBoolean("inputAsked", v) }
+    /** 2.17: the owner was offered "Want a nudge tomorrow?" under a finished lesson (Yes or Not now, once). */
+    var nudgeAsked: Boolean
+        get() = p.getBoolean("nudgeAsked", false)
+        set(v) = edit { putBoolean("nudgeAsked", v) }
+    /** 2.17: when this profile first opened (wall clock ms; 0 before 2.17 or not yet), for `first_note`'s seconds. */
+    var firstOpenAt: Long
+        get() = p.getLong("firstOpenAt", 0L)
+        set(v) = edit { putLong("firstOpenAt", v) }
+    /** 2.17: `first_note` went for this profile (once). */
+    var firstNoteSent: Boolean
+        get() = p.getBoolean("firstNoteSent", false)
+        set(v) = edit { putBoolean("firstNoteSent", v) }
+
     /** The one-time "Prefer a plainer look?" card was shown (or answered) on this profile. */
     var plainOffered: Boolean
         get() = p.getBoolean("plainOffered", false)

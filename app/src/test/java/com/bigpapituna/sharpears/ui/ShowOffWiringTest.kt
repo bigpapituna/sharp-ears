@@ -41,7 +41,8 @@ class ShowOffWiringTest {
         assertFalse("Pup(" in tour)
         assertFalse("Pup" in src("ui/tour/TourArt.kt") || "Pup" in src("ui/TipCard.kt").substringAfter("fun TipCard"))
         // 2.15.0 merge: the Plain look's tour skips the streak card; each card shown sends tour_card_seen by its picture.
-        assertTrue("val plain = LocalPlain.current.on" in tour && "Welcome.tour(plain)" in tour)
+        // 2.17 (audit M2): the cards follow the plan too (no band card without chords), through FirstRun.tour.
+        assertTrue("val plain = LocalPlain.current.on" in tour && "FirstRun.tour(plain, chords)" in tour)
         assertTrue("Events.tourCardSeen(cards[i].art.name)" in tour)
     }
 

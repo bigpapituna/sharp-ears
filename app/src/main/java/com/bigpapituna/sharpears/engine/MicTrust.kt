@@ -73,6 +73,25 @@ object MicTrust {
         return MicCardCopy(TITLE, lead, sections, ALLOW, NOT_NOW, CLOSE)
     }
 
+    /** 2.17 (audit H1): the short card's title and its link to the whole card. */
+    const val SHORT_TITLE = "Listening to your piano"
+    const val MORE = "More"
+
+    /**
+     * 2.17: the short card a grown-up meets on their first playing step after "Use my piano (mic)": three lines (what it
+     * listens for, only while playing, what happens to the sound on this build), then Allow and Not now; "More" opens the whole
+     * card's [card] sections, which [MicCardCopy.sections] carries. A build that keeps recordings still says [KEEP_LINE].
+     */
+    fun shortCard(f: MicFacts): MicCardCopy {
+        val full = card(f)
+        val lead = listOf(
+            "Sharp Ears listens through this phone's microphone to check the notes you play.",
+            "It listens only while a lesson, a song or a game is open with the mic on, never in the background.",
+            if (f.keeps) KEEP_LINE else "It works out the notes on this phone, and the sound is gone straight away.",
+        ).joinToString("\n")
+        return full.copy(title = SHORT_TITLE, lead = lead)
+    }
+
     /** What happens to the sound on this build, in a few sentences. */
     fun soundWords(f: MicFacts): String = buildList {
         when {

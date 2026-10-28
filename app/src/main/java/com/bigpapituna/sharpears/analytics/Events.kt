@@ -15,7 +15,25 @@ object Events {
     fun sightDrillDone(level: Int, score: Int, staff: Boolean) = Tester.track(AppEvents.sightDrillDone(level, score, if (staff) "staff" else "piece"))
     fun dailyPlanStarted(parts: Int) = Tester.track(AppEvents.dailyPlanStarted(parts))
     fun dailyPlanFinished(done: Int, of: Int, practiceSec: Long, complete: Boolean) = Tester.track(AppEvents.dailyPlanFinished(done, of, practiceSec, complete))
-    fun onboardingStep(step: Int, completed: Boolean) = Tester.track(AppEvents.onboardingStep(step, completed))
+    fun onboardingStep(step: Int, completed: Boolean, who: String? = null, level: String? = null, goal: Int? = null) =
+        Tester.track(AppEvents.onboardingStep(step, completed, who, level, goal))
+    /** 2.17: the open profile's own settings (MainActivity at each profile open), never a screen's scratch copy (the placement check's). */
+    @Volatile var profilePrefs: com.bigpapituna.sharpears.data.Prefs? = null
+
+    /**
+     * 2.17 (audit M5): the open profile's first right note, once ([input] mic, midi or touch), with the seconds since the profile
+     * first opened (Prefs.firstOpenAt, set by MainActivity). Marked sent whether or not the dashboard records (once per profile).
+     */
+    fun firstNoteHeard(input: String) {
+        val prefs = profilePrefs ?: return
+        if (!com.bigpapituna.sharpears.engine.nav.FirstRun.sendsFirstNote(prefs.firstNoteSent)) return
+        prefs.firstNoteSent = true
+        val seconds = com.bigpapituna.sharpears.engine.nav.FirstRun.secondsSinceFirstOpen(prefs.firstOpenAt, System.currentTimeMillis())
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "first note: $input, $seconds s after the first open")
+        Tester.track(AppEvents.firstNote(input, seconds))
+    }
+    fun inputChosen(mic: Boolean) = Tester.track(AppEvents.inputChosen(mic))
+    fun notificationAsk(result: String) = Tester.track(AppEvents.notificationAsk(result))
     fun bigKidMade() = Tester.track(AppEvents.bigKidMade())
     fun familyCardOpened() = Tester.track(AppEvents.familyCardOpened())
     fun briefEmailSetUp(yes: Boolean) = Tester.track(AppEvents.briefEmailSetUp(yes))
