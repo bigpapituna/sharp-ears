@@ -37,6 +37,14 @@ MOMENTS = ["start", "run5", "run10", "run20", "run40", "run", "recovery", "halfw
 NAMES = {"male_us": "Liam (American)", "male_irish": "Rory (Irish)", "female_us": "Claire (American)", "female_au": "Sienna (Australian)"}
 PLACES = {"us": "American", "irish": "Irish", "au": "Australian", "uk": "British", "gb": "British", "ca": "Canadian", "nz": "New Zealand"}
 TARGET = "I=-23:TP=-2:LRA=11"
+# 2.17: Liam (male_us) 3 dB louder (Roy: the notes "overtake his voice"), true peak kept at or below -1.5 dBTP after the Opus
+# encode (CEILING; loudnorm aims at -2 and convert() checks the encoded file, turning it down if a peak still crept over).
+TARGETS = {"male_us": "I=-20:TP=-2:LRA=11"}
+CEILING = -1.5
+
+
+def target_of(voice: str) -> str:
+    return TARGETS.get(voice, TARGET)
 
 
 def name_of(voice: str) -> str:
@@ -52,18 +60,36 @@ def caption(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"\[[^\]]*\]", "", text)).strip()
 
 
-def measure(src: Path) -> dict:
-    r = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-i", str(src), "-af", f"loudnorm={TARGET}:print_format=json", "-f", "null", "-"],
+def measure(src: Path, target: str = TARGET) -> dict:
+    r = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-i", str(src), "-af", f"loudnorm={target}:print_format=json", "-f", "null", "-"],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     return json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1])
 
 
-def convert(src: Path, dst: Path):
-    m = measure(src)
-    norm = (f"loudnorm={TARGET}:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
+def true_peak(path: Path) -> float:
+    """The encoded file's true peak in dBTP (ffmpeg's ebur128, 4x oversampled)."""
+    r = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-i", str(path), "-af", "ebur128=peak=true", "-f", "null", "-"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    s = r.stderr[r.stderr.rfind("Summary:"):]
+    return float(re.search(r"Peak:\s+(-?[\d.]+|-inf) dBFS", s).group(1))
+
+
+def convert(src: Path, dst: Path, target: str = TARGET):
+    m = measure(src, target)
+    norm = (f"loudnorm={target}:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
             f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
-    subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map_metadata", "-1", "-af", norm + ",aresample=48000",
-                    "-ac", "1", "-c:a", "libopus", "-b:a", "24k", "-application", "voip", str(dst)], check=True)
+    trim = 0.0
+    for _ in range(6):
+        gain = f",volume={trim:.2f}dB" if trim else ""
+        subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map_metadata", "-1", "-af",
+                        norm + gain + ",aresample=48000", "-ac", "1", "-c:a", "libopus", "-b:a", "24k", "-application", "voip", str(dst)], check=True)
+        if target == TARGET:
+            return                      # the other voices as before (-23 LUFS leaves the peaks far below the ceiling)
+        tp = true_peak(dst)
+        if tp <= CEILING:
+            return
+        trim -= max(0.5, tp - CEILING + 0.2)   # a peak over the ceiling after the encode: quieter (at least 0.5 dB), and check again
+    sys.exit(f"{dst.name}: true peak still over {CEILING} dBTP")
 
 
 def duration_ms(path: Path) -> int:
@@ -88,7 +114,7 @@ def voice(folder: Path):
             sys.exit(f"{v}: unknown for {e.get('for')} in {f}")
         dst = out / (Path(f).stem + ".ogg")
         if not dst.exists():
-            convert(folder / f, dst)
+            convert(folder / f, dst, target_of(v))
         lines.append({"id": Path(f).stem, "moment": e["moment"], "for": e.get("for", "any"), "caption": caption(e["text"]), "ms": duration_ms(dst)})
     for m in MOMENTS:
         for sex in ("w", "m"):
@@ -120,14 +146,15 @@ def catalog():
 def course(v: str, out: Path):
     out.mkdir(parents=True, exist_ok=True)
     (out / ".gitkeep").touch()          # git keeps the empty folder; aapt leaves dot files out of the APK
-    folder = BANK.parent / f"course_{v}"
-    if not (folder / "index.json").exists():
+    # Roy's recordings (course_<voice>, read only) and later additions beside them (2.17: course_<voice>_2.17, new lines).
+    folders = [f for f in [BANK.parent / f"course_{v}"] + sorted(BANK.parent.glob(f"course_{v}_*")) if (f / "index.json").exists()]
+    if not folders:
         return
     cat = catalog()
     if cat is None:
         print(f"{v} course: no {CATALOG} (run SpokenCatalogTest first): converting every recording, orphans unchecked")
     jobs, orphans, keys = [], [], set()
-    for e in json.loads((folder / "index.json").read_text(encoding="utf-8")):
+    for folder, e in [(f, e) for f in folders for e in json.loads((f / "index.json").read_text(encoding="utf-8"))]:
         who = e.get("for", "any")
         if who not in ("any", "w", "m"):
             sys.exit(f"{v} course: unknown for {who} in {e['key']}")
@@ -143,7 +170,7 @@ def course(v: str, out: Path):
         keys.add(e["key"])
     todo = [(s, d) for s, d in jobs if not d.exists()]
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
-        for i, _ in enumerate(pool.map(lambda j: convert(*j), todo), 1):
+        for i, _ in enumerate(pool.map(lambda j: convert(*j, target_of(v)), todo), 1):
             if i % 200 == 0:
                 print(f"{v} course: {i}/{len(todo)} converted")
     keep = {d.name for _, d in jobs}

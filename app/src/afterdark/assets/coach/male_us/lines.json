@@ -4,7 +4,7 @@
   "moment": "start",
   "for": "any",
   "caption": "There you are... I've been waiting for you. Sit down. Get comfortable.",
-  "ms": 5360
+  "ms": 5400
  },
  {
   "id": "start_02",
@@ -25,7 +25,7 @@
   "moment": "start",
   "for": "any",
   "caption": "Take a breath. Shoulders down. It's just you and me now.",
-  "ms": 4560
+  "ms": 4600
  },
  {
   "id": "start_05",
@@ -137,14 +137,14 @@
   "moment": "run20",
   "for": "any",
   "caption": "Twenty. Mm. I could listen to this all night.",
-  "ms": 4480
+  "ms": 4500
  },
  {
   "id": "run20_03",
   "moment": "run20",
   "for": "any",
   "caption": "Twenty in a row. You know exactly what you're doing, don't you?",
-  "ms": 4720
+  "ms": 4800
  },
  {
   "id": "run40_01",
@@ -165,14 +165,14 @@
   "moment": "run40",
   "for": "w",
   "caption": "Forty in a row. Good girl. So good.",
-  "ms": 4240
+  "ms": 4300
  },
  {
   "id": "run40_03_m",
   "moment": "run40",
   "for": "m",
   "caption": "Forty in a row. Good boy. So good.",
-  "ms": 4320
+  "ms": 4400
  },
  {
   "id": "run_01",
@@ -431,7 +431,7 @@
   "moment": "hard_passed",
   "for": "any",
   "caption": "You got it. That tricky part? All yours now.",
-  "ms": 3920
+  "ms": 4000
  },
  {
   "id": "hard_passed_03_w",
@@ -466,7 +466,7 @@
   "moment": "hard_passed",
   "for": "any",
   "caption": "Slow, patient... and now it's perfect. That's how it's done.",
-  "ms": 5360
+  "ms": 5400
  },
  {
   "id": "hard_passed_07",
@@ -487,7 +487,7 @@
   "moment": "steady",
   "for": "any",
   "caption": "Right on time. Every note. I love that.",
-  "ms": 4160
+  "ms": 4200
  },
  {
   "id": "steady_02",
@@ -522,7 +522,7 @@
   "moment": "steady",
   "for": "any",
   "caption": "Steady hands. Steady rhythm. Keep it there for me.",
-  "ms": 4480
+  "ms": 4500
  },
  {
   "id": "steady_06",
@@ -683,7 +683,7 @@
   "moment": "step_passed",
   "for": "any",
   "caption": "That's one done. Mm, on to the next.",
-  "ms": 4080
+  "ms": 4100
  },
  {
   "id": "step_passed_03",
@@ -872,7 +872,7 @@
   "moment": "finish",
   "for": "any",
   "caption": "All done... and you sounded incredible.",
-  "ms": 3920
+  "ms": 4000
  },
  {
   "id": "finish_07",
@@ -893,7 +893,7 @@
   "moment": "stars3",
   "for": "w",
   "caption": "Three stars. Good girl... you earned every one of them.",
-  "ms": 4640
+  "ms": 4700
  },
  {
   "id": "stars3_01_m",
@@ -928,7 +928,7 @@
   "moment": "stars3",
   "for": "any",
   "caption": "Mm, three stars. You know exactly how to please me.",
-  "ms": 5040
+  "ms": 5100
  },
  {
   "id": "stars3_06_w",
@@ -991,7 +991,7 @@
   "moment": "comeback",
   "for": "any",
   "caption": "Look who's back. Mm, I was hoping you'd come.",
-  "ms": 4320
+  "ms": 4400
  },
  {
   "id": "comeback_04",
@@ -1012,21 +1012,21 @@
   "moment": "comeback",
   "for": "any",
   "caption": "Welcome back. Your hands still remember. Let's see.",
-  "ms": 4320
+  "ms": 4400
  },
  {
   "id": "streak_01",
   "moment": "streak",
   "for": "any",
   "caption": "You showed up again today. That's the part most people skip.",
-  "ms": 4480
+  "ms": 4500
  },
  {
   "id": "streak_02",
   "moment": "streak",
   "for": "any",
   "caption": "Another day with me. I love that you keep coming back.",
-  "ms": 4320
+  "ms": 4400
  },
  {
   "id": "streak_03_w",
@@ -1040,7 +1040,7 @@
   "moment": "streak",
   "for": "m",
   "caption": "Every day. Good boy. That's dedication.",
-  "ms": 4160
+  "ms": 4200
  },
  {
   "id": "streak_04",
