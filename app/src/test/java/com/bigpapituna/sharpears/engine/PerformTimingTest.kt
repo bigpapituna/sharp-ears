@@ -61,7 +61,7 @@ class PerformTimingTest {
         assertEquals(-40, lean.biasMs)
         // Every note 100 ms late on a MIDI keyboard points at the offset; by touch it is just dragging.
         val late = eightBars { _, _ -> 100.0 }
-        assertEquals("Nearly every note came late. If it felt in time, set the MIDI timing offset in Settings.", PerformTiming.of(late, barMs, 4, midi = true).line)
+        assertEquals("Nearly every note came late. If it felt in time, set the MIDI timing offset in Settings, Playing.", PerformTiming.of(late, barMs, 4, midi = true).line)
         assertFalse(PerformTiming.of(late, barMs, 4).line.contains("MIDI"))
     }
 

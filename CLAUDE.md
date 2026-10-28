@@ -23,7 +23,7 @@ onNewIntent (`routesAllowed`) and strips a refused launch's extras before anythi
 weekly brief notification's `brief_profile`/`brief_period` stay), so TheoryScreen and the demos (EmailDemo, BriefDemo,
 PupDebug, SkinDemo, WorldDemo) never see them. DebugRoutesWiringTest fails if a new file reads intent extras.
 - Keyless builds (no `DEBUG_ROUTE_KEY` in secrets.properties: every worktree and emulator build agents make): as before,
-  `adb -s emulator-5558 shell am start -n com.bigpapituna.sharpears/.MainActivity --es screen settings`.
+  `adb -s emulator-5558 shell am start -n com.bigpapituna.sharpears/.MainActivity --es screen settings` (2.16.1: add `--es tab playing|look|sound|family|about`).
 - Keyed builds (Roy's, and the ones he gives testers): `.\scripts\set-debug-key.ps1` once (a random 24-character key into
   secrets.properties, never shown; it prints "Saved."; `-Remove` takes it out), rebuild, then every route through
   `.\scripts\adb-route.ps1 -Serial <serial> --es screen settings` (it adds `--es dk <key>` from secrets.properties without
@@ -1713,7 +1713,7 @@ Skills in .claude/skills (taste-skill, redesign-skill; MIT, from github.com/Leon
 - Songs tab: "Practice today" is the one raised panel; Continue is a plain row under it. Between session parts: one line, no card, spoken, with Skip.
 - The transport bar's second row ends in a three-dot overflow (Transpose); stage toggles stay pills. Material defaults that bring a second colour (the TimePicker's pink AM/PM) are recoloured to the accent.
 - Beat lines and the count-in numbers live on the stage only.
-- Navigation (2.0): Songs / Learn / Practice / Chords / You bottom bar (rail when the window is 600 dp or wider); Settings opens from the gear on You. Player loop is one button: start, end, clear.
+- Navigation (2.0): Songs / Learn / Practice / Chords / You bottom bar (rail when the window is 600 dp or wider); Settings opens from the gear on You, in five tabs since 2.16.1 (Playing, Look, Sound, Family, About; "2.16.1 settings tabs" below). Player loop is one button: start, end, clear.
 
 ## Privacy and licences (2026-10-07)
 This repo is Roy's private build (keeps personal music, debug build). The public Play app will be a separate app: see docs/publishing.md (what to remove or replace, Play checklist, data safety answers) and docs/privacy-policy.md (draft to host). In-app: Settings > About > Privacy (honest about debug recordings) and Licences (full texts in assets/licenses). Debug recordings: Settings > Microphone and Microphone setup > Keep the last four recordings (MicInput.keepRecordings, default on in debug, never in release; the privacy page and Settings say `Recordings.KEEP_LINE`) with Delete recordings in Microphone setup. Since 2.10.1 they live in internal storage, files/recordings/fixtures and files/recordings/stalls (data/Recordings.kt, out of backup); `scripts/pull-fixtures.ps1` and `pull-stalls.ps1` read them through run-as. The video window credits the channel on YouTube.
@@ -2477,3 +2477,61 @@ man, and a hook for the course narrated in the coach's voice.
   headphones avoid it. The step pop bubble keeps the cheer's hold (2.4 s at most) while some step passed lines run longer.
   "Eight in a row" (steady_03) can play on the 16th note in time.
 - Status: merged to main and pushed; released as v2.16.0 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.0, the keyed debug APK with AFTERDARK=true). Not on the Fold: it was not on adb or mDNS on 2026-10-28 (needs reconnecting: wireless debugging on, then adb connect or pair). Emulator 5558 only.
+
+## 2.16.1 settings tabs
+Branch `settings-tabs` (2026-10-28, from 2.16.0 c46f4ba5; versionCode 33, 2.16.1). Roy: "the settings page is getting a bit too
+cluttered. Could you please organize it and have it maybe even have a few tabs per category?" No follow-up questions, so the
+decisions below are mine. Emulator Fold_ST (a config-only copy of Fold_QA_GU) on 5560, deleted after.
+- Before (2.16.0, one scrolling page, six headers): Family (people: rename, piano level, reads, age band, kind, delete, read the
+  brief, daily time and wind down; Add someone; then Progress: export, import, reset), Playing (Layout, Plain look and Step sound,
+  Keys: key labels, Falling notes: colour notes, note names, finger numbers, feedback light, beat lines, ghost hand; Show wrong
+  keys; Sound: app sound, vibration; Voice: spoken guidance, natural voice, the voice list; Encouragement: Often/Less/Off, Say it
+  aloud, Coach voice on the afterdark build; Reminder: switch, time, notifications-off line), Briefs and email (the family's
+  address, each child's daily or weekly, Sending, BriefAiSettings), Microphone (Microphone setup, Keep the last four recordings on a
+  recording build, MIDI keyboard timing), About (version, credits, Privacy, Licences), Testing (Help Roy test, the diary, Something
+  felt off; keyed builds).
+- Now five tabs (engine/nav/SettingsTabs.kt, pure; `Tab` and `Item`, each block in exactly one tab, in the order drawn):
+  Playing: Encouragement (+ Say it aloud), Coach voice (afterdark, grown-ups), Wrong keys (Show wrong keys), Reminder, MIDI keyboard.
+  Look: Layout, Plain look (+ Step sound), Keys, Falling notes.
+  Sound: Sound (app sound, vibration), Voice, Microphone (setup, then Keep the last four recordings).
+  Family: People (FamilySettings, was the "Family" header), Briefs and email, Progress (Reset last).
+  About: About (version, credits, Privacy, Licences), Testing.
+  Rare or dangerous last in their tab: MIDI keyboard, kept recordings, Progress with Reset, Testing. No "More" expander: no tab
+  is long enough to need one (Family is the longest, through BriefsAndEmail).
+- Who sees what is `SettingsTabs.shows(item, audience, owner, layout, has)`, the rules Settings asked before, moved, not changed:
+  the layout's `Simple.settingsShows` (widened by "Show all settings"), Layout for grown-ups (`!isKid`), Plain look
+  `PlainLook.offered`, Coach voice `Extras.BUILT` and a grown-up (CoachSettings still asks `CoachGate.offered` itself), Reminder the
+  owner's, Show wrong keys with a mic, Family/Briefs/Testing with the family block, Testing on a build with Help Roy test or the
+  diary. A tab with nothing for this person is not drawn (a big kid in Simple without Testing: Playing, Look, Sound, Family; a little
+  kid: all five, Look with keys and falling notes only). Every preference key, default, gate (parent gate, coach gate and notice)
+  and `Briefs.setting` key is untouched; no analytics added or changed (logcat `settings: tab <wire>` only).
+- The screen: header and a Material 3 PrimaryTabRow fixed at the top (transparent, one word each, titleSmall), the tab's content
+  scrolls under it, max 720 dp wide. The row measures the longest label at the phone's font size and falls back to
+  PrimaryScrollableTabRow when the equal share is too narrow (the cover screen at font scale 1.5 scrolls; at 1.0 all five fit on
+  the cover screen and the inner one). One heading size inside a tab (`Sub`, titleMedium semibold; the 2.7 `Section` is gone).
+  Progress's and About's button rows are FlowRows (they wrap on the cover screen with large text). "Show all settings" ends every tab.
+- The tab: per session, `settingsTab` in MainActivity (rememberSaveable; `openSettings` resets scroll and Show all, never the
+  tab), handed in as `tabState`; a tab the person does not have falls back to the first. Changing tab scrolls to the top.
+  Debug: `--es screen settings --es tab playing|look|sound|family|about` (`settingsTabStart`, SettingsTabs.parse).
+- Copy that names a place, moved to the tabs: TesterSettings' default-on notice and the privacy page "Settings, About, Testing";
+  the privacy page and the onboarding's data lines "Settings, Family, Briefs and email"; the email footer `EmailWords.SETTINGS_PLACE`
+  "Settings > Family > Briefs and email" (snapshots email-day/-week.html re-pinned); PerformTiming's MIDI hint "in Settings,
+  Playing"; Recordings.KEEP_LINE and MicTrust.KEEP_LINE "Turn this off in Settings, Sound."; docs/STORE-LISTING.md's Help Roy test
+  line. Kept: "Settings, Family" / "Settings, under Family" (still the tab), "Settings, About, Privacy", the historic What's new
+  lines (2.8.0's "under Briefs and email" and 2.16.0's "under Encouragement" are still true section names), generic "in Settings".
+  The Briefs and email line in Settings now says "under People". Tour, tips and hints name no settings path.
+- What's new 2.16.1: "Settings are now grouped into tabs: Playing, Look, Sound, Family and About."; the afterdark build adds its
+  own (Extras.WHATS_NEW): the coach in Settings, Playing, under Encouragement, with the four voices (the Fold never had 2.16.0).
+- Coach voices: `scripts/coach_bank.py` re-run from coach_bank_v2 through a junction in the scratchpad so the script's course
+  lookup (`<bank>/../course_<voice>`) could not read tts-bakeoff/elevenlabs/course_male_us while its recording job wrote there.
+  The script skips any .ogg that exists, so every old .ogg was deleted first: male_irish (Rory) is now the re-recorded voice
+  (ElevenLabs sHeKxZJ3uDX5Lysh0yVa; 144 of 157 durations changed, 581.5 s to 540.5 s in all; the 2.16.0 files were the old voice),
+  female_au "Sienna (Australian)" added (157 lines, 1.74 MB), male_us and female_us identical audio (their re-encodes differ only
+  in Opus serials, so the committed files were kept). 6.96 MB of audio, four voices; the picker lists Liam, Rory, Claire, Sienna.
+  CoachRulesTest now expects the four in order. Next time: delete `app/src/afterdark/assets/coach/<voice>/*.ogg` before re-running
+  for a re-recorded voice.
+- Tests: SettingsTabsTest (11: five one-word tabs, every block in exactly one tab and drawn once in its tab's branch, rare last,
+  grown-ups see all, the layouts cut as before, little and big kids see only theirs and no empty tab, the coach only on a build
+  with it and only for grown-ups, owner's reminder, pick/parse, the session's tab); WelcomeTest 2.16.1; CoachWiringTest's What's
+  new and its place in Playing; SettingsWiringTest, CheerPopWiringTest, LayoutWiringTest, PlainWiringTest, DepthWiringTest,
+  TesterWiringTest, RecordingsTest, MicTrustTest, PerformTimingTest, EmailBriefTest re-pinned to the tabs and the new paths.

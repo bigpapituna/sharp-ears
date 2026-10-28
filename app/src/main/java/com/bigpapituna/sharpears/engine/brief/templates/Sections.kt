@@ -187,7 +187,7 @@ private fun settingLine(key: String, value: String): String {
         "cheer" -> com.bigpapituna.sharpears.engine.lessons.CheerFrequency.entries.firstOrNull { it.wire == value }
             ?.let { "Encouragement was set to ${it.title}." } ?: "Encouragement was changed."
         "cheerAloud" -> toggle("Spoken encouragement")
-        // 2.15: Settings > Playing > Plain look and its Step sound.
+        // 2.15: Settings > Look > Plain look and its Step sound.
         "plainLook" -> toggle("The Plain look")
         "plainStepSound" -> toggle("The step sound")
         "goalMin" -> value.toLongOrNull()?.takeIf { it in 1..600 }?.let { "The daily goal was set to ${count(it, "minute")}." } ?: "The daily goal was changed."

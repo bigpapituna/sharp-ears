@@ -36,7 +36,9 @@ class DepthWiringTest {
         val devices = src("audio/MidiDevices.kt")
         assertTrue("kept for the phone", "context.getSharedPreferences(\"mic\", Context.MODE_PRIVATE)" in devices)
         val settings = src("ui/SettingsScreen.kt")
-        assertTrue("under Microphone", settings.indexOf("Section(\"Microphone\")") < settings.indexOf("midiTiming?.let { Sub(\"MIDI keyboard\"); it() }"))
+        // 2.16.1: in the Playing tab, last (only for a keyboard on USB).
+        assertTrue("in Playing", settings.indexOf("SettingsTabs.Tab.PLAYING -> {") < settings.indexOf("if (midiTiming != null && on(SettingsTabs.Item.MIDI_TIMING)) { Sub(\"MIDI keyboard\"); midiTiming() }"))
+        assertTrue(settings.indexOf("Sub(\"MIDI keyboard\")") < settings.indexOf("SettingsTabs.Tab.LOOK -> {"))
         assertTrue("midiTiming = { com.bigpapituna.sharpears.ui.MidiTimingSetting(midi" in src("MainActivity.kt"))
     }
 

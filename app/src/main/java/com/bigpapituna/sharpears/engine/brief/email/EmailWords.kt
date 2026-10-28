@@ -255,7 +255,7 @@ class EmailWords(val name: String, val period: EmailPeriod, private val titles: 
         const val SUBJECT_MAX = 78
         const val PREHEADER_MAX = 110
         /** Where the brief by email is set (2.8: one place for the family's address and each child's switches). */
-        const val SETTINGS_PLACE = "Settings > Briefs and email"
+        const val SETTINGS_PLACE = "Settings > Family > Briefs and email"
         /** What a suggestion's button says: nothing in the email can act. */
         const val DO_IN_APP = "Do this in the app"
         /** The flags that are good news. */

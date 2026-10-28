@@ -183,7 +183,7 @@ Points to settle against the privacy page and docs/privacy-policy.md before rele
 ## 7. Remove before public release
 
 These exist in the private build and must not reach the public listing or the public app (see docs/publishing.md):
-- **Help Roy test** (Settings, behind the gate; PostHog screen recordings, app events and error reports, and the Brevo diary)
+- **Help Roy test** (Settings, About, Testing, behind the gate; PostHog screen recordings, app events and error reports, and the Brevo diary)
   and everything about it. The public build has no PostHog code (the keyless `noposthog` door) and no such section in the policy.
 - **Recordings kept**: debug and private builds can keep practice recordings, with a switch in Microphone setup; a release
   build never records. Do not mention it, and check that no fixtures folder is created.

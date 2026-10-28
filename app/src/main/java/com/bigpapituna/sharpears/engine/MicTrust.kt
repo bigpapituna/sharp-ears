@@ -46,7 +46,7 @@ object MicTrust {
     const val CLOSE = "Close"
 
     /** The test-build exception, exactly as 2.15 asks; the card and the privacy page say it only where recordings are kept. */
-    const val KEEP_LINE = "This test build keeps the last four practice recordings on this phone to tune the listening. Turn this off in Settings."
+    const val KEEP_LINE = "This test build keeps the last four practice recordings on this phone to tune the listening. Turn this off in Settings, Sound."
 
     /** The privacy page's three headings, in order. */
     const val LISTENS = "What the app listens to"

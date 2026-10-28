@@ -33,7 +33,7 @@ const val HELP_ROY_TEST_LINE = "Sends " + com.bigpapituna.sharpears.engine.teste
 
 /** 2.13: the one-time notice when the default turned Help Roy test on (Roy's words, 2026-10-25). */
 const val DEFAULT_ON_NOTICE = "This test build sends " + com.bigpapituna.sharpears.engine.tester.TesterRules.SENDS + " to Roy to help improve the app. No sound is recorded. " +
-    "You can turn this off in Settings, Testing."
+    "You can turn this off in Settings, About, Testing."
 
 /**
  * 2.13: the notice that the default turned Help Roy test on, once, to a grown-up (MainActivity shows it while

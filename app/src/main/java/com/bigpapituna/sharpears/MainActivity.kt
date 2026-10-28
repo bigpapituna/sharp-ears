@@ -383,6 +383,9 @@ class MainActivity : ComponentActivity() {
     var debugRoutes = false
         private set
 
+    /** 2.16.1: the Settings tab a debug route asked for (`--es screen settings --es tab sound`), else null (the first tab). */
+    private var settingsTabStart: com.bigpapituna.sharpears.engine.nav.SettingsTabs.Tab? = null
+
     /**
      * The parent brief's doors into the app (ui/brief/AppEffects.kt, step 3 of the brief): Replay, Practise together and the
      * duet's song pick open screens for the child the brief is about, switching to them first when someone else is open,
@@ -790,6 +793,7 @@ class MainActivity : ComponentActivity() {
         val seekMs = intent.getLongExtra("seek", 0L).toDouble()
         val dump = routes && intent.getBooleanExtra("dump", false)
         val route = intent.getStringExtra("screen")?.takeIf { routes }
+        settingsTabStart = if (route == "settings") com.bigpapituna.sharpears.engine.nav.SettingsTabs.parse(intent.getStringExtra("tab")) else null
         // A debug route with a bad value (an unknown lesson or song, "prog:x") opens home instead of crashing the launch.
         val first: Screen = runCatching { when {
             // 2.7: the Chords tab's places now sit at the top of Learn; the old tab names still open them.
@@ -831,6 +835,7 @@ class MainActivity : ComponentActivity() {
                     intent.getIntExtra("bpm", 0).takeIf { it > 0 }, intent.getBooleanExtra("hear", false),
                     if (intent.hasExtra("kid")) intent.getBooleanExtra("kid", false) else null, intent.getBooleanExtra("pre", false))
             }
+            // 2.16.1: --es screen settings [--es tab playing|look|sound|family|about] opens Settings on that tab.
             route == "settings" -> Screen.Settings(Screen.Home(HomeTab.YOU))
             // 2.15: --es screen micsetup [--es inject <wav>|synth:...] (the room check hears the injection), --es screen privacy
             route == "micsetup" -> Screen.MicSetup(Screen.Settings(Screen.Home(HomeTab.YOU)), debugStart.inject)
@@ -990,6 +995,8 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.foundation.ScrollState(0)
                     }
                     val settingsShowAll = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+                    // 2.16.1: the Settings tab last open, for the session (openSettings keeps it; the debug route may name one).
+                    val settingsTab = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(settingsTabStart) }
                     fun openSettings(back: Screen) {
                         scope.launch { settingsScroll.scrollTo(0) }
                         settingsShowAll.value = false
@@ -1582,7 +1589,7 @@ class MainActivity : ComponentActivity() {
                                 onResetProgress = { earStore.reset(); practiceStore.clear(); theory.reset(); progress.clearPracticeLog(); Log.d(TAG, "progress: reset (prefs, ear, practice, theory, practice log; XP kept)") },
                                 family = { FamilySettings(profiles, extras = false) }, showReminder = current.isOwner, mic = mic,
                                 midiTiming = { com.bigpapituna.sharpears.ui.MidiTimingSetting(midi, debugScript = debugStart.midiScript) },
-                                scroll = settingsScroll, showAllState = settingsShowAll)
+                                scroll = settingsScroll, showAllState = settingsShowAll, tabState = settingsTab)
                             }
                             }
                         }

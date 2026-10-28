@@ -107,8 +107,8 @@ object PerformTiming {
         // 2. Every note to one side on a MIDI keyboard: most likely the keyboard's delay, which the offset is for.
         val oneSide = hits.size >= 8 && (hits.count { it.early } >= hits.size * 0.8 || hits.count { it.late } >= hits.size * 0.8)
         if (midi && oneSide) return if (hits.count { it.early } > hits.count { it.late })
-            "Nearly every note came early. If it felt in time, set the MIDI timing offset in Settings."
-        else "Nearly every note came late. If it felt in time, set the MIDI timing offset in Settings."
+            "Nearly every note came early. If it felt in time, set the MIDI timing offset in Settings, Playing."
+        else "Nearly every note came late. If it felt in time, set the MIDI timing offset in Settings, Playing."
         if (pattern != null) {
             val (early, beat) = pattern.key
             return "You ${if (early) "rush" else "drag"} the ${ordinal(beat + 1)} beat of ${barList(pattern.value)}."

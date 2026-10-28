@@ -93,7 +93,7 @@ class MicTrustTest {
         assertTrue(c.sections[3].text.contains("keys on the screen") && c.sections[3].text.contains("MIDI keyboard"))
         assertEquals("Not now", c.notNow)
         assertEquals("Allow the microphone", c.allow)
-        assertEquals("This test build keeps the last four practice recordings on this phone to tune the listening. Turn this off in Settings.",
+        assertEquals("This test build keeps the last four practice recordings on this phone to tune the listening. Turn this off in Settings, Sound.",
             MicTrust.KEEP_LINE)
         assertTrue(MicTrust.card(MicFacts(), child = "Mia").lead.startsWith("Mia's games can listen"))
     }

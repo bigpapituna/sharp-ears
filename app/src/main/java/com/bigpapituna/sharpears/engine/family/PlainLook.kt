@@ -5,7 +5,7 @@ import com.bigpapituna.sharpears.engine.lessons.CheerFrequency
 /*
  * 2.15, the Plain look. The MiroFish launch-month simulation (docs/MIROFISH-REPORT-2026-10-26.md, untracked): 23 of 40
  * personas found the mascot, the cheers and the rewards childish, and 25 of 40 asked for a plain mode with the pup, the
- * cheers and the streaks off. Settings > Playing > "Plain look", per profile, off by default, offered to grown-ups and big
+ * cheers and the streaks off. Settings > Look > "Plain look", per profile, off by default, offered to grown-ups and big
  * kids only: a little kid's profile never shows it and ignores it if it is set (a band change keeps the stored value).
  *
  * The screens read ONE switch, ui/Plain.kt `LocalPlain` (MainActivity provides [on] for the open profile); every number and

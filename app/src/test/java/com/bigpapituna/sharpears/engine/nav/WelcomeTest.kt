@@ -121,6 +121,14 @@ class WelcomeTest {
         lines.forEach { assertTrue(it, it.first().isUpperCase() && it.endsWith(".") && '!' !in it && '-' !in it) }
     }
 
+    /** 2.16.1, one line of the app's own: Settings in tabs (a build with the coach adds its line after, CoachWiringTest). */
+    @Test fun whatsNew2161IsSettingsInTabs() {
+        assertEquals(listOf("Settings are now grouped into tabs: Playing, Look, Sound, Family and About."), Welcome.whatsNew("2.16.1"))
+        assertEquals(com.bigpapituna.sharpears.engine.nav.SettingsTabs.Tab.entries.map { it.label },
+            Regex("Playing|Look|Sound|Family|About").findAll(Welcome.whatsNew("2.16.1")[0]).map { it.value }.toList())
+        assertTrue(Welcome.whatsNew("2.16.1", Welcome.merged(emptyMap())).none { "coach" in it.lowercase() })
+    }
+
     /** 2.15.0 merge: the Plain look has no streak counter, so its tour skips "A streak that forgives"; the rest as they are. */
     @Test fun thePlainLooksTourSkipsTheStreakCard() {
         assertEquals(Welcome.TOUR, Welcome.tour(plain = false))

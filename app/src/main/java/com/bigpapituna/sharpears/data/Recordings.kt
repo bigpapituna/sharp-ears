@@ -26,7 +26,7 @@ object Recordings {
      * during the beta, to tune the listening).
      */
     const val KEEP_LINE = "This test build keeps the last four practice recordings on this phone, in the app's own storage, to tune the " +
-        "listening. They never leave the phone unless you share them. Turn this off in Settings."
+        "listening. They never leave the phone unless you share them. Turn this off in Settings, Sound."
     /** The switch, in Settings > Microphone and in Microphone setup. */
     const val KEEP_SWITCH = "Keep the last four recordings"
 

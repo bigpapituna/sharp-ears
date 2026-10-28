@@ -90,7 +90,7 @@ class CheerPopWiringTest {
 
     @Test fun encouragementShowsInEveryLayoutWithOftenLessAndOff() {
         val settings = src("ui/SettingsScreen.kt")
-        assertTrue("if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {" in settings && "Sub(\"Encouragement\")" in settings)
+        assertTrue("if (on(SettingsTabs.Item.ENCOURAGEMENT)) {" in settings && "Sub(\"Encouragement\")" in settings)
         assertTrue("prefs.cheerFrequency = f; com.bigpapituna.sharpears.data.Briefs.setting(\"cheer\", f.wire)" in settings)
         assertTrue("Toggle(\"Say it aloud\"" in settings)
         val line = settings.substringAfter("internal const val ENCOURAGEMENT_LINE = ").substringBefore("\n\n")

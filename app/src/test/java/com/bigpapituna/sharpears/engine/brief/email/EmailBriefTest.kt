@@ -177,7 +177,7 @@ class EmailBriefTest {
         assertTrue(plain.contains("<b>482913</b>") && plain.startsWith("<!doctype html>"))
         // A brief's footer says how often from the first one on: there is no "first" brief any more.
         val brief = email(week())
-        assertTrue(brief.footer.lines.any { it == "To change how often these come, or stop them: Settings > Briefs and email, in the app." })
+        assertTrue(brief.footer.lines.any { it == "To change how often these come, or stop them: Settings > Family > Briefs and email, in the app." })
         assertTrue(brief.footer.lines.any { it.startsWith("A day's email comes") })
         assertFalse(brief.subject.contains("code"))
         val never = email(BriefSamples.empty(Period.DAY, NOW, ZONE))

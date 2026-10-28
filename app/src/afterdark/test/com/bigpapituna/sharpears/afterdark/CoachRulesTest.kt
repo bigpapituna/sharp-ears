@@ -31,9 +31,10 @@ class CoachRulesTest {
     @Test fun theVoicesAreTheFoldersTheBuildHas() {
         val voices = voiceDirs.map { CoachVoice.parse(File(it, "voice.json").readText()) }
         assertEquals(voiceDirs.map { it.name }, voices.map { it.id })
-        assertTrue("the three Roy recorded first", listOf("female_us", "male_irish", "male_us").all { v -> voices.any { it.id == v } })
-        assertEquals(listOf("male_us", "male_irish", "female_us"), CoachVoice.sorted(voices).map { it.id }.filter { it != "female_au" })
+        // 2.16.1: the four Roy recorded (Rory re-recorded in a new Irish voice, Sienna added), in the script's order.
+        assertEquals(listOf("male_us", "male_irish", "female_us", "female_au"), CoachVoice.sorted(voices).map { it.id })
         assertEquals("Liam (American)", voices.first { it.id == "male_us" }.name)
+        assertEquals("Sienna (Australian)", voices.first { it.id == "female_au" }.name)
         assertEquals(voices.size, voices.map { it.name }.toSet().size)
         // No file but the voice folders at the top (the first flat layout is gone).
         assertTrue(root.listFiles { f -> f.isFile }!!.isEmpty())

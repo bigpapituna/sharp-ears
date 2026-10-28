@@ -55,7 +55,7 @@ class RecordingsTest {
 
     @Test fun thePageSaysPlainlyWhatTheTestBuildKeeps() {
         assertEquals("This test build keeps the last four practice recordings on this phone, in the app's own storage, to tune the " +
-            "listening. They never leave the phone unless you share them. Turn this off in Settings.", Recordings.KEEP_LINE)
+            "listening. They never leave the phone unless you share them. Turn this off in Settings, Sound.", Recordings.KEEP_LINE)
         assertEquals("Keep the last four recordings", Recordings.KEEP_SWITCH)
         for (s in listOf(Recordings.KEEP_LINE, Recordings.KEEP_SWITCH)) assertFalse(s, s.contains(Char(0x2014)) || s.contains(Char(0x2013)) || s.contains(" - "))
     }

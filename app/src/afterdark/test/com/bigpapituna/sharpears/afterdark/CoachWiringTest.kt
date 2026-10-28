@@ -74,10 +74,12 @@ class CoachWiringTest {
         assertTrue("if (!CoachGate.offered(LocalProfile.current) || LocalPlain.current.on) return" in ui)
         // Under Encouragement, in every layout that shows it.
         val settings = src("ui/SettingsScreen.kt")
-        val enc = settings.indexOf("if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {")
-        val part = settings.indexOf("com.bigpapituna.sharpears.extras.Extras.SettingsPart(prefs) { Sub(it) }")
-        val reminder = settings.indexOf("if (showReminder) Sub(\"Reminder\")")
-        assertTrue(enc in 0 until part && part < reminder)
+        // 2.16.1: in the Playing tab, right under Encouragement, before Wrong keys and the reminder (SettingsTabsTest).
+        val playing = settings.indexOf("SettingsTabs.Tab.PLAYING -> {")
+        val enc = settings.indexOf("if (on(SettingsTabs.Item.ENCOURAGEMENT)) {")
+        val part = settings.indexOf("if (on(SettingsTabs.Item.COACH_VOICE)) com.bigpapituna.sharpears.extras.Extras.SettingsPart(prefs) { Sub(it) }")
+        val reminder = settings.indexOf("Sub(\"Reminder\")")
+        assertTrue(playing in 0 until enc && enc < part && part < reminder)
     }
 
     @Test fun nothingButOneBooleanLeavesThePhone() {
@@ -98,5 +100,11 @@ class CoachWiringTest {
         assertFalse(lines[0].contains("!") || lines[0].contains("—"))
         val merged = com.bigpapituna.sharpears.engine.nav.Welcome.merged(Extras.WHATS_NEW)
         assertEquals(lines, com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew("2.16.0", merged))
+        // 2.16.1: the app's tabs line, then the coach's, naming the tab and the four voices.
+        val now = com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew("2.16.1", merged)
+        assertEquals(2, now.size)
+        assertTrue(now[0].startsWith("Settings are now grouped into tabs"))
+        assertTrue(now[1].contains("Settings, Playing, under Encouragement") && now[1].contains("Sienna") && now[1].contains("Adults only"))
+        assertFalse(now[1].contains("!") || now[1].contains("—"))
     }
 }

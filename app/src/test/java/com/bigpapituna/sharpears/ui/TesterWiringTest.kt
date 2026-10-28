@@ -106,7 +106,7 @@ class TesterWiringTest {
             assertTrue(s, about.contains(s))
         assertTrue(src("ui/onboarding/OnboardingScreen.kt").contains("t.switchOn.value && t.hasKey"))
         // 2.13: the page says Help Roy test is on from the start, and where to turn it off.
-        assertTrue(about.contains("Help Roy test is on from the start in this build") && about.contains("Settings, Testing"))
+        assertTrue(about.contains("Help Roy test is on from the start in this build") && about.contains("Settings, About, Testing"))
         assertFalse(about.contains("Both are off until Roy turns them on"))
     }
 
@@ -126,7 +126,7 @@ class TesterWiringTest {
         assertTrue(main.indexOf("TesterDefaultNotice {") in 1 until main.indexOf("SharpEarsTheme(dark = isSystemInDarkTheme()) { ParentGateHost(gate) }"))
         assertTrue("!isStage(screen)) SharpEarsTheme" in main)
         assertEquals("This test build sends screen recordings, app events and error reports to Roy to help improve the app. No sound is recorded. " +
-            "You can turn this off in Settings, Testing.", com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
+            "You can turn this off in Settings, About, Testing.", com.bigpapituna.sharpears.analytics.DEFAULT_ON_NOTICE)
     }
 
     /**

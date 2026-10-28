@@ -1,6 +1,7 @@
 package com.bigpapituna.sharpears.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -43,15 +44,22 @@ class SettingsWiringTest {
     }
 
     /**
-     * 2.7: Settings under six headers in this order, Testing last, and no switch lost or renamed on the way: each still writes
+     * 2.7: Settings in groups; 2.16.1: in five tabs (Playing, Look, Sound, Family, About; SettingsTabsTest has the rules), each
+     * block's heading in its tab's branch in this order, Testing last, and no switch lost or renamed on the way: each still writes
      * its own preference and tells the brief its own key (Briefs.setting), and Show wrong keys in Playing is Microphone
      * setup's switch (the same MicInput.wrongFlash and the same way back from the noisy-room offer).
      */
     @Test fun settingsAreGroupedAndKeepEverySwitch() {
         val s = File(root, "ui/SettingsScreen.kt").readText()
-        val order = listOf("Family", "Playing", "Briefs and email", "Microphone", "About", "Testing").map { s.indexOf("Section(\"$it\")") }
-        assertTrue("every group is there: $order", order.all { it >= 0 })
+        val heads = listOf("Tab.PLAYING -> {", "Sub(\"Encouragement\")", "Sub(\"Wrong keys\")", "Sub(\"Reminder\")", "Sub(\"MIDI keyboard\")",
+            "Tab.LOOK -> {", "Sub(Simple.SETTING_TITLE)", "PlainLook.TITLE", "Sub(\"Keys\")", "Sub(\"Falling notes\")",
+            "Tab.SOUND -> {", "Sub(\"Sound\")", "Sub(\"Voice\")", "Sub(\"Microphone\")",
+            "Tab.FAMILY -> {", "Sub(\"People\")", "Sub(\"Briefs and email\")", "Sub(\"Progress\")",
+            "Tab.ABOUT -> {", "Sub(\"About\")", "Sub(\"Testing\")")
+        val order = heads.map { s.indexOf(it) }
+        assertTrue("every heading is there: ${heads.zip(order)}", order.all { it >= 0 })
         assertEquals(order.sorted(), order)
+        assertFalse("the 2.7 group headings are gone", "Section(\"" in s)
         for (key in listOf("keyLabels", "noteNames", "fingerNumbers", "feedbackLight", "beatLines", "ghostHand", "sound", "haptics", "voice", "naturalVoice", "reminderOn", "wrongFlash"))
             assertTrue("Settings lost the $key switch", "Briefs.setting(\"$key\"" in s)
         for (pref in listOf("prefs.keyLabels = k", "prefs.noteNames = it", "prefs.fingerNumbers = it", "prefs.feedbackLight = it", "prefs.beatLines = it",

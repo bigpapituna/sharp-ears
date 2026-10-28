@@ -114,7 +114,7 @@ fun PrivacyScreen(facts: com.bigpapituna.sharpears.engine.MicFacts, onMicSetup: 
         "with their own earlier weeks. Grown-ups read it behind the parent gate; a kid sees only the pup's short, kind card. A brief you " +
         "send goes only where you send it.")
     if (aiBrief) {
-        Para("On this build an AI model can write the words. On Wi-Fi, or on mobile data if you allow it in Settings, Briefs and email, the app sends " +
+        Para("On this build an AI model can write the words. On Wi-Fi, or on mobile data if you allow it in Settings, Family, Briefs and email, the app sends " +
             "OpenRouter (openrouter.ai), which passes it to the model's maker (Anthropic, for Claude Haiku), only the brief's findings: " +
             "minutes, days, stars, tries, which lessons, songs and pages, and notes such as \"stuck on a lesson\" or \"noisy room\". It never " +
             "sends a name (the app writes the name in afterwards, on this phone), a recording or any sound, a note a grown-up typed, or a song " +
@@ -123,14 +123,14 @@ fun PrivacyScreen(facts: com.bigpapituna.sharpears.engine.MicFacts, onMicSetup: 
             "request come from your internet connection.")
         Para("What comes back is checked on the phone, and anything that names something not in the findings is left out. Offline, on mobile " +
             "data you did not allow, when the model is slow, after 40 AI briefs in a week for one person, when a reply fails a check, or with " +
-            "AI briefs switched off in Settings, Briefs and email, the brief is written on the phone instead, and says so. The last brief written for " +
+            "AI briefs switched off in Settings, Family, Briefs and email, the brief is written on the phone instead, and says so. The last brief written for " +
             "each person is kept on the phone, so opening it again sends nothing.")
     } else Para("On this build every brief, card and answer is written on the phone, and nothing about it leaves the phone.")
     Para("Dictating a question uses the phone's own speech recognition, so your voice stays on the phone; the microphone button is hidden " +
         "when the phone has none.")
     if (emailBrief) {
         Heading("The brief by email")
-        Para("If you give your email address (Settings, Briefs and email), the app sends each child's brief to it, for the children you switch on: " +
+        Para("If you give your email address (Settings, Family, Briefs and email), the app sends each child's brief to it, for the children you switch on: " +
             "the brief's words and numbers (minutes, days, stars, which lessons and songs, slips, how long keys took to find, what the app " +
             "suggests) and the full report as a PDF. It goes from this phone to Brevo (brevo.com), the email service that delivers it, and " +
             "from there to your address. Nothing else is sent: no recording or sound, no note you typed, nothing about the other children. " +
@@ -152,7 +152,7 @@ fun PrivacyScreen(facts: com.bigpapituna.sharpears.engine.MicFacts, onMicSetup: 
                 "report goes too: where it happened and the error's technical words, with any address, name, title or file name taken out.").takeIf { testerDashboard },
             ("With Email Roy a daily diary on, a plain email goes to Roy once a day through Brevo: which screens, lessons, tries and notes, " +
                 "with no names or addresses.").takeIf { testerDiary },
-            ("Help Roy test is on from the start in this build, and the app says so once; turn it off in Settings, Testing, behind the parent " +
+            ("Help Roy test is on from the start in this build, and the app says so once; turn it off in Settings, About, Testing, behind the parent " +
                 "gate.").takeIf { testerDashboard },
             ("The diary is off until Roy turns it on.").takeIf { testerDiary },
             "Both are removed before any public release.").joinToString(" "))

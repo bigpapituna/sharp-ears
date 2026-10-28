@@ -105,6 +105,10 @@ object Welcome {
             "A clearer microphone card, a plain privacy page, a hint when the piano can't be heard, and a room check.",
             "A short tour of what the app can do, and tips that show up when you need them.",
         ),
+        // 2.16.0 has none of the app's own (the coach's line is the build's extra's); 2.16.1 is Settings in tabs.
+        "2.16.1" to listOf(
+            "Settings are now grouped into tabs: Playing, Look, Sound, Family and About.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -41,15 +43,18 @@ import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.data.KeyLabels
 import com.bigpapituna.sharpears.data.Prefs
 import com.bigpapituna.sharpears.data.SongMeta
+import com.bigpapituna.sharpears.engine.nav.SettingsTabs
 import com.bigpapituna.sharpears.engine.nav.Simple
 
 /**
- * Settings: plain sections separated by space, no cards. Since 2.7 under six headers, in this order: Family (everyone on the
- * phone, and the progress file that carries them all), Playing (keys, falling notes, sound, voice, wrong keys, the reminder),
- * Briefs and email, Microphone, About, then Testing when this build has it. Every switch keeps its preference and its tests.
+ * Settings: plain sections separated by space, no cards. Since 2.16.1 in five tabs (engine/nav/SettingsTabs.kt), each block in
+ * exactly one: Playing (Encouragement and the coach voice, Show wrong keys, the reminder, the MIDI keyboard's timing), Look (the
+ * layout, the Plain look, key labels, falling notes), Sound (app sound and vibration, the voice, the microphone), Family
+ * (everyone on the phone, briefs and email, the progress file) and About (the app, privacy, licences, then Testing when this
+ * build has it). A tab with nothing for this person is not drawn. Every switch keeps its preference, its gate and its tests.
  */
 @Composable
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    /** The speaking voice, for the voice picker (null in previews). */
                    voice: com.bigpapituna.sharpears.audio.Voice? = null,
@@ -63,7 +68,7 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                    onBack: (() -> Unit)? = null,
                    /** After Prefs.resetProgress(): the other stores that keep scores (ear training, practice tools). */
                    onResetProgress: () -> Unit = {},
-                   /** The Family section (ui/family/FamilySettings.kt), first on the screen; null hides it. */
+                   /** The Family block (ui/family/FamilySettings.kt), first in the Family tab; null hides it. */
                    family: (@Composable () -> Unit)? = null,
                    /** The daily reminder is the phone owner's (one alarm per phone); other profiles do not see it. */
                    showReminder: Boolean = true,
@@ -73,12 +78,14 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                     */
                    scroll: androidx.compose.foundation.ScrollState = rememberScrollState(),
                    showAllState: androidx.compose.runtime.MutableState<Boolean>? = null,
-                   /** 2.14: the MIDI keyboard's timing offset (ui/MidiTiming.kt), under Microphone; null hides it. */
+                   /** 2.16.1: the open tab, kept by the caller for the session (the last one opens again); null keeps its own. */
+                   tabState: androidx.compose.runtime.MutableState<SettingsTabs.Tab?>? = null,
+                   /** 2.14: the MIDI keyboard's timing offset (ui/MidiTiming.kt), in Playing; null hides it. */
                    midiTiming: (@Composable () -> Unit)? = null) {
     var pickTime by remember { mutableStateOf(false) }
     // The reminder time as the phone shows times (6:30 PM, or 18:30): its 12 or 24-hour setting, as the picker uses.
     val timeLabel = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current)
-        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, prefs.reminderMinutes / 60); set(java.util.Calendar.MINUTE, prefs.reminderMinutes % 60) }.time).replace(' ', ' ')
+        .format(java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, prefs.reminderMinutes / 60); set(java.util.Calendar.MINUTE, prefs.reminderMinutes % 60) }.time).replace(' ', ' ')
     val context = androidx.compose.ui.platform.LocalContext.current
     // Progress export and import (Storage Access Framework: the player picks where the file goes).
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -117,110 +124,42 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
     val layout = LocalLayout.current
     val ownShowAll = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showAll by (showAllState ?: ownShowAll)
-    fun shows(part: Simple.SettingsPart) = Simple.settingsShows(part, Simple.shown(layout.layout, showAll))
-    Column(Modifier.fillMaxWidth().verticalScroll(scroll), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
+    val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
+    // 2.16.1, the tabs (engine/nav/SettingsTabs.kt): which blocks this person sees, by the rules Settings always asked
+    // (Simple.settingsShows for the layout, a grown-up's own layout, PlainLook.offered, the coach for grown-ups, the owner's reminder).
+    val has = SettingsTabs.Has(family = family != null, mic = mic != null, midi = midiTiming != null,
+        testing = com.bigpapituna.sharpears.analytics.Tester.rowShown(context) || com.bigpapituna.sharpears.analytics.Tester.diaryBuilt,
+        coach = com.bigpapituna.sharpears.extras.Extras.BUILT)
+    val shownLayout = Simple.shown(layout.layout, showAll)
+    fun on(item: SettingsTabs.Item) = SettingsTabs.shows(item, me.audience, showReminder, shownLayout, has)
+    val tabs = SettingsTabs.tabs(me.audience, showReminder, shownLayout, has)
+    val ownTab = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<SettingsTabs.Tab?>(null) }
+    var wantedTab by (tabState ?: ownTab)
+    val tab = SettingsTabs.pick(wantedTab, tabs)
+    fun choose(t: SettingsTabs.Tab) {
+        if (t == tab) return
+        wantedTab = t
+        scope.launch { scroll.scrollTo(0) }
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "settings: tab ${t.wire}")
+    }
+    val plainOn = plainLook()
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 onBack?.let { IconButton(onClick = it) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") } }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = if (onBack != null) 4.dp else 0.dp).semantics { heading() })
             }
-
-            // Family: everyone on the phone, and the progress file that carries them all (export, import; reset is yours).
-            Section("Family")
-            family?.invoke()
-            if (shows(Simple.SettingsPart.PROGRESS)) {
-            if (family != null) Sub("Progress")
-            Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
-                "to a file, or bring it back from one.",
-                style = MaterialTheme.typography.bodyMedium, color = dim)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { exportTo.launch("sharp-ears-progress-${java.time.LocalDate.now()}.json") }) { Text("Export progress") }
-                TextButton(onClick = { importFrom.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }) { Text("Import progress") }
-            }
-            progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
-            Text("Reset clears resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records. " +
-                "Learn and chord lessons, stickers, XP and achievements are kept.",
-                style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
-            TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
-            }
-
-            // Playing: how the keys, the falling notes, the sound and the voice behave, wrong keys, and the reminder.
-            Section("Playing")
-            val profiles = com.bigpapituna.sharpears.ui.family.LocalProfiles.current
-            val me = com.bigpapituna.sharpears.ui.family.LocalProfile.current
-            // The layout (2.8; 2.7's Simple mode switch): a grown-up's own three-way choice (kept per profile); a kid never has it.
-            if (!me.isKid && shows(Simple.SettingsPart.LAYOUT)) {
-                Text(Simple.SETTING_TITLE, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                Text(Simple.SETTING_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
-                LayoutPicker(Modifier.padding(top = 4.dp, bottom = 4.dp).widthIn(max = 420.dp).fillMaxWidth())
-            }
-            // 2.15, the Plain look (engine/family/PlainLook.kt): per profile, off by default, every layout; grown-ups and big kids
-            // only (a little kid's profile never shows it and ignores it). No pup, no cheers, no streak counter.
-            val plainOn = plainLook()
-            if (com.bigpapituna.sharpears.engine.family.PlainLook.offered(me.audience) && shows(Simple.SettingsPart.PLAIN_LOOK)) {
-                Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.TITLE, com.bigpapituna.sharpears.engine.family.PlainLook.LINE,
-                    prefs.plainLook && v >= 0) { on ->
-                    prefs.plainLook = on; if (on) voice?.stop()
-                    com.bigpapituna.sharpears.data.Briefs.setting("plainLook", on)
-                    android.util.Log.d(com.bigpapituna.sharpears.TAG, "plain: look ${if (on) "on" else "off"} for ${me.id}")
-                }
-                if (prefs.plainLook && v >= 0) Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND,
-                    com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND_LINE, prefs.plainStepSound) {
-                    prefs.plainStepSound = it; com.bigpapituna.sharpears.data.Briefs.setting("plainStepSound", it)
-                }
-            }
-            if (shows(Simple.SettingsPart.KEYS)) {
-            Sub("Keys")
-            Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
-            SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
-                val opts = listOf(KeyLabels.OFF to "Off", KeyLabels.C_ONLY to "C only", KeyLabels.ALL to "All")
-                opts.forEachIndexed { i, (k, label) ->
-                    SegmentedButton(prefs.keyLabels == k && v >= 0, { prefs.keyLabels = k; com.bigpapituna.sharpears.data.Briefs.setting("keyLabels", k) }, SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(label) }
-                }
-            }
-            }
-
-            if (shows(Simple.SettingsPart.FALLING_NOTES)) {
-            Sub("Falling notes")
-            // Colour notes belong to the profile (2.1): on for kids from the start, a choice for grown-ups.
-            if (profiles != null) Toggle("Colour notes", "Each note and key in its own colour: C red, D orange, E yellow, F green, G teal, A blue, B purple, " +
-                "as in many beginners' books.", me.colourNotes) { on -> profiles.update(me.id) { it.copy(colourNotes = on) } }
-            Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it; com.bigpapituna.sharpears.data.Briefs.setting("noteNames", it) }
-            Toggle("Finger numbers", "A suggested finger for each note, 1 for the thumb to 5 for the little finger.",
-                prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it; com.bigpapituna.sharpears.data.Briefs.setting("fingerNumbers", it) }
-            Toggle("Feedback light", "A flash rises from the line on a right note, a soft glow runs along it on a wrong one. Off: keys flash instead.",
-                prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it; com.bigpapituna.sharpears.data.Briefs.setting("feedbackLight", it) }
-            Toggle("Beat lines", "A faint line across the notes on every beat. Rhythm lessons always show them.",
-                prefs.beatLines && v >= 0) { prefs.beatLines = it; com.bigpapituna.sharpears.data.Briefs.setting("beatLines", it) }
-            Toggle("Ghost hand", "A hand over the keys shows which finger plays next.",
-                prefs.ghostHand && v >= 0) { prefs.ghostHand = it; com.bigpapituna.sharpears.data.Briefs.setting("ghostHand", it) }
-            }
-            // Wrong keys heard by the mic: the same switch as Microphone setup's (the phone's mic settings, every profile).
-            if (mic != null && shows(Simple.SettingsPart.WRONG_KEYS)) {
-                var wrongFlash by remember { mutableStateOf(mic.paintsWrongKeys) }
-                Toggle("Show wrong keys", "A key the mic hears you hit lights yellow next to the right one and red further away. Touch and MIDI keys always show.",
-                    wrongFlash) { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic wrongFlash=$it"); com.bigpapituna.sharpears.data.Briefs.setting("wrongFlash", it) }
-            }
-
-            Sub("Sound")
-            Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
-                prefs.sound && v >= 0) { prefs.sound = it; com.bigpapituna.sharpears.ui.world.WorldSounds.on = it; com.bigpapituna.sharpears.data.Briefs.setting("sound", it) }
-            Toggle("Vibration on touch keys", "A light tap for a right note, a double tap for a wrong one, when you play on the screen.",
-                prefs.haptics && v >= 0) { prefs.haptics = it; com.bigpapituna.sharpears.data.Briefs.setting("haptics", it) }
-
-            Sub("Voice")
-            // 2.15: in the Plain look the switch is its own, off until turned on there (PlainLook.voiceOn); the usual one waits.
-            val voiceOn = com.bigpapituna.sharpears.engine.family.PlainLook.voiceOn(plainOn, prefs.voice, prefs.plainVoice)
-            Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
-                voiceOn && v >= 0) { if (plainOn) prefs.plainVoice = it else prefs.voice = it; if (!it) voice?.stop(); com.bigpapituna.sharpears.data.Briefs.setting("voice", it) }
-            if (voiceOn) Toggle("Natural voice",
-                "A lifelike voice (Kokoro) that runs on this phone, nothing sent anywhere." +
-                    if (voice?.naturalModelInstalled == false) " Lines that name notes and times use the phone's voice until the voice model is installed." else "",
-                prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it; com.bigpapituna.sharpears.data.Briefs.setting("naturalVoice", it) }
-            if (voice != null && voiceOn && !prefs.naturalVoice) VoicePicker(voice, v)
-
+            SettingsTabRow(tabs, tab, ::choose, Modifier.padding(top = 4.dp))
+        }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            when (tab) {
+            // Playing: how lessons and songs answer you. Encouragement (and the coach under it), wrong keys, the reminder, the
+            // MIDI keyboard's timing last (only for a keyboard on USB).
+            SettingsTabs.Tab.PLAYING -> {
             // 2.13: the cheer pops (ui/pup/CheerPop.kt), per profile; every layout shows them. Often for everyone by default.
-            if (shows(Simple.SettingsPart.ENCOURAGEMENT)) {
+            if (on(SettingsTabs.Item.ENCOURAGEMENT)) {
                 Sub("Encouragement")
                 // 2.15: off while the Plain look is on (its choice kept for later).
                 if (plainOn) Text(com.bigpapituna.sharpears.engine.family.PlainLook.ENCOURAGEMENT_OFF, style = MaterialTheme.typography.bodyMedium, color = dim)
@@ -238,77 +177,184 @@ fun SettingsScreen(prefs: Prefs, songs: List<SongMeta>, versionName: String,
                         com.bigpapituna.sharpears.engine.lessons.CheerRules.aloud(me.kidSkin, prefs.cheerAloud)) {
                         prefs.cheerAloud = it; com.bigpapituna.sharpears.data.Briefs.setting("cheerAloud", it)
                     }
-                // 2.16: the build's extra has its part here, for a grown-up's profile only (extras/Extras.kt; nothing on a build without it).
-                com.bigpapituna.sharpears.extras.Extras.SettingsPart(prefs) { Sub(it) }
+            }
+            // 2.16: the build's extra has its part right under Encouragement, for a grown-up's profile only (extras/Extras.kt;
+            // nothing on a build without it).
+            if (on(SettingsTabs.Item.COACH_VOICE)) com.bigpapituna.sharpears.extras.Extras.SettingsPart(prefs) { Sub(it) }
+            // Wrong keys heard by the mic: the same switch as Microphone setup's (the phone's mic settings, every profile).
+            if (mic != null && on(SettingsTabs.Item.WRONG_KEYS)) {
+                Sub("Wrong keys")
+                var wrongFlash by remember { mutableStateOf(mic.paintsWrongKeys) }
+                Toggle("Show wrong keys", "A key the mic hears you hit lights yellow next to the right one and red further away. Touch and MIDI keys always show.",
+                    wrongFlash) { wrongFlash = it; mic.wrongFlash = it; if (it) mic.wrongPaintOff = false; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic wrongFlash=$it"); com.bigpapituna.sharpears.data.Briefs.setting("wrongFlash", it) }
+            }
+            if (on(SettingsTabs.Item.REMINDER)) {
+                Sub("Reminder")
+                Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
+                    prefs.reminderOn && v >= 0) { on ->
+                    if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context))
+                        askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else { prefs.reminderOn = on; onReminder(); com.bigpapituna.sharpears.data.Briefs.setting("reminderOn", on) }
+                }
+                TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
+                    contentDescription = "Reminder time, $timeLabel, tap to change"
+                }) { Text("Time: $timeLabel") }
+                // Checked again on coming back from the phone's settings.
+                val shown = onScreen()
+                val blocked = remember(shown, v, notifyRefused) { !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) }
+                if (blocked && (notifyRefused || prefs.reminderOn)) {
+                    Text("Notifications are off for Sharp Ears, so no reminder can show. Allow them in the phone's settings.",
+                        style = MaterialTheme.typography.bodySmall, color = dim)
+                    TextButton(onClick = {
+                        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                    }) { Text("Open notification settings") }
+                }
+            }
+            if (midiTiming != null && on(SettingsTabs.Item.MIDI_TIMING)) { Sub("MIDI keyboard"); midiTiming() }
             }
 
-            if (showReminder) Sub("Reminder")
-            if (showReminder) Toggle("Daily reminder", "A notification at $timeLabel each day saying what is waiting.",
-                prefs.reminderOn && v >= 0) { on ->
-                if (on && !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context))
-                    askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                else { prefs.reminderOn = on; onReminder(); com.bigpapituna.sharpears.data.Briefs.setting("reminderOn", on) }
+            // Look: how much each place shows, the Plain look, the keys and the falling notes.
+            SettingsTabs.Tab.LOOK -> {
+            // The layout (2.8; 2.7's Simple mode switch): a grown-up's own three-way choice (kept per profile); a kid never has it.
+            if (on(SettingsTabs.Item.LAYOUT)) {
+                Sub(Simple.SETTING_TITLE)
+                Text(Simple.SETTING_LINE, style = MaterialTheme.typography.bodySmall, color = dim)
+                LayoutPicker(Modifier.padding(top = 4.dp, bottom = 4.dp).widthIn(max = 420.dp).fillMaxWidth())
             }
-            if (showReminder) TextButton(onClick = { pickTime = true }, modifier = Modifier.semantics {
-                contentDescription = "Reminder time, $timeLabel, tap to change"
-            }) { Text("Time: $timeLabel") }
-            // Checked again on coming back from the phone's settings.
-            val shown = onScreen()
-            val blocked = remember(shown, v, notifyRefused) { !com.bigpapituna.sharpears.reminder.Reminder.canNotify(context) }
-            if (showReminder && blocked && (notifyRefused || prefs.reminderOn)) {
-                Text("Notifications are off for Sharp Ears, so no reminder can show. Allow them in the phone's settings.",
-                    style = MaterialTheme.typography.bodySmall, color = dim)
-                TextButton(onClick = {
-                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
-                }) { Text("Open notification settings") }
+            // 2.15, the Plain look (engine/family/PlainLook.kt): per profile, off by default, every layout; grown-ups and big kids
+            // only (a little kid's profile never shows it and ignores it). No pup, no cheers, no streak counter.
+            if (on(SettingsTabs.Item.PLAIN_LOOK)) {
+                Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.TITLE, com.bigpapituna.sharpears.engine.family.PlainLook.LINE,
+                    prefs.plainLook && v >= 0) { on ->
+                    prefs.plainLook = on; if (on) voice?.stop()
+                    com.bigpapituna.sharpears.data.Briefs.setting("plainLook", on)
+                    android.util.Log.d(com.bigpapituna.sharpears.TAG, "plain: look ${if (on) "on" else "off"} for ${me.id}")
+                }
+                if (prefs.plainLook && v >= 0) Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND,
+                    com.bigpapituna.sharpears.engine.family.PlainLook.STEP_SOUND_LINE, prefs.plainStepSound) {
+                    prefs.plainStepSound = it; com.bigpapituna.sharpears.data.Briefs.setting("plainStepSound", it)
+                }
+            }
+            if (on(SettingsTabs.Item.KEYS)) {
+                Sub("Keys")
+                Text("Key labels: none, every C with its octave, or every white key.", style = MaterialTheme.typography.bodyMedium, color = dim)
+                SingleChoiceSegmentedButtonRow(Modifier.padding(top = 4.dp)) {
+                    val opts = listOf(KeyLabels.OFF to "Off", KeyLabels.C_ONLY to "C only", KeyLabels.ALL to "All")
+                    opts.forEachIndexed { i, (k, label) ->
+                        SegmentedButton(prefs.keyLabels == k && v >= 0, { prefs.keyLabels = k; com.bigpapituna.sharpears.data.Briefs.setting("keyLabels", k) }, SegmentedButtonDefaults.itemShape(i, opts.size), icon = {}) { Text(label) }
+                    }
+                }
+            }
+            if (on(SettingsTabs.Item.FALLING_NOTES)) {
+                Sub("Falling notes")
+                // Colour notes belong to the profile (2.1): on for kids from the start, a choice for grown-ups.
+                if (profiles != null) Toggle("Colour notes", "Each note and key in its own colour: C red, D orange, E yellow, F green, G teal, A blue, B purple, " +
+                    "as in many beginners' books.", me.colourNotes) { on -> profiles.update(me.id) { it.copy(colourNotes = on) } }
+                Toggle("Note names", "The letter inside each note, with the octave on every C.", prefs.noteNames && v >= 0) { prefs.noteNames = it; com.bigpapituna.sharpears.data.Briefs.setting("noteNames", it) }
+                Toggle("Finger numbers", "A suggested finger for each note, 1 for the thumb to 5 for the little finger.",
+                    prefs.fingerNumbers && v >= 0) { prefs.fingerNumbers = it; com.bigpapituna.sharpears.data.Briefs.setting("fingerNumbers", it) }
+                Toggle("Feedback light", "A flash rises from the line on a right note, a soft glow runs along it on a wrong one. Off: keys flash instead.",
+                    prefs.feedbackLight && v >= 0) { prefs.feedbackLight = it; com.bigpapituna.sharpears.data.Briefs.setting("feedbackLight", it) }
+                Toggle("Beat lines", "A faint line across the notes on every beat. Rhythm lessons always show them.",
+                    prefs.beatLines && v >= 0) { prefs.beatLines = it; com.bigpapituna.sharpears.data.Briefs.setting("beatLines", it) }
+                Toggle("Ghost hand", "A hand over the keys shows which finger plays next.",
+                    prefs.ghostHand && v >= 0) { prefs.ghostHand = it; com.bigpapituna.sharpears.data.Briefs.setting("ghostHand", it) }
+            }
             }
 
+            // Sound: what the app plays and says, then what it hears (the microphone; its kept recordings last).
+            SettingsTabs.Tab.SOUND -> {
+            if (on(SettingsTabs.Item.SOUND)) {
+                Sub("Sound")
+                Toggle("App sound", "Touch keys and the parts the app plays for you. The microphone mutes it unless headphones are on.",
+                    prefs.sound && v >= 0) { prefs.sound = it; com.bigpapituna.sharpears.ui.world.WorldSounds.on = it; com.bigpapituna.sharpears.data.Briefs.setting("sound", it) }
+                Toggle("Vibration on touch keys", "A light tap for a right note, a double tap for a wrong one, when you play on the screen.",
+                    prefs.haptics && v >= 0) { prefs.haptics = it; com.bigpapituna.sharpears.data.Briefs.setting("haptics", it) }
+            }
+            if (on(SettingsTabs.Item.VOICE)) {
+                Sub("Voice")
+                // 2.15: in the Plain look the switch is its own, off until turned on there (PlainLook.voiceOn); the usual one waits.
+                val voiceOn = com.bigpapituna.sharpears.engine.family.PlainLook.voiceOn(plainOn, prefs.voice, prefs.plainVoice)
+                Toggle("Spoken guidance", "The app reads lesson steps and feedback aloud. It waits while the microphone listens, unless headphones are on.",
+                    voiceOn && v >= 0) { if (plainOn) prefs.plainVoice = it else prefs.voice = it; if (!it) voice?.stop(); com.bigpapituna.sharpears.data.Briefs.setting("voice", it) }
+                if (voiceOn) Toggle("Natural voice",
+                    "A lifelike voice (Kokoro) that runs on this phone, nothing sent anywhere." +
+                        if (voice?.naturalModelInstalled == false) " Lines that name notes and times use the phone's voice until the voice model is installed." else "",
+                    prefs.naturalVoice && v >= 0) { prefs.naturalVoice = it; com.bigpapituna.sharpears.data.Briefs.setting("naturalVoice", it) }
+                if (voice != null && voiceOn && !prefs.naturalVoice) VoicePicker(voice, v)
+            }
+            if (on(SettingsTabs.Item.MICROPHONE)) {
+                Sub("Microphone")
+                Text("Choose the mic, test middle C, and set the sensitivity.", style = MaterialTheme.typography.bodyMedium, color = dim)
+                TextButton(onClick = onMicSetup, modifier = Modifier.padding(start = 0.dp)) {
+                    Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp)); Text("Microphone setup")
+                }
+                // 2.10.1 (security review finding 5): a build that keeps recordings says so here, with its switch in plain view
+                // (the same preference as Microphone setup's; on by default in the debug build, never on in a release).
+                if (mic != null && mic.canRecord) {
+                    var keep by remember { mutableStateOf(mic.keepRecordings) }
+                    Toggle(com.bigpapituna.sharpears.data.Recordings.KEEP_SWITCH, com.bigpapituna.sharpears.data.Recordings.KEEP_LINE, keep) {
+                        keep = it; mic.keepRecordings = it; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic keepRecordings=$it (Settings)")
+                    }
+                }
+            }
+            }
+
+            // Family: everyone on the phone, then the briefs and their email, then the progress file (Reset last).
+            SettingsTabs.Tab.FAMILY -> {
+            if (on(SettingsTabs.Item.FAMILY)) { Sub("People"); family?.invoke() }
             // Briefs and email (2.8): the one place for the brief by email (the family's address, each child's Daily and Weekly),
             // then who writes the parent brief (BriefAiSettings, at the bottom of BriefsAndEmail). Simple shows it too.
-            if (family != null && shows(Simple.SettingsPart.BRIEFS)) {
-                Section("Briefs and email")
-                Text("Each child's brief is under Family: tap Change beside the child, then Read the brief. Your own week is on You, under My week.",
+            if (on(SettingsTabs.Item.BRIEFS)) {
+                Sub("Briefs and email")
+                Text("Each child's brief is under People: tap Change beside the child, then Read the brief. Your own week is on You, under My week.",
                     style = MaterialTheme.typography.bodyMedium, color = dim)
                 val kids = profiles?.rosterFlow?.collectAsState()?.value?.profiles.orEmpty().filter { it.isKid }
                 com.bigpapituna.sharpears.ui.brief.email.BriefsAndEmail(kids)
             }
-
-            Section("Microphone")
-            Text("Choose the mic, test middle C, and set the sensitivity.", style = MaterialTheme.typography.bodyMedium, color = dim)
-            TextButton(onClick = onMicSetup, modifier = Modifier.padding(start = 0.dp)) {
-                Icon(painterResource(R.drawable.ic_mic), contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(8.dp)); Text("Microphone setup")
+            // The progress file that carries everyone (export, import; reset is yours), last: Reset cannot be undone.
+            if (on(SettingsTabs.Item.PROGRESS)) {
+                Sub("Progress")
+                Text("Save everything the app remembers for everyone on this phone (progress, chord mastery, microphone setup, game bests) " +
+                    "to a file, or bring it back from one.",
+                    style = MaterialTheme.typography.bodyMedium, color = dim)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { exportTo.launch("sharp-ears-progress-${java.time.LocalDate.now()}.json") }) { Text("Export progress") }
+                    TextButton(onClick = { importFrom.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }) { Text("Import progress") }
+                }
+                progressMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+                Text("Reset clears resume positions, played marks, best scores, practice time, ear training and theory scores and the practice tools' records. " +
+                    "Learn and chord lessons, stickers, XP and achievements are kept.",
+                    style = MaterialTheme.typography.bodyMedium, color = dim, modifier = Modifier.padding(top = 8.dp))
+                TextButton(onClick = { confirmReset = true }) { Text("Reset progress", color = MaterialTheme.colorScheme.error) }
             }
-            // 2.10.1 (security review finding 5): a build that keeps recordings says so here, with its switch in plain view
-            // (the same preference as Microphone setup's; on by default in the debug build, never on in a release).
-            if (mic != null && mic.canRecord) {
-                var keep by remember { mutableStateOf(mic.keepRecordings) }
-                Toggle(com.bigpapituna.sharpears.data.Recordings.KEEP_SWITCH, com.bigpapituna.sharpears.data.Recordings.KEEP_LINE, keep) {
-                    keep = it; mic.keepRecordings = it; android.util.Log.d(com.bigpapituna.sharpears.TAG, "mic keepRecordings=$it (Settings)")
+            }
+
+            // About: the app, its privacy page and licences, then Testing (analytics/Tester.kt) when this build has it.
+            SettingsTabs.Tab.ABOUT -> {
+            if (on(SettingsTabs.Item.ABOUT)) {
+                Sub("About")
+                Text("Sharp Ears $versionName, a personal piano trainer.", style = MaterialTheme.typography.bodyMedium)
+                Text("Piano samples by Simon Dalzell (Ivy Audio) and Versilian Studios. Tutorial videos belong to their channels on YouTube.",
+                    style = MaterialTheme.typography.bodySmall, color = dim)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onPrivacy) { Text("Privacy") }
+                    TextButton(onClick = onLicences) { Text("Licences and credits (${songs.size} songs)") }
                 }
             }
-            midiTiming?.let { Sub("MIDI keyboard"); it() }
-
-            if (shows(Simple.SettingsPart.ABOUT)) {
-            Section("About")
-            Text("Sharp Ears $versionName, a personal piano trainer.", style = MaterialTheme.typography.bodyMedium)
-            Text("Piano samples by Simon Dalzell (Ivy Audio) and Versilian Studios. Tutorial videos belong to their channels on YouTube.",
-                style = MaterialTheme.typography.bodySmall, color = dim)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onPrivacy) { Text("Privacy") }
-                TextButton(onClick = onLicences) { Text("Licences and credits (${songs.size} songs)") }
-            }
-            }
-
-            // Testing, last (analytics/Tester.kt): "Help Roy test" and the diary, when this build has them; each change behind the gate.
-            if (family != null && shows(Simple.SettingsPart.TESTING) && (com.bigpapituna.sharpears.analytics.Tester.rowShown(context) || com.bigpapituna.sharpears.analytics.Tester.diaryBuilt)) {
-                Section("Testing")
+            // Testing, last: "Help Roy test" and the diary, when this build has them; each change behind the gate.
+            if (on(SettingsTabs.Item.TESTING)) {
+                Sub("Testing")
                 val gate = com.bigpapituna.sharpears.ui.family.LocalParentGate.current
                 com.bigpapituna.sharpears.analytics.TesterSettings(titled = false, guard = { gate.guard(it) })
             }
-            // A layout that cuts Settings: the rest, once, and the three layouts to pick from.
+            }
+            }
+            // A layout that cuts Settings: the rest, once, and the three layouts to pick from (every tab ends on it).
             LayoutMore(Simple.Place.SETTINGS, showAll, { showAll = true }, label = Simple.SHOW_ALL_SETTINGS, edge = 0.dp)
+        }
         }
     }
     if (pickTime) {
@@ -389,17 +435,44 @@ private fun VoicePicker(voice: com.bigpapituna.sharpears.audio.Voice, version: I
     }
 }
 
-/** One of the six groups (2.7): Family, Playing, Briefs and email, Microphone, About, Testing. */
-@Composable
-private fun Section(title: String) =
-    Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-        modifier = Modifier.padding(top = 32.dp, bottom = 2.dp).semantics { heading() })
-
-/** A part of a group: Keys, Falling notes, Sound, Voice and Reminder under Playing; Progress under Family. */
+/**
+ * A block's heading inside a tab (2.16.1: the tab is the group, so one heading size): Encouragement, Coach voice, Wrong keys,
+ * Reminder and MIDI keyboard under Playing; Layout, Keys and Falling notes under Look; Sound, Voice and Microphone under Sound;
+ * People, Briefs and email and Progress under Family; About and Testing under About.
+ */
 @Composable
 private fun Sub(title: String) =
-    Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 18.dp, bottom = 2.dp).semantics { heading() })
+    Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+        modifier = Modifier.padding(top = 20.dp, bottom = 2.dp).semantics { heading() })
+
+/**
+ * The tab row (2.16.1): Material 3 primary tabs, one word each. Fixed across the width when every label fits (the Fold's inner
+ * screen, a phone); scrollable when the window is too narrow for them (the cover screen with large text), so a label is never
+ * cut or wrapped.
+ */
+@Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+private fun SettingsTabRow(tabs: List<SettingsTabs.Tab>, selected: SettingsTabs.Tab, onSelect: (SettingsTabs.Tab) -> Unit, modifier: Modifier = Modifier) {
+    val index = tabs.indexOf(selected).coerceAtLeast(0)
+    val style = MaterialTheme.typography.titleSmall
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val tab: @Composable (SettingsTabs.Tab) -> Unit = { t ->
+        androidx.compose.material3.Tab(t == selected, { onSelect(t) }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
+            Text(t.label, maxLines = 1, softWrap = false, style = style, modifier = Modifier.padding(horizontal = 8.dp, vertical = 13.dp))
+        }
+    }
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+        // Each fixed tab gets an equal share: the row is fixed while the longest label (at the font size the phone uses) and its
+        // padding fit in that share, else it scrolls.
+        val widest = with(androidx.compose.ui.platform.LocalDensity.current) {
+            tabs.maxOf { measurer.measure(it.label, style).size.width }.toDp()
+        } + 16.dp + 8.dp
+        if (maxWidth >= widest * tabs.size)
+            androidx.compose.material3.PrimaryTabRow(index, containerColor = androidx.compose.ui.graphics.Color.Transparent) { tabs.forEach { tab(it) } }
+        else
+            androidx.compose.material3.PrimaryScrollableTabRow(index, containerColor = androidx.compose.ui.graphics.Color.Transparent, edgePadding = 0.dp) { tabs.forEach { tab(it) } }
+    }
+}
 
 @Composable
 private fun Toggle(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
@@ -414,6 +487,6 @@ private fun Toggle(title: String, detail: String, checked: Boolean, onChange: (B
     }
 }
 
-/** Settings > Playing > Encouragement (2.13): what the cheer pops are and what the three choices do. */
+/** Settings, Playing, Encouragement (2.13): what the cheer pops are and what the three choices do. */
 internal const val ENCOURAGEMENT_LINE = "Now and then the pup pops up while you play with a few kind words. Less waits longer between them. " +
     "Off keeps only the check when you pass a step."

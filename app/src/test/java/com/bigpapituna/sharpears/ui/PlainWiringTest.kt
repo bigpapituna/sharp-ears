@@ -139,14 +139,15 @@ class PlainWiringTest {
 
     @Test fun settingsInEveryLayoutForGrownUpsAndBigKidsAndEncouragementSaysSo() {
         val settings = src("ui/SettingsScreen.kt")
-        assertTrue("if (com.bigpapituna.sharpears.engine.family.PlainLook.offered(me.audience) && shows(Simple.SettingsPart.PLAIN_LOOK))" in settings)
+        assertTrue("if (on(SettingsTabs.Item.PLAIN_LOOK)) {" in settings)
+        assertTrue("Item.PLAIN_LOOK -> PlainLook.offered(audience)" in src("engine/nav/SettingsTabs.kt"))
         assertTrue("Toggle(com.bigpapituna.sharpears.engine.family.PlainLook.TITLE, com.bigpapituna.sharpears.engine.family.PlainLook.LINE," in settings)
         assertTrue("com.bigpapituna.sharpears.data.Briefs.setting(\"plainLook\", on)" in settings)
         assertTrue("PlainLook.STEP_SOUND" in settings && "Briefs.setting(\"plainStepSound\", it)" in settings)
         assertTrue("if (plainOn) Text(com.bigpapituna.sharpears.engine.family.PlainLook.ENCOURAGEMENT_OFF" in settings)
         assertTrue("if (plainOn) prefs.plainVoice = it else prefs.voice = it" in settings)
-        // Under Playing, before the keys.
-        assertTrue(settings.indexOf("Section(\"Playing\")") < settings.indexOf("PlainLook.TITLE") && settings.indexOf("PlainLook.TITLE") < settings.indexOf("Sub(\"Keys\")"))
+        // 2.16.1: in the Look tab, under the layout and before the keys.
+        assertTrue(settings.indexOf("SettingsTabs.Tab.LOOK -> {") < settings.indexOf("PlainLook.TITLE") && settings.indexOf("PlainLook.TITLE") < settings.indexOf("Sub(\"Keys\")"))
         val simple = src("engine/nav/Simple.kt")
         assertTrue("SettingsPart.PLAIN_LOOK" in simple.substringAfter("val SETTINGS_ESSENTIALS").substringBefore("\n\n"))
         // The brief says it in words.
