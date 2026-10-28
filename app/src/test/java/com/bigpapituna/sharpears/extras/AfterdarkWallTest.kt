@@ -64,6 +64,7 @@ class AfterdarkWallTest {
 
     @Test fun whatsNewWithoutItSaysNothingAboutIt() {
         assertNull("2.16.0 has no line of the app's own", Welcome.WHATS_NEW["2.16.0"])
+        assertNull("nor 2.16.2 (Liam's course narration)", Welcome.WHATS_NEW["2.16.2"])
         assertEquals(Welcome.WHATS_NEW, Welcome.merged(emptyMap()))
         val merged = Welcome.merged(mapOf("2.16.0" to listOf("A."), "2.15.0" to listOf("B.")))
         assertEquals(listOf("A."), merged["2.16.0"])

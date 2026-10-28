@@ -24,6 +24,8 @@ object Extras {
         "2.16.0" to listOf("Grown-ups can turn on a coach voice in Settings, under Encouragement: pick a low, flirty voice to cheer you on. Adults only, and off until you turn it on."),
         // 2.16.1: the Fold never had 2.16.0, so this one says it all again, with the new tab and the four voices.
         "2.16.1" to listOf("Grown-ups can turn on a coach voice in Settings, Playing, under Encouragement: Liam, Rory, Claire or Sienna, low and flirty, to cheer you on. Adults only, and off until you turn it on."),
+        // 2.16.2: the course narrated in Liam's voice (assets/coach/male_us/course); the app itself has nothing new to say.
+        "2.16.2" to listOf("Liam now talks you through every lesson."),
     )
 
     /** MainActivity opened a profile: [who] is read live at every moment (a profile made a kid is a kid at once). */

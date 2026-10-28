@@ -256,7 +256,30 @@ class CoachRulesTest {
         assertNull("a line only for a woman is not said to a man", CoachGate.narrationOf("ghi", "m", files))
         assertNull("nor when unset", CoachGate.narrationOf("ghi", null, files))
         assertNull("not recorded: the normal voice", CoachGate.narrationOf("zzz", "w", files))
-        // Each voice has its course folder (empty until Roy's recordings are converted).
+        // Each voice has its course folder (Liam's filled in 2.16.2; an empty one falls back to the normal voice).
         for (dir in voiceDirs) assertTrue(dir.name, File(dir, "course").isDirectory)
+    }
+
+    /**
+     * 2.16.2: Liam narrates the course (scripts/coach_bank.py from tts-bakeoff/elevenlabs/course_male_us). Every file is a
+     * grown-up line still in the spoken catalog (no orphans: re-run the script after copy changes, it drops them), named as
+     * NaturalVoice's hook asks (<SpokenCatalog key>[_w|_m].ogg), a woman's and a man's variant in pairs and never beside a
+     * line for anyone.
+     */
+    @Test fun theCourseFilesAreTheCatalogsGrownUpLines() {
+        val titles = Regex("\"title\": \"([^\"]+)\",\\s*\"composer\"").findAll(File("src/main/assets/songs/index.json").readText())
+            .map { it.groupValues[1] }.toList()
+        val kid = com.bigpapituna.sharpears.engine.SpokenCatalog.kidLines().toSet()
+        val grown = com.bigpapituna.sharpears.engine.SpokenCatalog.all(titles).filter { it !in kid }
+            .map(com.bigpapituna.sharpears.engine.SpokenCatalog::key).toSet()
+        for (dir in voiceDirs) {
+            val stems = File(dir, "course").listFiles { f -> f.name.endsWith(".ogg") }!!.map { it.name.removeSuffix(".ogg") }
+            val byKey = stems.groupBy { it.substringBefore('_') }
+            for ((key, variants) in byKey) {
+                assertTrue("${dir.name}: $key is a grown-up line in the catalog", key in grown)
+                assertTrue("${dir.name}: $key has $variants", variants == listOf(key) || variants.sorted() == listOf("${key}_m", "${key}_w"))
+            }
+            if (dir.name == "male_us") assertTrue("Liam narrates nearly all of it: ${byKey.size} of ${grown.size}", byKey.size >= grown.size * 9 / 10)
+        }
     }
 }

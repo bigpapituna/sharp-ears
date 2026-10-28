@@ -86,7 +86,7 @@ class NaturalVoice(private val context: Context, private val onIdle: () -> Unit)
 
     private fun speakNow(text: String, gen: Int, speed: Float) {
         val file = recording(text)
-        if (file != null) { Log.d(TAG, "voice: (${if (file.startsWith("voice/")) "recorded" else "narrated"}) $text"); playRecording(file, gen); return }
+        if (file != null) { Log.d(TAG, "voice: (${if (file.startsWith("voice/")) "recorded" else "narrated $file"}) $text"); playRecording(file, gen); return }
         val tts = modelLoad.value ?: return
         // Sentence by sentence: the first one plays while the next is made.
         val rate = tts.sampleRate()

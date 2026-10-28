@@ -13,17 +13,23 @@ bank are removed.
 The course narrated in a coach's voice (2.16 hook, NaturalVoice via Extras.narration): <bank>/../course_<voice>/index.json
 ([{key, orig, coach, for}], key = SpokenCatalog.key(orig)) with <key>.mp3 (for "any"), <key>_w.mp3 and <key>_m.mp3, becomes
 app/src/afterdark/assets/coach/<voice>/course/<key>[_w|_m].ogg (same settings). A voice with no such folder keeps an empty
-course folder: its lines fall back to the normal voice.
+course folder: its lines fall back to the normal voice. 2.16.2: with app/build/voice-lines.txt there (SpokenCatalogTest writes
+it: run the tests first), only keys still in the catalog ship (orphans are skipped and named), the grown-up lines (speed 1.0)
+with no recording are listed (they fall back to the normal voice), and course .ogg files no longer wanted are removed. The
+course's files convert in parallel (about 2,600 for one voice).
 
 Run from the repo root:  python scripts/coach_bank.py [bank] [ffmpeg.exe]
 """
-import json, re, shutil, subprocess, sys
+import json, os, re, shutil, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 BANK = Path(sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\roy_y\OneDrive\Desktop\Claude Code\tts-bakeoff\elevenlabs\coach_bank_v2")
 FFMPEG = sys.argv[2] if len(sys.argv) > 2 else (r"C:\Users\roy_y\AppData\Local\Microsoft\WinGet\Packages"
     r"\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.2-full_build\bin\ffmpeg.exe")
-OUT = Path(__file__).resolve().parent.parent / "app" / "src" / "afterdark" / "assets" / "coach"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "app" / "src" / "afterdark" / "assets" / "coach"
+CATALOG = ROOT / "app" / "build" / "voice-lines.txt"      # key, text, speed (1.0 grown-up, 0.85 kid), tab-separated
 MOMENTS = ["start", "run5", "run10", "run20", "run40", "run", "recovery", "halfway", "hard_passed", "steady", "focus5", "focus10",
            "focus15", "focus20", "focus30", "nudge", "step_passed", "mistake", "hard", "finish", "stars3", "stars2", "comeback",
            "streak", "goodnight"]
@@ -100,25 +106,62 @@ def voice(folder: Path):
     return v
 
 
+def catalog():
+    """The spoken catalog as {key: (text, speed)}, or None when the tests have not written it."""
+    if not CATALOG.exists():
+        return None
+    out = {}
+    for line in CATALOG.read_text(encoding="utf-8").splitlines():
+        k, text, speed = line.split("\t")
+        out[k] = (text, float(speed))
+    return out
+
+
 def course(v: str, out: Path):
     out.mkdir(parents=True, exist_ok=True)
     (out / ".gitkeep").touch()          # git keeps the empty folder; aapt leaves dot files out of the APK
     folder = BANK.parent / f"course_{v}"
     if not (folder / "index.json").exists():
         return
-    n = 0
+    cat = catalog()
+    if cat is None:
+        print(f"{v} course: no {CATALOG} (run SpokenCatalogTest first): converting every recording, orphans unchecked")
+    jobs, orphans, keys = [], [], set()
     for e in json.loads((folder / "index.json").read_text(encoding="utf-8")):
         who = e.get("for", "any")
+        if who not in ("any", "w", "m"):
+            sys.exit(f"{v} course: unknown for {who} in {e['key']}")
         stem = e["key"] if who == "any" else f"{e['key']}_{who}"
+        if cat is not None and e["key"] not in cat:
+            orphans.append(f"{stem}: {e.get('orig', '')}")
+            continue
         src = folder / f"{stem}.mp3"
         if not src.exists():
             print(f"{v} course: missing {src.name}")
             continue
-        dst = out / f"{stem}.ogg"
-        if not dst.exists():
-            convert(src, dst)
-        n += 1
-    print(f"{v} course: {n} narrated lines")
+        jobs.append((src, out / f"{stem}.ogg"))
+        keys.add(e["key"])
+    todo = [(s, d) for s, d in jobs if not d.exists()]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+        for i, _ in enumerate(pool.map(lambda j: convert(*j), todo), 1):
+            if i % 200 == 0:
+                print(f"{v} course: {i}/{len(todo)} converted")
+    keep = {d.name for _, d in jobs}
+    for old in out.glob("*.ogg"):
+        if old.name not in keep:
+            old.unlink()
+    size = sum(d.stat().st_size for _, d in jobs)
+    print(f"{v} course: {len(jobs)} narrated files for {len(keys)} lines, {size / 1e6:.2f} MB ({len(todo)} converted now)")
+    if orphans:
+        print(f"{v} course: {len(orphans)} orphans skipped (key no longer in the catalog):")
+        for o in orphans:
+            print(f"  {o}")
+    if cat is not None:
+        grown = {k for k, (_, speed) in cat.items() if speed == 1.0}
+        missing = sorted(grown - keys, key=lambda k: cat[k][0])
+        print(f"{v} course: {len(grown & keys)} of {len(grown)} grown-up lines narrated, {len(missing)} fall back to the normal voice")
+        for k in missing:
+            print(f"  {k}: {cat[k][0]}")
 
 
 def main():

@@ -106,5 +106,7 @@ class CoachWiringTest {
         assertTrue(now[0].startsWith("Settings are now grouped into tabs"))
         assertTrue(now[1].contains("Settings, Playing, under Encouragement") && now[1].contains("Sienna") && now[1].contains("Adults only"))
         assertFalse(now[1].contains("!") || now[1].contains("—"))
+        // 2.16.2: Liam narrates the course; the coach's line only (the app has none of its own).
+        assertEquals(listOf("Liam now talks you through every lesson."), com.bigpapituna.sharpears.engine.nav.Welcome.whatsNew("2.16.2", merged))
     }
 }
