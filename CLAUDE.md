@@ -2590,3 +2590,63 @@ questions, so the decisions below are mine.
 - Status: merged to main and pushed; released as v2.16.2 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.2, the
   keyed debug APK with AFTERDARK=true); installed on Roy's Fold over wireless adb, versionName 2.16.2, versionCode 34. Not walked
   on the Fold itself.
+
+## 2.17 onboarding
+2.17.0, versionCode 35 (2026-10-28, on main). From `sharp-ears-audits/onboarding-audit-2026-10-28.md` (OneDrive, Claude Code folder;
+findings H1 to H4, M1 to M6, L1 to L4). Roy approved the scope and asked for no follow-up questions; the decisions are below.
+The rules are one pure file, engine/nav/FirstRun.kt (FirstRunTest, FirstRunWiringTest; the coach's in CoachFirstRunTest).
+- First run (OnboardingScreen): three cards (welcome, have you played before, daily goal), no fourth card, no permission asked.
+  The welcome card asks the owner "Who is this for? Me / My child" while the phone has no kid (`FirstRun.asksWho`); My child opens
+  `Screen.FirstKid`, the add-a-kid form (`NewProfileFlow(kidOnly = true)`, no kid-or-grown-up question) with no parent gate for the
+  first kid (`FirstRun.addKidNeedsGate(hasKid)`), then the app opens as the kid (first lesson or the map; the coach's wall reads
+  the profile's own isKid/bigKid as before). The owner's own cards wait for their next open as themselves (Skip works). Skip on
+  any card is "You're all set" as Never with the lesson 1 button (L4). "You're all set" is calm (standing pup, no trophy,
+  confetti or fanfare; L1).
+- Help Roy test's notice (M1): a bottom sheet (`TesterDefaultNotice`, OK and Turn off = `Tester.setOn(false)`, the Settings,
+  About, Testing switch), shown by the onboarding as the welcome card is left (`TesterRules.noticeAfterWelcome`) and never by
+  MainActivity during the first-run cards (`showsNotice(..., onboarding)`).
+- How they play (H1): a grown-up's first playing step (PLAY, FROM_MEMORY, PERFORM, RAMP) asks in place of the player "Got a
+  piano or keyboard here? Play middle C and I'll listen." (other lessons: "Play along...") with "Use my piano (mic)" / "Use
+  screen keys" and "MIDI keyboards connect automatically." Never for kids (their gated mic card as before), never with MIDI
+  plugged in, never for someone who already chose (`Prefs.inputAsked` or `micDefaultChosen`: 2.16 phones and the mic button).
+  Use my piano shows the short mic card (`MicTrust.shortCard`: three lines, More opens the full card; a recording build still
+  says KEEP_LINE), then Android's prompt; Not now is the keys. The answer sets `micDefault`/`useMic`. The placement check asks
+  through its card when the input was never chosen and no MIDI is in (`FirstRun.checkAsksMic`).
+- The reminder (H2): off until asked. Under the owner's first finished lesson (the calm finish's slot), "Want a nudge tomorrow
+  at 6:30 PM?" Yes / Not now (`NudgeOffer`, `FirstRun.asksNudge`, once: `Prefs.nudgeAsked`); only Yes asks POST_NOTIFICATIONS and
+  the reminder is on only when allowed.
+- Lesson 1 for a Never grown-up (H3): `FirstRun.lessonFor` puts two steps before "Sit, then shape your hand": Listen "Listen.
+  This is middle C." and Play "Your turn. Play middle C." (one C4 each), then the posture, the four Cs and the play. The first
+  note's cheer bar says "Your first note!" (with the step pop). In lessons the lane says "Wait for the note to reach the line"
+  until the run's first right note (`FirstRun.waitCue`), and a key played early lights and says "Not yet. Play it when it
+  reaches the line." for two seconds. Reading steps have "Skip to playing" (a grown-up's; to the next step where they play).
+- Chooser and tour (M2): a beginner is Simple silently; the layout chooser asks a Never or A little grown-up only after two
+  lessons or a second day (`FirstRun.asksLayout`), Some and A lot as before. The tour waits for the same (`tourReady`), and a plan
+  without chords gets no band card and no chords row in the plan picture (`FirstRun.tour`, `LocalTourChords`).
+- Polish: no chord badge on Learn or Learn chords until chords open (L2), no Continue tile for a lesson already finished (L2),
+  the Plain look's offer at a lesson finish on the second day played or later (`PlainLook.SESSION_TWO_DAYS`, M6; never beside
+  the nudge).
+- Analytics (M5, analytics/EVENTS.md): `first_note` (`input` mic, midi, touch; `seconds_since_first_open`) once per profile, from
+  the player's first right note (PlayerScreen knows the source; the placement check's scratch prefs are not used:
+  `Events.profilePrefs`; profiles from before 2.17 never send it), `input_chosen` (`answer`), `notification_ask` (`result`
+  granted, denied, not_now), `onboarding_step` with its answer (`who`, `level`, `goal`; steps welcome, experience, goal), super
+  property `input_mode` (mic, midi, touch; `Tester.input`, at profile open and at the answer). Prefs: `inputAsked`, `nudgeAsked`,
+  `firstOpenAt`, `firstNoteSent`.
+- Coach (afterdark only; M3, M4): in a profile's first lesson the door is held (`Extras.hold`, both doors; `CoachHost.held`) until
+  a step where they played is passed. After a line that made the listening mic deaf, "Listening again" shows for 1.6 s
+  (`CoachSound.listeningCue`). A third answer "Just use my name" (`CoachGate.NAME`, stored "name"): only the lines for anyone; the
+  course's split lines play in the normal voice (as unset). `coach_for` sends `name`. Settings shows the three as radio rows.
+- Liam louder (Roy: the notes "overtake his voice"): `scripts/coach_bank.py` has per-voice targets (`TARGETS`, male_us
+  `I=-20:TP=-2`) and checks every encoded file's true peak against `CEILING` -1.5 dBTP (turning a file down 0.5 dB at a time if
+  the Opus encode crept over). Before: -23.7 LUFS (60 random files of 2,788), true peak at most -2.2 dBTP. After: -20.8 LUFS mean over all 2,790 files (the same 60: -21.0, +2.8 dB on average; files whose peaks reached the ceiling gained less, 0.8 to 3.9 dB), true peak at most -1.5 dBTP, none over (measured with ffmpeg ebur128 peak=true on the encoded Opus). The other voices are untouched. While a line plays the
+  app's piano notes are ducked about 4 dB (`engine/Ducking.kt`, `audio/Duck.kt`: CoachHost sets it as a line starts and clears it
+  as it ends or stops; sounding notes follow).
+- New spoken lines: the two first-note lines. Natural voice: `render_voice.py` (Kokoro speaker 3), 3,974 lines. Liam:
+  ElevenLabs (voice 9nIYcvlEcWsXwO47ktTW, eleven_v4, run_course.py settings), coach takes in STYLE.md round 2, in
+  `tts-bakeoff/elevenlabs/course_male_us_2.17/` (coach_bank.py now also reads `course_<voice>_*` beside Roy's folder);
+  56 credits used (27,109 remaining before, 27,053 after; cap 3,000). Coverage 2,528 of 2,528 grown-up lines, 0 orphans.
+- What's new 2.17.0: two lines of the app's own, one of the coach's.
+- Known: Learn's lesson sheet still says "3 steps" for lesson 1 where a Never grown-up gets five (the sheet reads the course's lesson).
+- Tests: FirstRunTest (23), FirstRunWiringTest (4), CoachFirstRunTest (7, afterdark); PlainLookTest, NavTest, MicTrustWiringTest, TesterWiringTest, LevelsAgesWiringTest, PolishWiringTest, ShowOffWiringTest, CoachWiringTest re-pinned. Keyed main with the coach: 2042 JVM tests, all green (2 skipped, TesterTest's keyless checks); `-Psharpears.afterdark=false`: 2014, all green; `checkNoAfterdarkDebug` passed (155 captions checked). SpokenCatalogTest: 3,974 lines, 3,974 files. Lint not re-run.
+- Emulator: a `-read-only` Pixel7_API37 on 5580 (airplane mode, never emulator-5554), the keyed APK with the coach; screenshots in sharp-ears-audits/2.17-screens/. Me with the mic (me-01 to me-17): the welcome card with Who is this for and Continue clear, the tester sheet after it, Never, goal, the calm You're all set, Listen C, the question, the short card, Android's prompt, the wait cue, middle C by touch (`first note: touch, 155 s after the first open`), "Your first note!", Skip to playing, the finish with the nudge, Yes, Android's notification prompt (`nudge: granted, reminder on`), Learn and Today with no chooser, no tour, no chord badge and no Continue tile. Me with the screen keys (keys-01 to 04): Skip on card 1 to You're all set, the tester sheet over the lesson (Turn off: `tester: help Roy test off`), Use screen keys, the early-key hint. My child (child-01 to 06): Who is this for, the form without the gate, the weekly time, the mic card naming Mia, then her first lesson (playground-1) at once. The coach's lines were not heard (no voice chosen on the emulator; the hold logged `coach: held until a step is passed` and `coach: free to talk`).
+- Status: committed on main and pushed; release and Fold install below.
