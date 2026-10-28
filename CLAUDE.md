@@ -2587,3 +2587,6 @@ questions, so the decisions below are mine.
   complete.`; as a man the same run picked `3475061240571901_m.ogg`. The screen kept the original line in the pup's bubble while
   Liam spoke (cv-liam-m). Claire, Rory and Sienna: `voice: (recorded)` for all three lines (their coach start lines still played).
   Mia (little kid) with coachVoice=male_us, coachFor=w and coachNotice planted: `voice: (recorded)`, no coach line at all.
+- Status: merged to main and pushed; released as v2.16.2 (https://github.com/bigpapituna/sharp-ears/releases/tag/v2.16.2, the
+  keyed debug APK with AFTERDARK=true); installed on Roy's Fold over wireless adb, versionName 2.16.2, versionCode 34. Not walked
+  on the Fold itself.
