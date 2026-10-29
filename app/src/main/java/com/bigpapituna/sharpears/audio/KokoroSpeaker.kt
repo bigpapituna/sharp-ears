@@ -29,7 +29,9 @@ class KokoroSpeaker(private val context: Context) : Speaker {
     /** The Kokoro speaker the recordings were made with (scripts/render_voice.py writes it), so both halves match. */
     private val speaker = runCatching { context.assets.open("voice/speaker.txt").reader().use { it.readText() }.trim().toInt() }.getOrDefault(3)
     private val modelDir = File(context.filesDir, "kokoro")
-    private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+    // 2.18.1: the piano's usage (Stage.kt), so the voice gets the same stereo speakers and processing as the notes; as
+    // ACCESSIBILITY it went out the primary path in mono and sounded like the earpiece on Roy's Fold (dumpsys, 2026-10-28)
+    private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
 
     @Volatile private var generation = 0

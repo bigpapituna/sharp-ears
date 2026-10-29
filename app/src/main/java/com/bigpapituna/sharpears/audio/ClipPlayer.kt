@@ -19,7 +19,9 @@ class ClipPlayer(context: Context, private val report: String? = null) {
     private val main = Handler(Looper.getMainLooper())
     private var mp: MediaPlayer? = null
     private var ended: ((Boolean) -> Unit)? = null
-    private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+    // 2.18.1: the piano's usage (Stage.kt), so the voice gets the same stereo speakers and processing as the notes; as
+    // ACCESSIBILITY it went out the primary path in mono and sounded like the earpiece on Roy's Fold (dumpsys, 2026-10-28)
+    private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
 
     /** A clip is loading or playing. */

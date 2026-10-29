@@ -130,6 +130,8 @@ class SystemSpeaker(private val context: Context, private val prefs: Prefs) : Sp
                 w?.ended?.invoke(false)
                 return@post
             }
+            t.setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_GAME)   // 2.18.1: the piano's path, as ClipPlayer
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
             val lang = t.setLanguage(Locale.US).let { if (it < 0) t.setLanguage(Locale.getDefault()) else it }
             // The saved voice if it still exists; otherwise Roy's pick (US voice 6 in the list), otherwise the first
             // offline English voice (always a real, named voice, so the picker can show which one is in use).
