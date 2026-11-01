@@ -2718,3 +2718,10 @@ no follow-up questions; the decisions are below.
   connect to 10.0.0.171:5555 timed out on 2026-10-28.
 - Later: the Ear (candidate 2) would own the DeafWindow and the listening state; screens still hold Sampler and Clicks handles (a
   rename to the Stage across 38 files was left out); the Plain look's 4 grown-up wordings could be recorded with render_voice.py.
+
+## 2.18.2 Claire, Sienna and Rory narrate the course
+2026-11-01, versionCode 38. Roy confirmed ElevenLabs' terms allow the trained voices. Each voice's 2,631 course lines (Chatterbox
+fine-tunes, shared HiFT vocoder, best of 5 takes by Whisper WER; Rory with the round-4 expressive pick) went into
+src/afterdark/assets/coach/{female_us,female_au,male_irish}/course. The audio is committed locally only, not pushed: the repo was
+public at release time. Released as the keyed debug APK (AFTERDARK=true, 370 MB) so Roy can test; he wants the repo private afterwards.
+Play: over the 200 MB base limit, so the voices must move to asset packs before a Play release.
