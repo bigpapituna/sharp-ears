@@ -31,6 +31,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -64,6 +66,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -76,6 +79,7 @@ import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_ID
 import com.bigpapituna.sharpears.engine.playground.PLAYGROUND_PAGES
 import com.bigpapituna.sharpears.engine.kid.KidPages
 import com.bigpapituna.sharpears.engine.nav.FirstRun
+import com.bigpapituna.sharpears.engine.nav.LearnTabs
 import com.bigpapituna.sharpears.engine.world.Place
 import com.bigpapituna.sharpears.ui.world.PlaceScene
 import com.bigpapituna.sharpears.engine.CourseLesson
@@ -107,18 +111,25 @@ private val WIND = listOf(0f, 0.55f, 0.9f, 0.55f, 0f, -0.55f, -0.9f, -0.55f)
 private val SWING = 72.dp
 
 /**
- * The Learn tab, Duolingo style: each level a unit with a banner, its lessons as round stops on a winding trail,
- * a trophy at the end. Done stops are ticked, the next one pulses under a bobbing "Start" with the pup pointing at
- * it, the rest wait in grey (still open to tap). Tapping a stop opens its card underneath. Opens scrolled to the
- * next lesson.
+ * The Learn tab. 2.18.3: four tabs across the top ([LearnTabs]): Road, the course (below), then Theory, Ear training and Sight
+ * reading, each its own home drawn by [theory], [ear] and [sight] (a lesson, game or level opens as its own screen and Back comes
+ * back to the tab). The tab opens on [startTab] (the last one used, Prefs.learnTab) and every tap goes to [onTab]. A kid who
+ * cannot read yet, and Simple (until its "Show more"), have the road alone and no tab row.
+ *
+ * The road, Duolingo style: each level a unit with a banner, its lessons as round stops on a winding trail, a trophy at the end.
+ * Done stops are ticked, the next one pulses under a bobbing "Start" with the pup pointing at it, the rest wait in grey (still
+ * open to tap). Tapping a stop opens its card underneath. Opens scrolled to the next lesson.
  */
 @Composable
-fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSightRead: () -> Unit = {}, sightBest: String? = null,
-                /** 2.14: this person has the staff levels of Sight-read (engine/SightStaff.kt SightLevels). */
-                sightStaff: Boolean = false,
-                onEar: () -> Unit = {}, earStreak: Int = 0,
-                /** The Theory Academy's row (TheoryCard), drawn first beside the course. */
-                theory: (@Composable (Modifier) -> Unit)? = null,
+fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit,
+                /** 2.18.3: the tab to open on (Prefs.learnTab or the debug route's; null: the road) and where a tap saves the tab. */
+                startTab: LearnTabs.Tab? = null, onTab: (LearnTabs.Tab) -> Unit = {},
+                /** The Theory tab: the academy's path (ui/theory TheoryHome). */
+                theory: (@Composable () -> Unit)? = null,
+                /** The Ear training tab: the workout and the games (ui/ear EarHub). */
+                ear: (@Composable () -> Unit)? = null,
+                /** The Sight reading tab: the levels (SightHome). */
+                sight: (@Composable () -> Unit)? = null,
                 /** The course in this person's order (2.1): a kid's starts in the Playground, a grown-up's at Basics. */
                 path: CoursePath = CoursePath("basics"),
                 /** A kid who finished Beginner: the offer of grown-up mode, at the top of the path (null: none). */
@@ -127,12 +138,83 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
                 pinned: CourseLesson? = null,
                 /** Lessons placement skipped (2.6): done for the path, but not played: a quiet band over the unit, grey stops, no tick, no trophy. */
                 skipped: (String) -> Boolean = { false },
-                /** The Chords section (2.7, [ChordsSection]) at the top, above Theory, Ear training and Sight-read; null for a kid. */
+                /** The Chords section (2.7, [ChordsSection]) pinned at the top of the road; null for a kid. */
                 chords: (@Composable () -> Unit)? = null) {
-    val next = pinned ?: path.next(done)
     val kid = com.bigpapituna.sharpears.ui.family.isKid()
-    val who = com.bigpapituna.sharpears.ui.family.profile()
     val reader = com.bigpapituna.sharpears.ui.family.reader()
+    val layout = LocalLayout.current.layout
+    var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // The tabs this person has (the side rows' rule before 2.18.3: Simple.learnSideRows, readers only), less any not wired.
+    val tabs = LearnTabs.tabs(kid, reader, com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, more)).filter {
+        when (it) { LearnTabs.Tab.ROAD -> true; LearnTabs.Tab.THEORY -> theory != null; LearnTabs.Tab.EAR -> ear != null; LearnTabs.Tab.SIGHT -> sight != null }
+    }
+    var wanted by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(startTab) }
+    val tab = LearnTabs.pick(wanted, tabs)
+    LaunchedEffect(Unit) { android.util.Log.d(com.bigpapituna.sharpears.TAG, "learn: open on tab ${tab.wire} (${tabs.joinToString(",") { it.wire }})") }
+    fun choose(t: LearnTabs.Tab) {
+        if (t == tab) return
+        wanted = t; onTab(t)
+        android.util.Log.d(com.bigpapituna.sharpears.TAG, "learn: tab ${t.wire}")
+    }
+    val still = reducedMotion()
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(top = 14.dp, bottom = 8.dp)) {
+                Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                // A kid's path has no count to keep up with (the map and its ticks say it). The road's count only; the line stays
+                // (empty) on the other tabs so the tab row does not jump.
+                if (!kid) Text(if (tab != LearnTabs.Tab.ROAD) "" else path.progressLine(done, skipped),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Pup(Pose.LEARNING, size = 56.dp)
+        }
+        if (tabs.size > 1) LearnTabRow(tabs, tab, ::choose, Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp))
+        androidx.compose.animation.AnimatedContent(tab, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { com.bigpapituna.sharpears.ui.motion.ScreenMotion.tab(still) },
+            label = "learnTab") { t ->
+            when (t) {
+                LearnTabs.Tab.ROAD -> Road(done, onOpen, path, grownUp, pinned, skipped, chords,
+                    // Simple's "Show more" (2.7; a layout since 2.8) brings the other three tabs.
+                    more = if (kid) null else ({ LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true }, edge = 0.dp) }))
+                LearnTabs.Tab.THEORY -> theory?.invoke()
+                LearnTabs.Tab.EAR -> ear?.invoke()
+                LearnTabs.Tab.SIGHT -> sight?.invoke()
+            }
+        }
+    }
+}
+
+/**
+ * Learn's tabs as one segmented bar (2.18.3): equal segments in a pill, the chosen one filled with the accent. On a narrow
+ * screen with large text (the Fold's cover at font scale 1.5) a two-word label breaks at its space and, if a word still does not
+ * fit, shrinks a little; nothing scrolls out of sight and no label is cut.
+ */
+@Composable
+private fun LearnTabRow(tabs: List<LearnTabs.Tab>, selected: LearnTabs.Tab, onSelect: (LearnTabs.Tab) -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val style = MaterialTheme.typography.labelLarge
+    Row(modifier.widthIn(max = 720.dp).fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(24.dp))
+        .background(c.surfaceContainerHigh).padding(3.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        tabs.forEach { t ->
+            val on = t == selected
+            Box(Modifier.weight(1f).fillMaxHeight().heightIn(min = 46.dp).clip(RoundedCornerShape(21.dp)).background(if (on) c.primary else Color.Transparent)
+                .selectable(on, role = Role.Tab) { onSelect(t) }.padding(horizontal = 4.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.text.BasicText(t.label,
+                    style = style.copy(color = if (on) c.onPrimary else c.onSurfaceVariant, textAlign = TextAlign.Center,
+                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium),
+                    maxLines = 2, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = style.fontSize))
+            }
+        }
+    }
+}
+
+/** The road: the course path (with the Chords section pinned over it and Simple's "Show more" before the first unit). */
+@Composable
+private fun Road(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, path: CoursePath, grownUp: (@Composable () -> Unit)?,
+                 pinned: CourseLesson?, skipped: (String) -> Boolean, chords: (@Composable () -> Unit)?, more: (@Composable () -> Unit)?) {
+    val next = pinned ?: path.next(done)
+    val who = com.bigpapituna.sharpears.ui.family.profile()
     var open by remember { mutableStateOf<String?>(null) }
     // A kid walks the Playground through the pup's world (the places drawn from their own stickers).
     val world = com.bigpapituna.sharpears.ui.world.LocalWorld.current
@@ -149,16 +231,14 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         }
     }
     val list = rememberLazyListState()
-    val layout = LocalLayout.current.layout
-    var more by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    // The rows before the path: the heading, the Chords section (2.7, it stays at the top while the path scrolls under it)
-    // and the side rows.
-    val lead = if (chords != null) 3 else 2
+    // The rows before the path: the grown-up offer, the Chords section (2.7, it stays at the top while the path scrolls under
+    // it) and Simple's "Show more".
+    val lead = (if (grownUp != null) 1 else 0) + (if (chords != null) 1 else 0) + 1
     // The pinned Chords section's height, so the rows scrolled to are not under it.
-    val pinned = with(LocalDensity.current) { if (chords != null) 100.dp.toPx() else 0f }
+    val pinnedPx = with(LocalDensity.current) { if (chords != null) 100.dp.toPx() else 0f }
     LaunchedEffect(Unit) {
         val at = rows.indexOfFirst { (it is PathRow.Stop && it.lesson == next) || (it is PathRow.Scene && next in it.lessons) }
-        if (at > 0) { list.scrollToItem(at + lead - 2); list.scrollBy(-pinned) }      // two rows above the next stop, so it sits in view
+        if (at > 0) { list.scrollToItem((at + lead - 2).coerceAtLeast(0)); list.scrollBy(-pinnedPx) }      // two rows above the next stop, so it sits in view
         // Held sideways, a phone has room for those two rows (a trophy, a banner) and no more: the stop sat below the fold.
         // Then the stop goes a third of the way down instead.
         if (at < 0) return@LaunchedEffect
@@ -170,21 +250,8 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
         }
     }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        item(key = "head") {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f).padding(top = 20.dp, bottom = 12.dp)) {
-                        Text("Learn", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-                        // A kid's path has no count to keep up with (the map and its ticks say it).
-                        if (!kid) Text("${path.counted.count { done(it.id) && !skipped(it.id) }} of ${path.counted.count { !skipped(it.id) }} lessons", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Pup(Pose.LEARNING, size = 64.dp)
-                }
-                grownUp?.let { Box(Modifier.padding(bottom = 12.dp)) { it() } }
-            }
-        }
-        // The Chords section pinned at the top: Learn opens scrolled to the next lesson, and the chords stay in view over it.
+        grownUp?.let { offer -> item(key = "grown") { Box(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) { offer() } } }
+        // The Chords section pinned at the top: the road opens scrolled to the next lesson, and the chords stay in view over it.
         chords?.let { section ->
             stickyHeader(key = "chords") {
                 // On the same paper as the page (ui/Backdrop.kt), so the path slides under it as under a sheet of the page.
@@ -198,20 +265,7 @@ fun LearnScreen(done: (String) -> Boolean, onOpen: (CourseLesson) -> Unit, onSig
             }
         }
         item(key = "side") {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
-                // Beside the course: practice that is never "done" (new music, new rounds each time). Not before a kid
-                // can read: the cards are words, and the pup's world below is the whole path for them.
-                // Simple (2.7; a layout since 2.8) keeps the path and the chords; these wait behind its "Show more" (Advanced has them).
-                if ((!kid || reader) && com.bigpapituna.sharpears.engine.nav.Simple.learnSideRows(com.bigpapituna.sharpears.engine.nav.Simple.shown(layout, more))) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    theory?.invoke(Modifier.pressScale())
-                    SideRow("Ear training", "Rhythm, melody, pitch, scale degrees, progressions. Daily workout inside.",
-                        earStreak.takeIf { it > 0 && !plainLook() }?.let { "Workout: $it ${if (it == 1) "day" else "days"} in a row" }, R.drawable.ic_ear, onEar)
-                    SideRow("Sight-read", if (sightStaff) "Four new bars, then notes on the staff. Eight levels." else
-                        sightBest?.let { "Four new bars each time. Best $it." } ?: "Four new bars each time, names hidden.",
-                        null, R.drawable.ic_play_arrow, onSightRead)
-                }
-                if (!kid) LayoutMore(com.bigpapituna.sharpears.engine.nav.Simple.Place.LEARN, more, { more = true }, edge = 0.dp)
-            }
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp)) { more?.invoke() }
         }
         items(rows, key = { r -> when (r) { is PathRow.Banner -> "b-${r.level.id}"; is PathRow.Stop -> r.lesson.id; is PathRow.Card -> "c-${r.lesson.id}"
             is PathRow.Trophy -> "t-${r.level.id}"; is PathRow.Scene -> "s-${r.level.id}" } }) { r ->
@@ -290,21 +344,6 @@ private fun ChordTile(title: String, icon: Int, modifier: Modifier, stacked: Boo
         Glyph()
         androidx.compose.foundation.text.BasicText(title, style = MaterialTheme.typography.labelLarge.copy(color = c.onSurface, textAlign = TextAlign.Center),
             maxLines = 1, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize))
-    }
-}
-
-/** A row beside the course (Ear training, Sight-read): title, what it is, an optional status in the accent. */
-@Composable
-private fun SideRow(title: String, detail: String, status: String?, icon: Int, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            status?.let { Text(it, style = Numeric.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp)) }
-        }
-        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
     }
 }
 

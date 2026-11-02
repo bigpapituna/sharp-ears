@@ -35,6 +35,10 @@ PupDebug, SkinDemo, WorldDemo) never see them. DebugRoutesWiringTest fails if a 
 - BuildConfig holds `DEBUG_ROUTE_KEY_SHA256` (the key's SHA-256), never the key. To try a keyed build without touching
   secrets.properties: `.\gradlew.bat installDebug -PdebugRouteKey=test123`, then `--es dk test123` (the property is read
   before the file); install again without it to go back to keyless.
+- 2.19.0 notes (QA 2026-11-02, B-10): `--es screen sight --ei level 1|2 --es midi "<script>"` now reaches the falling-note
+  pieces too (before, only `--es inject`); `--es screen practice --es tab arpeggios` opens the Arpeggios view in the Full layout
+  only: the Simple layout has no arpeggios, so it shows Scales (by design). `--es midi` is a pretend MIDI keyboard, so the coach
+  behaves as with MIDI (lines play at once); to see the mic rules (the held reaction) use `--es inject synth:...` with the mic on.
 
 ## Rules
 - Stdlib and platform APIs first. New dependency only if PLAN.md names it.
@@ -129,7 +133,8 @@ All six teams' work merged and wired (Theory last). Emulator only (emulator-5556
 - Onboarding (ui/onboarding): first run only; anyone with XP after catchUp() counts as onboarded. Ends in the suggested lesson.
 - Practice tab (Team C, data/PracticeStore.kt "practice"): scales, arpeggios, warm-ups open in the full player, wait mode,
   at the exercise tempo (id "practice-" + title.hashCode()); metronome; tuner (needs the mic).
-- Learn: the course path (70 lessons, 10 levels, Team F) with three rows above it: Theory (Team A, TheoryCard, one
+- Learn: (2.18.3: four tabs, Road | Theory | Ear training | Sight reading, see "2.18.3 Learn tabs" below; before it:) the
+  course path (70 lessons, 10 levels, Team F) with three rows above it: Theory (Team A, TheoryCard, one
   TheoryStore "theory" in MainActivity shared with Screen.Theory/TheoryScreen; lessons record TheoryLesson, units
   TheoryUnit, a lesson's seconds count as practice), Ear training (Team D, Screen.EarTraining, data/EarStore.kt "ear")
   and Sight-read. The theory stage panel is sized by the lesson's scenes (Explainer stageRatio), centred on tall phones.
@@ -2725,3 +2730,105 @@ fine-tunes, shared HiFT vocoder, best of 5 takes by Whisper WER; Rory with the r
 src/afterdark/assets/coach/{female_us,female_au,male_irish}/course. The audio is committed locally only, not pushed: the repo was
 public at release time. Released as the keyed debug APK (AFTERDARK=true, 370 MB) so Roy can test; he wants the repo private afterwards.
 Play: over the 200 MB base limit, so the voices must move to asset packs before a Play release.
+
+## QA praise pass: shuffle bags (2026-11-02, branch `qa-praise`, not merged)
+Roy: "a lot of the audio seems repetitive in terms of the praise it's giving."
+- Measured first (`PraiseRepeatSimTest`, `CoachRepeatSimTest`, writing app/build/praise-sim-*.txt: 30 sessions x 7 lines per moment, a new object per session like a new lesson or a restart): before, 92 of 3,960 cheer pop / title / recap picks and 644 of 20,280 coach picks were the line just heard; 108 moment-pools had a gap of 1. The ear and chord games' cheer bar title used `round + score`, which steps by two per clean round: 3 of its 6 titles ever came up. Each CheerCoach / CoachBrain / lesson started its memory empty.
+- Fix: `engine/praise/PraiseBags` (Android-free): one bag per moment, every line before any repeats, a new round keeps the last third of the pool (at least one line) off its opening, history persisted per profile (`Prefs.praiseStore`, "praise.<bag>" keys, no `version` bump, so it can be drawn while composing; `Praise.bags` is bound in MainActivity when a profile opens). Used by CheerCoach (bag per trigger family; a focus pop's minutes line goes first while unheard), CoachBrain (bag per bank and woman/man variant; CoachHost hands it `Praise.bags`), the cheer bar titles (`Praise.title()`, `rememberCheerTitle(key)` in ui/Celebrate.kt; LessonScreen, the quiz, both games, both ear trainers, sight reading) and a kid's recap title and line (RunRecap, one bag per star count). The old "never one of the last six" rule is now "never one of the last third of the pool".
+- Frequency needed no change: 30 x 200 correct notes gave 3.0 pops per 100 notes at Often (1.5 grown-up, 2.0 kid at Less), the 15 s / 12 s wait and the minute cap already hold. Thin pools are content gaps, not recorded or written here: the coach's focus5/10/15/20/30 (2 lines each, 1 for a man/woman at focus20 plus 1 for anyone), run5/run10/run20/run40 (3), stars2 (3), hard (4), streak (4), and the kid recap titles/lines (3 per star), CHEER_TITLES (6), the kid's step line (1: "You did it! On to the next one."), the grown-up step feedback ("Clean."), HIGH_FIVE (1).
+- Tests: PraiseBagsTest, the sims (they assert no immediate repeat), CheerRulesTest and CoachRulesTest updated. PopPrivateTest fails in a worktree with no secrets.properties (PRIVATE_BUILD false), same on main without it.
+
+## 2.18.3 Learn tabs and the open gate
+Branch `qa-tabs` (2026-11-02, from main b0c9bcd3; version not bumped). Emulator Fold_API37 on 5566 only.
+- Learn tabs (Roy: "easier tabs where you could press different learning modes, such as theory, ear training, sight read, and
+  also the current main learning road"). engine/nav/LearnTabs.kt (pure): Road | Theory | Ear training | Sight reading, Road the
+  default. Who sees them is the old side rows' rule, moved: `(!kid || reader) && Simple.learnSideRows(layout)` (Simple's "Show
+  more" widens it); otherwise the road alone and no tab row. ui/LearnScreen.kt: a fixed header ("Learn", the road's count, the
+  pup), then `LearnTabRow` (one segmented pill, the chosen tab in the accent; a two-word label breaks at its space and shrinks
+  with TextAutoSize before a word breaks, so all four stay visible on the cover screen at font scale 1.5), then the tab
+  (AnimatedContent). Road is the old path (`Road`, with the Chords section pinned and LayoutMore). Theory draws
+  `TheoryHome` (TheoryPath without Back or title), Ear training `EarHub` (the hub without Back or title), Sight reading
+  `SightHome` (ui/SightReadScreen.kt: each open level, SightLevels.open, with its best). A lesson, game, workout or level opens
+  as before as its own screen (`Screen.Theory(back, lesson)` with TheoryScreen `startLesson`, `Screen.EarTraining(back,
+  EarStart)`, `Screen.SightRead(back, n)`), and leaving it returns to the tab (TheoryScreen `toPath` and EarTrainingScreen
+  `toHub` call onBack when started from a tab). TheoryCard and SideRow are gone.
+- The tab is kept per profile: `Prefs.learnTab` (key "learnTab", wire name). Logcat `learn: open on tab <wire> (<tabs>)`,
+  `learn: tab <wire>`, `learn: sight level <n> opened`. Debug: `--es screen learn --es tab road|theory|ear|sight` (saved as the
+  profile's tab once, `learnTabStart`). The old `--es screen theory|ear|sight` routes still open the full screens.
+- Kids: a little kid has the map home (no Learn); a big kid in Simple has the road with "Show more" as before, in Full all four.
+- Parent gate (Roy: "I'd rather that be fairly open for now"): ui/family/ParentGate.kt `ParentGate` shows `OneTapConfirm`
+  ("Grown-ups only", the pup, "I'm a grown-up", "Not now"), marked `// ponytail: one-tap gate for Roy's testing; restore
+  HoldThePup + SumPad before kids get the app`. HoldThePup, SumPad (`@Suppress("unused")`), ParentGateController, its two
+  minutes, Lock now, the lockout and every caller are unchanged. Show Mum's light gate (KidBriefCard) still holds the pup.
+- Tests: LearnTabsTest, LearnTabsWiringTest (tabs wired, back to the tab, the one-tap gate with the hold and sum kept);
+  LayoutWiringTest and DepthWiringTest re-pinned. 2081 JVM, all green but PopPrivateTest (keyless worktree, as before). Lint 0
+  errors, 33 warnings.
+- Emulator: screenshots app/build/screens/qa-tabs-*.png (not committed): every tab on the inner and cover screens, the cover at
+  font scale 1.5, opening and leaving a theory lesson, an ear game and a sight level, Leo (big kid) in Simple and Full, Mia
+  (little kid) on her map, the gate, its pass (Settings with Lock now) and Not now.
+- Open: the Ear hub's own workout tiles wrap mid-word ("Progressi/ons") and clip their art on the cover screen at font scale
+  1.5 (the hub, unchanged by this branch).
+
+## 2.18.3 audio QA (2026-11-02, branch `qa-audio`; version not bumped, emulator-5564 Pixel7_API37 only)
+Roy: "a delay in audio, where some keys are not being played when it's asking me to play the keys".
+- Root cause (proven): coach lines (afterdark) in the middle of a try ignored the pup's "skip the learner's turn" rule
+  (CheerRules.micRule) and held the mic deaf for their whole length (3 to 6 s) on the speaker. Same `--es inject` script (a wrong
+  A4 then six right notes) on fingers-right step 3 as Roy with Liam: before, `coach: mistake` 4320 ms, mic deaf 4620 ms, 5 of the
+  6 right notes dropped and the step stalled 18 s (nudge line, another 3.8 s deaf); after, `coach: mistake_06 dropped, no quiet
+  moment (the mic listens on the speaker)`, `coach: recovery left to the pup`, 6 of 6 heard, step passed. Fix (CoachHost,
+  CoachSound.mayStart/waitMs): no coach line starts while the mic listens through the speaker; a bubble's line leaves the bubble
+  to the pup, an overlay line asked during the turn waits 1.2 s for the try to end, then goes. Headphones or MIDI: as before.
+  CoachRulesTest `noCoachLineStartsWhileTheMicListensOnTheSpeaker`.
+- Timing logs added: `voice: uN sounds N ms after it was asked (source)`, `voice: mic stopped, ... held N ms`, the coach's `sounds
+  N ms after it was asked`, `app note <name> at <ms> ms on|quiet`, `piano: <midi> did not sound (no stream)`, `frame: N ms`.
+  Measured: voice lines 24-87 ms, coach lines 33-71 ms mid-run, 370-530 ms at a step's open (1252 ms on a cold launch).
+  The rest of the "delay" is by design: the coach's start line (2.9-4.1 s) before the instruction, Liam's narration 1.7-2.3x
+  the pup's recordings (the PLAY instruction 10.4 s vs 4.6 s), the step's feedback after the coach's step-passed line.
+- Not reproduced: demo notes not sounding. Listen steps (fingers-right 9/9, lh-pop 22/22) and Rondo in Listen (97 notes): every
+  note started, no `did not sound`, no frame over 100 ms. Piano samples are 2 s long, so notes held longer fade out early.
+
+## 2.19.0 QA fix round
+2026-11-02, branch `qa-merge` (main + praise bags + Learn tabs + 2.18.3 audio QA + the audit), versionCode 39, not pushed or
+merged. The audit is docs/QA-2026-11-02-courses.md; its harness scripts/qa-audit (now `QA_OUT=<dir>` keeps a re-run's logs apart;
+`b01.py`, `b02.py`, `pace.py`, `hold_check.py`, `passcount.py`, `after_all.sh` added). Emulators: 5562 (Fold_QA_GU), 5566 (cover).
+- B-01: PerformScore graded a group on its first key and Transport called the chord's other keys WRONG (a perfect two-hand run
+  said "You missed F twice"; a Ramp logged 17 phantom wrong keys a pass). `PerformScore.covers`: a key of a group already graded,
+  inside its ok window, is CORRECT and counts nothing more. PerformTest. Before: 804 WRONG flags over the walk's Perform and Ramp steps; the 26 B-01 steps re-run: 0.
+- B-02: `assets.list("voice")` came back short (596 of 3,975) in some launches and the lines it missed went to the phone's TTS
+  for the rest of the process. engine/voice/AssetIndex: the listing, then an open of the file for a name it lacks (cached);
+  Voice's recordings and the coach's course folders use it (`voice: the listing missed <key>; found on disk`). AssetIndexTest.
+  80 launches: the listing was short in 4, 0 lines in the phone's voice (before: 13 of 307 launches).
+- Coach reactions mid-try (afterdark): 977c7e4a dropped them while the mic listens on the speaker. Now CoachHold keeps the most
+  relevant one (rank: hard > mistake = recovery > run and the rest > nudge; a newer one of the same rank or higher replaces it;
+  stale after 8 s) and says it when the player has been quiet 1.5 s (Extras.heard from CheerFeed on every key) or in place of
+  the line a step's end or a failed try gets (`coach: <id> held for a pause`, `said at a pause, held N ms`, `said for
+  step_passed`). The line said at a pause makes the mic deaf for its length, so keys played in its first seconds are lost (the
+  trade Roy asked for). Headphones, MIDI and `--es midi`: as before. CoachRulesTest aReactionMidTryIsHeldForThePauseAndExpires.
+- Pacing: no coach START line before a step's words (the coach narrates them anyway); at a step's end a clean pass gives the
+  moment to the coach's line ("Clean." stays on the bar, unsaid), a pass with something to say keeps the pup's feedback, said
+  right after the chime, and the coach takes no step-passed line. Liam's longer narration itself is unchanged (content).
+  Coach on (male_us), 6 steps: step open to its words 5.2-7.8 s before, 4-7 ms after; step open to play 14-19.5 s before,
+  8.5-11.4 s after; step end to the feedback 5.9-6.4 s before, 0.4 s after.
+- Long notes: assets/samples-long (scripts/extend_samples.py: each 2 s sample's sustain looped pitch-synchronously to 8 s, the
+  decay slowed to 2-6 dB/s, mono, 706 KB decoded, under SoundPool's 1 MB). The 2 s set loads first as before (2.2 s); the 8 s set
+  decodes about 5 times slower, so it loads behind and StageSound swaps it in (`sampler: 23 long samples in`, about 16 s after a
+  cold start on the emulator). noteOff fades over 90 ms (StageSound.RELEASE_MS) before the stop. APK contents +1.2 MB.
+- B-03: the phone's TTS engine starts 1.5 s after launch when the model will not say the run-time lines. B-04: the spoken
+  feedback names a C by place ("the C below middle C"), FeedbackTest. B-07: one silent prepare warms the clip decoder; clip
+  starts now log `clip: <asset> started, prepared in N ms` and `clip: <asset> end` (80 launches: median 77 ms, max 183 ms,
+  none over 500; before 18 of 614 over 500, worst 1,027). B-08: a failed rhythm round counts notes right on the beat ("0 of 6
+  ..., 6 close"), RhythmTest. B-09: a pass with misses is titled "Passed". B-10: `--es midi` reaches sight levels 1 and 2 (the
+  Debug routes notes above). QaFixWiringTest pins the wiring.
+- B-05, B-06: no audio made; docs/QA-2026-11-02-missing-lines.md lists the keys, files, folders and words per voice.
+- UI: the daily workout's three tiles stack as rows where a tile would be under 100 dp x the font scale (the cover screen at
+  1.5), a one-word name shrinks instead of breaking, the art draws at font scale 1. Learn's header counts placement's skips:
+  "0 of 64 lessons, 6 skipped" (was "0 of 64" on the 70-lesson road), CoursePath.progressLine, CoursePathTest.
+- Tests: 2104 JVM, all green but PopPrivateTest (keyless worktree). Lint 0 errors.
+- B-06 rendered 2026-11-02 for Rory, Claire and Sienna with the local Chatterbox course pipeline (tts-bakeoff/voices
+  course_render.py, rows in elevenlabs/course/coach_extra.json; picked takes WER 0). B-05 ("Listen to both hands together.",
+  ac35d6394729a54a) is not a gap: the kids' Hall uses the same words, so it is a kid line and CoachRulesTest forbids coach
+  audio for it; the normal voice says it. Give the grown-up course its own wording if it should be narrated.
+- Early keys (re-test, t2-touch step 3): a right key up to EARLY_RIGHT_MS (600) ahead of its group now counts; before, a
+  key over 200 ms early was dropped and the lesson waited for a note already played. Wrong keys keep the 200 ms window.
+- Re-test of all 70 Road lessons on the fixed build: 155 of 155 scripted steps passed (after the two fixes below), 0 wrong flags on 50 Perform steps,
+  62 of 62 Listen steps sounded. The first pass missed 2: the early-key bug above and a harness offset ("sit", walk.py and passcount.py).

@@ -120,7 +120,7 @@ class TransportTest {
         val t = waiting()
         t.run(10.0); t.noteInput(60)                                             // held at 0 until C4 is played
         t.run(250.0)                                                             // 250 ms: E4 is 250 ms away
-        assertEquals(InputResult.IGNORED, t.noteInput(64))
+        assertEquals(InputResult.IGNORED, t.noteInput(62))                       // a wrong key that early is not graded
         t.run(100.0)                                                             // 350 ms: 150 ms away
         assertEquals(InputResult.GROUP_DONE, t.noteInput(64))
         t.run(300.0)
@@ -250,6 +250,14 @@ class TransportTest {
         assertTrue(t.waiting)                                                      // held at the first group
         assertEquals(0.0, t.positionMs, 0.0)
         assertFalse(t.inLeadIn)
+    }
+
+    @Test fun aRightKeyAheadOfTheCursorStillCounts() {
+        val t = Transport(song).apply { mode = Mode.WAIT; play(leadInMs = 1000.0) }
+        t.run(500.0)                                                               // 500 ms before C4
+        assertEquals(InputResult.IGNORED, t.noteInput(62))                        // a wrong key this early: not graded
+        assertEquals(InputResult.GROUP_DONE, t.noteInput(60))                     // the right one: counted, no stall
+        assertEquals(0, t.report().wrongKeys)
     }
 
     @Test fun leadInAfterASeekStartsBeforeTheNextGroupAndSkipsEarlierNotes() {

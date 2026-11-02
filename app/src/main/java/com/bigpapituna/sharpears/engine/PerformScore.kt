@@ -126,6 +126,27 @@ class PerformScore(groups: List<OnsetGroup>, required: (Note) -> Boolean, fromMs
         return g
     }
 
+    /**
+     * True when [midi] at [atMs] belongs to a group its first key already graded, inside that group's ok window: a chord's
+     * other notes, or the second hand landing a few ms after the first (QA 2026-11-02 B-01: these were counted as wrong
+     * keys, so a perfect two-hand run said "You missed F twice"). Such a key earns nothing more, and costs nothing.
+     */
+    fun covers(midi: Int, atMs: Double): Boolean {
+        for (i in firstOpen - 1 downTo 0) {        // graded and passed by advance(), but maybe still inside their window
+            if (targets[i].startMs + OK_MS < atMs) break
+            if (hit(targets[i], midi, atMs)) return true
+        }
+        for (i in firstOpen until targets.size) {
+            val t = targets[i]
+            if (t.startMs - atMs > OK_MS) break
+            if (hit(t, midi, atMs)) return true
+        }
+        return false
+    }
+
+    private fun hit(t: Target, midi: Int, atMs: Double) =
+        (t.grade == Grade.GOOD || t.grade == Grade.OK) && midi in t.keys && abs(t.startMs - atMs) <= OK_MS
+
     /** Song time moved to [nowMs]: groups whose ok window has closed without a key are misses. Returns how many. */
     fun advance(nowMs: Double): Int {
         var missed = 0

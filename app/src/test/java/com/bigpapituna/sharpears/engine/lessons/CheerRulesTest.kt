@@ -255,11 +255,12 @@ class CheerRulesTest {
 
     // ---- Lines, entries, holds ----
 
-    @Test fun neverOneOfTheLastSixLinesAndTheSameSeedTheSameLines() {
+    // QA praise pass: a shuffle bag per family, so never one of the last two (a new round keeps a third of the pool off its opening).
+    @Test fun neverOneOfTheLastFewLinesAndTheSameSeedTheSameLines() {
         for (kid in listOf(true, false)) for (t in CheerTrigger.entries) {
             val c = coach(kid = kid, seed = 11)
             val lines = (0 until 200).map { c.forced(t, 1_000L * it).line }
-            for (i in lines.indices) assertFalse("$t $kid ${lines[i]}", lines[i] in lines.subList(maxOf(0, i - CheerCoach.RECENT), i))
+            for (i in lines.indices) assertFalse("$t $kid ${lines[i]}", lines[i] in lines.subList(maxOf(0, i - 2), i))
             val again = coach(kid = kid, seed = 11)
             assertEquals(lines, (0 until 200).map { again.forced(t, 1_000L * it).line })
         }

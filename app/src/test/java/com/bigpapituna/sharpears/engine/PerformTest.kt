@@ -23,11 +23,31 @@ class PerformTest {
         assertEquals(InputResult.CORRECT, t.noteInput(64))                            // -100 ms: good (early)
         // 65 at 3000 is never played: a miss once its window closes.
         t.runTo(4100.0); assertEquals(InputResult.CORRECT, t.noteInput(48))           // the chord counts on its first key
-        assertEquals(InputResult.WRONG, t.noteInput(48))                              // already graded
+        assertEquals(InputResult.CORRECT, t.noteInput(67))                            // the other hand: part of the graded chord
+        assertEquals(InputResult.WRONG, t.noteInput(50))                              // not in the chord
         t.runTo(5000.0)
         val r = t.score!!.recap()
         assertEquals(Recap(good = 3, ok = 1, miss = 1, biasMs = 68 /* (50 + 220 - 100 + 100) / 4 */,longestStreak = 3), r)
         assertEquals(80, r.accuracy)
+    }
+
+    // QA 2026-11-02 B-01: a perfect two-hand run (every chord's keys a few ms apart) has no wrong keys and no misses.
+    @Test fun chordAndTwoHandKeysAfterTheFirstAreNeverWrong() {
+        val chords = listOf(0L, 1000L, 2000L).flatMap { at ->
+            listOf(Note(48, at, 500, Hand.LEFT, 80), Note(60, at, 500, Hand.RIGHT, 80), Note(64, at, 500, Hand.RIGHT, 80), Note(67, at, 500, Hand.RIGHT, 80))
+        }
+        val s = Song("c", "c", 60.0, 4 to 4, chords, groupOnsets(chords), emptyList(), 3000)
+        val t = Transport(s).apply { mode = Mode.PERFORM; play() }
+        for (at in listOf(0.0, 1000.0, 2000.0)) {
+            t.runTo(at + 10.0)
+            for ((i, k) in listOf(48, 60, 64, 67).withIndex()) {
+                if (i > 0) t.runTo(at + 10.0 + i * 8)
+                assertEquals("key $k of the chord at $at", InputResult.CORRECT, t.noteInput(k))
+            }
+        }
+        t.runTo(3000.0)
+        assertEquals(Recap(good = 3, ok = 0, miss = 0, biasMs = 10, longestStreak = 3), t.score!!.recap())
+        assertTrue("no wrong keys: ${t.report()}", t.report().missed.isEmpty())
     }
 
     @Test fun neverWaitsAndDoesNotPlayRequiredNotes() {

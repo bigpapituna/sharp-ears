@@ -22,14 +22,14 @@ class CoachWiringTest {
     @Test fun everyCallerAsksTheProfileFirst() {
         val cheer = src("ui/pup/CheerPop.kt")
         assertTrue("val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.of(c.trigger), c.count)" in cheer)
-        assertTrue("val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.STEP_PASSED" in cheer)
+        assertTrue("val taken = if (profileKid || !extra) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.STEP_PASSED" in cheer)
         assertTrue("if (!profileKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.MISTAKE)" in cheer)
         assertTrue("if (!profileKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.HARD)" in cheer)
         // profileKid is the profile's isKid (a big kid too), never the skin.
         assertTrue("profileKid = anyKid" in src("ui/LessonScreen.kt") && "val anyKid = who.isKid" in src("ui/LessonScreen.kt"))
         assertTrue("profileKid = com.bigpapituna.sharpears.ui.family.LocalProfile.current.isKid" in src("ui/PlayerScreen.kt"))
         val lesson = src("ui/LessonScreen.kt")
-        assertTrue("!anyKid && !greeted" in lesson)
+        assertFalse("2.19.0: no START greeting stacked before a step's words", "extras.Moment.START)" in lesson)
         assertTrue("if (!anyKid) com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.finish(" in lesson)
         assertTrue("if (!anyKid) com.bigpapituna.sharpears.extras.Extras.say(if (fails >= 2)" in lesson)
         assertTrue("if (!who.isKid && stars >= 2) LaunchedEffect(e) { com.bigpapituna.sharpears.extras.Extras.say(" in src("ui/RunRecap.kt"))
@@ -39,7 +39,7 @@ class CoachWiringTest {
         // Every say and line in the app sits behind one of those checks.
         val calls = main.walkTopDown().filter { it.extension == "kt" }.sumOf { f ->
             Regex("""Extras\.(say|line)\(""").findAll(f.readText()).count() }
-        assertEquals(10, calls)
+        assertEquals(9, calls)          // 2.19.0: the START greeting before a step's words is gone
     }
 
     @Test fun theDoorAsksTheWallAtEveryMoment() {

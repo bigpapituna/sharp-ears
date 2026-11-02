@@ -25,8 +25,11 @@ class SpeechQueue(private val maxAgeMs: Long = 30_000, private val max: Int = 4)
     }
 
     /** The mic stopped: the lines still fresh, oldest first. */
-    fun release(now: Long): List<String> {
-        val out = held.filter { now - it.second <= maxAgeMs }.map { it.first }
+    fun release(now: Long): List<String> = releaseTimed(now).map { it.first }
+
+    /** [release], each line with the time it was asked for (the voice logs how long it waited). */
+    fun releaseTimed(now: Long): List<Pair<String, Long>> {
+        val out = held.filter { now - it.second <= maxAgeMs }
         held.clear()
         return out
     }

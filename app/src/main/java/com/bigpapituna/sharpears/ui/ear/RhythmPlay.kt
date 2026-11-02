@@ -63,7 +63,6 @@ import com.bigpapituna.sharpears.ui.Cheer
 import com.bigpapituna.sharpears.ui.CheerBar
 import com.bigpapituna.sharpears.ui.Numeric
 import com.bigpapituna.sharpears.ui.pup.Pose
-import com.bigpapituna.sharpears.ui.cheerTitle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -224,9 +223,10 @@ internal fun RhythmPlay(trainer: RhythmTapGame, env: EarEnv, label: String?, onE
                 modifier = Modifier.weight(1f).fillMaxWidth())
             Spacer(Modifier.height(if (rev != null) 220.dp else 4.dp))
         }
+        val goodTitle = com.bigpapituna.sharpears.ui.rememberCheerTitle(rev)
         if (rev != null) CheerBar(
             if (rev.clean) Cheer.GOOD else Cheer.MISS,
-            if (rev.clean) cheerTitle(round + trainer.score) else missTitle(round + trainer.score),
+            if (rev.clean) goodTitle() else missTitle(round + trainer.score),
             // The engine line can open with "Not quite:"; the title already says it.
             rev.line?.text?.let { t -> if (rev.clean) t else t.removePrefix("Not quite: ").replaceFirstChar { it.uppercase() } },
             if (round + 1 >= trainer.rounds) "See results" else "Continue",

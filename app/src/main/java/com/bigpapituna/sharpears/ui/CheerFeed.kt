@@ -93,6 +93,7 @@ internal class CheerFeed {
     fun struck(cheers: CheerPops?, t: Transport, song: Song, result: InputResult, perfect: Boolean, embedded: Boolean, hinting: Boolean) {
         cheers ?: return
         if (t.mode == Mode.LISTEN || !t.playing) return
+        com.bigpapituna.sharpears.extras.Extras.heard()     // 2.19.0: a held coach reaction waits for a pause after the last key
         ensure(t, song, embedded)
         val at = barOf(t.positionMs)
         when {
@@ -103,11 +104,11 @@ internal class CheerFeed {
 
     /**
      * A wrong key shown (the player's showWrongKey: touch, MIDI, or one the mic named): the run starts again, the bar is hard.
-     * Not in Perform, where only a note let pass breaks the streak (the lane's combo and PerformScore say the same; a chord's
-     * second key also reads as wrong there): those come from the transport's misses in [frame].
+     * Not in Perform, where only a note let pass breaks the streak (the lane's combo and PerformScore say the same): those come from the transport's misses in [frame].
      */
     fun wrong(cheers: CheerPops?, t: Transport, song: Song, embedded: Boolean) {
         cheers ?: return
+        if (t.mode != Mode.LISTEN) com.bigpapituna.sharpears.extras.Extras.heard()
         if (t.mode == Mode.LISTEN || t.mode == Mode.PERFORM) return
         ensure(t, song, embedded)
         cheers.wrong(barOf(t.positionMs))

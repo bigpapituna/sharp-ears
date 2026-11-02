@@ -27,8 +27,8 @@ class AfterdarkWallTest {
             assertFalse("${f.path} names the afterdark package", "sharpears.afterdark" in t)
         }
         assertFalse(File(main, "assets/coach").exists())
-        assertTrue("no Ogg in main but the voice lines and the piano samples", File(main, "assets").walkTopDown()
-            .filter { it.extension == "ogg" }.all { it.parentFile.name == "voice" || it.parentFile.name == "samples" })
+        assertTrue("no Ogg in main but the voice lines and the piano samples (2 s and 8 s)", File(main, "assets").walkTopDown()
+            .filter { it.extension == "ogg" }.all { it.parentFile.name in setOf("voice", "samples", "samples-long") })   // 2.19.0: the 8 s piano set
         // No caption of the bank anywhere in main (the bank sits in src/afterdark on every checkout, built or not).
         val banks = File(afterdark, "assets/coach").listFiles { f -> f.isDirectory }!!.map { File(it, "lines.json") }
         assertTrue(banks.size >= 3 && banks.all { it.isFile })

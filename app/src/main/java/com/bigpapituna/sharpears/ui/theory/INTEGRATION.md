@@ -13,7 +13,7 @@ quiz. Everything is local: no assets, no network, no new dependencies.
 | `engine/theory/TheoryContent.kt` | All copy and content (`THEORY`, `THEORY_LESSONS`, `theoryLesson(id)`) |
 | `engine/theory/Progress.kt` | `TheoryProgress` (next lesson, units done, unit score), `lessonAfter`, `percent` |
 | `data/TheoryStore.kt` | Progress in its own SharedPreferences file `theory` (`done:<id>`, `best:<id>`, `secs:<id>`), `rememberTheoryStore()` |
-| `ui/theory/TheoryScreen.kt` | `TheoryScreen` (path, explainer, quiz, celebrations) and `TheoryCard` (the Learn tab summary) |
+| `ui/theory/TheoryScreen.kt` | `TheoryScreen` (path, explainer, quiz, celebrations) and `TheoryHome` (2.18.3: the path as Learn's Theory tab) |
 | `ui/theory/Explainer.kt`, `Scenes.kt`, `Draw.kt`, `Quiz.kt` | Scene player, renderers, drawing kit (glyphs, compact piano), quiz |
 | `app/src/test/.../theory/` | `MusicTheoryTest`, `TheoryContentTest` |
 
@@ -32,11 +32,10 @@ quiz. Everything is local: no assets, no network, no new dependencies.
    `TheoryScreen` handles its own Back (path, explainer, quiz, celebration) and calls `onBack` only from the path.
    It creates its own `Clicks` for the rhythm scenes and releases them when it leaves.
 
-2. **Learn tab.** Show `TheoryCard(store, onOpen = { screen = Screen.Theory(s) })` near the top of Learn, next to
-   the Sight-read row (same shape: 16 dp rounded row on `surfaceContainerHigh`). It shows a ring of six segments
-   (filled per unit done), "Next: <lesson>" and "N of 6 units". Use one shared store so the card updates when a quiz
-   ends: `val theory = rememberTheoryStore()` at the activity level and pass it to both `TheoryCard` and
-   `TheoryScreen(store = theory)`. The store bumps `version` on every change.
+2. **Learn tab.** 2.18.3: Learn's Theory tab draws `TheoryHome(store, onOpen = { id -> screen = Screen.Theory(s, id) })`
+   (the path without Back or title); `TheoryScreen(startLesson = id)` opens that lesson and its "All lessons" or Back
+   returns to the tab. Use one shared store so the tab updates when a quiz ends: `val theory = rememberTheoryStore()` at
+   the activity level, passed to both. The store bumps `version` on every change.
 
 3. **Progress events** (for Team B's XP, goals and achievements):
    - `onLessonDone(lessonId, percent)`: every finished quiz, first-try score 0..100. Missed questions are asked

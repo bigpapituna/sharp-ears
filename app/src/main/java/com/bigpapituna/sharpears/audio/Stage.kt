@@ -68,6 +68,9 @@ object Stage {
         val kit = HashMap<PopPlay.Kit, Int>()
         var pianoCount = 0
         var pianoLoaded = 0
+        /** 2.19.0: the 8 s samples (assets/samples-long), loaded after the 2 s set is ready and swapped in when all are in. */
+        val long = HashMap<Int, Int>()
+        var longCount = 0
         val pianoWaiters = ArrayList<() -> Unit>()
         val pianoReady get() = pianoCount > 0 && pianoLoaded >= pianoCount
     }
@@ -88,10 +91,20 @@ object Stage {
         val files = app.assets.list("samples").orEmpty()
         p.pianoCount = files.size
         p.music.setOnLoadCompleteListener { _, _, status ->
-            if (status == 0 && ++p.pianoLoaded == p.pianoCount) {
+            if (status != 0) return@setOnLoadCompleteListener
+            val n = ++p.pianoLoaded
+            if (n == p.pianoCount) {
                 Log.d(TAG, "sampler: ${p.pianoCount} samples loaded")
                 val w = synchronized(p) { p.pianoWaiters.toList().also { p.pianoWaiters.clear() } }
                 main.post { w.forEach { it() } }
+                // 2.19.0: the 8 s set decodes about 5 times slower than the 2 s one, so it loads behind it, never before a step.
+                val long = runCatching { app.assets.list("samples-long").orEmpty() }.getOrDefault(emptyArray())
+                p.longCount = long.size
+                for (name in long) p.long[name.removePrefix("p").removeSuffix(".ogg").toInt()] =
+                    app.assets.openFd("samples-long/$name").use { p.music.load(it, 1) }
+            } else if (p.longCount > 0 && n == p.pianoCount + p.longCount) {
+                core.piano(HashMap(p.long))
+                Log.d(TAG, "sampler: ${p.longCount} long samples in (notes hold their written length)")
             }
         }
         core.piano(files.associate { name ->

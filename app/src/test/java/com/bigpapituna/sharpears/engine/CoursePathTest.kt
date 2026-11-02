@@ -128,4 +128,14 @@ class CoursePathTest {
         assertEquals("pond-2", adult.after(POND.lessons.first()) { false }?.id)
         assertNull(adult.after(HALL.lessons.last()) { false })
     }
+
+    // 2.19.0, QA: the header counts the grown-up road (every unit but the Playground) and names what placement skipped.
+    @org.junit.Test fun theHeaderAddsUpToTheRoad() {
+        val path = CoursePath("basics")
+        val road = COURSE.filter { !path.isPlayground(it) }.sumOf { it.lessons.size }
+        assertEquals("0 of $road lessons", path.progressLine({ false }, { false }))
+        val basics = COURSE.first { it.id == "basics" }.lessons.map { it.id }.toSet()
+        val line = path.progressLine({ it in basics }, { it in basics })
+        assertEquals("0 of ${road - basics.size} lessons, ${basics.size} skipped", line)
+    }
 }

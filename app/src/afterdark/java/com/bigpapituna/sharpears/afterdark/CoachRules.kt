@@ -149,18 +149,20 @@ object CoachMoments {
  * The coach's choices, deterministic for a seed: which line, if any, a moment gets now. Off with Encouragement Off; a play
  * moment waits [CheerCoach.gapMs] (15 s, 30 s with Less) after the last line and keeps to [CheerCoach.perMinute] (four, two
  * with Less) in any minute; a wrong key or a failed try ([Moment.MISTAKE], the sparing one) at most once a step, a hint or a
- * second failed try ([Moment.HARD]) once a step; never a line among the last [RECENT] played while its bank has another (a bank
- * of two plays them in turn).
+ * second failed try ([Moment.HARD]) once a step. QA praise pass: each bank (and the player's variant) is a shuffle bag
+ * ([com.bigpapituna.sharpears.engine.praise.PraiseBags]): every line of it before any repeats, never the same twice in a row,
+ * and the history kept across lessons and app restarts (the host hands the app's own bags; a test gets its own).
  */
-class CoachBrain(seed: Long = System.nanoTime()) {
+class CoachBrain(seed: Long = System.nanoTime(), bags: com.bigpapituna.sharpears.engine.praise.PraiseBags? = null) {
     private val random = java.util.Random(seed)
+    private val bags = bags ?: com.bigpapituna.sharpears.engine.praise.PraiseBags(random)
     private val recent = ArrayDeque<String>()
     private val times = ArrayDeque<Long>()
     private var lastMs: Long? = null
     private var mistakeThisStep = false
     private var hardThisStep = false
 
-    /** The ids played, newest last (tests). */
+    /** The last [RECENT] ids played, newest last (tests). */
     val played: List<String> get() = recent.toList()
 
     /** A step, a try or a run began: a wrong key and a hint may have their line again. */
@@ -180,10 +182,11 @@ class CoachBrain(seed: Long = System.nanoTime()) {
     /** The line for [m] now for a player who is [forWho] (null: none allowed, or none recorded for it), recorded as played. */
     fun pick(m: Moment, count: Int?, nowMs: Long, frequency: CheerFrequency, bank: CoachBank, forWho: String? = null): CoachLine? {
         if (!allowed(m, nowMs, frequency)) return null
-        val pool = CoachMoments.bankOf(m, count, numbered = random.nextBoolean())?.let { bank.of(it, forWho) }.orEmpty()
+        val name = CoachMoments.bankOf(m, count, numbered = random.nextBoolean())
+        val pool = name?.let { bank.of(it, forWho) }.orEmpty()
         if (pool.isEmpty()) return null
-        val fresh = pool.filter { it.id !in recent }.ifEmpty { pool.filter { it.id != recent.lastOrNull() }.ifEmpty { pool } }
-        val line = fresh[random.nextInt(fresh.size)]
+        val id = bags.next("coach.$name.${forWho ?: "-"}", pool.map { it.id })
+        val line = pool.first { it.id == id }
         recent.addLast(line.id); while (recent.size > RECENT) recent.removeFirst()
         times.addLast(nowMs); lastMs = nowMs
         if (m == Moment.MISTAKE) mistakeThisStep = true
@@ -212,6 +215,24 @@ object CoachSound {
      */
     fun deafens(headphones: Boolean): Boolean = com.bigpapituna.sharpears.engine.stage.StageRule.deafens(headphones)
 
+    /**
+     * 2.18.3 (Roy: "some keys are not being played when it's asking me to play the keys"): a line may start only when the mic
+     * is not listening through the phone's speaker (StageRule.quiet: the player's turn, no headphones). Before, a line in the
+     * middle of a try (a mistake, a recovery, a run, a nudge, the hint's "hard") made the mic deaf for its whole length, 3 to
+     * 6 s, and the keys played meanwhile were dropped (emulator: 7 injected notes lost to a mistake line plus the octave hint).
+     * The pup's cheers already skip the player's turn (CheerRules.micRule); the coach's lines are longer than any rest.
+     */
+    fun mayStart(micListening: Boolean, headphones: Boolean): Boolean =
+        !com.bigpapituna.sharpears.engine.stage.StageRule.quiet(micListening, headphones)
+
+    /**
+     * How long a line asked for may wait before it is dropped: one asked while the mic listens on the speaker ([inTurn]) waits
+     * [SHOWN_WAIT_MS] (the end of a try: the mic stops within a frame or two and the line plays; the middle of a run: the mic
+     * keeps listening, the moment has passed and the line goes); else [WAIT_MS] for an overlay line, [SHOWN_WAIT_MS] for a
+     * bubble's.
+     */
+    fun waitMs(overlay: Boolean, inTurn: Boolean): Long = if (overlay && !inTurn) WAIT_MS else SHOWN_WAIT_MS
+
     /** How long a line with no bubble of its own may wait for the voice, the chime or another line, before it is dropped. */
     const val WAIT_MS = 8_000L
     /** A line whose words a screen's bubble already shows must start almost at once: it waits this long at most past its delay. */
@@ -219,4 +240,66 @@ object CoachSound {
     /** How long its words stay up: the line's length, at least the cheer pop's 1.6 s, at most [MAX_SHOW_MS]. */
     const val MAX_SHOW_MS = 6_500L
     fun showMs(lineMs: Long): Long = lineMs.coerceIn(CheerCoach.HOLD_MS, MAX_SHOW_MS)
+}
+
+/**
+ * 2.19.0: a coach reaction asked in the middle of a try (a mistake, a recovery, a run, a nudge, a hint) while the mic listens
+ * through the phone's speaker. 2.18.3 dropped it, since a line there makes the mic deaf for 3 to 6 s and eats the player's
+ * keys; but the coach reacting to what was just played is the point. So the most relevant one is held (one at most) and said
+ * at the next natural pause: the player quiet for [quietMs] (a stall in wait mode, a stop), or in place of the line the step's
+ * end would get. One older than [staleMs] is dropped; a newer reaction of the same rank or higher replaces the held one ([rank]:
+ * a hint over a mistake or a recovery, those over a run or a halfway, everything over a nudge). Pure; the host polls it.
+ */
+class CoachHold<T : Any>(private val staleMs: Long = STALE_MS, private val quietMs: Long = QUIET_MS) {
+    enum class Next { NONE, WAIT, SPEAK, STALE }
+
+    private class Held<T>(val item: T, val rank: Int, val atMs: Long)
+    private var held: Held<T>? = null
+
+    /** The line held now, fresh or not (logs). */
+    val item: T? get() = held?.item
+
+    /** How long the held line has waited at [nowMs]. */
+    fun ageMs(nowMs: Long): Long = held?.let { nowMs - it.atMs } ?: 0L
+
+    /** Holds [item] of [rank] asked at [nowMs]: returns false (not held) when a fresher line of a higher rank is held. */
+    fun offer(item: T, rank: Int, nowMs: Long): Boolean {
+        val h = held
+        if (h != null && nowMs - h.atMs <= staleMs && rank < h.rank) return false
+        held = Held(item, rank, nowMs)
+        return true
+    }
+
+    /**
+     * At [nowMs], with the player's last key at [lastKeyMs]: [Next.SPEAK] (and the line, now let go) when the player has been
+     * quiet for [quietMs] since the later of the key and the line; [Next.STALE] (dropped) past [staleMs]; else WAIT, or NONE.
+     */
+    fun next(nowMs: Long, lastKeyMs: Long): Pair<Next, T?> {
+        val h = held ?: return Next.NONE to null
+        if (nowMs - h.atMs > staleMs) { held = null; return Next.STALE to h.item }
+        if (nowMs - maxOf(lastKeyMs, h.atMs) >= quietMs) { held = null; return Next.SPEAK to h.item }
+        return Next.WAIT to null
+    }
+
+    /** A moment of [rank] gets a line now (the step's end, a failed try): the held line instead, when fresh and at least as relevant. */
+    fun claim(rank: Int, nowMs: Long): T? {
+        val h = held ?: return null
+        held = null
+        return h.item.takeIf { nowMs - h.atMs <= staleMs && h.rank >= rank }
+    }
+
+    fun clear() { held = null }
+
+    companion object {
+        const val STALE_MS = 8_000L
+        const val QUIET_MS = 1_500L
+
+        /** How much a moment says about what was just played. */
+        fun rank(m: Moment): Int = when (m) {
+            Moment.HARD -> 3
+            Moment.MISTAKE, Moment.RECOVERY -> 2
+            Moment.NUDGE, Moment.STEP_PASSED, Moment.START -> 0
+            else -> 1
+        }
+    }
 }

@@ -122,6 +122,11 @@ fun TheoryScreen(
     onUnitComplete: (unitId: String, percent: Int, seconds: Int) -> Unit = { _, _, _ -> },
     /** Integration: the seconds a lesson took (explainer and quiz), reported when its quiz ends; they count as practice. */
     onPractice: (seconds: Int) -> Unit = {},
+    /**
+     * 2.18.3: a lesson opened from Learn's Theory tab ([TheoryHome]): the academy starts in it, and leaving it (Back, "All
+     * lessons") goes back to the tab, which is the path, instead of to a second copy of the path.
+     */
+    startLesson: String? = null,
 ) {
     val context = LocalContext.current
     // Integration: XP when the lesson opened, so its celebration can show what the lesson earned.
@@ -129,11 +134,12 @@ fun TheoryScreen(
     var xpAtOpen by remember { mutableStateOf(progress?.xp ?: 0) }
     val clicks = remember { runCatching { Clicks(context) }.getOrNull() }
     DisposableEffect(Unit) { onDispose { clicks?.release() } }
-    var nav by remember { mutableStateOf(debugStart(context)) }
+    val fromTab = startLesson?.takeIf { theoryLesson(it) != null }
+    var nav by remember { mutableStateOf(fromTab?.let { Nav.Watch(it, 0, com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()) } ?: debugStart(context)) }
     val version = store.version.intValue
 
     fun open(lessonId: String) { xpAtOpen = progress?.xp ?: 0; nav = Nav.Watch(lessonId, 0, com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs()) }
-    fun toPath() { voice.stop(); nav = Nav.Path }
+    fun toPath() { voice.stop(); if (fromTab != null) onBack() else nav = Nav.Path }
 
     when (val n = nav) {
         Nav.Path -> {
@@ -229,9 +235,19 @@ private val SWING = 72.dp
 
 private enum class StopState { DONE, NEXT, LATER }
 
+/**
+ * 2.18.3: the academy's path as Learn's Theory tab draws it (no Back, no title: the tab says it). A stop's card opens the lesson
+ * through [onOpen] (MainActivity pushes Screen.Theory with it, so the lesson has the whole screen and Back returns to the tab).
+ */
+@Composable
+fun TheoryHome(store: TheoryStore, onOpen: (String) -> Unit) {
+    val v = store.version.intValue
+    TheoryPath(remember(v) { store.progress() }, store, onOpen, onBack = null)
+}
+
 /** The academy's path, in the Learn tab's style: a banner per unit, its lessons as stops on a winding trail, a trophy. */
 @Composable
-private fun TheoryPath(p: TheoryProgress, store: TheoryStore, onOpen: (String) -> Unit, onBack: () -> Unit) {
+private fun TheoryPath(p: TheoryProgress, store: TheoryStore, onOpen: (String) -> Unit, onBack: (() -> Unit)?) {
     val next = p.next?.second
     var open by remember { mutableStateOf<String?>(null) }
     val rows = remember(open, next, p) {
@@ -245,7 +261,11 @@ private fun TheoryPath(p: TheoryProgress, store: TheoryStore, onOpen: (String) -
         if (at > 1) list.scrollToItem(at - 1)
     }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        item(key = "head") {
+        // In Learn's tab: the counts alone, the tab row above already says Theory.
+        if (onBack == null) item(key = "head") {
+            Text("${p.lessonsDone} of ${THEORY_LESSONS.size} lessons, ${p.unitsDone} of ${THEORY.size} units", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp))
+        } else item(key = "head") {
             Row(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 8.dp, end = 20.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
                 Column(Modifier.weight(1f).padding(start = 4.dp, top = 12.dp, bottom = 12.dp)) {
@@ -445,35 +465,3 @@ private fun UnitTrophy(unit: TheoryUnit, complete: Boolean) {
             color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
-
-// ---- The Learn tab's summary -------------------------------------------------------------------------------------
-
-/**
- * The academy in one row for the Learn tab: a ring of six segments (one per unit, filled when done), units done,
- * and the next lesson. Tapping it opens the academy.
- */
-@Composable
-fun TheoryCard(store: TheoryStore, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val v = store.version.intValue
-    val p = remember(v) { store.progress() }
-    val next = p.next
-    val c = MaterialTheme.colorScheme
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerHigh).clickable(onClick = onOpen)
-        .padding(horizontal = 16.dp, vertical = 12.dp).semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        val done = THEORY.map { p.unitDone(it) }
-        val accent = c.primary; val faint = c.outlineVariant
-        Canvas(Modifier.size(44.dp)) {
-            for (i in 0 until 6) drawArc(if (done[i]) accent else faint, i * 60f - 90f + 4f, 52f, false, Offset(4.dp.toPx(), 4.dp.toPx()),
-                Size(size.width - 8.dp.toPx(), size.height - 8.dp.toPx()), style = Stroke(6.dp.toPx(), cap = StrokeCap.Round))
-        }
-        Column(Modifier.weight(1f)) {
-            Text("Theory", style = MaterialTheme.typography.titleMedium)
-            Text(next?.let { "Next: ${it.second.title}" } ?: "Every lesson done. Watch any again.", style = MaterialTheme.typography.bodySmall,
-                color = c.onSurfaceVariant, maxLines = 1)
-            Text("${p.unitsDone} of ${THEORY.size} units", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant)
-        }
-        Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp))
-    }
-}
-

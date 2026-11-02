@@ -522,6 +522,16 @@ private fun TypedText(text: String, typed: State<Int>, style: TextStyle, color: 
 fun cheerTitle(seed: Int) = com.bigpapituna.sharpears.engine.CHEER_TITLES.let { it[Math.floorMod(seed, it.size)] }
 
 /**
+ * QA praise pass: a bar's title from the shuffle bag (every one of the six before any comes round again, kept across lessons and
+ * restarts), drawn the first time it is asked for after [key] changes (the round's review) and the same through recompositions.
+ */
+@Composable
+fun rememberCheerTitle(key: Any?): () -> String {
+    val t = androidx.compose.runtime.remember(key) { lazy { com.bigpapituna.sharpears.engine.praise.Praise.title() } }
+    return { t.value }
+}
+
+/**
  * A grown-up's calm finish (2.14): [line] is the one reward line ("A sticker for your trail.", "+40 XP, level 3 in 120."; null
  * for none), [items] the queue behind the "See rewards (3)" chip, [say] the pup's voice for the sheet's lines, and [onLeave]
  * runs when the finish goes away, seen or not (a level-up that was folded into the queue is consumed there, so no second

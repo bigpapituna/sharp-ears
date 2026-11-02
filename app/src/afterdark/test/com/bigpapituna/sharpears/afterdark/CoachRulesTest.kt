@@ -212,7 +212,7 @@ class CoachRulesTest {
     @Test fun neverOneOfTheLastFewWhileTheBankHasAnother() {
         val b = CoachBrain(7)
         val got = (0 until 40).map { b.pick(Moment.START, null, it * 1_000L, CheerFrequency.OFTEN, bank, "w")!!.id }
-        for (i in got.indices) for (j in maxOf(0, i - CoachBrain.RECENT) until i) assertNotEquals("$i and $j", got[i], got[j])
+        for (i in got.indices) for (j in maxOf(0, i - com.bigpapituna.sharpears.engine.praise.PraiseBags.carry(10)) until i) assertNotEquals("$i and $j", got[i], got[j])
         assertEquals("all ten heard", 10, got.toSet().size)
         // A bank of two plays its lines in turn.
         val f = CoachBrain(8)
@@ -290,7 +290,8 @@ class CoachRulesTest {
      */
     @Test fun theStarsLineWaitsOutLiamsNarrationAndPlaysAfterIt() {
         val host = File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachHost.kt").readText()
-        assertTrue("overlay = true, ExtraTurn(startAt = now(), waitMs = CoachSound.WAIT_MS, outlastsTheVoice = true)" in host)
+        assertTrue("ExtraTurn(startAt = now(), waitMs = CoachSound.waitMs(overlay = true, inTurn = false), outlastsTheVoice = true)" in host)
+        assertEquals(CoachSound.WAIT_MS, CoachSound.waitMs(overlay = true, inTurn = false))
         assertTrue("overlay = false, ExtraTurn(startAt = now() + afterMs, waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = false)" in host)
         assertTrue("if (!on() || busy || held) return" in host)                       // one line waits at a time
         val turn = com.bigpapituna.sharpears.engine.voice.ExtraTurn(0, CoachSound.WAIT_MS, outlastsTheVoice = true)
@@ -299,5 +300,79 @@ class CoachRulesTest {
         assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.GO, turn.next(t, voiceTalking = false, blocked = false))
         // The lesson page and the song recap hush it as they go.
         assertTrue("onDispose { com.bigpapituna.sharpears.extras.Extras.hush() }" in File("src/main/java/com/bigpapituna/sharpears/ui/RunRecap.kt").readText())
+    }
+
+    /**
+     * 2.18.3 (Roy: "some keys are not being played when it's asking me to play the keys"): a coach line in the middle of a try
+     * made the mic deaf for its whole length (3 to 6 s; on the emulator a mistake line plus the octave hint dropped 7 injected
+     * notes, a recovery line 3). Now no line starts while the mic listens through the phone's speaker: a bubble's line leaves
+     * the bubble to the pup, an overlay line asked in the middle of a run is dropped after a moment, one asked as a try ends
+     * (the mic stops within a frame or two) plays once the mic stops. Headphones or the mic off: as before.
+     */
+    @Test fun noCoachLineStartsWhileTheMicListensOnTheSpeaker() {
+        assertFalse(CoachSound.mayStart(micListening = true, headphones = false))
+        assertTrue(CoachSound.mayStart(micListening = true, headphones = true))
+        assertTrue(CoachSound.mayStart(micListening = false, headphones = false))
+        val wait = CoachSound.waitMs(overlay = true, inTurn = true)
+        assertEquals(CoachSound.SHOWN_WAIT_MS, wait)
+        val next = com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.values()
+        // The middle of a run: the mic keeps listening, the line never starts and is dropped once its short wait is spent.
+        val mid = com.bigpapituna.sharpears.engine.voice.ExtraTurn(0, wait, outlastsTheVoice = false)
+        var t = 0L
+        var got = next[0]
+        while (t <= 3_000) {
+            got = mid.next(t, voiceTalking = false, blocked = !CoachSound.mayStart(micListening = true, headphones = false))
+            assertNotEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.GO, got)
+            if (got == com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.DROP) break
+            t += 50
+        }
+        assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.DROP, got)
+        assertTrue(t <= wait + 50)
+        // The end of a try: asked while the mic still listens, it plays as soon as the mic has stopped.
+        val end = com.bigpapituna.sharpears.engine.voice.ExtraTurn(0, wait, outlastsTheVoice = false)
+        assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.WAIT, end.next(0, voiceTalking = false, blocked = !CoachSound.mayStart(true, false)))
+        assertEquals(com.bigpapituna.sharpears.engine.voice.ExtraTurn.Next.GO, end.next(100, voiceTalking = false, blocked = !CoachSound.mayStart(false, false)))
+        // The host asks the rule for a bubble's line, an overlay line and each turn.
+        val host = File("src/afterdark/java/com/bigpapituna/sharpears/afterdark/CoachHost.kt").readText()
+        assertTrue("if (afterMs == 0L && !mayStartNow()) { holdReaction(m, count); return null }" in host)
+        assertTrue("if (!mayStartNow()) return holdReaction(m, null)" in host)
+        assertTrue("playing != null || (!p.atPause && !mayStartNow())" in host)
+        assertTrue("CoachSound.mayStart(mic?.listening == true, Stage.headphones())" in host)
+    }
+
+    // 2.19.0: a reaction asked mid-try is held (not dropped) and said at the next pause, or in place of the step end's line.
+    @Test fun aReactionMidTryIsHeldForThePauseAndExpires() {
+        val hold = CoachHold<String>()
+        assertEquals(CoachHold.Next.NONE, hold.next(0, 0).first)
+        assertTrue(hold.offer("mistake", CoachHold.rank(Moment.MISTAKE), 1_000))
+        // The player keeps playing: no pause yet, the mic is never made deaf mid-run.
+        assertEquals(CoachHold.Next.WAIT, hold.next(1_800, lastKeyMs = 1_700).first)
+        assertEquals(CoachHold.Next.WAIT, hold.next(3_000, lastKeyMs = 2_900).first)
+        // A run line says less than the mistake: not held over it. A recovery says as much and is newer: it replaces it.
+        assertFalse(hold.offer("run", CoachHold.rank(Moment.RUN), 3_100))
+        assertTrue(hold.offer("recovery", CoachHold.rank(Moment.RECOVERY), 3_200))
+        assertEquals("recovery", hold.item)
+        // Quiet for 1.5 s after the last key: said now, once.
+        assertEquals(CoachHold.Next.WAIT, hold.next(4_300, lastKeyMs = 3_000).first)
+        assertEquals(CoachHold.Next.SPEAK to "recovery", hold.next(4_700, lastKeyMs = 3_000))
+        assertEquals(CoachHold.Next.NONE, hold.next(4_800, 3_000).first)
+        // Never a pause within 8 s: stale, dropped.
+        hold.offer("nudge", CoachHold.rank(Moment.NUDGE), 10_000)
+        var t = 10_000L
+        var got = CoachHold.Next.WAIT
+        while (got == CoachHold.Next.WAIT) { t += 100; got = hold.next(t, lastKeyMs = t - 50).first }
+        assertEquals(CoachHold.Next.STALE, got)
+        assertTrue(t - 10_000 in CoachHold.STALE_MS..CoachHold.STALE_MS + 100)
+        // A stale one never blocks a new one, even of a lower rank.
+        hold.offer("hard", CoachHold.rank(Moment.HARD), 20_000)
+        assertTrue(hold.offer("run", CoachHold.rank(Moment.RUN), 29_000))
+        // The step's end takes a fresh held reaction in place of its own line; a failed try's mistake takes one that says as much.
+        hold.offer("run10", CoachHold.rank(Moment.RUN), 30_000)
+        assertEquals("run10", hold.claim(CoachHold.rank(Moment.STEP_PASSED), 31_000))
+        assertNull(hold.claim(CoachHold.rank(Moment.STEP_PASSED), 31_000))
+        hold.offer("run10", CoachHold.rank(Moment.RUN), 32_000)
+        assertNull("a run says less than the failed try's mistake line", hold.claim(CoachHold.rank(Moment.MISTAKE), 32_500))
+        hold.offer("mistake", CoachHold.rank(Moment.MISTAKE), 40_000)
+        assertNull("stale by the step's end", hold.claim(CoachHold.rank(Moment.STEP_PASSED), 48_500))
     }
 }

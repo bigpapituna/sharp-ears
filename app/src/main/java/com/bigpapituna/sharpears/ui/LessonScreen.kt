@@ -170,7 +170,6 @@ fun LessonScreen(
     // The bar after a try (the pup's verdict and one button), and what the finish celebration counts.
     var bar by remember { mutableStateOf<Triple<Cheer, String, String?>?>(null) }
     var retries by remember { mutableIntStateOf(0) }
-    var cheers by remember { mutableIntStateOf(lesson.id.hashCode()) }
     val openedAt = remember { com.bigpapituna.sharpears.engine.ForegroundClock.app.nowMs() }   // on-screen time: never negative
     // XP: each step passed is reported here, the lesson itself by onDone (MainActivity); the celebration shows the sum.
     val progress = com.bigpapituna.sharpears.ui.profile.LocalProgress.current
@@ -267,8 +266,6 @@ fun LessonScreen(
     }
     val micAsk = rememberMicAsk(deps.mic, short = true) { granted -> answerInput(granted) }
 
-    // 2.16: the build's extra greets a grown-up's first playing step of this visit (extras/Extras.kt, Moment.START).
-    var greeted by remember(lesson.id) { mutableStateOf(false) }
     // 2.17 (audit M3): in a profile's first lesson the extra's lines wait until a step is passed (the first note heard first).
     val firstLesson = remember(lesson.id) { !anyKid && com.bigpapituna.sharpears.engine.COURSE.flatMap { it.lessons }.none { deps.prefs.lessonPlayed(it.id) } }
     var passedSteps by remember(lesson.id) { mutableIntStateOf(0) }
@@ -283,9 +280,9 @@ fun LessonScreen(
         onStep(index)
         val interrupt = !advancedByItself
         val instruction = { voice.speak(step.text.replace("\n\n", " "), interrupt = interrupt) }
-        // 2.16: the extra's greeting first, then the step's own words (Extras.afterLine: at once when it took none).
-        if (step.exercise != null && !anyKid && !greeted) { greeted = true; com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.START); if (step.scenes.isEmpty()) com.bigpapituna.sharpears.extras.Extras.afterLine(instruction) }
-        else if (step.scenes.isEmpty()) instruction()
+        // 2.19.0 (pacing): the extra's greeting (Moment.START, 2.9 to 5.4 s) no longer plays in front of the first playing
+        // step's words; with the coach on, the coach narrates those words anyway. The step's own words go at once.
+        if (step.scenes.isEmpty()) instruction()
         advancedByItself = false
     }
 
@@ -337,7 +334,12 @@ fun LessonScreen(
         // 2.13: the try is over, so a cheer pop on screen goes; a step passed gives its line to the step pop's bubble.
         cheerPops.clear()
         // One of four pictures, rolled per lesson step (never the last one again); the pup's beat goes with it.
-        val pop = if (outcome == StepOutcome.POP) pops.fire(streak, StepPopRules.seedOf(lesson.id, index), line = cheerPops.stepPassed()) else null
+        // 2.19.0 (pacing): a clean pass gives the moment to the extra's line (the pup's "Clean." stays on the bar, unsaid); a pass
+        // with something to say (a note missed, the timing) keeps the pup's words and says them right after the chime.
+        val cleanPass = passed && report.clean && !letGo && (s.kind == StepKind.PLAY || s.kind == StepKind.FROM_MEMORY ||
+            s.kind == StepKind.PERFORM || s.kind == StepKind.RAMP)
+        val pop = if (outcome == StepOutcome.POP) pops.fire(streak, StepPopRules.seedOf(lesson.id, index), line = cheerPops.stepPassed(extra = cleanPass)) else null
+        val extraTookIt = cleanPass && deps.voice.extraTalking.value
         passBeat = if (pop == null) PupMood.HAPPY else if (still) PupMood.IDLE else StepPopRules.pupBeat(pop.variant)
         // A Listen step has nothing to judge; Play and Perform steps get one line naming the main mistake (a kid: the pup's
         // words with their name, no numbers).
@@ -356,7 +358,8 @@ fun LessonScreen(
         feedback = line?.text
         // The pup's line waits for the chime when one plays (it never talks over it).
         // 2.16: and after a line of the extra's (the step passed one follows the chime), so they never talk over each other.
-        line?.let { l -> pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(l.spoken) } } }
+        if (extraTookIt) Log.d(TAG, "lesson ${lesson.id} step ${index + 1}: the coach's line says it, \"${line?.text}\" shown only")
+        else line?.let { l -> pops.afterChime { com.bigpapituna.sharpears.extras.Extras.afterLine { voice.speak(l.spoken) } } }
         if (s.kind != StepKind.LISTEN) reaction = if (judged) Pose.GREAT_JOB else if (kid || letGo) Pose.GET_READY else Pose.MISTAKE
         if (s.kind == StepKind.LISTEN) { if (passed) complete(); return }
         if (!passed) {
@@ -373,7 +376,9 @@ fun LessonScreen(
         fails = 0
         // The last step goes straight to the celebration; any other waits on Continue.
         if (last) complete() else bar = Triple(Cheer.GOOD, if (letGo) "Good try!" else if (highFive) "High five!"
-            else if (index == firstNoteStep) FirstRun.FIRST_NOTE_TITLE else cheerTitle(cheers++),
+            else if (index == firstNoteStep) FirstRun.FIRST_NOTE_TITLE
+            // 2.19.0 (QA B-09): a pass with notes missed is "Passed", not "You got it!" over "You missed C4 twice."
+            else if (!kid && !report.clean) "Passed" else com.bigpapituna.sharpears.engine.praise.Praise.title(),
             if (highFive) "You stuck with it. " + (line?.text ?: "") else line?.text)
     }
 

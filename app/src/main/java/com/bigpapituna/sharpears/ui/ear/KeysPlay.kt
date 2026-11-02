@@ -57,7 +57,6 @@ import com.bigpapituna.sharpears.ui.Good
 import com.bigpapituna.sharpears.ui.Keyboard
 import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.RightHandColor
-import com.bigpapituna.sharpears.ui.cheerTitle
 import com.bigpapituna.sharpears.ui.onScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -296,9 +295,10 @@ internal fun KeysPlay(trainer: EarTrainer, env: EarEnv, label: String?, onExit: 
             )
             Spacer(Modifier.height(if (rev != null) 240.dp else 12.dp))
         }
+        val goodTitle = com.bigpapituna.sharpears.ui.rememberCheerTitle(rev)
         if (rev != null) CheerBar(
             if (rev.clean) Cheer.GOOD else Cheer.MISS,
-            if (rev.clean) cheerTitle(round + trainer.score) else missTitle(round + trainer.score),
+            if (rev.clean) goodTitle() else missTitle(round + trainer.score),
             rev.line.text,
             if (round + 1 >= trainer.rounds) "See results" else "Continue",
             modifier = Modifier.align(Alignment.BottomCenter),

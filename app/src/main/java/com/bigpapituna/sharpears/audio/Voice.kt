@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import com.bigpapituna.sharpears.TAG
 import com.bigpapituna.sharpears.data.Prefs
+import com.bigpapituna.sharpears.engine.voice.AssetIndex
 import com.bigpapituna.sharpears.engine.voice.Source
 import com.bigpapituna.sharpears.engine.voice.Speaker
 import com.bigpapituna.sharpears.engine.voice.SpeakingPolicy
@@ -51,8 +52,12 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private val system = SystemSpeaker(context, prefs)
     private val model = KokoroSpeaker(context)
     private val clips = ClipPlayer(context, report = "natural_voice")
-    /** The recorded lines' file names: listing 3000 assets took about 100 ms of the first frame, so a thread reads it first. */
-    private val recorded: Set<String> by lazy { runCatching { context.assets.list("voice").orEmpty().toSet() }.getOrDefault(emptySet()) }
+    /**
+     * The recorded lines' file names: listing 3000 assets took about 100 ms of the first frame, so a thread reads it first.
+     * 2.19.0 (B-02): a name the listing lacks is checked on disk before the line goes to the phone's voice (a short listing).
+     */
+    private val recorded = AssetIndex({ context.assets.list("voice").orEmpty().toList() },
+        { n -> context.assets.open("voice/$n").close(); true }, { Log.w(TAG, "voice: the listing missed $it; found on disk") })
 
     /** The recorded clip speaker: the line's recording or the coach's narration of it. */
     private val clipSpeaker = object : Speaker {
@@ -86,14 +91,24 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     private val policy = SpeakingPolicy(world, { s -> when (s) { Source.SYSTEM -> system; Source.MODEL -> model; else -> clipSpeaker } },
         { System.currentTimeMillis() }, { Log.d(TAG, it) })
 
+    private val warm = Runnable { system.warmUp() }
+
     /** The Kokoro model is on the phone (else only the recorded lines use the natural voice). */
     val naturalModelInstalled get() = model.installed
 
     init {
         mic.onStopped = { onMain { policy.micStopped() } }
         // The recorded list and the coach's course list load in the background while the first screen opens.
-        Thread({ recorded.size; com.bigpapituna.sharpears.extras.Extras.narration("") }, "voice-lists").start()
+        Thread({
+            recorded.prime()
+            // 2.19.0 (QA B-07): one silent prepare warms the clip decoder before the first line.
+            recorded.firstOrNull()?.let { name -> main.post { clips.warmUp("voice/$name") } }
+            com.bigpapituna.sharpears.extras.Extras.narration("")
+        }, "voice-lists").start()
         if (enabled && prefs.naturalVoice) model.warmUp()
+        // 2.19.0 (QA B-03): the phone's engine started on the first line made at run time ("You missed C4 twice."), which then
+        // waited 1.1 to 2.4 s. Started a moment after launch instead (off the first frame) when it may be needed: no model.
+        if (enabled && !(prefs.naturalVoice && model.installed)) main.postDelayed(warm, WARM_DELAY_MS)
     }
 
     /** The voice is talking through the speaker: the mic should not start yet. Lines said over the mic do not hold it. */
@@ -125,6 +140,7 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
     fun stop() = onMain { policy.stop() }
 
     fun release() {
+        main.removeCallbacks(warm)
         policy.stop()                                    // 2.18: a profile closed mid-line never leaves the mic deaf
         model.release()
         system.release()
@@ -150,4 +166,9 @@ class Voice(private val context: Context, private val prefs: Prefs, private val 
 
     /** The policy is the main thread's: a call from elsewhere goes there. */
     private fun onMain(block: () -> Unit) { if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post(block) }
+
+    private companion object {
+        /** How long after the app opens the phone's engine starts (QA B-03): after the first screen has drawn. */
+        const val WARM_DELAY_MS = 1_500L
+    }
 }

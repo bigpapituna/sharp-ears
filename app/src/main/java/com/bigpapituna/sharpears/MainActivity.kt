@@ -225,7 +225,8 @@ private sealed interface Screen {
     data object FirstKid : Screen
     /** "Let's hear you play" (2.6): the short listen after the piano level was said ([said]); [startTask] and [inject] are debug. */
     data class Placement(val said: com.bigpapituna.sharpears.engine.family.Level, val startTask: Int = 0, val inject: String? = null) : Screen
-    data class Theory(val back: Screen) : Screen
+    /** The Theory Academy; [lesson] (2.18.3, from Learn's Theory tab) opens straight into that lesson, and leaving it goes [back]. */
+    data class Theory(val back: Screen, val lesson: String? = null) : Screen
     /** The pup's world (2.1): the places, the jar and egg, the album, dress-up and the records, from the You tab's card. */
     data class World(val back: Screen, val tab: WorldTab = WorldTab.WORLD) : Screen
     /** The play corner (2.1): the Jam, Pup says or Clap along. [hint] is the quest's line for the Jam ("find all the Cs"). */
@@ -388,6 +389,9 @@ class MainActivity : ComponentActivity() {
 
     /** 2.16.1: the Settings tab a debug route asked for (`--es screen settings --es tab sound`), else null (the first tab). */
     private var settingsTabStart: com.bigpapituna.sharpears.engine.nav.SettingsTabs.Tab? = null
+
+    /** 2.18.3: the Learn tab a debug route asked for (`--es screen learn --es tab ear`), saved as the profile's tab on the way in. */
+    private var learnTabStart: com.bigpapituna.sharpears.engine.nav.LearnTabs.Tab? = null
 
     /**
      * The parent brief's doors into the app (ui/brief/AppEffects.kt, step 3 of the brief): Replay, Practise together and the
@@ -640,6 +644,7 @@ class MainActivity : ComponentActivity() {
         com.bigpapituna.sharpears.analytics.Tester.profile(profile.isKid, profile.id)     // "kid" or "adult" only, never the name
         val intent = if (fromLaunch) intent else android.content.Intent()      // a switch carries no debug extras
         val prefs = Prefs(this, profile.id).also { it.logRestored() }
+        com.bigpapituna.sharpears.engine.praise.Praise.bags.bind(prefs.praiseStore)   // the praise bags remember this profile's lines
         // 2.17 (audit M5): when this profile first opened, for first_note's seconds; and how it plays now (input_mode).
         val firstOpen = prefs.firstOpenAt == 0L
         if (firstOpen) prefs.firstOpenAt = System.currentTimeMillis()
@@ -807,6 +812,8 @@ class MainActivity : ComponentActivity() {
         val dump = routes && intent.getBooleanExtra("dump", false)
         val route = intent.getStringExtra("screen")?.takeIf { routes }
         settingsTabStart = if (route == "settings") com.bigpapituna.sharpears.engine.nav.SettingsTabs.parse(intent.getStringExtra("tab")) else null
+        // 2.18.3: --es screen learn [--es tab road|theory|ear|sight]
+        learnTabStart = if (route == "learn") com.bigpapituna.sharpears.engine.nav.LearnTabs.parse(intent.getStringExtra("tab")) else null
         // A debug route with a bad value (an unknown lesson or song, "prog:x") opens home instead of crashing the launch.
         val first: Screen = runCatching { when {
             // 2.7: the Chords tab's places now sit at the top of Learn; the old tab names still open them.
@@ -1639,7 +1646,7 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.Theory -> Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                             com.bigpapituna.sharpears.ui.theory.TheoryScreen(sampler, voice, onBack = { voice.stop(); screen = s.back },
-                                store = theory, soundOn = prefs.sound,
+                                store = theory, soundOn = prefs.sound, startLesson = s.lesson,
                                 // Time in a lesson is practice; recorded first, so the lesson's XP lands after the minutes.
                                 onPractice = { secs ->
                                     prefs.addPractice(com.bigpapituna.sharpears.data.AppClock.today(), secs)
@@ -2107,15 +2114,22 @@ class MainActivity : ComponentActivity() {
                                     HomeTab.LEARN -> {
                                         val pv = prefs.version.intValue
                                         val kv = kidStore.version.intValue
+                                        // 2.18.3: a debug route's tab (--es tab) becomes this profile's tab once.
+                                        learnTabStart?.let { prefs.learnTab = it; learnTabStart = null }
                                         LearnScreen(done = { pv >= 0 && prefs.lessonDone(it) }, skipped = { pv >= 0 && prefs.lessonSkipped(it) },
                                             onOpen = { screen = Screen.Lesson(it, s) },
                                             pinned = remember(pv, kv) { kidStore.pace().pin?.let(path::lesson) },
-                                            onSightRead = { screen = Screen.SightRead(s) },
-                                            sightBest = remember(pv) { (prefs.sightBest(1) ?: prefs.sightBest(2))?.label },
-                                            sightStaff = com.bigpapituna.sharpears.engine.SightLevels.staffOpen(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid),
-                                            onEar = { screen = Screen.EarTraining(s) },
-                                            theory = { m -> com.bigpapituna.sharpears.ui.theory.TheoryCard(theory, onOpen = { screen = Screen.Theory(s) }, modifier = m) },
-                                            earStreak = remember { earStore.workoutStreak() },
+                                            // 2.18.3: Learn's tabs (engine/nav/LearnTabs.kt), the last one kept per profile; each tab's lesson,
+                                            // game or level opens as its own screen with Back to this tab.
+                                            startTab = remember(current.id) { prefs.learnTab }, onTab = { prefs.learnTab = it },
+                                            theory = { com.bigpapituna.sharpears.ui.theory.TheoryHome(theory, onOpen = { id -> screen = Screen.Theory(s, id) }) },
+                                            ear = { com.bigpapituna.sharpears.ui.ear.EarHub(earStore, onGame = { k, l -> screen = Screen.EarTraining(s, EarStart(k, l)) },
+                                                onWorkout = { screen = Screen.EarTraining(s, EarStart(workout = true)) }) },
+                                            sight = {
+                                                val open = com.bigpapituna.sharpears.engine.SightLevels.open(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid)
+                                                com.bigpapituna.sharpears.ui.SightHome(open, best = { lv -> if (pv < 0) null else if (lv.staff) prefs.sightDrillBest(lv.n)?.label else prefs.sightBest(lv.n)?.label },
+                                                    onOpen = { n -> screen = Screen.SightRead(s, n) })
+                                            },
                                             path = path,
                                             // 2.7: the Chords tab's places, at the top of Learn (a kid's chords are on their own Songs).
                                             chords = if (current.mapHome) null else ({

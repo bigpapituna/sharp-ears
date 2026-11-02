@@ -339,10 +339,11 @@ private fun GameScreen(
             )
             Spacer(Modifier.height(if (rev != null) 240.dp else 12.dp))
         }
+        val goodTitle = rememberCheerTitle(rev)
         if (rev != null) CheerBar(
             if (rev.clean) Cheer.GOOD else Cheer.MISS,
             when {
-                rev.clean -> cheerTitle(round + game.score)
+                rev.clean -> goodTitle()
                 kind == GameKind.BUILD -> "You built it"
                 else -> missTitle(round + game.score)
             },

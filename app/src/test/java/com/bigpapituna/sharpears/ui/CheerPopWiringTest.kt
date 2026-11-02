@@ -26,7 +26,7 @@ class CheerPopWiringTest {
         // A try that ends takes the pop away; a step passed hands its line to the step pop.
         val ended = lesson.substringAfter("fun exerciseEnded(").substringBefore("\n    }\n")
         assertTrue(ended.indexOf("cheerPops.clear()") in 0 until ended.indexOf("pops.fire("))
-        assertTrue("line = cheerPops.stepPassed()" in ended)
+        assertTrue("line = cheerPops.stepPassed(extra = cleanPass)" in ended)
         assertTrue("fun go(to: Int) { pops.flush(); cheerPops.clear();" in lesson && "fun complete() {\n        pops.flush()\n        cheerPops.clear()" in lesson)
         // Drawn over the header (the title and the dots), measured, never over the instruction; under the cheer bar.
         assertTrue("Column(Modifier.fillMaxWidth().onGloballyPositioned { headerBox.value = it.boundsInRoot() })" in lesson)

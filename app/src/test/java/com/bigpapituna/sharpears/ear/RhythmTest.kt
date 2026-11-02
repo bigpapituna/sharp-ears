@@ -154,6 +154,17 @@ class RhythmTest {
         assertTrue(a.line!!.text, a.line!!.text.contains("tapped on a rest"))
     }
 
+    // 2.19.0, QA B-08: six taps all 120 ms late fail the round; the headline no longer says "6 of 6 notes on the beat".
+    @Test fun aFailedRoundNeverCountsEveryNoteAsOnTheBeat() {
+        val g = RhythmTapGame(0, seed = 3)
+        val n = g.pattern.noteTimesMs.size
+        val a = g.grade(g.pattern.noteTimesMs.map { it + 120 })
+        assertFalse(a.clean)
+        val text = a.line!!.text
+        assertTrue(text, text.startsWith("Not quite: 0 of $n notes right on the beat, $n close."))
+        assertFalse(text, text.contains("$n of $n"))
+    }
+
     @Test fun outputLatencyIsSubtractedBeforeGrading() {
         val g = RhythmTapGame(0, seed = 4)
         val a = g.grade(g.pattern.noteTimesMs.map { it + 120 }, offsetMs = 120)

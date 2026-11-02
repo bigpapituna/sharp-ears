@@ -89,6 +89,15 @@ class Prefs(context: Context, val profileId: String) {
     fun setExtraString(key: String, v: String?) = edit { if (v == null) remove(key) else putString(key, v) }
 
     /**
+     * QA praise pass: where the praise shuffle bags keep their history (engine/praise/PraiseBags), in this profile's own file so
+     * backup and deleting the profile carry it. Written without bumping [version]: a bag is drawn from while a screen composes.
+     */
+    val praiseStore = object : com.bigpapituna.sharpears.engine.praise.PraiseStore {
+        override fun read(key: String): String? = p.getString("praise.$key", null)
+        override fun write(key: String, value: String) { p.edit().putString("praise.$key", value).apply() }
+    }
+
+    /**
      * 2.15, Settings > Playing > Plain look (engine/family/PlainLook.kt): the switch as saved. Off by default; a little kid's
      * profile ignores it (PlainLook.on asks the audience), and nothing else stored changes when it flips.
      */
@@ -241,6 +250,11 @@ class Prefs(context: Context, val profileId: String) {
         get() = com.bigpapituna.sharpears.engine.nav.Layout.parse(p.getString("layout", null))
             ?: if (p.contains("simpleMode")) com.bigpapituna.sharpears.engine.nav.Layout.fromSimpleMode(p.getBoolean("simpleMode", false)) else null
         set(v) = edit { remove("simpleMode"); if (v == null) remove("layout") else putString("layout", v.wire) }
+
+    /** 2.18.3: the Learn tab this person had open last (engine/nav/LearnTabs.kt, its wire name); null opens the road. */
+    var learnTab: com.bigpapituna.sharpears.engine.nav.LearnTabs.Tab?
+        get() = com.bigpapituna.sharpears.engine.nav.LearnTabs.parse(p.getString("learnTab", null))
+        set(v) = edit { if (v == null) remove("learnTab") else putString("learnTab", v.wire) }
 
     /** The 2.7 tour (engine/nav/Welcome.kt) was walked or skipped by this profile: it never shows again. */
     var tourDone: Boolean

@@ -33,6 +33,7 @@ class ClipPlayer(context: Context, private val report: String? = null) {
         val m = MediaPlayer()
         mp = m
         this.ended = ended
+        val asked = android.os.SystemClock.uptimeMillis()
         try {
             app.assets.openFd(asset).use { m.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
             m.setAudioAttributes(attrs)
@@ -41,10 +42,12 @@ class ClipPlayer(context: Context, private val report: String? = null) {
                 m.start()
                 val length = m.duration.toLong().takeIf { it > 0 }
                 started(length)
+                // 2.19.0: the prepare time (QA B-07) and the end below, for the QA harness and the timing logs.
+                Log.d(TAG, "clip: $asset started, prepared in ${android.os.SystemClock.uptimeMillis() - asked} ms, $length ms long")
                 // Should its end never be reported, the clip still ends.
                 main.postDelayed({ if (mp === m) finish(m, true) }, (length ?: LOST_MS) + 2_000)
             }
-            m.setOnCompletionListener { finish(m, true) }
+            m.setOnCompletionListener { Log.d(TAG, "clip: $asset end"); finish(m, true) }
             m.setOnErrorListener { _, what, extra -> Log.d(TAG, "clip: $asset failed ($what, $extra)"); finish(m, false); true }
             m.prepareAsync()
         } catch (e: Exception) {
@@ -52,6 +55,21 @@ class ClipPlayer(context: Context, private val report: String? = null) {
             report?.let { com.bigpapituna.sharpears.analytics.Errors.report(it, e) }
             finish(m, false)
         }
+    }
+
+    /**
+     * 2.19.0 (QA B-07): the first clip of a process took up to 1 s to prepare (the decoder and the media server's first track),
+     * so the app's first line started late. This prepares [asset] once, silently, and lets it go: the next real clip is warm.
+     */
+    fun warmUp(asset: String) {
+        val m = MediaPlayer()
+        runCatching {
+            app.assets.openFd(asset).use { m.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            m.setAudioAttributes(attrs)
+            m.setOnPreparedListener { it.release() }
+            m.setOnErrorListener { p, _, _ -> p.release(); true }
+            m.prepareAsync()
+        }.onFailure { m.release() }
     }
 
     /** Cuts off the clip playing (its ended comes now, false). */

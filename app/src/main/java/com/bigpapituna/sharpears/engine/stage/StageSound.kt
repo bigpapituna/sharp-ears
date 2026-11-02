@@ -146,8 +146,10 @@ class StageSound(
         if (piano.isEmpty()) return
         val (sample, rate) = sampleFor(midi, piano.keys)
         val volume = 0.3f + 0.7f * velocity / 127f
-        streams.remove(midi)?.let(bank::stop)
-        streams[midi] = bank.play(piano.getValue(sample), Ducking.volume(volume, ducked), rate, 1)
+        streams.remove(midi)?.let { release(it, Ducking.volume(struck[midi] ?: 1f, ducked)) }
+        val stream = bank.play(piano.getValue(sample), Ducking.volume(volume, ducked), rate, 1)
+        if (stream == 0) { log("piano: $midi did not sound (no stream)"); return }
+        streams[midi] = stream
         struck[midi] = volume
     }
 
@@ -157,14 +159,32 @@ class StageSound(
         bank.volume(id, Ducking.volume((struck[midi] ?: 1f) * share.coerceIn(0f, 1f), ducked))
     }
 
-    // ponytail: hard stop on release (no damper fade); add a short volume ramp if the cut-off clicks
-    @Synchronized fun noteOff(midi: Int) { streams.remove(midi)?.let(bank::stop) }
+    /**
+     * A key let go: the damper. 2.19.0: the samples now hold 8 s (scripts/extend_samples.py), so a long note is cut while it
+     * still sounds; it fades over [RELEASE_MS] in [RELEASE_STEPS] volume steps, then stops (a hard stop clicked). A key
+     * struck again meanwhile is a new stream, so the fade never touches it.
+     */
+    @Synchronized fun noteOff(midi: Int) {
+        val stream = streams.remove(midi) ?: return
+        release(stream, Ducking.volume(struck[midi] ?: 1f, ducked))
+    }
 
-    /** Every sounding note stops. */
-    @Synchronized fun allNotesOff() { streams.values.forEach(bank::stop); streams.clear() }
+    private fun release(stream: Int, from: Float) {
+        for (i in 1 until RELEASE_STEPS) later(RELEASE_MS * i / RELEASE_STEPS) { bank.volume(stream, from * (1f - i.toFloat() / RELEASE_STEPS)) }
+        later(RELEASE_MS) { bank.stop(stream) }
+    }
+
+    /** Every sounding note stops (released). */
+    @Synchronized fun allNotesOff() { for ((midi, id) in streams) release(id, Ducking.volume(struck[midi] ?: 1f, ducked)); streams.clear() }
 
     // ---- the other sounds ----------------------------------------------------------------------------------------------
 
     /** One of the bank's other sounds (a click, the drum, a band kit, a world jingle). */
     fun effect(sound: Int, volume: Float, rate: Float = 1f, priority: Int = 1): Int = bank.play(sound, volume.coerceIn(0f, 1f), rate, priority)
+
+    companion object {
+        /** The damper's fade after a key is let go (2.19.0). */
+        const val RELEASE_MS = 90L
+        const val RELEASE_STEPS = 4
+    }
 }

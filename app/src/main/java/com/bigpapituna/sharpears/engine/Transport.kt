@@ -4,8 +4,14 @@ enum class Mode { LISTEN, WAIT, PERFORM }
 enum class Practice { BOTH, LEFT, RIGHT }
 enum class InputResult { CORRECT, GROUP_DONE, WRONG, IGNORED }
 
-/** A correct note this far (song ms) before its group still counts, so playing at tempo does not stutter. */
+/** A note this far (song ms) before its group is graded, so playing at tempo does not stutter. */
 const val EARLY_HIT_MS = 200.0
+
+/**
+ * A right key this far ahead still counts: players run ahead of the cursor, and a dropped key left the lesson waiting
+ * for a note already played (QA 2026-11-02, t2-touch step 3). ponytail: a fixed window; scale by tempo if slow songs miss.
+ */
+const val EARLY_RIGHT_MS = 600.0
 
 /**
  * The most keys of one any-of group the microphone is asked to listen for. The matcher's work grows with every key it
@@ -261,14 +267,16 @@ class Transport(val song: Song, val playable: IntRange = 0..127) {
             if (at < anchorMs - OK_MS) return InputResult.IGNORED      // the count-in: hands finding their place
             val open = score?.listening(at).orEmpty()
             if (score?.input(midi, at) != null) return InputResult.CORRECT
+            if (score?.covers(midi, at) == true) return InputResult.CORRECT   // a chord's other keys (B-01)
             log.wrong(midi, open)
             troubles.wrongAt += at
             return InputResult.WRONG
         }
         if (mode != Mode.WAIT) return InputResult.IGNORED
         val g = song.groups.getOrNull(groupIndex) ?: return InputResult.IGNORED
-        if (!waiting && g.startMs - positionMs > EARLY_HIT_MS) return InputResult.IGNORED
         val need = g.notes.filter(::required).map { it.midi }.toSet()
+        val ahead = if (waiting) 0.0 else g.startMs - positionMs
+        if (ahead > (if (midi in need) EARLY_RIGHT_MS else EARLY_HIT_MS)) return InputResult.IGNORED
         if (midi !in need) {
             // A slip is charged to the nearest note it was reaching for; no single key of an any-of group was the one.
             log.wrong(midi, if (g.anyOf) emptyList() else need - satisfied)

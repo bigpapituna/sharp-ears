@@ -54,7 +54,8 @@ class DepthWiringTest {
         val main = src("MainActivity.kt")
         // 2.14 merge: a big kid opens the staff levels on the grown-ups' rule (SightLevels bigKid).
         assertTrue("open = com.bigpapituna.sharpears.engine.SightLevels.open(current.isKid, current.reader, current.level, layout, bigKid = current.bigKid)" in main)
-        assertTrue("sightStaff = com.bigpapituna.sharpears.engine.SightLevels.staffOpen(" in main)
+        // 2.18.3: Learn's Sight reading tab lists the same levels (it was the row's "eight levels" line, SightLevels.staffOpen).
+        assertTrue("com.bigpapituna.sharpears.ui.SightHome(open," in main)
         assertTrue("is SessionPart.Challenge -> when (val c = part.item)" in main)
         assertTrue("val challenge = if (profile.isKid) null else nextChallenge(next)" in main)
         assertTrue("no easy song beside a challenge", "null -> if (plan.parts.any { it is SessionPart.Challenge }) null" in main)

@@ -43,14 +43,14 @@ class FeedbackTest {
         val r = Report(listOf(48 to 5, 60 to 1), retries = 5, wrongKeys = 6, recap = null)
         val f = feedbackLine(r, perform = false)
         assertEquals("You missed C3 five times. Try that bar slowly.", f.text)
-        assertEquals("You missed C three five times. Try that bar slowly.", f.spoken)
+        assertEquals("You missed the C below middle C five times. Try that bar slowly.", f.spoken)
         assertEquals("C3", writtenNote(48)); assertEquals("C4", writtenNote(60)); assertEquals("D", writtenNote(62))
         assertEquals("F sharp", writtenNote(66)); assertEquals("B flat", writtenNote(70, flats = true))
         // Nothing but a note's name differs between the two forms, and no line shows "three five".
         assertFalse(f.text.contains("three five"))
         val slip = feedbackLine(Report(listOf(48 to 1), 1, 1, null), perform = false)
         assertEquals("Nearly clean: one slip, on C3. On to the next step.", slip.text)
-        assertEquals("Nearly clean: one slip, on C three. On to the next step.", slip.spoken)
+        assertEquals("Nearly clean: one slip, on the C below middle C. On to the next step.", slip.spoken)
     }
 
     @Test fun oneOffSlips() {
@@ -72,7 +72,7 @@ class FeedbackTest {
         val f = feedbackLine(Report(listOf(60 to 2), 2, 2, recap(7, miss = 3)), perform = true, pass = 80)
         // 2.14 (Dana: "You missed C three five times" read like a typo): the screen writes the C with its octave, the voice says it.
         assertEquals("70 percent, and you need 80. You missed C4 twice. Play it again.", f.text)
-        assertEquals("70 percent, and you need 80. You missed C four twice. Play it again.", f.spoken)
+        assertEquals("70 percent, and you need 80. You missed middle C twice. Play it again.", f.spoken)
         assertEquals("0 percent, and you need 80. No notes were heard in time. Play it again.",
             feedbackLine(Report(emptyList(), 0, 0, recap(0, miss = 9)), perform = true).text)
     }
@@ -96,5 +96,19 @@ class FeedbackTest {
         assertEquals(listOf(66 to 2), r.missed)
         assertEquals(1, r.retries)
         assertEquals(2, r.wrongKeys)
+    }
+
+    // 2.19.0, QA B-04: "You missed C three three times": no octave number next to a count in the spoken line.
+    @Test fun theSpokenLineNeverRunsAnOctaveIntoACount() {
+        for (midi in 36..84) for (n in 2..6) {
+            val r = Report(listOf(midi to n), retries = n, wrongKeys = n, recap = null)
+            val spoken = feedbackLine(r, perform = false).spoken
+            assertFalse(spoken, Regex("(one|two|three|four|five|six|seven) (twice|once|three|four|five|six) ?times?").containsMatchIn(spoken))
+            assertFalse(spoken, Regex("\b(one|two|three|four|five|six|seven) twice").containsMatchIn(spoken))
+        }
+        assertEquals("You missed the C below middle C three times. Try that bar slowly.",
+            feedbackLine(Report(listOf(48 to 3), 3, 3, null), perform = false).spoken)
+        assertEquals("You missed C3 three times. Try that bar slowly.", feedbackLine(Report(listOf(48 to 3), 3, 3, null), perform = false).text)
+        assertEquals("You missed C twice. Try that bar slowly.", feedbackLine(Report(listOf(36 to 2), 2, 2, null), perform = false).spoken)
     }
 }

@@ -23,7 +23,9 @@ class LayoutWiringTest {
             "ui/chords/PopSongPage.kt" to listOf("Simple.patterns("),
             "ui/practice/PracticeScreen.kt" to listOf("Simple.practiceShows(", "Simple.SCALE_ROOTS", "LayoutMore(", "Place.PRACTICE"),
             "ui/practice/WarmupsScreen.kt" to listOf("Simple.warmups("),
-            "ui/LearnScreen.kt" to listOf("Simple.learnSideRows(", "LayoutMore(", "Place.LEARN"),
+            // 2.18.3: Learn's side rows are its tabs; LearnTabs.tabs asks the rule.
+            "ui/LearnScreen.kt" to listOf("LearnTabs.tabs(", "LayoutMore(", "Place.LEARN"),
+            "engine/nav/LearnTabs.kt" to listOf("Simple.learnSideRows("),
             "engine/nav/SettingsTabs.kt" to listOf("Simple.settingsShows("),
             "ui/TransportBar.kt" to listOf("Simple.inBar(", "MoreSheetButton(", "Place.PLAYER"),
             "ui/SettingsScreen.kt" to listOf("Simple.shown(layout.layout, showAll)", "SettingsTabs.shows(", "Simple.SHOW_ALL_SETTINGS", "Simple.SETTING_TITLE", "LayoutPicker(", "Place.SETTINGS"),

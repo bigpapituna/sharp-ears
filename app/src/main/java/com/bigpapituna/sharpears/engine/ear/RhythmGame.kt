@@ -243,7 +243,9 @@ class RhythmTapGame(level: Int, seed: Long = System.nanoTime(), rounds: Int = 10
         val head = when {
             r.good == n && r.extraTaps.isEmpty() -> "Spot on: all $n notes within 80 milliseconds."
             r.passed -> "Good: $hits of $n notes on the beat."
-            else -> "Not quite: $hits of $n notes on the beat."
+            // 2.19.0 (QA B-08): a failed round counts only the notes right on the beat ("Not quite: 6 of 6" read as a pass).
+            r.ok > 0 -> "Not quite: ${r.good} of $n notes right on the beat, ${r.ok} close."
+            else -> "Not quite: ${r.good} of $n notes on the beat."
         }
         val issue = issue(r)
         val spokenIssue = issue?.replace(" ms ", " milliseconds ")

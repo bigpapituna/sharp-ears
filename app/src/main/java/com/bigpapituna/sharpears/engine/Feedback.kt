@@ -56,6 +56,18 @@ private val WORDS = listOf("zero", "one", "two", "three", "four", "five", "six",
 fun spokenNote(midi: Int, flats: Boolean = false): String =
     (if (flats) SPOKEN_FLATS else SPOKEN_PC)[midi % 12] + if (midi % 12 == 0) " " + WORDS[(midi / 12 - 1).coerceIn(0, 10)] else ""
 
+/**
+ * A note as the feedback line says it (2.19.0, QA B-04: "You missed C three three times" ran the octave into the count): a
+ * black or white key by its name alone ("F sharp"), and a C by where it sits: "middle C", "the C below middle C", "the C
+ * above middle C", else plain "C". The screen keeps [writtenNote] ("C3").
+ */
+fun spokenFeedbackNote(midi: Int, flats: Boolean = false): String = when (midi) {
+    60 -> "middle C"
+    48 -> "the C below middle C"
+    72 -> "the C above middle C"
+    else -> (if (flats) SPOKEN_FLATS else SPOKEN_PC)[midi % 12]
+}
+
 /** A key's name for TalkBack, as the keys and notes write it with the sharp as a word: "D sharp 4", "C4" ("D#4" was read "D number 4"). */
 fun spokenKey(midi: Int): String = noteName(midi).replace("#", " sharp ")
 
@@ -83,7 +95,7 @@ fun writtenNote(midi: Int, flats: Boolean = false): String =
  */
 fun feedbackLine(r: Report, perform: Boolean, pass: Int = 80, next: Boolean = true, flats: Boolean = false): Feedback =
     Feedback(feedbackText(r, perform, pass, next, flats, ::writtenNote),
-        feedbackText(r, perform, pass, next, flats, ::spokenNote).replace(Regex("(\\d+) ms"), "$1 milliseconds"))
+        feedbackText(r, perform, pass, next, flats, ::spokenFeedbackNote).replace(Regex("(\\d+) ms"), "$1 milliseconds"))
 
 private fun feedbackText(r: Report, perform: Boolean, pass: Int, next: Boolean, flats: Boolean, note: (Int, Boolean) -> String): String {
     val onward = if (next) " On to the next step." else ""

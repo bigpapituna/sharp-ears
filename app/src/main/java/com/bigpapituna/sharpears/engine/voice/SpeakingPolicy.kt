@@ -17,7 +17,9 @@ enum class Source {
 }
 
 /** A line handed to a speaker: its words, where its sound comes from ([asset] for a recording), its speed (the model's). */
-data class Utterance(val id: Int, val text: String, val source: Source, val asset: String?, val speed: Float, val overMic: Boolean)
+data class Utterance(val id: Int, val text: String, val source: Source, val asset: String?, val speed: Float, val overMic: Boolean,
+                     /** When the screen asked for the line (the policy's clock): the log times its wait. */
+                     val askedAt: Long = 0L)
 
 /**
  * The speaker port (2.18): one way of saying a line out loud. System speech (TextToSpeech on Android), a recorded clip
@@ -112,6 +114,8 @@ class SpeakingPolicy(
     /** Lines whose sound holds the mic deaf now (started on the speaker while it listened). */
     private val deafLines = HashSet<Int>()
     private var nextId = 0
+    /** When each line held for the mic was asked for (the log's wait times; the queue keeps its own for staleness). */
+    private val heldAt = HashMap<String, Long>()
 
     /** The voice is talking (or about to: a line is queued to say now). */
     val speaking: Boolean get() = current != null || toSay.isNotEmpty()
@@ -148,11 +152,14 @@ class SpeakingPolicy(
         val said = plainText(text)
         val lines = queue.offer(said, clock(), !quiet(), interrupt, deferrable)
         if (lines.isEmpty()) {
+            if (deferrable) heldAt.getOrPut(said) { clock() }
             log("voice: ${if (deferrable) "held while the mic listens" else "dropped, the mic listens"}: $said")
             return
         }
         if (interrupt) cutOff()
-        lines.forEach { enqueue(it, overMic = false) }
+        val now = clock()
+        lines.forEachIndexed { i, t -> enqueue(t, overMic = false, askedAt = if (i == lines.lastIndex) now else heldAt[t] ?: now) }
+        heldAt.clear()
         pump()
     }
 
@@ -187,24 +194,27 @@ class SpeakingPolicy(
 
     /** The mic stopped: the lines it held, still fresh, are said now. */
     fun micStopped() {
-        val lines = queue.release(clock())
-        if (lines.isNotEmpty()) log("voice: mic stopped, speaking ${lines.size} held line(s)")
+        val now = clock()
+        val lines = queue.releaseTimed(now)
+        heldAt.clear()
+        if (lines.isNotEmpty()) log("voice: mic stopped, speaking ${lines.size} held line(s), held ${lines.joinToString { "${now - it.second} ms" }}")
         if (!world.enabled) return
-        lines.forEach { enqueue(it, overMic = false) }
+        lines.forEach { enqueue(it.first, overMic = false, askedAt = it.second) }
         pump()
     }
 
     /** Everything stops: what is said, what waits, what the mic held. The mic hears again at once. */
     fun stop() {
         queue.clear()
+        heldAt.clear()
         cutOff()
         settle()
         log("voice: stop")
     }
 
-    private fun enqueue(text: String, overMic: Boolean) {
+    private fun enqueue(text: String, overMic: Boolean, askedAt: Long = clock()) {
         val (source, asset) = choose(text)
-        toSay.addLast(Utterance(nextId++, text, source, asset, world.speed, overMic))
+        toSay.addLast(Utterance(nextId++, text, source, asset, world.speed, overMic, askedAt))
         world.changed(true)
     }
 
@@ -227,7 +237,10 @@ class SpeakingPolicy(
         speaker = s
         // The one rule: a line that starts on the speaker while the mic listens makes it deaf until exactly its end.
         if (u.overMic || quiet()) { deafLines += u.id; world.lineStarts(u, null) }
-        s.say(u, started = { len -> if (current === u && len != null && u.id in deafLines) world.lineLength(u, len) },
+        s.say(u, started = { len ->
+                if (current === u) log("voice: u${u.id} sounds ${clock() - u.askedAt} ms after it was asked (${u.source.name.lowercase()})")
+                if (current === u && len != null && u.id in deafLines) world.lineLength(u, len)
+            },
             ended = { ok -> ended(u, ok) })
     }
 

@@ -167,17 +167,18 @@ class CheerPops internal constructor(
 
     /**
      * A step passed with a pop (2.11): the line for the step pop's bubble (shown with its picture, never said: the step's
-     * own line follows the chime), or null with Encouragement off.
+     * own line follows the chime), or null with Encouragement off. [extra] false (2.19.0: a pass whose feedback has something
+     * to say): the build's extra does not take it, so the feedback is said right after the chime.
      */
-    fun stepPassed(): String? {
+    fun stepPassed(extra: Boolean = true): String? {
         sync()
         val c = coach.stepPassed(now()) ?: return null
         Log.d(TAG, "cheer: ${c.trigger.wire} $audience \"${c.line}\" voice=${ChimeMode.SKIP}")
         if (telemetry) Tester.cheerPop(c.trigger, profileKid)
         // 2.16: a grown-up's extra (extras/Extras.kt) may take the line: its words in the bubble, its sound after the chime.
-        val extra = if (profileKid) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.STEP_PASSED,
+        val taken = if (profileKid || !extra) null else com.bigpapituna.sharpears.extras.Extras.line(com.bigpapituna.sharpears.extras.Moment.STEP_PASSED,
             afterMs = com.bigpapituna.sharpears.engine.lessons.StepPopRules.CHIME_MS.toLong())
-        return extra?.words ?: c.line
+        return taken?.words ?: c.line
     }
 
     /** The pop on screen goes (a step ended, the page moved on); its line, if said, finishes. */
@@ -230,7 +231,8 @@ fun rememberCheerPops(sampler: Sampler, mic: MicInput, voice: Voice, prefs: Pref
     // 2.16: leaving the screen stops a line of the build's extra (extras/Extras.kt) still playing.
     androidx.compose.runtime.DisposableEffect(key) { onDispose { com.bigpapituna.sharpears.extras.Extras.hush() } }
     return remember(key, kid, profileKid) {
-        CheerPops(CheerCoach(kid, com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plainNow.value, prefs.cheerFrequency)),
+        CheerPops(CheerCoach(kid, com.bigpapituna.sharpears.engine.family.PlainLook.cheerFrequency(plainNow.value, prefs.cheerFrequency),
+            bags = com.bigpapituna.sharpears.engine.praise.Praise.bags),
             sampler, mic, voice, prefs, scope, tonic, telemetry, profileKid).also { it.plain = { plainNow.value } }
     }
 }

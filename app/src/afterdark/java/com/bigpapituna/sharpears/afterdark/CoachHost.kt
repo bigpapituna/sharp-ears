@@ -48,12 +48,17 @@ internal object CoachHost {
         private set
     private var mic: MicInput? = null
     private var voice: Voice? = null
-    private var brain = CoachBrain()
+    private var brain = CoachBrain(bags = com.bigpapituna.sharpears.engine.praise.Praise.bags)
     private val banks = HashMap<String, CoachBank>()
     private var voiceList: List<CoachVoice>? = null
 
-    private class Pending(val line: CoachLine, val voice: String, val moment: Moment, val overlay: Boolean, val turn: ExtraTurn)
+    /** [atPause]: a held reaction let go at a pause in the try (2.19.0): it may start while the mic listens (deaf for it). */
+    private class Pending(val line: CoachLine, val voice: String, val moment: Moment, val overlay: Boolean, val turn: ExtraTurn,
+                          val askedAt: Long = SystemClock.uptimeMillis(), val atPause: Boolean = false)
     private var pending: Pending? = null
+    /** 2.19.0: the reaction asked mid-try, held for the next pause (CoachHold); [lastKey] is the player's last key. */
+    private val reaction = CoachHold<Pending>()
+    private var lastKey = 0L
     /** The line loading or playing in [clips]. */
     private var playing: Pending? = null
     private var chimeUntil = 0L
@@ -77,7 +82,7 @@ internal object CoachHost {
         this.prefs = prefs
         this.mic = mic
         this.voice = voice
-        brain = CoachBrain()
+        brain = CoachBrain(bags = com.bigpapituna.sharpears.engine.praise.Praise.bags)
         on()
     }
 
@@ -140,19 +145,78 @@ internal object CoachHost {
     fun line(m: Moment, count: Int?, afterMs: Long): ExtraLine? {
         if (!on() || busy || held) return null
         if (afterMs == 0L && voice?.speaking?.value == true) return null
+        // 2.18.3: never over the mic listening on the speaker (the player's turn): the bubble keeps the pup's words.
+        // 2.19.0: the coach's line for it is held for the next pause (holdReaction), not dropped.
+        if (afterMs == 0L && !mayStartNow()) { holdReaction(m, count); return null }
+        // 2.19.0: a reaction held from the try takes the moment's place when it says as much (the step's end: always).
+        reaction.claim(CoachHold.rank(m), now())?.let { h ->
+            Log.d(TAG, "coach: ${h.line.id} (${h.moment.name.lowercase()}, held ${now() - h.askedAt} ms) said for ${m.name.lowercase()}")
+            queue(Pending(h.line, h.voice, h.moment, overlay = false,
+                ExtraTurn(startAt = now() + afterMs, waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = false), h.askedAt))
+            return ExtraLine(h.line.caption, CoachSound.showMs(h.line.ms))
+        }
         val b = bank() ?: return null
         val l = brain.pick(m, count, now(), frequency(), b, forWho()) ?: return null
         queue(Pending(l, voice()!!, m, overlay = false, ExtraTurn(startAt = now() + afterMs, waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = false)))
         return ExtraLine(l.caption, CoachSound.showMs(l.ms))
     }
 
+    /**
+     * 2.19.0: a moment in the middle of a try, the mic listening on the speaker: its line is picked now (the waits and caps
+     * count it) and held for the next pause (CoachHold: quiet for 1.5 s, or the step's end), at most one, 8 s at most.
+     */
+    private fun holdReaction(m: Moment, count: Int?) {
+        val b = bank() ?: return
+        val l = brain.pick(m, count, now(), frequency(), b, forWho()) ?: return
+        val p = Pending(l, voice()!!, m, overlay = true, ExtraTurn(startAt = now(), waitMs = 0L, outlastsTheVoice = false))
+        val before = reaction.item
+        if (!reaction.offer(p, CoachHold.rank(m), now())) { Log.d(TAG, "coach: ${m.name.lowercase()} ${l.id} not held, ${before?.line?.id} says more"); return }
+        Log.d(TAG, "coach: ${m.name.lowercase()} ${l.id} held for a pause (the mic listens on the speaker)" +
+            (before?.let { ", replaces ${it.line.id}" } ?: ""))
+        main.removeCallbacks(pause)
+        main.postDelayed(pause, PAUSE_POLL_MS)
+    }
+
+    /** The player struck a key (a right one or not): the held reaction waits for a pause after it. */
+    fun heard() { lastKey = now() }
+
+    private val pause = Runnable { pausePoll() }
+
+    private fun pausePoll() {
+        if (reaction.item == null) return
+        if (!on()) { reaction.clear(); return }
+        // Something of the coach's, the voice or the chime first (the pause starts after them); the line still goes stale.
+        val turnTaken = busy || voice?.talkingOrAboutTo == true || now() < chimeUntil
+        val (next, h) = reaction.next(now(), lastKeyMs = if (turnTaken) now() else lastKey)
+        when (next) {
+            CoachHold.Next.STALE -> Log.d(TAG, "coach: ${h!!.line.id} dropped, no pause within ${CoachHold.STALE_MS} ms")
+            CoachHold.Next.SPEAK -> {
+                Log.d(TAG, "coach: ${h!!.line.id} said at a pause, held ${now() - h.askedAt} ms")
+                queue(Pending(h.line, h.voice, h.moment, overlay = true,
+                    ExtraTurn(startAt = now(), waitMs = CoachSound.SHOWN_WAIT_MS, outlastsTheVoice = true), h.askedAt, atPause = true))
+            }
+            else -> main.postDelayed(pause, PAUSE_POLL_MS)
+        }
+    }
+
     /** A moment with no bubble of its own: the line plays when the voice and the chime allow (CoachSound.WAIT_MS at most), its words in the overlay. */
     fun say(m: Moment) {
         if (!on() || busy || held) return
+        // 2.19.0: asked mid-try (the mic on the speaker), the line is held for the next pause instead of a 1.2 s wait.
+        if (!mayStartNow()) return holdReaction(m, null)
+        reaction.claim(CoachHold.rank(m), now())?.let { h ->
+            Log.d(TAG, "coach: ${h.line.id} (${h.moment.name.lowercase()}, held ${now() - h.askedAt} ms) said for ${m.name.lowercase()}")
+            return queue(Pending(h.line, h.voice, h.moment, overlay = true,
+                ExtraTurn(startAt = now(), waitMs = CoachSound.WAIT_MS, outlastsTheVoice = true), h.askedAt))
+        }
         val b = bank() ?: return
         val l = brain.pick(m, null, now(), frequency(), b, forWho()) ?: return
-        queue(Pending(l, voice()!!, m, overlay = true, ExtraTurn(startAt = now(), waitMs = CoachSound.WAIT_MS, outlastsTheVoice = true)))
+        queue(Pending(l, voice()!!, m, overlay = true,
+            ExtraTurn(startAt = now(), waitMs = CoachSound.waitMs(overlay = true, inTurn = false), outlastsTheVoice = true)))
     }
+
+    /** 2.18.3: a line may start now: the mic is not listening through the phone's speaker (CoachSound.mayStart). */
+    private fun mayStartNow(): Boolean = CoachSound.mayStart(mic?.listening == true, Stage.headphones())
 
     /** Each voice's course narration files (assets/coach/<voice>/course), listed once; read on the voice's worker thread too. */
     private val courseFiles = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
@@ -167,7 +231,12 @@ internal object CoachHost {
         val v = voice() ?: return null
         if (!CoachGate.narrates(p, v, PlainLook.on(p.audience, pr.plainLook))) return null
         val c = context ?: return null
-        val files = courseFiles.getOrPut(v) { runCatching { c.assets.list("coach/$v/course").orEmpty().toSet() }.getOrDefault(emptySet()) }
+        // 2.19.0 (B-02): a short listing is checked file by file (AssetIndex), never a line in the pup's voice by mistake.
+        val files = courseFiles.getOrPut(v) {
+            com.bigpapituna.sharpears.engine.voice.AssetIndex({ c.assets.list("coach/$v/course").orEmpty().toList() },
+                { n -> c.assets.open("coach/$v/course/$n").close(); true }, { Log.w(TAG, "coach: the $v listing missed $it; found on disk") })
+                .also { it.prime() }
+        }
         return CoachGate.narrationOf(key, forWho(), files)?.let { "coach/$v/course/$it" }
     }
 
@@ -193,6 +262,8 @@ internal object CoachHost {
     /** Everything stops: the line playing, the one waiting, its words. What waited on the line goes on now. */
     fun hush() {
         main.removeCallbacks(tick)
+        main.removeCallbacks(pause)
+        reaction.clear()
         pending = null
         clips?.stop()
         caption.value = null
@@ -215,8 +286,8 @@ internal object CoachHost {
     private fun step() {
         val p = pending ?: return
         val t = now()
-        when (p.turn.next(t, voiceTalking = voice?.talkingOrAboutTo == true, blocked = t < chimeUntil || playing != null)) {
-            ExtraTurn.Next.DROP -> { Log.d(TAG, "coach: ${p.line.id} dropped, no quiet moment"); pending = null; settle() }
+        when (p.turn.next(t, voiceTalking = voice?.talkingOrAboutTo == true, blocked = t < chimeUntil || playing != null || (!p.atPause && !mayStartNow()))) {
+            ExtraTurn.Next.DROP -> { Log.d(TAG, "coach: ${p.line.id} dropped, no quiet moment${if (!mayStartNow()) " (the mic listens on the speaker)" else ""}"); pending = null; settle() }
             ExtraTurn.Next.WAIT -> main.postDelayed(tick, POLL_MS)
             ExtraTurn.Next.GO -> { pending = null; play(p) }
         }
@@ -237,7 +308,7 @@ internal object CoachHost {
             // it (2.17) and shows "Listening again" after it (2.17), by its one rule (audio/Stage.kt).
             Stage.lineStarts(p, lengthMs, duck = true, cue = true)
             if (p.overlay) caption.value = Caption(++seq, p.line.caption, CoachSound.showMs(lengthMs))
-            Log.d(TAG, "coach: ${p.moment.name.lowercase()} ${p.voice}/${p.line.id} \"${p.line.caption}\" $lengthMs ms, mic deaf " +
+            Log.d(TAG, "coach: ${p.moment.name.lowercase()} ${p.voice}/${p.line.id} \"${p.line.caption}\" $lengthMs ms, sounds ${now() - p.askedAt} ms after it was asked, mic deaf " +
                 if (deafens) "${CoachSound.deafMs(lengthMs, headphones = false)} ms" else "no (headphones)")
         }, ended = { finished -> done(p, finished) })
     }
@@ -264,4 +335,5 @@ internal object CoachHost {
     }
 
     private const val POLL_MS = 50L
+    private const val PAUSE_POLL_MS = 100L
 }

@@ -1,6 +1,7 @@
 # Rebuilds app/src/main/assets/samples from the VSCO 2 Community Edition upright piano (CC0).
 # Samples exist every 4 semitones (MIDI 21, 25, ... 105, plus 108); the Sampler pitch-shifts the keys between.
 # Needs ffmpeg on PATH. Output: p<midi>.ogg, mono, 2 s with a 0.4 s fade, ~10 KB each.
+# 2.19.0: then run scripts/extend_samples.py: it loops each sample's sustain out to 8 s into assets/samples-long.
 param([string]$Dynamic = 'dyn2')
 $src = 'https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Keys/Upright%20Piano'
 $root = Split-Path $PSScriptRoot -Parent

@@ -44,6 +44,15 @@ class CoursePath(
     /** The lessons that count toward "n of m lessons": everything but the extra unit. */
     val counted: List<CourseLesson> = lessons.filter { !isExtra(it.first) }.map { it.second }
 
+    /**
+     * Learn's header (2.19.0, QA: "0 of 64 lessons" on a 70-lesson road read like a miscount): lessons done of those left to
+     * play, and the ones placement skipped named, so the two add up to the road: "0 of 64 lessons, 6 skipped".
+     */
+    fun progressLine(done: (String) -> Boolean, skipped: (String) -> Boolean): String {
+        val skip = counted.count { skipped(it.id) }
+        return "${counted.count { done(it.id) && !skipped(it.id) }} of ${counted.size - skip} lessons" + if (skip > 0) ", $skip skipped" else ""
+    }
+
     /** Playground levels the big kids' short list names lessons in (the others are walked whole). */
     private val shortListed: Set<String> = levels.filter { isPlayground(it) && it.lessons.any { l -> l.id in BIG_KID_LESSONS } }.map { it.id }.toSet()
 

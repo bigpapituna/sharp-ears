@@ -119,6 +119,11 @@ object Welcome {
             "The microphone listens again the moment the app stops talking, and the app's sounds stay out of its way.",
             "Lesson cards now count the steps you will actually play.",
         ),
+        // 2.19.0: the QA fix round (docs/QA-2026-11-02-courses.md).
+        "2.19.0" to listOf(
+            "Chords and both hands together are scored right: every key of a chord counts, none is marked wrong.",
+            "Long notes now ring for their full length, and the voice stays the same all the way through a lesson.",
+        ),
     )
 
     fun whatsNew(version: String, table: Map<String, List<String>> = WHATS_NEW): List<String> = table[version].orEmpty().take(MAX_LINES)

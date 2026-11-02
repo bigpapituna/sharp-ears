@@ -138,7 +138,10 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
     if (!who.isKid && stars >= 2) LaunchedEffect(e) { com.bigpapituna.sharpears.extras.Extras.say(com.bigpapituna.sharpears.extras.Moment.finish(stars)) }
     // 2.18 (bug 1): the stars line now waits out the voice; leaving the recap (Again, Back) drops it, as a lesson's page does.
     if (!who.isKid && stars >= 2) androidx.compose.runtime.DisposableEffect(e) { onDispose { com.bigpapituna.sharpears.extras.Extras.hush() } }
-    val seed = remember(e) { e.hashCode() }
+    // QA praise pass: a kid's headline and line come out of shuffle bags per star count (all three before any comes round again,
+    // kept across runs and restarts) rather than the event's hash; two bags so the title and the line do not move in step.
+    val seed = remember(e) { if (wordsKind == com.bigpapituna.sharpears.engine.family.ProfileKind.KID) com.bigpapituna.sharpears.engine.praise.Praise.bags.index("recap.title.$stars", 3) else e.hashCode() }
+    val lineSeed = remember(e) { if (wordsKind == com.bigpapituna.sharpears.engine.family.ProfileKind.KID) com.bigpapituna.sharpears.engine.praise.Praise.bags.index("recap.line.$stars", 3) else e.hashCode() }
     // 2.15, the Plain look: no pup (the app's mark in his place), no party, no star chimes, plain words, no reward line or chip.
     val plain = LocalPlain.current.on
     // The sunburst, confetti, trophy and flourish: grown-ups on a best worth it (RunWords.CELEBRATE_FROM), kids on three stars.
@@ -182,7 +185,7 @@ fun RunRecap(e: RunEnd, speed: Double, sampler: Sampler?, onAgain: () -> Unit, o
         else if (pose == Pose.GREAT_JOB) pup.play(PupMood.WAG)
     }
     val title = RunWords.headline(wordsKind, r, e.wrongKeys, e.newBest, seed).let { if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(it) else it }
-    val line = RunWords.coaching(wordsKind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = seed).let { if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(it) else it }
+    val line = RunWords.coaching(wordsKind, r, e.wrongKeys, hardest, speed, name = who.greetName, seed = lineSeed).let { if (plain) com.bigpapituna.sharpears.engine.family.PlainLook.calm(it) else it }
     // The pup says it, name and all (made on the phone, since names are never recorded): kids every time, grown-ups on a best.
     LaunchedEffect(e) {
         if (say == null) return@LaunchedEffect

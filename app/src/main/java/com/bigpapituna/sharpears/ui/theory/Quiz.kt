@@ -68,7 +68,6 @@ import com.bigpapituna.sharpears.ui.Keyboard
 import com.bigpapituna.sharpears.ui.Numeric
 import com.bigpapituna.sharpears.ui.pup.Pose
 import com.bigpapituna.sharpears.ui.PupSays
-import com.bigpapituna.sharpears.ui.cheerTitle
 import com.bigpapituna.sharpears.ui.reducedMotion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -89,7 +88,8 @@ internal fun Quiz(unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, voic
     var picked by remember { mutableStateOf<Int?>(null) }          // an option index, or the key played
     var right by remember { mutableStateOf<Boolean?>(null) }
     var missed by remember { mutableStateOf(setOf<Int>()) }
-    var cheers by remember { mutableIntStateOf(lesson.id.hashCode()) }
+    // QA praise pass: the right answer's cheer, drawn from the shuffle bag when it is answered, spoken and shown the same.
+    var cheer by remember { mutableStateOf("") }
     val qi = order[at]
     val q = qs[qi]
     DisposableEffect(Unit) { onDispose { voice.stop() } }
@@ -103,10 +103,11 @@ internal fun Quiz(unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, voic
         picked = choice; right = ok
         if (!ok && qi !in missed) { missed = missed + qi; order = order + qi }
         Log.d(TAG, "theory: ${lesson.id} q${qi + 1} answered $choice ${if (ok) "right" else "wrong"}")
-        voice.speak(if (ok) cheerTitle(cheers) else com.bigpapituna.sharpears.engine.theory.spokenNumerals(q.explain), interrupt = true)
+        if (ok) cheer = com.bigpapituna.sharpears.engine.praise.Praise.title()
+        voice.speak(if (ok) cheer else com.bigpapituna.sharpears.engine.theory.spokenNumerals(q.explain), interrupt = true)
     }
     fun next() {
-        if (at + 1 < order.size) { at++; picked = null; right = null; cheers++ }
+        if (at + 1 < order.size) { at++; picked = null; right = null }
         else { voice.stop(); onDone(qs.size - missed.size, qs.size) }
     }
 
@@ -130,7 +131,7 @@ internal fun Quiz(unit: TheoryUnit, lesson: TheoryLesson, sampler: Sampler, voic
         }
         right?.let { ok ->
             val line = if (ok) q.explain else (answerText(q)?.let { "The answer: $it. " } ?: "") + q.explain
-            CheerBar(if (ok) Cheer.GOOD else Cheer.MISS, if (ok) cheerTitle(cheers) else "Not quite", line,
+            CheerBar(if (ok) Cheer.GOOD else Cheer.MISS, if (ok) cheer else "Not quite", line,
                 if (at + 1 < order.size) "Continue" else "Finish", Modifier.align(Alignment.BottomCenter), onButton = ::next)
         }
     }

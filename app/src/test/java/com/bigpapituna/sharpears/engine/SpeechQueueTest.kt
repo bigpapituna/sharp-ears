@@ -42,4 +42,13 @@ class SpeechQueueTest {
         q.offer("F sharp is not in D major", 0, canSpeak = false, deferrable = false)
         assertEquals(listOf("b"), q.release(10))
     }
+
+    /** 2.18.3: the held lines come out with the time each was asked for, so the log can say how long the mic held them. */
+    @Test fun releaseTimedKeepsWhenEachLineWasAsked() {
+        val q = SpeechQueue()
+        q.offer("a", 100, canSpeak = false)
+        q.offer("b", 2_000, canSpeak = false)
+        assertEquals(listOf("a" to 100L, "b" to 2_000L), q.releaseTimed(5_000))
+        assertEquals(emptyList<Pair<String, Long>>(), q.releaseTimed(6_000))
+    }
 }

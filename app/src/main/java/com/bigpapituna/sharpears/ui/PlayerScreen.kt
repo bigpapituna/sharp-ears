@@ -338,7 +338,11 @@ private fun PlayerStage(args: PlayerArgs) {
     fun soundAllowed() = com.bigpapituna.sharpears.audio.Stage.echo(prefs.sound, listening = micOn && mode != Mode.LISTEN) && !(videoOn && tutorial?.anchor != null)
     fun apply(events: List<NoteEvent>) {
         val sound = soundAllowed()
-        events.forEach { e -> when (e) { is NoteEvent.On -> if (sound) sampler.noteOn(e.midi, e.velocity); is NoteEvent.Off -> sampler.noteOff(e.midi) } }
+        val at = transport.positionMs.toLong()
+        events.forEach { e -> when (e) {
+            is NoteEvent.On -> { Log.d(TAG, "app note ${noteName(e.midi)} at $at ms ${if (sound) "on" else "quiet (mic or sound off)"}"); if (sound) sampler.noteOn(e.midi, e.velocity) }
+            is NoteEvent.Off -> sampler.noteOff(e.midi)
+        } }
         version++
     }
     fun savePosition() {
@@ -947,6 +951,7 @@ private fun PlayerStage(args: PlayerArgs) {
                 val before = transport.positionMs
                 val away = com.bigpapituna.sharpears.engine.ForegroundClock.app.awayMs().let { a -> (a - awayLast).also { awayLast = a } }
                 val step = ((now - last) / 1_000_000.0 - away).coerceAtLeast(0.0)
+                if (step > 100) Log.d(TAG, "frame: ${step.toLong()} ms at ${transport.positionMs.toLong()} ms")
                 practiceMs[0] += step
                 if (practiceMs[0] >= 15_000) flushPractice()
                 val events = transport.tick(step)

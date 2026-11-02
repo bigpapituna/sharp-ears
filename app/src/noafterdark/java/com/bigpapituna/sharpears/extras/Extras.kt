@@ -39,6 +39,9 @@ object Extras {
     /** A step, a try or a run began. */
     fun stepBegan() {}
 
+    /** 2.19.0: the player struck a key (nothing to do without the extra). */
+    fun heard() {}
+
     /** Runs [then] once no line of the extra plays: at once here. */
     fun afterLine(then: () -> Unit) = then()
 

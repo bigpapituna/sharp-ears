@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bigpapituna.sharpears.R
 import com.bigpapituna.sharpears.audio.Clicks
 import com.bigpapituna.sharpears.audio.MicInput
@@ -96,14 +97,17 @@ fun EarTrainingScreen(
         })
     }
     val now = mode
-    BackHandler { voice.stop(); if (now is Mode.Hub) onBack() else mode = Mode.Hub }
+    // 2.18.3: a game or the workout opened from Learn's Ear training tab ([EarHub], so [start] is set) goes back to the tab,
+    // which is the hub, rather than to a second hub over it.
+    fun toHub() { voice.stop(); if (start != null) onBack() else mode = Mode.Hub }
+    BackHandler { if (now is Mode.Hub) { voice.stop(); onBack() } else toHub() }
     when (now) {
         Mode.Hub -> Hub(store, onBack, onGame = { k, l -> mode = Mode.Game(k, l, 0) }, onWorkout = { mode = Mode.Daily(Workout.plan(store, EarStore.today())) })
         is Mode.Game -> androidx.compose.runtime.key(now) {
-            GameRun(now.kind, now.level, env, store, onExit = { voice.stop(); mode = Mode.Hub },
+            GameRun(now.kind, now.level, env, store, onExit = ::toHub,
                 onAgain = { voice.stop(); mode = now.copy(session = now.session + 1) })
         }
-        is Mode.Daily -> WorkoutRun(now.plan, env, store, onExit = { voice.stop(); mode = Mode.Hub })
+        is Mode.Daily -> WorkoutRun(now.plan, env, store, onExit = ::toHub)
     }
 }
 
@@ -150,7 +154,7 @@ private fun GameRun(kind: EarKind, level: Int, env: EarEnv, store: EarStore, onE
  * button plays the level it shows straight away.
  */
 @Composable
-private fun Hub(store: EarStore, onBack: () -> Unit, onGame: (EarKind, Int) -> Unit, onWorkout: () -> Unit) {
+private fun Hub(store: EarStore, onBack: (() -> Unit)?, onGame: (EarKind, Int) -> Unit, onWorkout: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val v = store.version.intValue
     val today = EarStore.today()
@@ -163,7 +167,8 @@ private fun Hub(store: EarStore, onBack: () -> Unit, onGame: (EarKind, Int) -> U
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 960.dp).fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // In Learn's tab ([EarHub]) the tab row says Ear training: no Back, no title.
+            if (onBack != null) Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back") }
                 Text("Ear training", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 4.dp).semantics { heading() })
             }
@@ -184,6 +189,13 @@ private fun Hub(store: EarStore, onBack: () -> Unit, onGame: (EarKind, Int) -> U
     }
 }
 
+/**
+ * 2.18.3: the hub as Learn's Ear training tab draws it: the workout and the games, no Back and no title. A game or the workout
+ * opens through [onGame] and [onWorkout] (MainActivity pushes Screen.EarTraining with an [EarStart]; its end comes back here).
+ */
+@Composable
+fun EarHub(store: EarStore, onGame: (EarKind, Int) -> Unit, onWorkout: () -> Unit) = Hub(store, null, onGame, onWorkout)
+
 /** The daily workout: the one raised panel, in the pup's colours, with the streak and the three games of the plan. */
 @Composable
 private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last: String?, onStart: () -> Unit, modifier: Modifier = Modifier) {
@@ -203,22 +215,55 @@ private fun WorkoutHero(plan: WorkoutPlan, doneToday: Boolean, streak: Int, last
             if (streak > 0 && !com.bigpapituna.sharpears.ui.plainLook()) StreakBadge(streak)       // 2.15: no streak counter in the Plain look
         }
         Text(if (doneToday) "Next workout" else "Today", style = MaterialTheme.typography.labelLarge, color = c.onPrimaryContainer.copy(alpha = 0.75f))
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            plan.items.forEach { item ->
-                Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerLowest.copy(alpha = 0.7f)).padding(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                        EarArt(item.kind)
+        // 2.19.0 (QA): three tiles across broke "Progressions" mid-word and clipped the art on the Fold's cover screen at font
+        // scale 1.5; where a tile would be narrower than its words need, the three stack as rows (the art beside the words).
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val stacked = (maxWidth - 16.dp) / 3 < 100.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
+            if (stacked) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                plan.items.forEach { item ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerLowest.copy(alpha = 0.7f)).padding(6.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.size(width = 112.dp, height = 56.dp).clip(RoundedCornerShape(10.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                            // The art's own labels ("mi", "I V vi IV") are drawing, not reading: at the font scale of 1 they fit its box.
+                            val d = androidx.compose.ui.platform.LocalDensity.current
+                            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, 1f)) {
+                                EarArt(item.kind)
+                            }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            TileTitle(item.kind.title)
+                            Text("${item.rounds} rounds", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant)
+                        }
                     }
-                    Text(item.kind.title, style = MaterialTheme.typography.labelLarge, color = c.onSurface, maxLines = 2,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
-                    Text("${item.rounds} rounds", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 2.dp))
+                }
+            } else Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                plan.items.forEach { item ->
+                    Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerLowest.copy(alpha = 0.7f)).padding(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                            EarArt(item.kind)
+                        }
+                        TileTitle(item.kind.title, Modifier.padding(horizontal = 2.dp))
+                        Text("${item.rounds} rounds", style = Numeric.merge(MaterialTheme.typography.labelSmall), color = c.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 2.dp))
+                    }
                 }
             }
         }
         ChunkyButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text(if (doneToday) "Do it again" else "Start workout") }
     }
+}
+
+/**
+ * A workout tile's game name: one line per word at most, so a one-word name ("Progressions") shrinks to fit (TextAutoSize)
+ * instead of breaking mid-word, and a two-word one breaks at its space.
+ */
+@Composable
+private fun TileTitle(title: String, modifier: Modifier = Modifier) {
+    val style = MaterialTheme.typography.labelLarge
+    androidx.compose.foundation.text.BasicText(title, modifier, style = style.copy(color = MaterialTheme.colorScheme.onSurface),
+        maxLines = title.trim().split(" ").size.coerceIn(1, 2),
+        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = style.fontSize))
 }
 
 /** Days in a row with a workout: a big number in a ring, or a nudge to start one. */

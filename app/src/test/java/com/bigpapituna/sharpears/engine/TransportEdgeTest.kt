@@ -93,7 +93,7 @@ class TransportEdgeTest {
         var n = 0
         while (t.nextGroup?.startMs != 4000L && n++ < 10_000) { t.tick(16.0); if (t.waiting) t.expected.forEach { t.noteInput(it.midi) } }
         while (t.positionMs < 3700 && n++ < 10_000) t.tick(16.0)
-        assertEquals(InputResult.IGNORED, t.noteInput(60))                 // 300 ms before the chord: not yet, and not wrong
+        assertEquals(InputResult.IGNORED, t.noteInput(62))                 // 300 ms before the chord: not yet, and not wrong
         while (t.positionMs < 3850 && n++ < 10_000) t.tick(16.0)
         for (k in listOf(60, 60, 64, 64)) assertEquals(InputResult.CORRECT, t.noteInput(k))   // early enough, each twice
         while (!t.waiting && n++ < 10_000) t.tick(16.0)

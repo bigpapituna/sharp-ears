@@ -1,7 +1,14 @@
 package com.bigpapituna.sharpears.ui
 
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.Role
+import com.bigpapituna.sharpears.ui.motion.pressScale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,7 +113,8 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
                         key(level, seed) {
                             PlayerScreen(piece!!.exercise.toSong("sight-$level-$seed", "Sight-read"), null, deps.sampler, deps.midi, deps.mic, deps.voice, prefs,
                                 deps.ready, 0.0, false,
-                                PlayerStart(Mode.WAIT, piece.exercise.practice, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject),
+                                PlayerStart(Mode.WAIT, piece.exercise.practice, mic = deps.prefs.micDefault && deps.mic.hasPermission(), inject = inject,
+                                    midiScript = midiScript),       // 2.19.0 (QA B-10): the pretend keyboard reaches levels 1 and 2 too
                                 onBack = onBack,
                                 onFinished = { r ->
                                     val s = SightScore.of(r.realMs, r.wrongKeys)
@@ -132,23 +140,55 @@ fun SightReadScreen(deps: LessonDeps, startLevel: Int = 1, inject: String? = nul
         }
     }
     // The pup's verdict on the piece, and the way on to the next one.
+    val goodTitle = rememberCheerTitle(result)
     result?.let { (sc, newBest) ->
         val good = newBest || sc.wrong <= 2
         CheerBar(if (good) Cheer.GOOD else Cheer.MISS,
-            when { newBest -> "New best!"; good -> cheerTitle(seed.toInt()); else -> "Keep reading" },
+            when { newBest -> "New best!"; good -> goodTitle(); else -> "Keep reading" },
             // The title already says "New best!" (it read "New best! New best: 0:20, no wrong notes.").
             (if (newBest) "" else "Done: ") + sc.label + ".", "New piece", Modifier.align(Alignment.BottomCenter)) { seed = System.nanoTime() }
     }
     // The drill's two minutes are up: the score, and again (or on, in Practice today).
+    val drillTitle = rememberCheerTitle(drilled)
     drilled?.let { (sc, newBest) ->
         val met = goal == null || sc.right >= goal
         CheerBar(if (met || newBest) Cheer.GOOD else Cheer.MISS,
-            when { goal != null && met -> "Challenge met!"; newBest -> "New best!"; goal != null -> "Good reading"; else -> cheerTitle(seed.toInt()) },
+            when { goal != null && met -> "Challenge met!"; newBest -> "New best!"; goal != null -> "Good reading"; else -> drillTitle() },
             sc.label.replaceFirstChar { it.uppercase() } + "." + (goal?.let { if (met) "" else " The goal was $it." } ?: "") +
                 (if (goal != null && met && newBest) " A new best." else ""),
             if (onDrillDone != null) "Go on" else "Again", Modifier.align(Alignment.BottomCenter)) {
             if (onDrillDone != null) onDrillDone(sc) else seed = System.nanoTime()
         }
     }
+    }
+}
+
+/**
+ * 2.18.3: Learn's Sight reading tab. What sight-reading is, then each level this person has ([levels], SightLevels.open) as a row:
+ * its name, what it reads, and the best so far ([best]). A tap opens the drill at that level ([onOpen]: Screen.SightRead, which
+ * still has the level chips; Back returns to this tab).
+ */
+@Composable
+fun SightHome(levels: List<SightLevel>, best: (SightLevel) -> String?, onOpen: (Int) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PupSays(Pose.GET_READY, "Music you have never seen, read as it comes. Pick a level.", Modifier.padding(bottom = 4.dp), size = 56.dp)
+            levels.forEach { lv ->
+                val b = best(lv)
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale().clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerHigh)
+                    .clickable(role = Role.Button, onClickLabel = "Start ${lv.chip}") { Log.d(TAG, "learn: sight level ${lv.n} opened"); onOpen(lv.n) }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (lv.staff) "${lv.chip}: ${lv.title}" else lv.chip, style = MaterialTheme.typography.titleMedium)
+                        Text(lv.line, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+                        b?.let { Text("Best $it", style = Numeric.merge(MaterialTheme.typography.labelLarge), color = c.primary, modifier = Modifier.padding(top = 2.dp)) }
+                    }
+                    Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, tint = c.primary, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
     }
 }

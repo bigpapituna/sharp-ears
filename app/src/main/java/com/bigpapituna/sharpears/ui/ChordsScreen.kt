@@ -756,9 +756,10 @@ private fun Session(
             ChordTrainer(drill, sampler, midi, mic, micStart = micDefault, inject = inject, sound = sound, header = progress, plain = plain,
                 skip = { store.answer(false) },
                 onDone = { _, clean -> if (result == null) result = clean })
+            val goodTitle = rememberCheerTitle(result)
             result?.let { clean ->
                 CheerBar(if (clean) Cheer.GOOD else Cheer.MISS,
-                    if (clean) cheerTitle(store.sessionIndex + store.sessionCorrect) else "Almost",
+                    if (clean) goodTitle() else "Almost",
                     if (clean) "Played cleanly." else "Not clean yet, so it comes back sooner.",
                     "Continue", Modifier.align(Alignment.BottomCenter)) { store.answer(clean) }
             }

@@ -30,6 +30,8 @@ object Extras {
         "2.17.0" to listOf("The coach can now just use your name, Liam is a little louder over the notes, and the coach waits for your first note before talking."),
         // 2.18.0: the stars line waits out the lesson's last words (it used to be skipped after Liam's finish).
         "2.18.0" to listOf("Finish a lesson with two or three stars and your coach now has the last word, after the lesson's own."),
+        // 2.19.0: a reaction mid-try waits for a pause instead of being dropped; no greeting stacked before the first step.
+        "2.19.0" to listOf("Your coach reacts to what you just played at the next pause, and gets out of the way when a lesson starts."),
     )
 
     /** MainActivity opened a profile: [who] is read live at every moment (a profile made a kid is a kid at once). */
@@ -57,6 +59,9 @@ object Extras {
 
     /** A step, a try or a run began (a wrong key and a hint may have their line again). */
     fun stepBegan() = CoachHost.stepBegan()
+
+    /** 2.19.0: the player struck a key: a coach reaction held mid-try waits for a pause after it. */
+    fun heard() = CoachHost.heard()
 
     /** Runs [then] once no line of the coach's waits or plays (at once when none does). */
     fun afterLine(then: () -> Unit) = CoachHost.afterLine(then)

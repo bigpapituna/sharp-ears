@@ -158,9 +158,16 @@ class StageSoundTest {
         assertEquals(2, bank.played.last().first)
         assertEquals(Math.pow(2.0, -1.0 / 12).toFloat(), bank.played.last().third, 1e-5f)
         val stream = bank.volumes.keys.max()
+        val struck = bank.volumes.getValue(stream)
         stage.noteOff(71)
+        // 2.19.0: the 8 s samples are let go with a short damper fade, then stopped.
+        assertTrue(bank.stopped.isEmpty())
+        advance(StageSound.RELEASE_MS / 2)
+        assertTrue(bank.volumes.getValue(stream) in 0.01f..struck * 0.6f)
+        advance(StageSound.RELEASE_MS)
         assertEquals(listOf(stream), bank.stopped)
         stage.noteOff(71)                                       // already off: nothing more
+        advance(StageSound.RELEASE_MS * 2)
         assertEquals(1, bank.stopped.size)
     }
 }

@@ -81,11 +81,14 @@ class CheerMemory {
  *
  * Rate limits: never in the first [STEP_QUIET_MS] of a step or run; [GAP_MS] between pops ([KID_GAP_MS] for kids; Less
  * doubles both); at most [PER_MINUTE] in any minute (Less: [LESS_PER_MINUTE]); never while [CheerMoment.busy] or in the
- * [CheerMoment.tail]; none at all when [frequency] is Off. Lines: from the trigger's family for the audience ([kid]), never one of the last [RECENT] shown.
+ * [CheerMoment.tail]; none at all when [frequency] is Off. Lines: from the trigger's family for the audience ([kid]), one shuffle bag per family (every line heard before any repeats, never the same twice in a row, kept across lessons and restarts: engine/praise/PraiseBags); the last [RECENT] shown are only listed in [lines].
  */
 class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequency.DEFAULT, seed: Long = System.nanoTime(),
-                 private val memory: CheerMemory = CheerMemory.SESSION) {
+                 private val memory: CheerMemory = CheerMemory.SESSION,
+                 /** The shuffle bags the lines come from (QA praise pass): the app's own, kept across lessons and restarts; a test's own by default. */
+                 bags: com.bigpapituna.sharpears.engine.praise.PraiseBags? = null) {
     private val random = java.util.Random(seed)
+    private val bags = bags ?: com.bigpapituna.sharpears.engine.praise.PraiseBags(random)
     private val recent = ArrayDeque<String>()
     private val shown = ArrayDeque<Long>()
     private var lastPopMs: Long? = null
@@ -243,7 +246,8 @@ class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequenc
     }
 
     private fun made(trigger: CheerTrigger, nowMs: Long, count: Int?): Cheer {
-        val line = pick(pool(trigger, count))
+        val (bag, lines, prefer) = pool(trigger, count)
+        val line = bags.next("cheer.${if (kid) "k" else "g"}.${trigger.wire}.$bag", lines, prefer)
         recent.addLast(line); while (recent.size > RECENT) recent.removeFirst()
         shown.addLast(nowMs); lastPopMs = nowMs
         val entry = CheerEntry.entries.filter { it != lastEntry }.let { it[random.nextInt(it.size)] }
@@ -256,17 +260,13 @@ class CheerCoach(val kid: Boolean, var frequency: CheerFrequency = CheerFrequenc
      * The lines a pop picks from: the family, plus for a run the lines with its number (a run of 20 or 40 always says it; 5
      * and 10 roll between the number and the family's plain lines), and for a focus pop the lines naming its minutes.
      */
-    private fun pool(trigger: CheerTrigger, count: Int?): List<String> = when {
+    private fun pool(trigger: CheerTrigger, count: Int?): Triple<String, List<String>, Set<String>> = when {
         trigger == CheerTrigger.RUN && count != null ->
-            if (count >= 20 || random.nextBoolean()) CheerLines.runNumbered(count, kid) else CheerLines.family(trigger, kid)
-        trigger == CheerTrigger.FOCUS && count != null ->
-            CheerLines.focusMinutes(count, kid).filter { it !in recent }.ifEmpty { CheerLines.family(trigger, kid) }
-        else -> CheerLines.family(trigger, kid)
-    }
-
-    private fun pick(pool: List<String>): String {
-        val fresh = pool.filter { it !in recent }.ifEmpty { pool }
-        return fresh[random.nextInt(fresh.size)]
+            if (count >= 20 || random.nextBoolean()) Triple("n$count", CheerLines.runNumbered(count, kid), emptySet()) else Triple("plain", CheerLines.family(trigger, kid), emptySet())
+        // The minutes lines are one or two a stretch (a kid has one): they join the family's bag and go first while unheard, so
+        // a focus pop names its minutes but one is not heard twice in a row.
+        trigger == CheerTrigger.FOCUS && count != null -> CheerLines.focusMinutes(count, kid).let { Triple("plain", CheerLines.family(trigger, kid) + it, it.toSet()) }
+        else -> Triple("plain", CheerLines.family(trigger, kid), emptySet())
     }
 
     /**

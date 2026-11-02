@@ -192,15 +192,15 @@ fun Gated(onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.cur
 }
 
 /**
- * "Grown-ups only": hold the pup for three seconds while a ring fills, then answer a question on a number pad (2.14: a
- * two-digit sum with a carry or a times table, "23 plus 48", "6 times 7"). A wrong answer brings a new one; the third in a
- * row makes [gate] wait ("Try again in 30 seconds.", the pad off meanwhile). [onPass] after the right answer; [onCancel] on
- * Back or "Not now".
+ * "Grown-ups only". 2.18.3 (Roy: "I'd rather that be fairly open for now"): one tap on "I'm a grown-up" passes; "Not now" or
+ * Back leaves ([onCancel]). Everything around it is as it was: [ParentGateController], its two minutes open, Lock now, every
+ * caller. Before 2.18.3 (and again before kids get the app): hold the pup for three seconds while a ring fills ([HoldThePup]),
+ * then answer a two-digit sum or a times table on a number pad ([SumPad]; three wrong in a row make [gate] wait).
  */
 @Composable
+@Suppress("UNUSED_PARAMETER") // [gate] is SumPad's (its wait); kept so the callers need no change when it comes back
 fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit, gate: ParentGateController = LocalParentGate.current) {
     BackHandler(onBack = onCancel)
-    var held by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().paper().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -209,9 +209,27 @@ fun ParentGate(onPass: () -> Unit, onCancel: () -> Unit, gate: ParentGateControl
         Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Grown-ups only", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            if (!held) HoldThePup { held = true } else SumPad(onPass, gate)
+            // ponytail: one-tap gate for Roy's testing; restore HoldThePup + SumPad before kids get the app
+            // (was: `var held by remember { mutableStateOf(false) }` and `if (!held) HoldThePup { held = true } else SumPad(onPass, gate)`).
+            OneTapConfirm(onPass, onCancel)
         }
     }
+}
+
+/** 2.18.3: the open gate: the pup asks, one button passes, one leaves. */
+@Composable
+private fun OneTapConfirm(onPass: () -> Unit, onCancel: () -> Unit) {
+    val plain = com.bigpapituna.sharpears.ui.LocalPlain.current.on
+    val c = MaterialTheme.colorScheme
+    if (plain) com.bigpapituna.sharpears.ui.PlainMark(96.dp) else Pup(Pose.SHH, size = 140.dp, ground = false, idle = false)
+    Text("This part is for grown-ups. Kids, ask a grown-up to help.", style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant,
+        textAlign = TextAlign.Center)
+    com.bigpapituna.sharpears.ui.ChunkyButton(onClick = {
+        Log.d(TAG, "gate: one tap, I'm a grown-up")
+        com.bigpapituna.sharpears.analytics.Events.gateOpened()
+        onPass()
+    }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("I'm a grown-up") }
+    androidx.compose.material3.TextButton(onClick = onCancel, modifier = Modifier.padding(bottom = 24.dp)) { Text("Not now") }
 }
 
 /** Step one: press and hold the pup; the ring fills in three seconds and drains back if he is let go early. */
@@ -258,6 +276,7 @@ internal fun HoldThePup(onHeld: () -> Unit) {
  * Step two: "What is 23 plus 48?" typed on a number pad. A wrong answer gives a new question and a little shake; while [gate]
  * waits after three in a row, the pup says how long ("Try again in 30 seconds.", counting down) and the pad is off.
  */
+@Suppress("unused") // ponytail: one-tap gate for Roy's testing; restore HoldThePup + SumPad before kids get the app
 @Composable
 private fun SumPad(onPass: () -> Unit, gate: ParentGateController) {
     val still = reducedMotion()
